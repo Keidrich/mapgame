@@ -1,0 +1,63 @@
+/**
+ * Every way the player can change the world. The UI only ever dispatches these.
+ * `sim/reducer.ts` validates and applies them; `sim/affordances.ts` tells the UI
+ * which are currently possible and why not.
+ */
+import type { Id, FactionId, RacketKind, ProductionKind, OpKind, ProductKind, Assignment } from './types';
+
+export type Action =
+  // --- people ---
+  | { type: 'visit'; npcId: Id }                          // 1 AP: +trust/respect, learn things
+  | { type: 'gift'; npcId: Id; amount: number }           // cash: +trust
+  | { type: 'threaten'; npcId: Id }                       // 1 AP: +fear, -trust, +heat
+  | { type: 'recruit'; npcId: Id }                        // 1 AP: patron -> crew
+  | { type: 'fire'; npcId: Id }
+  | { type: 'assign'; npcId: Id; assignment?: Assignment }
+  | { type: 'bribe_official'; npcId: Id; amount: number } // cash
+  // --- businesses ---
+  | { type: 'shakedown'; businessId: Id }                 // 1 AP: demand protection money now
+  | { type: 'protect'; businessId: Id; rate: number }     // 1 AP: install a protection racket
+  | { type: 'buy_business'; businessId: Id; offer: number }
+  | { type: 'sell_business'; businessId: Id }
+  | { type: 'insure'; businessId: Id }
+  | { type: 'repair'; businessId: Id }
+  // --- rackets ---
+  | { type: 'start_racket'; businessId: Id; kind: RacketKind; product?: ProductKind }
+  | { type: 'upgrade_racket'; racketId: Id }
+  | { type: 'close_racket'; racketId: Id }
+  | { type: 'fund_racket'; racketId: Id; amount: number } // loansharking float
+  // --- safehouses & production ---
+  | { type: 'rent_safehouse'; blockId: Id }
+  | { type: 'upgrade_safehouse'; safehouseId: Id }
+  | { type: 'start_production'; safehouseId: Id; kind: ProductionKind }
+  | { type: 'restock_production'; productionId: Id; days: number }
+  | { type: 'close_production'; productionId: Id }
+  | { type: 'move_stash'; from: 'player' | Id; to: 'player' | Id; product: ProductKind; amount: number }
+  | { type: 'sell_product'; product: ProductKind; amount: number; blockId: Id } // 1 AP street sale
+  | { type: 'launder'; amount: number } // via laundering rackets capacity (auto at tick too)
+  // --- ops ---
+  | { type: 'plan_op'; kind: OpKind; crewIds: Id[]; targetBusinessId?: Id; targetNpcId?: Id; targetFactionId?: FactionId; targetBlockId?: Id }
+  | { type: 'launch_op'; opId: Id }
+  | { type: 'abort_op'; opId: Id }
+  // --- factions / politics ---
+  | { type: 'sit_down'; factionId: FactionId; offer: SitDownOffer }
+  | { type: 'pay_tribute'; factionId: FactionId; amount: number }
+  | { type: 'declare'; factionId: FactionId; stance: 'beef' | 'war' | 'peace' }
+  | { type: 'hire_lawyer' }
+  // --- turn ---
+  | { type: 'resolve_event'; eventId: Id; optionId: string }
+  | { type: 'end_day' }
+  // --- meta ---
+  | { type: 'rename'; name: string };
+
+export type SitDownOffer =
+  | { kind: 'truce'; days: number }
+  | { kind: 'tribute'; amountPerDay: number }
+  | { kind: 'cede_block'; blockId: Id }
+  | { kind: 'joint_racket'; businessId: Id }
+  | { kind: 'alliance' }
+  | { kind: 'demand_block'; blockId: Id };
+
+export interface Refusal { ok: false; reason: string }
+export interface Allowed { ok: true; cost?: { ap?: number; cash?: number } }
+export type Affordance = Allowed | Refusal;
