@@ -17,6 +17,22 @@ npm test           # sim unit tests
 npm run sim -- 60  # headless: a scripted player plays 60 days, prints the economy
 ```
 
+## Deploy (Cloudflare Pages)
+
+Connect the GitHub repo in the Cloudflare dashboard (Workers & Pages → Create →
+Pages → Connect to Git) with these settings:
+
+| Setting | Value |
+|---|---|
+| Framework preset | Vite (or None) |
+| Build command | `npm run build` |
+| Build output directory | `dist` |
+| Node version | `22` (read from `.node-version`; or set `NODE_VERSION=22` in the project's environment variables) |
+
+`public/_redirects` gives the SPA fallback and `public/_headers` keeps the service worker
+fresh. Every push to `main` redeploys. The site is HTTPS, which the phone needs for
+geolocation and the installable PWA.
+
 ## Layout
 
 | Dir | What | Rules |
