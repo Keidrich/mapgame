@@ -17,21 +17,14 @@ npm test           # sim unit tests
 npm run sim -- 60  # headless: a scripted player plays 60 days, prints the economy
 ```
 
-## Deploy (Cloudflare Pages)
+## Deploy (Cloudflare Workers, static assets)
 
-Connect the GitHub repo in the Cloudflare dashboard (Workers & Pages → Create →
-Pages → Connect to Git) with these settings:
-
-| Setting | Value |
-|---|---|
-| Framework preset | Vite (or None) |
-| Build command | `npm run build` |
-| Build output directory | `dist` |
-| Node version | `22` (read from `.node-version`; or set `NODE_VERSION=22` in the project's environment variables) |
-
-`public/_redirects` gives the SPA fallback and `public/_headers` keeps the service worker
-fresh. Every push to `main` redeploys. The site is HTTPS, which the phone needs for
-geolocation and the installable PWA.
+The repo is connected to Cloudflare through Workers & Pages → Connect to Git. On each
+push to `main` Cloudflare runs `npm run build` and `npx wrangler deploy`, which uploads
+`dist/` as static assets using `wrangler.jsonc`. SPA routing comes from
+`not_found_handling: single-page-application` there (do not add a `_redirects` file;
+it conflicts). `public/_headers` keeps the service worker fresh. Node 22 is pinned in
+`.node-version`.
 
 ## Layout
 
