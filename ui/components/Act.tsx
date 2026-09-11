@@ -21,7 +21,7 @@ export function Act({ action, label, kind = '', block, small, onDone, confirm, i
   return (
     <div className="actwrap">
       <button type="button" className={cls} disabled={!a.ok} onClick={onClick}>
-        {icon && <span>{icon}</span>}<span>{label}</span>{cost && <span className="cost">{cost}</span>}
+        <span>{icon && <>{icon} </>}{label}</span>{cost && <span className="cost">{cost}</span>}
       </button>
       {!a.ok && <span className="btn-caption">{a.reason}</span>}
     </div>
@@ -46,7 +46,7 @@ export function Disclosure({ label, children, icon, kind }: { label: string; chi
   return (
     <div className="actwrap">
       <button type="button" className={`btn${kind ? ` btn-${kind}` : ''}${open ? ' btn-ghost' : ''}`} onClick={() => setOpen(o => !o)} aria-expanded={open}>
-        {icon && <span>{icon}</span>}<span>{label}</span><span className="muted">{open ? '▴' : '▾'}</span>
+        <span>{icon && <>{icon} </>}{label} <span className="muted">{open ? '▴' : '▾'}</span></span>
       </button>
       {open && <div className="card mt8">{children}</div>}
     </div>

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { select } from '@sim/index';
 import { PLAYER, type Id, type ProductKind, type Racket, type World } from '@sim/types';
 import { PRODUCT_INFO, RACKET_DEFS, RACKET_UPGRADE_COST, TRAIT_LABELS } from '@content/rackets';
+import { BUSINESS_DEFS } from '@content/businesses';
 import { PRODUCTS, bizIcon, bizTypeLabel, conditionTone, crewName, fmtMoney, ownerLabel, pct, protectionLabel } from '@ui/derive';
 import { openSheet, useWorld } from '@ui/store';
 import { Sheet } from './Sheet';
@@ -16,6 +17,7 @@ export function BusinessSheet({ businessId }: { businessId: Id }) {
   const owner = w.npcs[biz.ownerId];
   const block = w.blocks[biz.blockId];
   const yours = biz.ownedBy === 'player';
+  const extortable = BUSINESS_DEFS[biz.type].rackets.includes('protection');
   const patrons = select.patronsOf(w, biz);
   const rackets = select.racketsAt(w, biz);
   const available = select.availableRackets(w, biz);
@@ -61,12 +63,13 @@ export function BusinessSheet({ businessId }: { businessId: Id }) {
             <div className="mt8"><Act action={{ type: 'gift', npcId: owner.id, amount: gift }} label={`Give ${fmtMoney(gift)}`} kind="primary" block /></div>
           </Disclosure>
         )}
-        {!yours && <Act action={{ type: 'shakedown', businessId }} label="Shakedown" icon="👊" kind="danger" />}
-        {!yours && (
+        {!yours && extortable && <Act action={{ type: 'shakedown', businessId }} label="Shakedown" icon="👊" kind="danger" />}
+        {!yours && extortable && (
           <Disclosure label="Protect" icon="🛡️">
             <p className="small muted">The owner pays you a cut of income, every day.</p>
             <div className="chips mb8">{[0.1, 0.2, 0.3].map(r => <button type="button" key={r} className={`chip btn${rate === r ? ' sel' : ''}`} onClick={() => setRate(r)}>{pct(r)}</button>)}</div>
-            <Act action={{ type: 'protect', businessId, rate }} label={`Protect at ${pct(rate)} (~${fmtMoney(biz.baseIncome * rate)}/day)`} kind="primary" block />
+            <p className="small muted">About {fmtMoney(biz.baseIncome * rate * 3)}/day. Fair rates build trust; greedy ones breed snitches.</p>
+            <Act action={{ type: 'protect', businessId, rate }} label={`Protect at ${pct(rate)}`} kind="primary" block />
           </Disclosure>
         )}
         {!yours && (

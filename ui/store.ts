@@ -78,7 +78,8 @@ export function act(action: Action): boolean {
   const before = w.log.length;
   const next = dispatch(w, action);
   save(next);
-  set({ world: next });
+  // a new day starts on the map, so the event cards are the first thing the player sees
+  set(action.type === 'end_day' ? { world: next, sheets: [], tab: 'map' } : { world: next });
   pushToasts(next.log.slice(before));
   return true;
 }
@@ -131,8 +132,9 @@ export function focus(ref: { blockId?: Id; businessId?: Id; npcId?: Id }) {
 function pushToasts(entries: LogEntry[]) {
   if (!entries.length) return;
   const now = Date.now();
-  const fresh = entries.slice(-3).map(e => ({ id: toastSeq++, text: e.text, tone: e.tone, until: now + TOAST_MS }));
-  set({ toasts: [...state.toasts, ...fresh].slice(-4) });
+  const fresh = entries.slice(-2).map(e => ({ id: toastSeq++, text: e.text, tone: e.tone, until: now + TOAST_MS }));
+  const merged = [...state.toasts.filter(t => !fresh.some(f => f.text === t.text)), ...fresh];
+  set({ toasts: merged.slice(-2) });
   setTimeout(() => {
     const t = Date.now();
     set({ toasts: state.toasts.filter(x => x.until > t) });

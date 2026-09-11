@@ -23,6 +23,8 @@ function hexStyle(w: World, blockId: Id, selected: boolean): L.PathOptions {
     opacity: selected ? 1 : ctrl ? 0.8 : 0.5,
     fillColor: ctrl === PLAYER ? '#f2c94c' : ctrl ? color : '#666a70',
     fillOpacity: hot ? Math.max(fillOpacity, 0.2) : fillOpacity,
+    // Player turf gets a dashed edge so it reads apart from gold-ish faction colours.
+    dashArray: ctrl === PLAYER && !selected ? '6 4' : undefined,
   };
 }
 
@@ -52,6 +54,7 @@ export function MapView() {
     if (!el.current || map.current) return;
     const m = L.map(el.current, { zoomControl: true, attributionControl: true, zoomSnap: 0.25, zoomDelta: 0.5, minZoom: 11, maxZoom: 18 });
     L.tileLayer(TILE_URL, TILE_OPTS).addTo(m);
+    m.zoomControl.setPosition('bottomleft');
     hexLayer.current.addTo(m); badgeLayer.current.addTo(m); markerLayer.current.addTo(m);
     m.setView([0, 0], 14);
     m.on('zoomend', () => { if (worldRef.current) syncMarkers(m, worldRef.current); });

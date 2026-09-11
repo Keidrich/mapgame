@@ -41,7 +41,7 @@ export const BUSINESS_NAME_PARTS = {
 export const FACTION_ARCHETYPES = [
   { name: 'The {L} Family', short: '{L}s', style: 'italian', color: '#c0392b', temperament: 'greedy' },
   { name: '{L} Bratva', short: 'Bratva', style: 'russian', color: '#8e44ad', temperament: 'aggressive' },
-  { name: 'Eastside Kings', short: 'Kings', style: 'street', color: '#d4a017', temperament: 'aggressive' },
+  { name: 'Eastside Kings', short: 'Kings', style: 'street', color: '#e84393', temperament: 'aggressive' },
   { name: 'The Dock Union', short: 'Union', style: 'irish', color: '#27ae60', temperament: 'paranoid' },
   { name: 'Jade Circle', short: 'Circle', style: 'triad', color: '#16a085', temperament: 'diplomatic' },
   { name: 'Los {L}', short: '{L}', style: 'latin', color: '#e67e22', temperament: 'greedy' },
