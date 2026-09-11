@@ -122,11 +122,17 @@ export function generateWorld(opts: NewGameOptions): World {
       f.lieutenantIds.push(lt.id);
     }
     w.factions[f.id] = f; factionIds.push(f.id);
-    // influence rings around the home block, measured in steps
-    for (const b of blocks) {
-      const d = distanceM(b.center, homeBlock.center) / STEP_M;
-      const inf = d <= 1.2 ? rng.int(60, 90) : d <= 2.3 ? rng.int(18, 38) : d <= 3.3 ? rng.int(4, 14) : 0;
-      if (inf > 0 && b.id !== startBlock.id) b.influence[f.id] = inf;
+    // influence rings around the home block, by street adjacency: home + neighbours strong, next ring weak
+    const ring = new Map<string, number>([[homeBlock.id, 0]]);
+    let frontier = [homeBlock.id];
+    for (let depth = 1; depth <= 3; depth++) {
+      const next: string[] = [];
+      for (const id of frontier) for (const n of w.blocks[id].neighborIds) if (!ring.has(n)) { ring.set(n, depth); next.push(n); }
+      frontier = next;
+    }
+    for (const [id, d] of ring) {
+      const inf = d <= 1 ? rng.int(60, 90) : d === 2 ? rng.int(18, 38) : rng.int(4, 14);
+      if (id !== startBlock.id) w.blocks[id].influence[f.id] = inf;
     }
   });
   for (const a of factionIds) {

@@ -7,7 +7,14 @@ import { gridBounds, topInfluence } from '@ui/derive';
 import { openSheet, useStore } from '@ui/store';
 import { addBasemap } from '@ui/basemap';
 
-const MARKER_ZOOM = 15;
+/** Business markers appear once the typical block is at least this wide on screen. */
+const MARKER_BLOCK_PX = 96;
+function blocksAreBig(m: L.Map, w: World): boolean {
+  const blocks = Object.values(w.blocks); if (!blocks.length) return false;
+  const avgSide = Math.sqrt(blocks.reduce((s, b) => s + b.areaM2, 0) / blocks.length);
+  const metresPerPx = (156543.03 * Math.cos((w.origin.lat * Math.PI) / 180)) / Math.pow(2, m.getZoom());
+  return avgSide / metresPerPx >= MARKER_BLOCK_PX;
+}
 
 function hexStyle(w: World, blockId: Id, selected: boolean): L.PathOptions {
   const b = w.blocks[blockId];
@@ -107,11 +114,13 @@ export function MapView() {
   }, [blockId, businessId, world]);
 
   function syncMarkers(m: L.Map, w: World) {
-    const hi = m.getZoom() >= MARKER_ZOOM;
+    const hi = blocksAreBig(m, w);
     const want = new Map<string, Want>();
     const at = (b: World['blocks'][string], dx: number, dy: number): L.LatLngExpression => {
       const p = hex.metersToLatLng(b.center, dx, dy); return [p.lat, p.lng];
     };
+    const sb = select.startBlock(w);
+    want.set('start', { html: '<div class="start-marker" title="Where you started">★</div>', pos: [sb.center.lat, sb.center.lng], size: [18, 18], anchor: [9, hi ? -4 : 28], layer: 'badge' });
     for (const b of Object.values(w.blocks)) {
       if (b.heat > 50) want.set(`fire:${b.id}`, { html: '<div class="hex-fire">🔥</div>', pos: at(b, 0, hi ? Math.min(w.hexSizeM * 0.55, Math.sqrt(b.areaM2) * 0.35) : 0), size: [16, 16], anchor: [8, hi ? 8 : 24], layer: 'badge' });
       if (!hi) {
