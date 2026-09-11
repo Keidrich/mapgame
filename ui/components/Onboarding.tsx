@@ -3,7 +3,7 @@ import * as L from 'leaflet';
 import { generateWorld } from '@sim/index';
 import type { LatLng, Player } from '@sim/types';
 import { newGame } from '@ui/store';
-import { TILE_OPTS, TILE_URL } from './Map';
+import { addBasemap } from '@ui/basemap';
 
 const BACKGROUNDS: { id: Player['background']; label: string; blurb: string; ico: string }[] = [
   { id: 'muscle', label: 'Muscle', blurb: 'You came up on the door. People pay when you ask.', ico: '💪' },
@@ -114,8 +114,8 @@ function PickMap({ value, onPick }: { value: Place | null; onPick: (lat: number,
   useEffect(() => {
     if (!el.current || map.current) return;
     const m = L.map(el.current, { zoomControl: false, attributionControl: true });
-    L.tileLayer(TILE_URL, TILE_OPTS).addTo(m);
     m.setView(value ? [value.lat, value.lng] : [40.7128, -74.006], value ? 13 : 3);
+    addBasemap(m);
     m.on('click', e => cb.current(e.latlng.lat, e.latlng.lng));
     map.current = m;
     return () => { m.remove(); map.current = null; pin.current = null; };

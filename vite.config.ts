@@ -34,9 +34,14 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,svg,png}'],
         runtimeCaching: [
           {
-            urlPattern: /^https:\/\/[abcd]\.basemaps\.cartocdn\.com\/.*/i,
+            urlPattern: /^https:\/\/tiles\.openfreemap\.org\/.*/i,
             handler: 'CacheFirst',
-            options: { cacheName: 'map-tiles', expiration: { maxEntries: 800, maxAgeSeconds: 60 * 60 * 24 * 14 } },
+            options: { cacheName: 'vector-tiles', expiration: { maxEntries: 1500, maxAgeSeconds: 60 * 60 * 24 * 14 } },
+          },
+          {
+            urlPattern: /^https:\/\/tile\.openstreetmap\.org\/.*/i,
+            handler: 'CacheFirst',
+            options: { cacheName: 'raster-tiles', expiration: { maxEntries: 800, maxAgeSeconds: 60 * 60 * 24 * 14 } },
           },
         ],
       },

@@ -5,9 +5,8 @@ import { PLAYER, type Id, type World } from '@sim/types';
 import { BUSINESS_DEFS } from '@content/businesses';
 import { gridBounds, topInfluence } from '@ui/derive';
 import { openSheet, useStore } from '@ui/store';
+import { addBasemap } from '@ui/basemap';
 
-export const TILE_URL = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
-export const TILE_OPTS: L.TileLayerOptions = { subdomains: 'abcd', attribution: '© OpenStreetMap contributors © CARTO', maxZoom: 19 };
 const MARKER_ZOOM = 15;
 
 function hexStyle(w: World, blockId: Id, selected: boolean): L.PathOptions {
@@ -53,10 +52,10 @@ export function MapView() {
   useEffect(() => {
     if (!el.current || map.current) return;
     const m = L.map(el.current, { zoomControl: true, attributionControl: true, zoomSnap: 0.25, zoomDelta: 0.5, minZoom: 11, maxZoom: 18 });
-    L.tileLayer(TILE_URL, TILE_OPTS).addTo(m);
+    m.setView([0, 0], 14);
+    addBasemap(m);
     m.zoomControl.setPosition('bottomleft');
     hexLayer.current.addTo(m); badgeLayer.current.addTo(m); markerLayer.current.addTo(m);
-    m.setView([0, 0], 14);
     m.on('zoomend', () => { if (worldRef.current) syncMarkers(m, worldRef.current); });
     map.current = m;
     return () => {

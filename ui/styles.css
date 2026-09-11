@@ -251,3 +251,6 @@ label.field { display: block; font-size: 12px; color: var(--muted); margin-botto
   .panel { padding: 20px 20px 100px; }
   .toasts { left: 16px; right: auto; width: 360px; bottom: 24px; }
 }
+
+/* raster fallback basemap: OSM tiles darkened to match the theme */
+.tiles-dark { filter: invert(1) hue-rotate(180deg) brightness(0.8) contrast(0.9) saturate(0.25); }
