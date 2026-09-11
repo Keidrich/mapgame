@@ -2,7 +2,8 @@
 import { BUSINESS_DEFS } from '@content/businesses';
 import { OP_DEFS, RACKET_DEFS } from '@content/rackets';
 import { controller, stanceFor } from './generate';
-import { hexDistance } from './hex';
+import { distanceM } from '@geo/project';
+import { STEP_M } from './generate';
 import { PLAYER, type Block, type Business, type FactionId, type Id, type Npc, type OpKind, type RacketKind, type Stance, type World } from './types';
 
 export { controller, stanceFor };
@@ -61,7 +62,10 @@ export function dailyEstimate(w: World): { clean: number; dirty: number; wages: 
   const rent = w.player.safehouseIds.reduce((s, id) => s + [600, 2500, 8000][w.safehouses[id].tier - 1] / 30, 0);
   return { clean: Math.round(clean), dirty: Math.round(dirty), wages, rent: Math.round(rent) };
 }
-export function distanceFromStart(w: World, blockId: Id): number { return hexDistance(w.blocks[blockId].hex, { q: 0, r: 0 }); }
+/** Distance from the start point in block steps (~330 m). */
+export function distanceFromStart(w: World, blockId: Id): number { return distanceM(w.blocks[blockId].center, w.origin) / STEP_M; }
+export function startBlock(w: World): Block { return Object.values(w.blocks).slice().sort((a, b) => distanceM(a.center, w.origin) - distanceM(b.center, w.origin))[0]; }
+export function neighborsOf(w: World, blockId: Id): Block[] { return w.blocks[blockId].neighborIds.map(id => w.blocks[id]).filter(Boolean); }
 export function npcLocation(w: World, n: Npc): Business | undefined {
   if (n.favouriteBusinessIds.length) return w.businesses[n.favouriteBusinessIds[0]];
   if (n.role === 'owner') return Object.values(w.businesses).find(b => b.ownerId === n.id);

@@ -4,7 +4,7 @@
  */
 import { OP_DEFS, PRODUCT_INFO, RACKET_DEFS, PRODUCTION_DEFS } from '@content/rackets';
 import { BUSINESS_DEFS } from '@content/businesses';
-import { select, hex } from '@sim/index';
+import { select } from '@sim/index';
 import { PLAYER, type Assignment, type Block, type Business, type FactionId, type Id, type Npc, type Op, type ProductKind, type Stash, type World, type Stance } from '@sim/types';
 
 export const PRODUCTS: ProductKind[] = ['booze', 'green', 'pills', 'hot_goods', 'counterfeit'];
@@ -92,7 +92,7 @@ export function opTargetLabel(w: World, o: Op): string {
 /** Bounding box of the whole hex grid, for fitBounds on a new game. */
 export function gridBounds(w: World): [[number, number], [number, number]] {
   let minLat = Infinity, minLng = Infinity, maxLat = -Infinity, maxLng = -Infinity;
-  for (const b of Object.values(w.blocks)) for (const c of hex.hexCorners(w.origin, b.hex, w.hexSizeM)) {
+  for (const b of Object.values(w.blocks)) for (const c of b.polygon) {
     if (c.lat < minLat) minLat = c.lat; if (c.lat > maxLat) maxLat = c.lat;
     if (c.lng < minLng) minLng = c.lng; if (c.lng > maxLng) maxLng = c.lng;
   }

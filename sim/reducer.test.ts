@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { PLAYER, can, dispatch, generateWorld, select, type World } from './index';
 
 const mk = (seed = 5) => generateWorld({ origin: { lat: 51.5, lng: -0.12 }, placeName: 'London', playerName: 'T', background: 'muscle', seed });
-const startBlock = (w: World) => Object.values(w.blocks).find(b => b.hex.q === 0 && b.hex.r === 0)!;
+const startBlock = (w: World) => select.startBlock(w);
 const softTarget = (w: World) => select.businessesIn(w, startBlock(w).id).concat(...Object.values(w.blocks).filter(b => select.distanceFromStart(w, b.id) <= 1).map(b => select.businessesIn(w, b.id)))
   .filter(b => !b.protection && b.ownedBy === 'npc' && b.type !== 'bank' && b.type !== 'armored_depot').sort((a, b) => w.npcs[a.ownerId].nerve - w.npcs[b.ownerId].nerve)[0];
 

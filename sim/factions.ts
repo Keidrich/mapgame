@@ -1,13 +1,14 @@
 /** Faction AI: runs once per faction per day. Factions play the same game the player does. */
 import { BUSINESS_DEFS } from '@content/businesses';
 import { stanceFor } from './generate';
-import { hexDistance, neighbors, hexKey } from './hex';
+import { distanceM } from '@geo/project';
+import { STEP_M } from './generate';
 import type { Rng } from './rng';
 import { PLAYER, type Block, type Faction, type FactionId, type World } from './types';
 import { addHeat, addInfluence, adjustRel, clamp, factionOf, log, money } from './util';
 import { successionOrDeath } from './ops';
 
-export function runFaction(w: World, f: Faction, rng: Rng, blockByHex: Map<string, Block>) {
+export function runFaction(w: World, f: Faction, rng: Rng) {
   if (!f.alive) return;
   const p = w.player;
   const controlled = Object.values(w.blocks).filter(b => factionOf(w, b.id) === f.id);
@@ -38,8 +39,9 @@ export function runFaction(w: World, f: Faction, rng: Rng, blockByHex: Map<strin
   const pushes = f.cash > pushCost ? (aggressive && rng.chance(0.5) ? 2 : rng.chance(0.7) ? 1 : 0) : 0;
   for (let i = 0; i < pushes; i++) {
     const cands: { b: Block; score: number }[] = [];
-    for (const b of controlled) for (const nh of neighbors(b.hex)) {
-      const nb = blockByHex.get(hexKey(nh)); if (!nb) continue;
+    const seenCand = new Set<string>();
+    for (const b of controlled) for (const nid of b.neighborIds) {
+      const nb = w.blocks[nid]; if (!nb || seenCand.has(nid)) continue; seenCand.add(nid);
       const ctrl = factionOf(w, nb.id);
       if (ctrl === f.id) continue;
       const mine = nb.influence[f.id] ?? 0; if (mine >= 100) continue;
@@ -123,7 +125,7 @@ function stanceOf(f: Faction) { return f.stance[PLAYER]; }
 function actAgainstPlayer(w: World, f: Faction, rng: Rng, war: boolean) {
   const p = w.player;
   const myRackets = p.racketIds.map(id => w.rackets[id]).filter(r => r && !r.disrupted);
-  const near = (blockId: string) => Object.values(w.blocks).some(b => factionOf(w, b.id) === f.id && hexDistance(b.hex, w.blocks[blockId].hex) <= 3);
+  const near = (blockId: string) => Object.values(w.blocks).some(b => factionOf(w, b.id) === f.id && distanceM(b.center, w.blocks[blockId].center) <= 3 * STEP_M);
   const acts = war ? 2 : 1;
   for (let i = 0; i < acts; i++) {
     const roll = rng.float();

@@ -1,7 +1,8 @@
 import { Rng } from './rng';
 import type { Id, LogEntry, Npc, World, FactionId, Block } from './types';
 import { PLAYER } from './types';
-import { hexDistance } from './hex';
+import { distanceM } from '@geo/project';
+import { STEP_M } from './generate';
 import { controller } from './generate';
 
 export const clamp = (v: number, lo = 0, hi = 100) => Math.max(lo, Math.min(hi, v));
@@ -41,8 +42,8 @@ export function addInfluence(w: World, blockId: Id, f: FactionId, amount: number
 export function spreadRep(w: World, blockId: Id, d: { respect?: number; fear?: number; trust?: number }, radius = 1) {
   const src = w.blocks[blockId];
   for (const b of Object.values(w.blocks)) {
-    const dist = hexDistance(b.hex, src.hex);
-    if (dist > radius) continue;
+    const dist = b.id === src.id ? 0 : distanceM(b.center, src.center) / STEP_M;
+    if (dist > radius + 0.3) continue;
     const k = dist === 0 ? 1 : 0.4;
     for (const bid of b.businessIds) {
       const biz = w.businesses[bid];
@@ -66,7 +67,7 @@ export function money(n: number): string { return `$${Math.round(n).toLocaleStri
 
 export function blocksNear(w: World, blockId: Id, radius: number): Block[] {
   const src = w.blocks[blockId];
-  return Object.values(w.blocks).filter(b => hexDistance(b.hex, src.hex) <= radius);
+  return Object.values(w.blocks).filter(b => distanceM(b.center, src.center) <= radius * STEP_M + 1);
 }
 
 export function isPlayerFaction(f?: FactionId) { return f === PLAYER; }

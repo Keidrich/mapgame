@@ -19,8 +19,9 @@
     "paths": {
       "@sim/*": ["sim/*"],
       "@content/*": ["content/*"],
-      "@ui/*": ["ui/*"]
+      "@ui/*": ["ui/*"],
+      "@geo/*": ["geo/*"]
     }
   },
-  "include": ["sim", "content", "ui", "scripts", "vite.config.ts", "vitest.config.ts"]
+  "include": ["sim", "content", "geo", "ui", "scripts", "vite.config.ts", "vitest.config.ts"]
 }

@@ -85,7 +85,7 @@ export function MapView() {
       const style = hexStyle(world, b.id, b.id === selRef.current.blockId);
       let p = polys.current.get(b.id);
       if (!p) {
-        p = L.polygon(hex.hexCorners(world.origin, b.hex, world.hexSizeM).map(c => [c.lat, c.lng] as [number, number]), style);
+        p = L.polygon(b.polygon.map(c => [c.lat, c.lng] as [number, number]), style);
         p.on('click', () => openSheet({ kind: 'block', blockId: b.id }));
         p.addTo(hexLayer.current); polys.current.set(b.id, p);
       } else p.setStyle(style);
@@ -110,24 +110,23 @@ export function MapView() {
     const hi = m.getZoom() >= MARKER_ZOOM;
     const want = new Map<string, Want>();
     const at = (b: World['blocks'][string], dx: number, dy: number): L.LatLngExpression => {
-      const c = hex.hexToMeters(b.hex, w.hexSizeM);
-      const p = hex.metersToLatLng(w.origin, c.x + dx, c.y + dy); return [p.lat, p.lng];
+      const p = hex.metersToLatLng(b.center, dx, dy); return [p.lat, p.lng];
     };
     for (const b of Object.values(w.blocks)) {
-      if (b.heat > 50) want.set(`fire:${b.id}`, { html: '<div class="hex-fire">🔥</div>', pos: at(b, 0, hi ? w.hexSizeM * 0.55 : 0), size: [16, 16], anchor: [8, hi ? 8 : 24], layer: 'badge' });
+      if (b.heat > 50) want.set(`fire:${b.id}`, { html: '<div class="hex-fire">🔥</div>', pos: at(b, 0, hi ? Math.min(w.hexSizeM * 0.55, Math.sqrt(b.areaM2) * 0.35) : 0), size: [16, 16], anchor: [8, hi ? 8 : 24], layer: 'badge' });
       if (!hi) {
         if (b.businessIds.length) want.set(`count:${b.id}`, { html: `<div class="hex-badge">${b.businessIds.length}</div>`, pos: [b.center.lat, b.center.lng], size: [22, 22], anchor: [11, 11], layer: 'badge' });
       } else {
         const n = b.businessIds.length;
         b.businessIds.forEach((bid, i) => {
           const biz = w.businesses[bid]; if (!biz) return;
-          const a = (i / n) * Math.PI * 2 - Math.PI / 2; const r = n > 1 ? w.hexSizeM * 0.45 : 0;
+          const a = (i / n) * Math.PI * 2 - Math.PI / 2; const r = n > 1 ? Math.min(w.hexSizeM * 0.45, Math.sqrt(b.areaM2) * 0.28) : 0;
           const yours = biz.ownedBy === 'player' || biz.protection?.factionId === PLAYER;
           want.set(`biz:${bid}`, { html: `<div class="biz-marker${yours ? ' yours' : ''}${bid === selRef.current.businessId ? ' sel' : ''}">${BUSINESS_DEFS[biz.type].icon}</div>`, pos: at(b, Math.cos(a) * r, Math.sin(a) * r), size: [28, 28], anchor: [14, 14], layer: 'marker', click: () => openSheet({ kind: 'business', businessId: bid }) });
         });
       }
       const sh = b.safehouseId ? w.safehouses[b.safehouseId] : undefined;
-      if (sh) want.set(`safe:${sh.id}`, { html: `<div class="safe-marker${sh.owner === PLAYER ? '' : ' rival'}">🏠</div>`, pos: hi ? at(b, 0, -w.hexSizeM * 0.3) : [b.center.lat, b.center.lng], size: [30, 30], anchor: [15, hi ? 15 : 30], layer: 'marker', click: () => openSheet({ kind: 'block', blockId: b.id }) });
+      if (sh) want.set(`safe:${sh.id}`, { html: `<div class="safe-marker${sh.owner === PLAYER ? '' : ' rival'}">🏠</div>`, pos: hi ? at(b, 0, -Math.min(w.hexSizeM * 0.3, Math.sqrt(b.areaM2) * 0.2)) : [b.center.lat, b.center.lng], size: [30, 30], anchor: [15, hi ? 15 : 30], layer: 'marker', click: () => openSheet({ kind: 'block', blockId: b.id }) });
     }
     for (const [key, k] of markers.current) if (!want.has(key)) { k.mk.remove(); markers.current.delete(key); }
     for (const [key, d] of want) {

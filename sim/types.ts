@@ -26,8 +26,12 @@ export interface District {
 
 export interface Block {
   id: Id;
-  hex: Hex;
+  hex?: Hex;              // only for the hex fallback city
+  polygon: LatLng[];      // outline, closed implicitly
   center: LatLng;
+  areaM2: number;
+  neighborIds: Id[];      // blocks sharing a street edge
+  streetNames: string[];
   name: string;
   districtId: Id;
   wealth: number;      // 0..100
@@ -287,6 +291,7 @@ export interface World {
   day: number;
   origin: LatLng;
   placeName: string;
+  mapSource: 'osm' | 'hex';
   hexSizeM: number;
   districts: Record<Id, District>;
   blocks: Record<Id, Block>;

@@ -3,6 +3,8 @@ import * as L from 'leaflet';
 import { generateWorld } from '@sim/index';
 import type { LatLng, Player } from '@sim/types';
 import { newGame } from '@ui/store';
+import { fetchCity } from '@ui/net/overpass';
+import type { GeoCity } from '@geo/types';
 import { addBasemap } from '@ui/basemap';
 
 const BACKGROUNDS: { id: Player['background']; label: string; blurb: string; ico: string }[] = [
@@ -50,10 +52,25 @@ export function Onboarding() {
     setBusy(false);
   };
   const random = () => { const c = BIG_CITIES[Math.floor(Math.random() * BIG_CITIES.length)]; setPlace({ ...c }); setStatus(''); };
-  const start = () => {
-    if (!place) return;
+  const [building, setBuilding] = useState<string | null>(null);
+  const start = async () => {
+    if (!place || building) return;
     const origin: LatLng = { lat: place.lat, lng: place.lng };
-    newGame(generateWorld({ origin, placeName: place.name, playerName: name.trim() || 'Nobody', background: bg }));
+    setBuilding('Contacting the map server…');
+    let city: GeoCity | undefined; let note = '';
+    try {
+      city = await fetchCity(origin, s => setBuilding(s));
+    } catch (e) {
+      note = `Could not map the real streets here (${(e as Error).message}). Using a grid instead.`;
+      setBuilding(note);
+      await new Promise(r => setTimeout(r, 1200));
+    }
+    setBuilding('Populating the city…');
+    await new Promise(r => setTimeout(r, 30));
+    const w = generateWorld({ origin, placeName: place.name, playerName: name.trim() || 'Nobody', background: bg, city });
+    if (note) w.log.push({ day: 1, text: note, tone: 'warn' });
+    setBuilding(null);
+    newGame(w);
   };
 
   return (
@@ -100,7 +117,15 @@ export function Onboarding() {
       {place && <p className="mt8">Starting in <b className="gold">{place.name}</b> <span className="muted small">({place.lat.toFixed(3)}, {place.lng.toFixed(3)})</span></p>}
 
       <div className="grow" />
-      <button type="button" className="btn btn-primary btn-block mt16" style={{ minHeight: 52 }} disabled={!place} onClick={start}>Start</button>
+      <button type="button" className="btn btn-primary btn-block mt16" style={{ minHeight: 52 }} disabled={!place || !!building} onClick={start}>{building ? 'Building your city…' : 'Start'}</button>
+      {building && (
+        <div className="building" role="status" aria-live="polite">
+          <div className="spinner" />
+          <b>Mapping {place?.name}</b>
+          <p className="small muted">{building}</p>
+          <p className="small muted">Real streets, real blocks, real businesses from OpenStreetMap. Ten to twenty seconds.</p>
+        </div>
+      )}
       {!place && <p className="small muted mt8" style={{ textAlign: 'center' }}>Pick a starting point first.</p>}
     </div>
   );

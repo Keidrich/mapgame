@@ -3,17 +3,15 @@ import { PRODUCTION_DEFS, PRODUCT_INFO, RACKET_DEFS, SAFEHOUSE_TIERS } from '@co
 import { launderCapacity, productionOutput, racketIncome, streetPrice } from './economy';
 import { drawEvents } from './events';
 import { runFaction } from './factions';
-import { hexKey } from './hex';
 import { resolveOp } from './ops';
 import { closeRacket, stashTotal } from './reducer';
 import { controlShare } from './select';
-import { PLAYER, type Block, type World } from './types';
+import { PLAYER, type World } from './types';
 import { addHeat, addInfluence, adjustRel, clamp, collectors, factionOf, jailDays, log, money, rngOf } from './util';
 
 export function endDay(w: World): World {
   const { rng, done } = rngOf(w);
   const p = w.player;
-  const blockByHex = new Map<string, Block>(Object.values(w.blocks).map(b => [hexKey(b.hex), b]));
   const summary = { clean: 0, dirty: 0, spent: 0 };
 
   // ---- crew upkeep ----
@@ -104,7 +102,7 @@ export function endDay(w: World): World {
   }
 
   // ---- factions ----
-  for (const f of Object.values(w.factions)) runFaction(w, f, rng, blockByHex);
+  for (const f of Object.values(w.factions)) runFaction(w, f, rng);
 
   // ---- police ----
   const captain = Object.values(w.npcs).find(n => n.official?.kind === 'captain');

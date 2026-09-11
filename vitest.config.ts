@@ -9,7 +9,8 @@ export default defineConfig({
       '@sim': dir('./sim'),
       '@content': dir('./content'),
       '@ui': dir('./ui'),
+      '@geo': dir('./geo'),
     },
   },
-  test: { include: ['sim/**/*.test.ts'], environment: 'node' },
+  test: { include: ['sim/**/*.test.ts', 'geo/**/*.test.ts'], environment: 'node' },
 });

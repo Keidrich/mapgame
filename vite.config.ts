@@ -11,6 +11,7 @@ export default defineConfig({
       '@sim': dir('./sim'),
       '@content': dir('./content'),
       '@ui': dir('./ui'),
+      '@geo': dir('./geo'),
     },
   },
   plugins: [

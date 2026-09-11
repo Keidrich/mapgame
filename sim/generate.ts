@@ -1,15 +1,18 @@
-import { BUSINESS_DEFS, DISTRICT_DEFS } from '@content/businesses';
+import { BUSINESS_DEFS, DISTRICT_DEFS, type DistrictDef } from '@content/businesses';
 import { BUSINESS_NAME_PARTS, FACTION_ARCHETYPES, FIRST_NAMES, LAST_NAMES, NICKNAMES, STYLE_LAST } from '@content/names';
-import { hexCenter, hexDistance, hexKey, spiral } from './hex';
+import type { GeoCity, GeoBlock } from '@geo/types';
+import { hexCity } from '@geo/hexcity';
+import { distanceM } from '@geo/project';
 import { Rng, hashString } from './rng';
 import {
-  PLAYER, type Block, type Business, type BusinessType, type District, type Faction, type FactionId,
+  PLAYER, type Block, type Business, type BusinessType, type District, type DistrictKind, type Faction, type FactionId,
   type Id, type LatLng, type Npc, type Player, type ProductKind, type Skills, type Stance, type Trait, type World,
 } from './types';
 
-export const WORLD_VERSION = 1;
-export const GRID_RADIUS = 6;
-export const HEX_SIZE_M = 190; // circumradius; ~330m across flats
+export const WORLD_VERSION = 2;
+export const HEX_SIZE_M = 190;
+/** One "step" of distance, for rules written in block units (a hex is ~330 m across). */
+export const STEP_M = 330;
 
 export interface NewGameOptions {
   seed?: number;
@@ -17,6 +20,7 @@ export interface NewGameOptions {
   placeName: string;
   playerName: string;
   background: Player['background'];
+  city?: GeoCity; // real blocks from OSM; defaults to the hex disc
 }
 
 const PRODUCTS: ProductKind[] = ['booze', 'green', 'pills', 'hot_goods', 'counterfeit'];
@@ -30,9 +34,10 @@ export function generateWorld(opts: NewGameOptions): World {
   const rng = new Rng(seed);
   let nextId = 1;
   const nid = (p: string) => `${p}${nextId++}`;
+  const city = opts.city ?? hexCity(opts.origin);
 
   const w: World = {
-    version: WORLD_VERSION, seed, rng: seed, day: 1, origin: opts.origin, placeName: opts.placeName, hexSizeM: HEX_SIZE_M,
+    version: WORLD_VERSION, seed, rng: seed, day: 1, origin: opts.origin, placeName: opts.placeName, mapSource: city.source, hexSizeM: HEX_SIZE_M,
     districts: {}, blocks: {}, businesses: {}, npcs: {}, rackets: {}, safehouses: {}, productions: {}, ops: {}, factions: {},
     player: {
       name: opts.playerName, background: opts.background, skills: startingSkills(opts.background),
@@ -42,69 +47,53 @@ export function generateWorld(opts: NewGameOptions): World {
     pendingEvents: [], log: [], nextId: 0,
   };
 
-  // ---- districts via Voronoi over hex seeds ----
-  const hexes = spiral(GRID_RADIUS);
-  const defs = rng.shuffle(DISTRICT_DEFS);
-  const districtCount = 7;
-  const usedNames = new Set<string>();
-  const seeds: { hex: { q: number; r: number }; district: District; def: typeof DISTRICT_DEFS[number] }[] = [];
-  // downtown always near the centre; others ring around
-  const centreDef = DISTRICT_DEFS.find(d => d.kind === 'downtown')!;
-  const ringDefs = defs.filter(d => d.kind !== 'downtown').slice(0, districtCount - 1);
-  const ringHexes = rng.shuffle(hexes.filter(h => hexDistance(h, { q: 0, r: 0 }) >= 3 && hexDistance(h, { q: 0, r: 0 }) <= 5));
-  const placed: { q: number; r: number }[] = [];
-  const pickSeed = () => {
-    for (const h of ringHexes) if (placed.every(p => hexDistance(p, h) >= 3)) { placed.push(h); return h; }
-    return ringHexes[placed.length % ringHexes.length];
-  };
-  const mkDistrict = (def: typeof DISTRICT_DEFS[number], hex: { q: number; r: number }) => {
-    const name = rng.pick(def.names.filter(n => !usedNames.has(n)));
-    usedNames.add(name);
-    const d: District = { id: nid('d'), kind: def.kind, name, blockIds: [] };
-    w.districts[d.id] = d; seeds.push({ hex, district: d, def });
-  };
-  mkDistrict(centreDef, { q: rng.int(-1, 1), r: rng.int(-1, 1) });
-  for (const def of ringDefs) mkDistrict(def, pickSeed());
-
-  // ---- blocks ----
-  const blockByHex = new Map<string, Block>();
-  for (const h of hexes) {
-    let best = seeds[0]; let bd = Infinity;
-    for (const s of seeds) { const d = hexDistance(h, s.hex) + rng.float() * 0.8; if (d < bd) { bd = d; best = s; } }
-    const def = best.def;
-    const wealth = clamp(rng.gauss((def.wealth[0] + def.wealth[1]) / 2, (def.wealth[1] - def.wealth[0]) / 3));
-    const police = clamp(rng.gauss((def.police[0] + def.police[1]) / 2, (def.police[1] - def.police[0]) / 3));
-    const population = clamp(rng.gauss((def.population[0] + def.population[1]) / 2, 12), 10, 100);
+  // ---- blocks (geometry comes from the city; stats are filled in after districts) ----
+  const geoById = new Map<string, GeoBlock>();
+  for (const gb of city.blocks) {
+    geoById.set(gb.id, gb);
     const b: Block = {
-      id: nid('b'), hex: h, center: hexCenter(opts.origin, h, HEX_SIZE_M), name: '', districtId: best.district.id,
-      wealth, police, heat: 0, population, demand: demandFor(wealth, population, def.kind),
-      influence: {}, businessIds: [],
+      id: gb.id, hex: gb.hex, polygon: gb.polygon, center: gb.center, areaM2: gb.areaM2, neighborIds: gb.neighborIds.slice(), streetNames: gb.streetNames,
+      name: '', districtId: '', wealth: 50, police: 40, heat: 0, population: 50, demand: demandFor(50, 50, 'market'), influence: {}, businessIds: [],
     };
-    b.name = `${best.district.name} ${blockLabel(h)}`;
-    w.blocks[b.id] = b; blockByHex.set(hexKey(h), b); best.district.blockIds.push(b.id);
+    w.blocks[b.id] = b;
   }
+  const blocks = Object.values(w.blocks);
+  const distStart = (b: Block) => distanceM(b.center, opts.origin);
+  const startBlock = blocks.slice().sort((a, b) => distStart(a) - distStart(b))[0];
 
-  // ---- businesses + owners + patrons ----
+  // ---- districts: real neighbourhood names when OSM has them, seeded Voronoi otherwise ----
+  const seeds = planDistricts(w, city, rng, startBlock, nid);
+  for (const b of blocks) {
+    let best = seeds[0]; let bd = Infinity;
+    for (const s of seeds) { const d = distanceM(b.center, s.center) * (0.85 + rng.float() * 0.3); if (d < bd) { bd = d; best = s; } }
+    const def = best.def;
+    b.districtId = best.district.id; best.district.blockIds.push(b.id);
+    b.wealth = clamp(rng.gauss((def.wealth[0] + def.wealth[1]) / 2, (def.wealth[1] - def.wealth[0]) / 3));
+    b.police = clamp(rng.gauss((def.police[0] + def.police[1]) / 2, (def.police[1] - def.police[0]) / 3));
+    b.population = clamp(rng.gauss((def.population[0] + def.population[1]) / 2, 12) * Math.min(1.6, Math.max(0.5, Math.sqrt(b.areaM2 / 60000))), 8, 100);
+    b.demand = demandFor(b.wealth, b.population, def.kind);
+    b.name = blockName(b, best.district.name, rng);
+  }
+  // unique block names
+  const seenNames = new Map<string, number>();
+  for (const b of blocks) { const n = seenNames.get(b.name) ?? 0; seenNames.set(b.name, n + 1); if (n) b.name = `${b.name} ${n + 1}`; }
+
+  // ---- businesses: real POIs first, procedural fill after ----
   const usedBizNames = new Set<string>();
-  for (const b of Object.values(w.blocks)) {
+  const poisByBlock = new Map<string, GeoCity['pois']>();
+  for (const p of city.pois) { if (!p.blockId) continue; if (!poisByBlock.has(p.blockId)) poisByBlock.set(p.blockId, []); poisByBlock.get(p.blockId)!.push(p); }
+  for (const b of blocks) {
     const def = seeds.find(s => s.district.id === b.districtId)!.def;
-    const n = rng.int(def.perBlock[0], def.perBlock[1]);
+    const real = (poisByBlock.get(b.id) ?? []).slice(0, 6);
+    for (const p of real) addBusiness(rng, w, nid, b, p.type, usedBizNames, p.name);
+    const target = rng.int(def.perBlock[0], def.perBlock[1]) * (city.source === 'osm' ? Math.min(1.5, Math.max(0.4, b.areaM2 / 40000)) : 1);
     const mix = Object.entries(def.mix).map(([t, wt]) => ({ item: t as BusinessType, w: wt as number }));
-    for (let i = 0; i < n; i++) {
+    let guard = 0;
+    while (b.businessIds.length < Math.round(target) && guard++ < 12) {
       let type = rng.weighted(mix);
-      // rare types: at most one bank / depot per block, none in poor blocks
       if ((type === 'bank' || type === 'armored_depot') && (b.wealth < 55 || b.businessIds.some(id => w.businesses[id].type === type))) type = 'restaurant';
-      const bd = BUSINESS_DEFS[type];
-      const income = Math.round(rng.int(bd.income[0], bd.income[1]) * (0.6 + b.wealth / 125));
-      const owner = mkNpc(rng, w, nid, { role: 'owner', homeBlockId: b.id, nerveBias: bd.nerve });
-      const biz: Business = {
-        id: nid('z'), name: bizName(rng, type, owner, usedBizNames), type, blockId: b.id, ownerId: owner.id, patronIds: [],
-        baseIncome: income, value: Math.max(1500, Math.round(income * bd.valueMult / 100) * 100), condition: rng.int(60, 100),
-        ownedBy: 'npc', racketIds: [], insured: rng.chance(0.35), flags: [],
-      };
-      w.businesses[biz.id] = biz; b.businessIds.push(biz.id);
+      addBusiness(rng, w, nid, b, type, usedBizNames);
     }
-    // patrons: shared across the block's businesses
     const patronCount = Math.round(2 + b.population / 25 + rng.int(0, 2));
     for (let i = 0; i < patronCount && b.businessIds.length; i++) {
       const p = mkNpc(rng, w, nid, { role: 'patron', homeBlockId: b.id, nerveBias: 40 });
@@ -115,10 +104,10 @@ export function generateWorld(opts: NewGameOptions): World {
 
   // ---- factions ----
   const archetypes = rng.shuffle(FACTION_ARCHETYPES).slice(0, 4);
-  const homeCandidates = rng.shuffle(seeds.filter(s => s.def.kind !== 'downtown'));
+  const homeCandidates = rng.shuffle(seeds.filter(s => s.def.kind !== 'downtown' && s.district.blockIds.length >= 3));
   const factionIds: FactionId[] = [];
   archetypes.forEach((a, i) => {
-    const home = homeCandidates[i % homeCandidates.length];
+    const home = homeCandidates[i % Math.max(1, homeCandidates.length)] ?? seeds[0];
     const last = rng.pick(STYLE_LAST[a.style]);
     const f: Faction = {
       id: nid('f'), name: a.name.replace('{L}', last), short: a.short.replace('{L}', last), color: a.color,
@@ -133,30 +122,24 @@ export function generateWorld(opts: NewGameOptions): World {
       f.lieutenantIds.push(lt.id);
     }
     w.factions[f.id] = f; factionIds.push(f.id);
-    // influence: home district strong, falloff outward
-    for (const b of Object.values(w.blocks)) {
-      const d = hexDistance(b.hex, home.hex);
-      const inf = d <= 1 ? rng.int(60, 90) : d === 2 ? rng.int(18, 38) : d === 3 ? rng.int(4, 14) : 0;
-      if (inf > 0) b.influence[f.id] = inf;
+    // influence rings around the home block, measured in steps
+    for (const b of blocks) {
+      const d = distanceM(b.center, homeBlock.center) / STEP_M;
+      const inf = d <= 1.2 ? rng.int(60, 90) : d <= 2.3 ? rng.int(18, 38) : d <= 3.3 ? rng.int(4, 14) : 0;
+      if (inf > 0 && b.id !== startBlock.id) b.influence[f.id] = inf;
     }
   });
-  // standings between factions
   for (const a of factionIds) {
     const fa = w.factions[a];
     fa.standing[PLAYER] = 0; fa.stance[PLAYER] = 'peace';
-    for (const b of factionIds) if (a !== b) {
-      const s = rng.int(-60, 30);
-      fa.standing[b] = s; fa.stance[b] = stanceFor(s);
-    }
+    for (const b of factionIds) if (a !== b) { const s = rng.int(-60, 30); fa.standing[b] = s; fa.stance[b] = stanceFor(s); }
   }
-  // make stances symmetric
   for (const a of factionIds) for (const b of factionIds) if (a < b) {
     const s = Math.round((w.factions[a].standing[b] + w.factions[b].standing[a]) / 2);
     w.factions[a].standing[b] = s; w.factions[b].standing[a] = s;
     w.factions[a].stance[b] = w.factions[b].stance[a] = stanceFor(s);
   }
-  // protection rackets for factions in blocks they control
-  for (const b of Object.values(w.blocks)) {
+  for (const b of blocks) {
     const ctrl = controller(b);
     if (!ctrl) continue;
     for (const bid of b.businessIds) {
@@ -169,25 +152,110 @@ export function generateWorld(opts: NewGameOptions): World {
   }
 
   // ---- officials ----
-  const downtown = seeds.find(s => s.def.kind === 'downtown')!.district;
-  const cityHall = w.blocks[downtown.blockIds[0]];
+  const downtown = seeds.find(s => s.def.kind === 'downtown')?.district ?? seeds[0].district;
+  const cityHall = w.blocks[downtown.blockIds[0]] ?? startBlock;
   for (const kind of ['captain', 'councillor', 'judge'] as const) {
     const o = mkNpc(rng, w, nid, { role: 'official', homeBlockId: cityHall.id, nerveBias: 70 });
     o.official = { kind, corruption: rng.int(20, 80) };
     o.name = `${kind === 'captain' ? 'Capt.' : kind === 'judge' ? 'Judge' : 'Councillor'} ${o.name.split(' ').slice(-1)[0]}`;
   }
 
-  // ---- player start: centre block, one friendly patron ----
-  const start = blockByHex.get(hexKey({ q: 0, r: 0 }))!;
-  start.influence[PLAYER] = 12;
-  const friend = start.businessIds.flatMap(id => w.businesses[id].patronIds).map(id => w.npcs[id])[0];
+  // ---- player start ----
+  if (!startBlock.businessIds.length) addBusiness(rng, w, nid, startBlock, 'bar', usedBizNames);
+  startBlock.influence[PLAYER] = 12;
+  const friend = startBlock.businessIds.flatMap(id => w.businesses[id].patronIds).map(id => w.npcs[id])[0];
   if (friend) { friend.rel.trust = 45; friend.rel.respect = 30; friend.notes.push('Knew you from before.'); }
-  const startOwner = w.npcs[w.businesses[start.businessIds[0]].ownerId];
+  const startOwner = w.npcs[w.businesses[startBlock.businessIds[0]].ownerId];
   startOwner.rel.trust = 20; startOwner.rel.respect = 15;
 
   w.nextId = nextId; w.rng = rng.state;
-  w.log.push({ day: 1, text: `You arrive in ${opts.placeName}. ${start.name} is where you'll start. Nobody knows your name yet.`, tone: 'info', refs: { blockId: start.id } });
+  w.log.push({ day: 1, text: `You arrive in ${opts.placeName}. ${startBlock.name} is where you'll start. Nobody knows your name yet.`, tone: 'info', refs: { blockId: startBlock.id } });
   return w;
+}
+
+// ---------- districts ----------
+interface Seed { center: LatLng; district: District; def: DistrictDef }
+
+function planDistricts(w: World, city: GeoCity, rng: Rng, startBlock: Block, nid: (p: string) => string): Seed[] {
+  const blocks = Object.values(w.blocks);
+  const usedNames = new Set<string>();
+  const seeds: Seed[] = [];
+  const centreDef = DISTRICT_DEFS.find(d => d.kind === 'downtown')!;
+  const mk = (def: DistrictDef, center: LatLng, name?: string) => {
+    const nm = name ?? rng.pick(def.names.filter(n => !usedNames.has(n)) ?? def.names);
+    usedNames.add(nm);
+    const d: District = { id: nid('d'), kind: def.kind, name: nm, blockIds: [] };
+    w.districts[d.id] = d; seeds.push({ center, district: d, def });
+  };
+  // real neighbourhoods within the play area, at least 700 m apart
+  const places: GeoCity['places'] = [];
+  for (const p of city.places) {
+    if (!blocks.some(b => distanceM(b.center, p.pos) < 400)) continue;   // outside the play area
+    if (places.some(q => distanceM(q.pos, p.pos) < 450)) continue;       // too close to one we kept
+    places.push(p); if (places.length >= 8) break;
+  }
+  if (places.length >= 4) {
+    const kinds = inferKinds(w, city, places.map(p => p.pos), rng);
+    places.forEach((p, i) => mk(kinds[i], p.pos, p.name));
+    // make sure the start is in a downtown-ish district for a fair opening
+    if (!seeds.some(s => s.def.kind === 'downtown')) { const nearest = seeds.slice().sort((a, b) => distanceM(a.center, startBlock.center) - distanceM(b.center, startBlock.center))[0]; nearest.def = centreDef; nearest.district.kind = 'downtown'; }
+    return seeds;
+  }
+  const districtCount = Math.max(4, Math.min(7, Math.round(blocks.length / 18)));
+  const ringDefs = rng.shuffle(DISTRICT_DEFS.filter(d => d.kind !== 'downtown')).slice(0, districtCount - 1);
+  mk(centreDef, startBlock.center);
+  const far = blocks.filter(b => { const d = distanceM(b.center, startBlock.center); return d >= 3 * STEP_M && d <= 5.5 * STEP_M; });
+  const pool = rng.shuffle(far.length ? far : blocks);
+  const placed: LatLng[] = [startBlock.center];
+  for (const def of ringDefs) {
+    const pick = pool.find(b => placed.every(p => distanceM(p, b.center) >= 2.5 * STEP_M)) ?? pool[placed.length % pool.length];
+    if (!pick) break;
+    placed.push(pick.center); mk(def, pick.center);
+  }
+  return seeds;
+}
+
+/** Guess what kind of neighbourhood each real place is from what OSM says is there. */
+function inferKinds(w: World, city: GeoCity, centers: LatLng[], rng: Rng): DistrictDef[] {
+  const defs = new Map(DISTRICT_DEFS.map(d => [d.kind, d]));
+  const counts = centers.map(() => ({ bank: 0, night: 0, food: 0, shop: 0, ind: 0, water: 0, hotel: 0, jewel: 0, total: 0 }));
+  const nearest = (p: LatLng) => { let bi = 0, bd = Infinity; centers.forEach((c, i) => { const d = distanceM(c, p); if (d < bd) { bd = d; bi = i; } }); return bi; };
+  for (const p of city.pois) {
+    const c = counts[nearest(p.pos)]; c.total++;
+    if (p.type === 'bank') c.bank++; else if (p.type === 'nightclub' || p.type === 'bar') c.night++; else if (p.type === 'restaurant' || p.type === 'diner') c.food++;
+    else if (p.type === 'corner_store' || p.type === 'barbershop' || p.type === 'laundromat' || p.type === 'pawn') c.shop++; else if (p.type === 'warehouse' || p.type === 'garage') c.ind++;
+    else if (p.type === 'motel') c.hotel++; else if (p.type === 'jeweller') c.jewel++;
+  }
+  for (const id of city.industrialBlockIds) counts[nearest(w.blocks[id].center)].ind += 2;
+  for (const id of city.waterAdjacentBlockIds) counts[nearest(w.blocks[id].center)].water++;
+  const scores = counts.map(c => {
+    const t = Math.max(1, c.total);
+    const s: Record<DistrictKind, number> = {
+      downtown: c.bank * 3 + c.hotel + c.jewel * 2 + c.total * 0.2,
+      strip: c.night * 3 + c.hotel,
+      old_quarter: c.food * 2 + c.shop * 0.5,
+      market: c.shop * 2 + c.food * 0.5,
+      industrial: c.ind * 3 - c.food,
+      docks: c.water * 2 + c.ind * 1.5,
+      heights: c.jewel * 2 + c.hotel + (t < 6 ? 2 : 0),
+      projects: c.shop * 1.5 - c.bank * 2 + (t < 4 ? 2 : 0),
+    };
+    for (const k of Object.keys(s) as DistrictKind[]) s[k] += rng.float() * 1.5;
+    return s;
+  });
+  // greedy assignment: highest score first, each kind at most twice, downtown exactly once
+  const out: (DistrictDef | undefined)[] = centers.map(() => undefined);
+  const used = new Map<DistrictKind, number>();
+  const pairs: { i: number; k: DistrictKind; v: number }[] = [];
+  scores.forEach((s, i) => { for (const k of Object.keys(s) as DistrictKind[]) pairs.push({ i, k, v: s[k] }); });
+  pairs.sort((a, b) => b.v - a.v);
+  for (const p of pairs) {
+    if (out[p.i]) continue;
+    const cap = p.k === 'downtown' ? 1 : 2;
+    if ((used.get(p.k) ?? 0) >= cap) continue;
+    out[p.i] = defs.get(p.k); used.set(p.k, (used.get(p.k) ?? 0) + 1);
+  }
+  return out.map(d => d ?? defs.get('market')!);
 }
 
 // ---------- helpers ----------
@@ -221,9 +289,34 @@ function demandFor(wealth: number, population: number, kind: string): Record<Pro
   return d;
 }
 
-function blockLabel(h: { q: number; r: number }): string {
-  const cols = 'ABCDEFGHIJKLMNOPQ';
-  return `${cols[h.q + GRID_RADIUS + 2] ?? 'X'}${h.r + GRID_RADIUS + 1}`;
+function blockName(b: Block, districtName: string, rng: Rng): string {
+  const s = b.streetNames.map(shortStreet);
+  if (s.length >= 2) return `${s[0]} & ${s[1]}`;
+  if (s.length === 1) return `${s[0]} block`;
+  if (b.hex) { const cols = 'ABCDEFGHIJKLMNOPQ'; return `${districtName} ${cols[b.hex.q + 8] ?? 'X'}${b.hex.r + 7}`; }
+  return `${districtName} ${rng.int(1, 99)}`;
+}
+function shortStreet(n: string): string {
+  let s = n.replace(/\bStreet\b/, 'St').replace(/\bAvenue\b/, 'Ave').replace(/\bBoulevard\b/, 'Blvd').replace(/\bRoad\b/, 'Rd').replace(/\bDrive\b/, 'Dr').replace(/\bPlace\b/, 'Pl');
+  // "West 42nd St" → "W 42nd St", but "South St" stays as it is
+  if (s.split(' ').length >= 3) s = s.replace(/^(North|South|East|West)\b/, m => m[0]);
+  return s.length > 22 ? s.slice(0, 21) + '…' : s;
+}
+
+function addBusiness(rng: Rng, w: World, nid: (p: string) => string, b: Block, type: BusinessType, used: Set<string>, realName?: string): Business {
+  const bd = BUSINESS_DEFS[type];
+  const income = Math.round(rng.int(bd.income[0], bd.income[1]) * (0.6 + b.wealth / 125));
+  const owner = mkNpc(rng, w, nid, { role: 'owner', homeBlockId: b.id, nerveBias: bd.nerve });
+  let name = realName && !used.has(realName) ? realName : bizName(rng, type, owner, used);
+  used.add(name);
+  if (name.length > 34) name = name.slice(0, 32) + '…';
+  const biz: Business = {
+    id: nid('z'), name, type, blockId: b.id, ownerId: owner.id, patronIds: [],
+    baseIncome: income, value: Math.max(1500, Math.round(income * bd.valueMult / 100) * 100), condition: rng.int(60, 100),
+    ownedBy: 'npc', racketIds: [], insured: rng.chance(0.35), flags: realName ? ['real'] : [],
+  };
+  w.businesses[biz.id] = biz; b.businessIds.push(biz.id);
+  return biz;
 }
 
 interface NpcOpts { role: Npc['role']; homeBlockId: Id; faction?: FactionId; style?: string; strong?: boolean; nerveBias?: number }

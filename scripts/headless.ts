@@ -6,7 +6,7 @@ const days = Number(process.argv[2] ?? 40); const seed = Number(process.argv[3] 
 let w: World = generateWorld({ origin: { lat: 41.88, lng: -87.63 }, placeName: 'Chicago', playerName: 'Bot', background: 'muscle', seed });
 const rng = new Rng(seed * 7 + 1);
 const tryAct = (a: Action) => { const c = can(w, a); if (c.ok) { w = dispatch(w, a); return true; } return false; };
-const start = Object.values(w.blocks).find(b => b.hex.q === 0 && b.hex.r === 0)!;
+const start = select.startBlock(w);
 const nearBiz = () => Object.values(w.blocks).filter(b => select.distanceFromStart(w, b.id) <= 2).flatMap(b => select.businessesIn(w, b.id));
 
 for (let d = 0; d < days; d++) {
