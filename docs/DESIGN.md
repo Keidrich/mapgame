@@ -35,24 +35,38 @@ build.
 
 ## 3. The world
 
-### 3.1 Grid
-A pointy-top hex grid of radius 6 (127 hexes, ~350 m across each) centred on the
-start point, projected onto lat/lng with a local metric approximation. Each hex is a
-**Block**.
+### 3.1 Real streets, loaded as you go
+The map is the real world (OpenStreetMap data rendered with MapLibre GL, the same
+stack Plug uses). The playable world is divided into **chunks**, square cells of about
+2.2 km. When a chunk scrolls into view its street network is fetched from OpenStreetMap
+and polygonised: every face enclosed by streets becomes a **Block**. Slivers are merged
+into their neighbours, water and giant faces (parks, rivers, airports) are dropped, and
+each block is named after its two longest bounding streets ("Broadway & Wall St").
+
+Unvisited chunks show as faint outlines. The first time the player taps into one, the
+sim **populates** it: districts, businesses, people, and sometimes a new faction. Block
+ids are stable hashes of their street ring, so a re-fetched chunk maps onto the saved
+world. Blocks link to neighbours across chunk borders through shared street edges.
+
+Where there are no streets (open country, no network) a hex grid stands in.
 
 ### 3.2 Blocks
 - `wealth` 0–100, `police` 0–100 (baseline patrol), `heat` 0–100 (your notoriety
-  here), `population` (drives patron count and product demand).
+  here), `population` (drives patron count and product demand), `areaM2`.
 - `influence: Record<FactionId, number>` — control is whoever has the most, above a
   threshold. `player` is a faction id too.
-- `district` — blocks cluster into 6–8 named districts (Docks, Downtown, Old Quarter,
-  Industrial, The Heights, Market, Nightlife Strip, The Projects) that set the mix
-  of business types, wealth and police.
+- `district` — real neighbourhood names from OpenStreetMap when available, with the
+  district's character (Docks, Downtown, Old Quarter, Industrial, Heights, Market,
+  Strip, Projects) inferred from what is actually there: banks and hotels say
+  downtown, clubs and bars say strip, warehouses and industrial land say docks.
 
 ### 3.3 Businesses
-Each block holds 1–5 businesses. A business has a type, an **owner** NPC, a set of
-**patron** NPCs, base income, a **protection** record (which faction, what rate),
-an `ownedBy` (npc / player / faction) and a list of attached **rackets**.
+Real points of interest from OpenStreetMap become businesses with their real names
+(bars, pubs, restaurants, cafés, clubs, banks, jewellers, pawn shops, garages, gyms,
+laundromats, corner stores, motels, warehouses). Procedural businesses fill blocks the
+data leaves thin. A business has a type, an **owner** NPC, a set of **patron** NPCs,
+base income, a **protection** record (which faction, what rate), an `ownedBy` (npc /
+player / faction) and a list of attached **rackets**.
 
 Business types and what they're good for:
 
@@ -77,21 +91,29 @@ Business types and what they're good for:
 Roles: business owner, patron, crew, faction boss / lieutenant / soldier, cop,
 official (police captain, councillor, judge), fixer. Every NPC has:
 - skills: muscle, brains, charm, wheels, tech (1–10)
-- traits (2): greedy, loyal, coward, hothead, connected, honest, ambitious, junkie
+- traits (2): greedy, loyal, coward, hothead, connected, honest, ambitious, junkie,
+  gambler, quiet
 - **relationship to the player**: `trust` −100..100, `fear` 0..100, `respect` 0..100
+- `nerve` 0..100: how much pressure it takes
 - `faction` affiliation and `home` block
-- owners know their patrons; patrons have favourite businesses (that is where you
-  meet them).
 
-**Relationships decide outcomes.** Examples:
-- Shakedown: owner pays if `fear + respect` beats their nerve; a coward pays early,
-  a hothead resists; failing raises heat and makes the owner call a rival.
-- Buy business: needs trust ≥ 30 or an offer above value; honest owners won't sell
-  to someone with high heat.
-- Recruit patron: needs trust ≥ 20 (or fear ≥ 60 for a coward); the recruit brings
-  their skills and their own loyalty.
-- Tip-offs: patrons with trust ≥ 40 warn you about raids and rival moves.
-- Snitching: owners with trust < −40 and low fear talk to the cops.
+### 3.5 Scenes: how you deal with people
+Face-to-face actions (Visit, Threaten, Shakedown, Recruit) are **scenes**. The person
+opens with a line chosen by their most telling trait and how they feel about you. You
+pick an **approach**; each shows its success chance, what you gain, what it costs when
+it goes wrong, and its price in AP or cash. The odds come from one function that the
+UI and the simulation share, so what you see is what the dice use.
+
+| Scene | Approaches |
+|---|---|
+| Shakedown | Lean on them (muscle) · Talk business (charm) · Break something first (crew) |
+| Threaten | Quiet word · Bring the crew · Mention what you know (brains; honest owners go to the cops) |
+| Visit | Buy a round ($50) · Talk business (tips) · Just listen |
+| Recruit | Offer a real cut (+40% wage, loyal) · Sell the dream (charm) · Lean on them (cowards fold) |
+
+Ops have approaches too: **go in loud** (muscle, +25% take, heat ×1.6), **quiet job**
+(brains and tech, heat ×0.5, harder), **inside man** (someone at the target who trusts
+you at 35+ opens the door; if it fails they are burned).
 
 ## 4. Player systems
 
@@ -167,12 +189,15 @@ card with 2–3 options. Options apply deterministic outcomes.
 ## 9. Tech and architecture
 
 - `/sim` — pure TypeScript. Seeded PRNG only. `(state, action) → state`. No React,
-  no fetch. Fully testable headless.
+  no fetch. Fully testable headless. Chunk geometry arrives as the payload of a
+  `populate_chunk` action, so the sim never touches the network.
+- `/geo` — pure geometry: chunk grid, Overpass query/parse, planar-face polygonisation
+  of streets into blocks, hex fallback.
 - `/content` — data: business type table, name pools, racket/production/op
   definitions, event cards, faction archetypes.
-- `/ui` — React + Leaflet. Reads state, dispatches actions. Mobile-first, bottom
-  sheets, thumb-reach nav.
-- Persistence: autosave to localStorage (seed + state). Export/import as JSON.
+- `/ui` — React + MapLibre GL. Reads state, dispatches actions. Mobile-first, bottom
+  sheets, thumb-reach nav. `ui/net` is the only network code (Overpass, Nominatim).
+- Persistence: autosave to IndexedDB (the world grows with every chunk). Export/import as JSON.
 - PWA: installable, tiles cached.
 - Later: Capacitor wrapper for stores; real POIs via Overpass; real-time AP regen;
   multiplayer factions via a server (Torn-style).
