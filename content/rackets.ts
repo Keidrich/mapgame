@@ -86,3 +86,11 @@ export const TRAIT_LABELS: Record<string, string> = {
   greedy: 'Greedy', loyal: 'Loyal', coward: 'Coward', hothead: 'Hothead', connected: 'Connected',
   honest: 'Honest', ambitious: 'Ambitious', junkie: 'Junkie', gambler: 'Gambler', quiet: 'Quiet',
 };
+
+export type OpApproach = 'loud' | 'quiet' | 'inside';
+export interface OpApproachDef { label: string; icon: string; blurb: string; good: string; bad: string; skillWeight: Partial<Skills>; difficulty: number; payout: number; heat: number }
+export const OP_APPROACHES: Record<OpApproach, OpApproachDef> = {
+  loud:   { label: 'Go in loud', icon: '💥', blurb: 'Muscle and wheels. Fast, brutal, unforgettable.', good: '+25% take', bad: 'Heat ×1.6; failure means bodies', skillWeight: { muscle: 1.3, wheels: 1.2, tech: 0.6, brains: 0.8 }, difficulty: -4, payout: 1.25, heat: 1.6 },
+  quiet:  { label: 'Quiet job', icon: '🤫', blurb: 'Brains and tech. In and out with nobody the wiser.', good: 'Heat ×0.5', bad: 'Harder; a slip means arrests', skillWeight: { tech: 1.3, brains: 1.3, muscle: 0.6, wheels: 0.9 }, difficulty: 6, payout: 1, heat: 0.5 },
+  inside: { label: 'Inside man', icon: '🕵️', blurb: 'Someone at the target who trusts you opens the door. They take a cut.', good: 'Much easier', bad: 'Fail and your contact is burned', skillWeight: { brains: 1.1 }, difficulty: -22, payout: 0.85, heat: 0.7 },
+};

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { select } from '@sim/index';
 import type { Id, Op, OpKind } from '@sim/types';
-import { OP_DEFS } from '@content/rackets';
+import { OP_APPROACHES, OP_DEFS, type OpApproach } from '@content/rackets';
 import { SKILL_KEYS, activeOps, cap, finishedOps, fmtMoney, opTargetLabel } from '@ui/derive';
 import { act, check, openSheet, useWorld } from '@ui/store';
 import { Act } from './Act';
@@ -66,18 +66,20 @@ function Planner() {
   const [kind, setKind] = useState<OpKind | null>(null);
   const [target, setTarget] = useState<{ businessId?: Id; npcId?: Id; factionId?: Id; blockId?: Id }>({});
   const [crewIds, setCrewIds] = useState<Id[]>([]);
+  const [approach, setApproach] = useState<OpApproach | undefined>(undefined);
   const [filter, setFilter] = useState('');
   const idle = select.idleCrew(w);
   const def = kind ? OP_DEFS[kind] : null;
   const needsTarget = def ? def.target !== 'none' : false;
   const hasTarget = !!(target.businessId || target.npcId || target.factionId || target.blockId);
   const step = !kind ? 0 : needsTarget && !hasTarget ? 1 : 2;
-  const chance = kind ? select.opChance(w, kind, crewIds) : 0;
+  const chance = kind ? select.opChance(w, kind, crewIds, approach) : 0;
+  const insiders = select.insidersFor(w, target.businessId);
   const sums = select.crewSkillSum(w, crewIds);
   const targets = useMemo(() => kind ? select.opTargets(w, kind) : [], [w, kind]);
   const npcs = useMemo(() => Object.values(w.npcs).filter(n => n.alive && !n.crew && (n.role === 'boss' || n.role === 'lieutenant' || n.role === 'owner' || n.role === 'official' || n.role === 'soldier')).filter(n => !filter || n.name.toLowerCase().includes(filter.toLowerCase())).slice(0, 40), [w, filter]);
-  const action = kind ? { type: 'plan_op' as const, kind, crewIds, targetBusinessId: target.businessId, targetNpcId: target.npcId, targetFactionId: target.factionId, targetBlockId: target.blockId } : null;
-  const reset = () => { setKind(null); setTarget({}); setCrewIds([]); setFilter(''); };
+  const action = kind ? { type: 'plan_op' as const, kind, crewIds, approach, targetBusinessId: target.businessId, targetNpcId: target.npcId, targetFactionId: target.factionId, targetBlockId: target.blockId } : null;
+  const reset = () => { setKind(null); setTarget({}); setCrewIds([]); setApproach(undefined); setFilter(''); };
   const toggle = (id: Id) => setCrewIds(ids => ids.includes(id) ? ids.filter(x => x !== id) : def && ids.length >= def.maxCrew ? ids : [...ids, id]);
 
   return (
@@ -131,6 +133,18 @@ function Planner() {
           )}
           {step === 2 && (
             <>
+              <div className="section-title">Approach</div>
+              <div className="col">
+                {(Object.keys(OP_APPROACHES) as OpApproach[]).map(k => { const a = OP_APPROACHES[k]; const on = approach === k; const insideOff = k === 'inside' && (def.target !== 'business' || !insiders.length);
+                  return (
+                    <button type="button" key={k} className={`opt${on ? ' sel' : ''}`} disabled={insideOff} onClick={() => setApproach(on ? undefined : k)}>
+                      <span className="lbl">{a.icon} {a.label} <span className="odds" style={{ float: 'right' }}>{select.opChance(w, kind!, crewIds, k)}%</span></span>
+                      <span className="det">{a.blurb}{k === 'inside' && insiders.length ? ` ${insiders[0].name} would do it.` : ''}</span>
+                      <span className="stakes"><b className="green">✓ {a.good}</b> <b className="red">✗ {a.bad}</b></span>
+                      {insideOff && <span className="cst">{def.target !== 'business' ? 'Needs a place as the target.' : 'Nobody there trusts you enough yet (trust 35+).'}</span>}
+                    </button>
+                  ); })}
+              </div>
               <div className="section-title">Crew ({crewIds.length}/{def.maxCrew}, min {def.minCrew})</div>
               <div className="list">
                 {idle.map(n => { const on = crewIds.includes(n.id); return (

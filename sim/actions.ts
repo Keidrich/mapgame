@@ -37,7 +37,7 @@ export type Action =
   | { type: 'sell_product'; product: ProductKind; amount: number; blockId: Id } // 1 AP street sale
   | { type: 'launder'; amount: number } // via laundering rackets capacity (auto at tick too)
   // --- ops ---
-  | { type: 'plan_op'; kind: OpKind; crewIds: Id[]; targetBusinessId?: Id; targetNpcId?: Id; targetFactionId?: FactionId; targetBlockId?: Id }
+  | { type: 'plan_op'; kind: OpKind; crewIds: Id[]; approach?: 'loud' | 'quiet' | 'inside'; targetBusinessId?: Id; targetNpcId?: Id; targetFactionId?: FactionId; targetBlockId?: Id }
   | { type: 'launch_op'; opId: Id }
   | { type: 'abort_op'; opId: Id }
   // --- factions / politics ---

@@ -1,5 +1,6 @@
 import { BUSINESS_DEFS } from '@content/businesses';
-import { OP_DEFS, PRODUCTION_DEFS, PRODUCT_INFO, RACKET_DEFS, RACKET_UPGRADE_COST, SAFEHOUSE_TIERS } from '@content/rackets';
+import { OP_APPROACHES, OP_DEFS, PRODUCTION_DEFS, PRODUCT_INFO, RACKET_DEFS, RACKET_UPGRADE_COST, SAFEHOUSE_TIERS } from '@content/rackets';
+import { insidersFor } from './select';
 import type { Action, Affordance, SitDownOffer } from './actions';
 import { emptyStash, stanceFor } from './generate';
 import { populateChunk } from './populate';
@@ -148,6 +149,8 @@ export function can(w: World, a: Action): Affordance {
       }
       if (def.target === 'npc' && !a.targetNpcId) return no('Pick a target.');
       if (def.target === 'npc') { const n = npc(a.targetNpcId!); if (!n?.alive) return no('Already dead.'); if (n.official) return no('Killing an official ends careers. Not available.'); }
+      if (a.approach === 'inside' && !insidersFor(w, a.targetBusinessId).length) return no('Nobody at the target trusts you enough (trust 35+).');
+      if (a.approach === 'inside' && def.target !== 'business') return no('An inside man needs a place to be inside of.');
       const r = ap(1); if (r) return no(r);
       return yes({ ap: 1, cash: def.cost });
     }
@@ -396,10 +399,11 @@ export function dispatch(prev: World, a: Action): World {
 
     case 'plan_op': {
       const def = OP_DEFS[a.kind]; if (def.cost) takeCash(w, def.cost);
-      const o: Op = { id: nid(w, 'o'), kind: a.kind, targetBusinessId: a.targetBusinessId, targetNpcId: a.targetNpcId, targetFactionId: a.targetFactionId, targetBlockId: a.targetBlockId, crewIds: a.crewIds.slice(), planDays: def.planDays, daysLeft: def.planDays, status: def.planDays === 0 ? 'ready' : 'planning', createdDay: w.day };
+      const insider = a.approach === 'inside' ? insidersFor(w, a.targetBusinessId)[0] : undefined;
+      const o: Op = { id: nid(w, 'o'), kind: a.kind, approach: a.approach, insideId: insider?.id, targetBusinessId: a.targetBusinessId, targetNpcId: a.targetNpcId, targetFactionId: a.targetFactionId, targetBlockId: a.targetBlockId, crewIds: a.crewIds.slice(), planDays: def.planDays, daysLeft: def.planDays, status: def.planDays === 0 ? 'ready' : 'planning', createdDay: w.day };
       w.ops[o.id] = o; p.opIds.push(o.id);
       for (const id of a.crewIds) { const n = npc(id); n.crew!.assignment = { kind: 'op', opId: o.id }; n.crew!.status = 'assigned'; }
-      log(w, `${def.label} is ${o.status === 'ready' ? 'ready to go' : `in planning (${def.planDays} days)`}.`, 'info', { opId: o.id });
+      log(w, `${def.label}${a.approach ? ` (${OP_APPROACHES[a.approach].label.toLowerCase()}${insider ? `, ${insider.name} inside` : ''})` : ''} is ${o.status === 'ready' ? 'ready to go' : `in planning (${def.planDays} days)`}.`, 'info', { opId: o.id });
       break;
     }
     case 'launch_op': { const o = w.ops[a.opId]; o.status = 'ready'; o.daysLeft = 0; o.launched = true; log(w, `${OP_DEFS[o.kind].label} goes tonight.`, 'warn', { opId: o.id }); break; }

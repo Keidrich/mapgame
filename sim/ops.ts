@@ -1,4 +1,4 @@
-import { OP_DEFS } from '@content/rackets';
+import { OP_APPROACHES, OP_DEFS } from '@content/rackets';
 import type { Rng } from './rng';
 import { opChance } from './select';
 import { PLAYER, type Op, type World } from './types';
@@ -7,8 +7,8 @@ import { freeOpCrew } from './reducer';
 
 /** Resolve one launched op. Called from the tick. */
 export function resolveOp(w: World, o: Op, rng: Rng) {
-  const def = OP_DEFS[o.kind]; const p = w.player;
-  const chance = opChance(w, o.kind, o.crewIds);
+  const def = OP_DEFS[o.kind]; const p = w.player; const ap = o.approach ? OP_APPROACHES[o.approach] : undefined;
+  const chance = opChance(w, o.kind, o.crewIds, o.approach);
   const roll = rng.int(1, 100);
   const success = roll <= chance;
   const crew = o.crewIds.map(id => w.npcs[id]).filter(Boolean);
@@ -19,8 +19,9 @@ export function resolveOp(w: World, o: Op, rng: Rng) {
 
   if (success) {
     const [lo, hi] = def.payout;
-    const value = Math.round(lo + (hi - lo) * rng.float() * (0.7 + Math.min(1, Math.max(0, margin) / 60)));
-    res.heat = Math.round(def.heat * (margin > 30 ? 0.6 : 1));
+    const value = Math.round(lo + (hi - lo) * rng.float() * (0.7 + Math.min(1, Math.max(0, margin) / 60)) * (ap?.payout ?? 1));
+    res.heat = Math.round(def.heat * (margin > 30 ? 0.6 : 1) * (ap?.heat ?? 1));
+    if (o.insideId && w.npcs[o.insideId]) adjustRel(w.npcs[o.insideId], { trust: 5, respect: 5 });
     switch (o.kind) {
       case 'heist_bank': case 'heist_armored': case 'robbery': case 'raid_rival': case 'check_kiting': {
         p.dirty += value; res.cash = value; res.text = `${def.label} at ${target?.name ?? '?'}: clean. ${money(value)} in the bag.`;
@@ -71,8 +72,10 @@ export function resolveOp(w: World, o: Op, rng: Rng) {
     p.respect = clamp(p.respect + (def.difficulty >= 60 ? 6 : 2));
     for (const n of crew) if (n.crew) n.crew.loyalty = clamp(n.crew.loyalty + 5);
   } else {
-    res.heat = Math.round(def.heat * 1.4);
+    res.heat = Math.round(def.heat * 1.4 * (ap?.heat ?? 1));
     const bad = -margin > 30; // badly failed
+    if (o.insideId && w.npcs[o.insideId]) { const ins = w.npcs[o.insideId]; ins.rel.trust = -50; ins.notes.push('Burned as an inside man.'); if (target) adjustRel(w.npcs[target.ownerId], { trust: -30, fear: 10 }); }
+    if (o.approach === 'loud' && bad && crew.length && rng.chance(0.3)) { const v = rng.pick(crew); if (v.crew && v.crew.status !== 'dead') { v.crew.status = 'dead'; v.crew.assignment = undefined; v.alive = false; } }
     const victim = crew.length ? rng.pick(crew) : undefined;
     let fate = '';
     if (victim?.crew) {

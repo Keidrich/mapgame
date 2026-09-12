@@ -1,6 +1,6 @@
 /** Read-only helpers for the UI. Never mutate. */
 import { BUSINESS_DEFS } from '@content/businesses';
-import { OP_DEFS, RACKET_DEFS } from '@content/rackets';
+import { OP_APPROACHES, OP_DEFS, RACKET_DEFS, type OpApproach } from '@content/rackets';
 import { controller, stanceFor } from './generate';
 import { distanceM } from '@geo/project';
 import { STEP_M } from './populate';
@@ -45,13 +45,19 @@ export function crewSkillSum(w: World, ids: Id[]): Record<string, number> {
   for (const id of ids) { const n = w.npcs[id]; if (!n) continue; for (const k of Object.keys(s)) s[k] += n.skills[k as keyof typeof n.skills]; }
   return s;
 }
-export function opChance(w: World, kind: OpKind, crewIds: Id[]): number {
-  const d = OP_DEFS[kind]; const s = crewSkillSum(w, crewIds);
+export function opChance(w: World, kind: OpKind, crewIds: Id[], approach?: OpApproach): number {
+  const d = OP_DEFS[kind]; const s = crewSkillSum(w, crewIds); const ap = approach ? OP_APPROACHES[approach] : undefined;
   let ratio = 0, n = 0;
-  for (const [k, need] of Object.entries(d.needs)) { ratio += Math.min(1.3, s[k] / (need || 1)); n++; }
+  for (const [k, need] of Object.entries(d.needs)) { const wgt = ap?.skillWeight[k as keyof typeof ap.skillWeight] ?? 1; ratio += Math.min(1.3, (s[k] * wgt) / (need || 1)); n++; }
   ratio = n ? ratio / n : 1;
-  const base = 50 + (ratio - 1) * 70 - (d.difficulty - 50) * 0.6 - w.player.heat * 0.15;
+  const base = 50 + (ratio - 1) * 70 - (d.difficulty + (ap?.difficulty ?? 0) - 50) * 0.6 - w.player.heat * 0.15;
   return Math.max(3, Math.min(97, Math.round(base)));
+}
+/** People at a target who trust you enough to be an inside man (best first). */
+export function insidersFor(w: World, businessId?: Id): Npc[] {
+  if (!businessId) return [];
+  const b = w.businesses[businessId]; if (!b) return [];
+  return [b.ownerId, ...b.patronIds].map(id => w.npcs[id]).filter(n => n && n.alive && !n.crew && n.rel.trust >= 35).sort((x, y) => y.rel.trust - x.rel.trust);
 }
 export function racketLabel(k: RacketKind) { return RACKET_DEFS[k].label; }
 export function dailyEstimate(w: World): { clean: number; dirty: number; wages: number; rent: number } {

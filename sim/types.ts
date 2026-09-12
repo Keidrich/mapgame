@@ -204,6 +204,8 @@ export interface Op {
   targetFactionId?: FactionId;
   targetBlockId?: Id;
   crewIds: Id[];
+  approach?: 'loud' | 'quiet' | 'inside';
+  insideId?: Id;   // the contact used for an inside job
   planDays: number;
   daysLeft: number;
   status: OpStatus;
