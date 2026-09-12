@@ -160,7 +160,7 @@ export function focus(ref: { blockId?: Id; businessId?: Id; npcId?: Id }) {
 }
 
 function pushToasts(entries: LogEntry[]) {
-  if (!entries.length) return;
+  if (!entries.length || state.scene) return; // a scene shows its own outcome
   const now = Date.now();
   const fresh = entries.slice(-2).map(e => ({ id: toastSeq++, text: e.text, tone: e.tone, until: now + TOAST_MS }));
   const merged = [...state.toasts.filter(t => !fresh.some(f => f.text === t.text)), ...fresh];
