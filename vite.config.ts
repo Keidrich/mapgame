@@ -48,5 +48,7 @@ export default defineConfig({
       },
     }),
   ],
+  // maplibre-gl ships its worker as a separate module that the dep optimizer breaks in dev
+  optimizeDeps: { exclude: ['maplibre-gl'] },
   server: { port: 5173 },
 });

@@ -6,6 +6,8 @@ import { useSyncExternalStore } from 'react';
 import { can, dispatch, WORLD_VERSION } from '@sim/index';
 import type { Action, Affordance } from '@sim/actions';
 import type { Id, LogEntry, World } from '@sim/types';
+import { idbDel, idbGet, idbSet } from '@ui/net/idb';
+import { loadChunk } from '@ui/net/chunks';
 
 export type Tab = 'map' | 'crew' | 'ops' | 'factions' | 'empire';
 export type Sheet =
@@ -17,6 +19,8 @@ export interface Toast { id: number; text: string; tone: LogEntry['tone']; until
 
 export interface UiState {
   world: World | null;
+  booting: boolean;     // reading the save from IndexedDB
+  chunkVersion: number; // bumps whenever chunk geometry arrives, so the map redraws
   tab: Tab;
   sheets: Sheet[];      // stack; the last one is visible
   selection: Selection;
@@ -24,28 +28,27 @@ export interface UiState {
   victorySeen: boolean;
 }
 
-export const SAVE_KEY = 'rackets.save.v1';
+export const SAVE_KEY = 'rackets.save.v3';
 const VICTORY_KEY = 'rackets.victory.v1';
 const TOAST_MS = 3000;
 
-function loadSave(): World | null {
-  try {
-    const raw = localStorage.getItem(SAVE_KEY);
-    if (!raw) return null;
-    const w = JSON.parse(raw) as World;
-    if (!w || typeof w !== 'object' || w.version !== WORLD_VERSION) { localStorage.removeItem(SAVE_KEY); return null; }
-    return w;
-  } catch { return null; }
-}
+let saveTimer: ReturnType<typeof setTimeout> | null = null;
+let pendingSave: World | null | undefined;
+/** Saves are big (a city), so they go to IndexedDB, debounced. */
 function save(w: World | null) {
-  try { if (w) localStorage.setItem(SAVE_KEY, JSON.stringify(w)); else localStorage.removeItem(SAVE_KEY); } catch { /* quota / private mode */ }
+  pendingSave = w;
+  if (saveTimer) return;
+  saveTimer = setTimeout(() => {
+    saveTimer = null;
+    const v = pendingSave; pendingSave = undefined;
+    if (v) void idbSet(SAVE_KEY, v); else void idbDel(SAVE_KEY);
+  }, 400);
 }
 function loadVictorySeen(w: World | null): boolean {
   try { return !!w && localStorage.getItem(VICTORY_KEY) === String(w.seed); } catch { return false; }
 }
 
-const initialWorld = loadSave();
-let state: UiState = { world: initialWorld, tab: 'map', sheets: [], selection: {}, toasts: [], victorySeen: loadVictorySeen(initialWorld) };
+let state: UiState = { world: null, booting: true, chunkVersion: 0, tab: 'map', sheets: [], selection: {}, toasts: [], victorySeen: false };
 const listeners = new Set<() => void>();
 let toastSeq = 1;
 
@@ -54,6 +57,28 @@ function set(patch: Partial<UiState>) {
   for (const l of listeners) l();
 }
 function subscribe(l: () => void) { listeners.add(l); return () => { listeners.delete(l); }; }
+
+/** Read the save once at boot. Old localStorage saves (v1/v2) are discarded. */
+export async function boot() {
+  try { localStorage.removeItem('rackets.save.v1'); } catch { /* ignore */ }
+  const w = await idbGet<World>(SAVE_KEY);
+  const ok = !!w && typeof w === 'object' && w.version === WORLD_VERSION;
+  if (w && !ok) void idbDel(SAVE_KEY);
+  set({ world: ok ? w : null, booting: false, victorySeen: loadVictorySeen(ok ? w : null) });
+}
+export function bumpChunks() { set({ chunkVersion: state.chunkVersion + 1 }); }
+/** The player tapped an unpopulated block: fetch/populate its chunk, then open the block. */
+export async function populateAndOpen(chunkKey: string, blockId: Id) {
+  const w = state.world; if (!w) return;
+  if (!w.chunks[chunkKey]) {
+    pushToasts([{ day: w.day, text: 'Getting to know the area…', tone: 'info' }]);
+    const chunk = await loadChunk(chunkKey);
+    if (!state.world || state.world.chunks[chunkKey]) return;
+    act({ type: 'populate_chunk', chunk });
+    bumpChunks();
+  }
+  if (state.world?.blocks[blockId]) openSheet({ kind: 'block', blockId });
+}
 
 /** Subscribe to a slice. The selector must return a stable reference for an unchanged state. */
 export function useStore<T>(sel: (s: UiState) => T): T {
@@ -85,7 +110,7 @@ export function act(action: Action): boolean {
 }
 export function newGame(w: World) {
   save(w);
-  set({ world: w, tab: 'map', sheets: [], selection: {}, toasts: [], victorySeen: false });
+  set({ world: w, booting: false, tab: 'map', sheets: [], selection: {}, toasts: [], victorySeen: false, chunkVersion: state.chunkVersion + 1 });
 }
 export function resetGame() {
   save(null);

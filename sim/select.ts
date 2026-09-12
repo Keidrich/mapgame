@@ -3,7 +3,7 @@ import { BUSINESS_DEFS } from '@content/businesses';
 import { OP_DEFS, RACKET_DEFS } from '@content/rackets';
 import { controller, stanceFor } from './generate';
 import { distanceM } from '@geo/project';
-import { STEP_M } from './generate';
+import { STEP_M } from './populate';
 import { PLAYER, type Block, type Business, type FactionId, type Id, type Npc, type OpKind, type RacketKind, type Stance, type World } from './types';
 
 export { controller, stanceFor };

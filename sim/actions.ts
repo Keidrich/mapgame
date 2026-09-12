@@ -4,6 +4,7 @@
  * which are currently possible and why not.
  */
 import type { Id, FactionId, RacketKind, ProductionKind, OpKind, ProductKind, Assignment } from './types';
+import type { GeoChunk } from '@geo/chunks';
 
 export type Action =
   // --- people ---
@@ -47,6 +48,8 @@ export type Action =
   // --- turn ---
   | { type: 'resolve_event'; eventId: Id; optionId: string }
   | { type: 'end_day' }
+  // --- world streaming ---
+  | { type: 'populate_chunk'; chunk: GeoChunk }   // the UI fetched geometry for a new area; the sim fills it with people
   // --- meta ---
   | { type: 'rename'; name: string };
 

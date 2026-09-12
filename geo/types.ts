@@ -9,6 +9,7 @@ export interface GeoBlock {
   neighborIds: string[];
   streetNames: string[];  // named roads on the boundary, longest first
   hex?: { q: number; r: number };
+  edgeKeys?: string[];    // boundary edges as node-id pairs, for linking across chunks
 }
 
 export interface GeoPoi {

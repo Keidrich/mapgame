@@ -2,7 +2,7 @@ import { Rng } from './rng';
 import type { Id, LogEntry, Npc, World, FactionId, Block } from './types';
 import { PLAYER } from './types';
 import { distanceM } from '@geo/project';
-import { STEP_M } from './generate';
+import { STEP_M } from './populate';
 import { controller } from './generate';
 
 export const clamp = (v: number, lo = 0, hi = 100) => Math.max(lo, Math.min(hi, v));

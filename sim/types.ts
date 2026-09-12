@@ -22,15 +22,26 @@ export interface District {
   kind: DistrictKind;
   name: string;
   blockIds: Id[];
+  chunkKey: string;
+}
+
+/** A loaded-and-populated map chunk (~2.2 km square). Geometry for unpopulated chunks lives in the UI cache, not here. */
+export interface ChunkState {
+  key: string;
+  source: 'osm' | 'hex';
+  populatedDay: number;
+  districtIds: Id[];
 }
 
 export interface Block {
   id: Id;
-  hex?: Hex;              // only for the hex fallback city
+  hex?: Hex;              // only for the hex fallback
+  chunkKey: string;
   polygon: LatLng[];      // outline, closed implicitly
   center: LatLng;
   areaM2: number;
-  neighborIds: Id[];      // blocks sharing a street edge
+  neighborIds: Id[];      // blocks sharing a street edge (across chunks too, once both are loaded)
+  edgeKeys: string[];     // boundary edges, for linking neighbours in chunks loaded later
   streetNames: string[];
   name: string;
   districtId: Id;
@@ -293,6 +304,7 @@ export interface World {
   placeName: string;
   mapSource: 'osm' | 'hex';
   hexSizeM: number;
+  chunks: Record<string, ChunkState>;
   districts: Record<Id, District>;
   blocks: Record<Id, Block>;
   businesses: Record<Id, Business>;

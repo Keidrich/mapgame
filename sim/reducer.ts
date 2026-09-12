@@ -2,6 +2,7 @@ import { BUSINESS_DEFS } from '@content/businesses';
 import { OP_DEFS, PRODUCTION_DEFS, PRODUCT_INFO, RACKET_DEFS, RACKET_UPGRADE_COST, SAFEHOUSE_TIERS } from '@content/rackets';
 import type { Action, Affordance, SitDownOffer } from './actions';
 import { emptyStash, stanceFor } from './generate';
+import { populateChunk } from './populate';
 import { launderCapacity, streetPrice } from './economy';
 import { resolveEventOption } from './events';
 import { endDay } from './tick';
@@ -15,7 +16,7 @@ const yes = (cost?: { ap?: number; cash?: number }): Affordance => ({ ok: true, 
 export function can(w: World, a: Action): Affordance {
   if (w.gameOver) return no('The game is over.');
   const p = w.player;
-  if (a.type !== 'end_day' && a.type !== 'resolve_event' && a.type !== 'rename' && w.pendingEvents.length) return no('Deal with what is in front of you first.');
+  if (a.type !== 'end_day' && a.type !== 'resolve_event' && a.type !== 'rename' && a.type !== 'populate_chunk' && w.pendingEvents.length) return no('Deal with what is in front of you first.');
   const ap = (n: number) => (p.ap >= n ? null : `Needs ${n} AP. You are out of time today.`);
   const cash = (n: number) => (p.cash >= n ? null : `Needs ${money(n)} clean cash.`);
   const npc = (id: Id) => w.npcs[id];
@@ -171,6 +172,7 @@ export function can(w: World, a: Action): Affordance {
     case 'hire_lawyer': { if (p.lawyer) return no('Already on retainer.'); const r = cash(5000); return r ? no(r) : yes({ cash: 5000 }); }
     case 'resolve_event': { const e = w.pendingEvents.find(e => e.id === a.eventId); if (!e) return no('No such event.'); const o = e.options.find(o => o.id === a.optionId); if (!o) return no('No such option.'); if (o.costCash && p.cash < o.costCash) return no(`Needs ${money(o.costCash)}.`); if (o.costAp && p.ap < o.costAp) return no(`Needs ${o.costAp} AP.`); return yes({ ap: o.costAp, cash: o.costCash }); }
     case 'end_day': return w.pendingEvents.length ? no('Resolve the events first.') : yes();
+    case 'populate_chunk': return w.chunks[a.chunk.key] ? no('Already populated.') : yes();
     case 'rename': return a.name.trim() ? yes() : no('Name?');
   }
 }
@@ -410,6 +412,7 @@ export function dispatch(prev: World, a: Action): World {
       break;
     }
     case 'end_day': { done(); return endDay(w); }
+    case 'populate_chunk': { const added = populateChunk(w, a.chunk, rng); if (added.length) log(w, `You get to know a new part of town: ${added.length} blocks around ${w.blocks[added[0].id].name}.`, 'info', { blockId: added[0].id }); break; }
     case 'rename': p.name = a.name.trim(); break;
   }
   done();

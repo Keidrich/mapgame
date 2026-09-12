@@ -1,155 +1,207 @@
 import { useEffect, useRef } from 'react';
-import * as L from 'leaflet';
-import { hex, select } from '@sim/index';
+import * as maplibregl from 'maplibre-gl';
+import type { GeoJSONSource, Map as MLMap, StyleSpecification } from 'maplibre-gl';
+import type { Feature as GJFeature, FeatureCollection, Polygon } from 'geojson';
+import { select } from '@sim/index';
 import { PLAYER, type Id, type World } from '@sim/types';
 import { BUSINESS_DEFS } from '@content/businesses';
-import { gridBounds, topInfluence } from '@ui/derive';
-import { openSheet, useStore } from '@ui/store';
-import { addBasemap } from '@ui/basemap';
+import { chunksInBox, type GeoChunk } from '@geo/chunks';
+import { topInfluence } from '@ui/derive';
+import { bumpChunks, openSheet, populateAndOpen, useStore } from '@ui/store';
+import { allCachedChunks, loadChunk } from '@ui/net/chunks';
 
-/** Business markers appear once the typical block is at least this wide on screen. */
+/** Basemaps in order of preference. Vector styles need no API key; the last entry is a raster fallback MapLibre renders itself. */
+export const BASEMAP_STYLES: (string | StyleSpecification)[] = [
+  'https://tiles.openfreemap.org/styles/dark',
+  'https://tiles.versatiles.org/assets/styles/eclipse/style.json',
+  'https://tiles.openfreemap.org/styles/positron',
+  'https://tiles.openfreemap.org/styles/liberty',
+  {
+    version: 8,
+    sources: { osm: { type: 'raster', tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'], tileSize: 256, maxzoom: 19, attribution: '© OpenStreetMap contributors' } },
+    layers: [{ id: 'osm', type: 'raster', source: 'osm', paint: { 'raster-brightness-max': 0.4, 'raster-saturation': -0.7 } }],
+  },
+];
 const MARKER_BLOCK_PX = 96;
-function blocksAreBig(m: L.Map, w: World): boolean {
-  const blocks = Object.values(w.blocks); if (!blocks.length) return false;
-  const avgSide = Math.sqrt(blocks.reduce((s, b) => s + b.areaM2, 0) / blocks.length);
-  const metresPerPx = (156543.03 * Math.cos((w.origin.lat * Math.PI) / 180)) / Math.pow(2, m.getZoom());
-  return avgSide / metresPerPx >= MARKER_BLOCK_PX;
+const LOAD_MIN_ZOOM = 12.5;
+const EMPTY_STYLE: StyleSpecification = { version: 8, sources: {}, layers: [] };
+
+/** Fetch the first basemap style that answers (8 s each). Style objects are used as they are. */
+export async function resolveBasemap(): Promise<StyleSpecification> {
+  for (const s of BASEMAP_STYLES) {
+    if (typeof s !== 'string') return s;
+    const ctrl = new AbortController(); const t = setTimeout(() => ctrl.abort(), 8000);
+    try { const res = await fetch(s, { signal: ctrl.signal }); if (res.ok) { const json = (await res.json()) as StyleSpecification; if (json && json.version === 8) return json; } }
+    catch { /* next */ } finally { clearTimeout(t); }
+  }
+  return BASEMAP_STYLES[BASEMAP_STYLES.length - 1] as StyleSpecification;
 }
 
-function hexStyle(w: World, blockId: Id, selected: boolean): L.PathOptions {
+interface Props { id: string; chunkKey: string; color: string; fillOpacity: number; line: string; lineWidth: number; lineOpacity: number; unpopulated: 0 | 1; selected: 0 | 1 }
+type Feature = GJFeature<Polygon, Props>;
+
+const ring = (poly: { lat: number; lng: number }[]) => [[...poly.map(p => [p.lng, p.lat]), [poly[0].lng, poly[0].lat]]];
+
+function blockFeature(w: World, blockId: Id, selected: boolean): Feature {
   const b = w.blocks[blockId];
   const ctrl = select.blockController(w, blockId);
   const top = topInfluence(b);
   const color = select.factionColor(w, ctrl);
-  const fillOpacity = ctrl ? 0.08 + (Math.min(100, top.value) / 100) * 0.37 : 0.06;
+  const fillOpacity = ctrl ? 0.12 + (Math.min(100, top.value) / 100) * 0.4 : 0.05;
   const hot = b.heat > 50;
   return {
-    color: selected ? '#ffffff' : hot ? '#e5484d' : ctrl ? color : '#3a404a',
-    weight: selected ? 3 : hot ? 2 : 1,
-    opacity: selected ? 1 : ctrl ? 0.8 : 0.5,
-    fillColor: ctrl === PLAYER ? '#f2c94c' : ctrl ? color : '#666a70',
-    fillOpacity: hot ? Math.max(fillOpacity, 0.2) : fillOpacity,
-    // Player turf gets a dashed edge so it reads apart from gold-ish faction colours.
-    dashArray: ctrl === PLAYER && !selected ? '6 4' : undefined,
+    type: 'Feature',
+    properties: {
+      id: b.id, chunkKey: b.chunkKey,
+      color: ctrl === PLAYER ? '#f2c94c' : ctrl ? color : '#8a9099',
+      fillOpacity: hot ? Math.max(fillOpacity, 0.22) : fillOpacity,
+      line: selected ? '#ffffff' : hot ? '#e5484d' : ctrl ? color : '#4a515c',
+      lineWidth: selected ? 3 : hot ? 2 : ctrl ? 1.4 : 0.8,
+      lineOpacity: selected ? 1 : ctrl ? 0.9 : 0.6,
+      unpopulated: 0, selected: selected ? 1 : 0,
+    },
+    geometry: { type: 'Polygon', coordinates: ring(b.polygon) },
   };
 }
+function ghostFeature(c: GeoChunk, i: number): Feature {
+  const b = c.blocks[i];
+  return {
+    type: 'Feature',
+    properties: { id: b.id, chunkKey: c.key, color: '#8a9099', fillOpacity: 0.03, line: '#3a414b', lineWidth: 0.6, lineOpacity: 0.5, unpopulated: 1, selected: 0 },
+    geometry: { type: 'Polygon', coordinates: ring(b.polygon) },
+  };
+}
+function buildGeoJSON(w: World | null, selectedId?: Id): FeatureCollection {
+  const features: Feature[] = [];
+  const populated = new Set<string>();
+  if (w) for (const id of Object.keys(w.blocks)) { populated.add(id); features.push(blockFeature(w, id, id === selectedId)); }
+  for (const c of allCachedChunks()) { if (w?.chunks[c.key]) continue; c.blocks.forEach((b, i) => { if (!populated.has(b.id)) features.push(ghostFeature(c, i)); }); }
+  return { type: 'FeatureCollection', features };
+}
+function blocksAreBig(m: MLMap, w: World): boolean {
+  const blocks = Object.values(w.blocks); if (!blocks.length) return false;
+  const avgSide = Math.sqrt(blocks.reduce((s, b) => s + b.areaM2, 0) / blocks.length);
+  const metresPerPx = (156543.03 * Math.cos((m.getCenter().lat * Math.PI) / 180)) / Math.pow(2, m.getZoom());
+  return avgSide / metresPerPx >= MARKER_BLOCK_PX;
+}
+function bounds(w: World): [[number, number], [number, number]] | undefined {
+  let minLat = Infinity, minLng = Infinity, maxLat = -Infinity, maxLng = -Infinity;
+  for (const b of Object.values(w.blocks)) for (const c of b.polygon) { if (c.lat < minLat) minLat = c.lat; if (c.lat > maxLat) maxLat = c.lat; if (c.lng < minLng) minLng = c.lng; if (c.lng > maxLng) maxLng = c.lng; }
+  return Number.isFinite(minLat) ? [[minLng, minLat], [maxLng, maxLat]] : undefined;
+}
 
-interface Want { html: string; pos: L.LatLngExpression; size: [number, number]; anchor: [number, number]; layer: 'badge' | 'marker'; click?: () => void }
-type Kept = { mk: L.Marker; html: string; anchor: string };
+interface Want { html: string; lng: number; lat: number; cls: string; click?: () => void }
+type Kept = { mk: maplibregl.Marker; sig: string };
 
-/** Fullscreen Leaflet map. The instance lives in a ref; layers are diffed by id whenever World changes. */
+/** Fullscreen MapLibre map: basemap, all block polygons as one GeoJSON source, DOM markers for what is in view. */
 export function MapView() {
   const world = useStore(s => s.world);
   const blockId = useStore(s => s.selection.blockId);
   const businessId = useStore(s => s.selection.businessId);
+  const chunkVersion = useStore(s => s.chunkVersion);
   const tab = useStore(s => s.tab);
   const el = useRef<HTMLDivElement>(null);
-  const map = useRef<L.Map | null>(null);
-  const hexLayer = useRef<L.LayerGroup>(L.layerGroup());
-  const badgeLayer = useRef<L.LayerGroup>(L.layerGroup());
-  const markerLayer = useRef<L.LayerGroup>(L.layerGroup());
-  const polys = useRef(new Map<Id, L.Polygon>());
+  const map = useRef<MLMap | null>(null);
+  const ready = useRef(false);
   const markers = useRef(new Map<string, Kept>());
   const seedRef = useRef<number | null>(null);
-  const worldRef = useRef(world);
-  const selRef = useRef({ blockId, businessId });
-  worldRef.current = world; selRef.current = { blockId, businessId };
+  const worldRef = useRef(world); worldRef.current = world;
+  const selRef = useRef({ blockId, businessId }); selRef.current = { blockId, businessId };
+  const loading = useRef(new Set<string>());
 
-  // ---- create the map once ----
   useEffect(() => {
     if (!el.current || map.current) return;
-    const m = L.map(el.current, { zoomControl: true, attributionControl: true, zoomSnap: 0.25, zoomDelta: 0.5, minZoom: 11, maxZoom: 18 });
-    m.setView([0, 0], 14);
-    addBasemap(m);
-    m.zoomControl.setPosition('bottomleft');
-    hexLayer.current.addTo(m); badgeLayer.current.addTo(m); markerLayer.current.addTo(m);
-    m.on('zoomend', () => { if (worldRef.current) syncMarkers(m, worldRef.current); });
+    const w0 = worldRef.current;
+    const center: [number, number] = w0 ? [w0.origin.lng, w0.origin.lat] : [-74.006, 40.7128];
+    const m = new maplibregl.Map({ container: el.current, style: EMPTY_STYLE, center, zoom: 14.5, minZoom: 3, maxZoom: 18.5, attributionControl: { compact: true }, pitchWithRotate: false, dragRotate: false, touchPitch: false });
+    m.touchZoomRotate.disableRotation();
     map.current = m;
-    return () => {
-      // Full teardown so a remount (StrictMode, HMR) rebuilds and re-fits from scratch.
-      hexLayer.current.clearLayers(); badgeLayer.current.clearLayers(); markerLayer.current.clearLayers();
-      polys.current.clear(); markers.current.clear(); seedRef.current = null;
-      m.remove(); map.current = null;
+    if (import.meta.env.DEV) (window as unknown as { __map?: MLMap }).__map = m;
+    let disposed = false;
+    void resolveBasemap().then(style => { if (!disposed && map.current === m) { ready.current = false; m.setStyle(style); } });
+    const addLayers = () => {
+      if (m.getSource('blocks')) return;
+      m.addSource('blocks', { type: 'geojson', data: buildGeoJSON(worldRef.current, selRef.current.blockId) });
+      m.addLayer({ id: 'blocks-fill', type: 'fill', source: 'blocks', paint: { 'fill-color': ['get', 'color'], 'fill-opacity': ['get', 'fillOpacity'] } });
+      m.addLayer({ id: 'blocks-line', type: 'line', source: 'blocks', paint: { 'line-color': ['get', 'line'], 'line-width': ['get', 'lineWidth'], 'line-opacity': ['get', 'lineOpacity'] } });
+      ready.current = true;
+      syncMarkers();
     };
+    m.on('style.load', addLayers);
+    m.on('error', () => { /* tile and glyph hiccups are non-fatal; the style itself was validated by resolveBasemap */ });
+    m.on('click', 'blocks-fill', e => {
+      const f = e.features?.[0]; if (!f) return;
+      const { id, chunkKey, unpopulated } = f.properties as Props;
+      if (unpopulated) void populateAndOpen(chunkKey, id); else openSheet({ kind: 'block', blockId: id });
+    });
+    m.on('mouseenter', 'blocks-fill', () => { m.getCanvas().style.cursor = 'pointer'; });
+    m.on('mouseleave', 'blocks-fill', () => { m.getCanvas().style.cursor = ''; });
+    m.on('moveend', () => { syncMarkers(); loadVisibleChunks(); });
+    m.on('zoomend', syncMarkers);
+    return () => { disposed = true; for (const k of markers.current.values()) k.mk.remove(); markers.current.clear(); m.remove(); map.current = null; ready.current = false; seedRef.current = null; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Leaflet needs a size refresh when the map is revealed after a tab panel covered it.
-  useEffect(() => { if (tab === 'map') setTimeout(() => map.current?.invalidateSize(), 50); }, [tab]);
+  useEffect(() => { if (tab === 'map') setTimeout(() => map.current?.resize(), 50); }, [tab]);
 
-  // ---- hexes (diffed by block id) ----
   useEffect(() => {
-    const m = map.current; if (!m || !world) return;
-    if (seedRef.current !== world.seed) {
+    const m = map.current; if (!m) return;
+    if (world && seedRef.current !== world.seed) {
       seedRef.current = world.seed;
-      hexLayer.current.clearLayers(); badgeLayer.current.clearLayers(); markerLayer.current.clearLayers();
-      polys.current.clear(); markers.current.clear();
-      m.fitBounds(gridBounds(world), { padding: [8, 8] });
+      const b = bounds(world); if (b) m.fitBounds(b, { padding: 24, duration: 0, maxZoom: 15.5 });
     }
-    const seen = new Set<Id>();
-    for (const b of Object.values(world.blocks)) {
-      seen.add(b.id);
-      const style = hexStyle(world, b.id, b.id === selRef.current.blockId);
-      let p = polys.current.get(b.id);
-      if (!p) {
-        p = L.polygon(b.polygon.map(c => [c.lat, c.lng] as [number, number]), style);
-        p.on('click', () => openSheet({ kind: 'block', blockId: b.id }));
-        p.addTo(hexLayer.current); polys.current.set(b.id, p);
-      } else p.setStyle(style);
-    }
-    for (const [id, p] of polys.current) if (!seen.has(id)) { hexLayer.current.removeLayer(p); polys.current.delete(id); }
-    syncMarkers(m, world);
-  }, [world]);
+    const src = m.getSource('blocks') as GeoJSONSource | undefined;
+    if (src) src.setData(buildGeoJSON(world, blockId));
+    syncMarkers();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [world, blockId, businessId, chunkVersion]);
 
-  // ---- selection highlight ----
-  useEffect(() => {
-    if (!world) return;
-    for (const [id, p] of polys.current) p.setStyle(hexStyle(world, id, id === blockId));
-    if (blockId) polys.current.get(blockId)?.bringToFront();
-    for (const [key, k] of markers.current) {
-      if (!key.startsWith('biz:')) continue;
-      const e = k.mk.getElement()?.firstElementChild as HTMLElement | null;
-      e?.classList.toggle('sel', key === `biz:${businessId}`);
+  function loadVisibleChunks() {
+    const m = map.current; if (!m || m.getZoom() < LOAD_MIN_ZOOM) return;
+    const b = m.getBounds(); const w = worldRef.current;
+    for (const key of chunksInBox(b.getSouth(), b.getWest(), b.getNorth(), b.getEast(), 9)) {
+      if (loading.current.has(key) || w?.chunks[key] || allCachedChunks().some(c => c.key === key)) continue;
+      loading.current.add(key);
+      void loadChunk(key).then(() => { loading.current.delete(key); bumpChunks(); }).catch(() => loading.current.delete(key));
     }
-  }, [blockId, businessId, world]);
+  }
 
-  function syncMarkers(m: L.Map, w: World) {
+  function syncMarkers() {
+    const m = map.current; const w = worldRef.current;
+    if (!m || !w || !ready.current) return;
     const hi = blocksAreBig(m, w);
+    const vb = m.getBounds();
+    const inView = (lat: number, lng: number) => lat >= vb.getSouth() && lat <= vb.getNorth() && lng >= vb.getWest() && lng <= vb.getEast();
     const want = new Map<string, Want>();
-    const at = (b: World['blocks'][string], dx: number, dy: number): L.LatLngExpression => {
-      const p = hex.metersToLatLng(b.center, dx, dy); return [p.lat, p.lng];
-    };
     const sb = select.startBlock(w);
-    want.set('start', { html: '<div class="start-marker" title="Where you started">★</div>', pos: [sb.center.lat, sb.center.lng], size: [18, 18], anchor: [9, hi ? -4 : 28], layer: 'badge' });
+    want.set('start', { html: '★', cls: 'start-marker', lng: sb.center.lng, lat: sb.center.lat });
+    const offset = (b: World['blocks'][string], dx: number, dy: number) => ({ lng: b.center.lng + dx / (111320 * Math.cos((b.center.lat * Math.PI) / 180)), lat: b.center.lat + dy / 111320 });
     for (const b of Object.values(w.blocks)) {
-      if (b.heat > 50) want.set(`fire:${b.id}`, { html: '<div class="hex-fire">🔥</div>', pos: at(b, 0, hi ? Math.min(w.hexSizeM * 0.55, Math.sqrt(b.areaM2) * 0.35) : 0), size: [16, 16], anchor: [8, hi ? 8 : 24], layer: 'badge' });
-      if (!hi) {
-        if (b.businessIds.length) want.set(`count:${b.id}`, { html: `<div class="hex-badge">${b.businessIds.length}</div>`, pos: [b.center.lat, b.center.lng], size: [22, 22], anchor: [11, 11], layer: 'badge' });
-      } else {
+      if (!inView(b.center.lat, b.center.lng)) continue;
+      if (b.heat > 50) want.set(`fire:${b.id}`, { html: '🔥', cls: 'hex-fire', ...offset(b, 0, hi ? Math.sqrt(b.areaM2) * 0.3 : 0) });
+      if (hi) {
         const n = b.businessIds.length;
         b.businessIds.forEach((bid, i) => {
           const biz = w.businesses[bid]; if (!biz) return;
-          const a = (i / n) * Math.PI * 2 - Math.PI / 2; const r = n > 1 ? Math.min(w.hexSizeM * 0.45, Math.sqrt(b.areaM2) * 0.28) : 0;
+          const a = (i / n) * Math.PI * 2 - Math.PI / 2; const r = n > 1 ? Math.min(90, Math.sqrt(b.areaM2) * 0.28) : 0;
           const yours = biz.ownedBy === 'player' || biz.protection?.factionId === PLAYER;
-          want.set(`biz:${bid}`, { html: `<div class="biz-marker${yours ? ' yours' : ''}${bid === selRef.current.businessId ? ' sel' : ''}">${BUSINESS_DEFS[biz.type].icon}</div>`, pos: at(b, Math.cos(a) * r, Math.sin(a) * r), size: [28, 28], anchor: [14, 14], layer: 'marker', click: () => openSheet({ kind: 'business', businessId: bid }) });
+          want.set(`biz:${bid}`, { html: BUSINESS_DEFS[biz.type].icon, cls: `biz-marker${yours ? ' yours' : ''}${bid === selRef.current.businessId ? ' sel' : ''}`, ...offset(b, Math.cos(a) * r, Math.sin(a) * r), click: () => openSheet({ kind: 'business', businessId: bid }) });
         });
+      } else if (b.businessIds.length && m.getZoom() >= 13.5) {
+        want.set(`count:${b.id}`, { html: String(b.businessIds.length), cls: 'hex-badge', lng: b.center.lng, lat: b.center.lat });
       }
       const sh = b.safehouseId ? w.safehouses[b.safehouseId] : undefined;
-      if (sh) want.set(`safe:${sh.id}`, { html: `<div class="safe-marker${sh.owner === PLAYER ? '' : ' rival'}">🏠</div>`, pos: hi ? at(b, 0, -Math.min(w.hexSizeM * 0.3, Math.sqrt(b.areaM2) * 0.2)) : [b.center.lat, b.center.lng], size: [30, 30], anchor: [15, hi ? 15 : 30], layer: 'marker', click: () => openSheet({ kind: 'block', blockId: b.id }) });
+      if (sh) want.set(`safe:${sh.id}`, { html: '🏠', cls: `safe-marker${sh.owner === PLAYER ? '' : ' rival'}`, ...(hi ? offset(b, 0, -Math.sqrt(b.areaM2) * 0.2) : { lng: b.center.lng, lat: b.center.lat }), click: () => openSheet({ kind: 'block', blockId: b.id }) });
     }
     for (const [key, k] of markers.current) if (!want.has(key)) { k.mk.remove(); markers.current.delete(key); }
     for (const [key, d] of want) {
-      const anchor = d.anchor.join(',');
+      const sig = `${d.cls}|${d.html}`;
       const kept = markers.current.get(key);
-      if (kept) {
-        if (kept.html !== d.html || kept.anchor !== anchor) { kept.mk.setIcon(L.divIcon({ className: 'leaflet-div-icon', html: d.html, iconSize: d.size, iconAnchor: d.anchor })); kept.html = d.html; kept.anchor = anchor; }
-        kept.mk.setLatLng(d.pos);
-        continue;
-      }
-      const mk = L.marker(d.pos, { icon: L.divIcon({ className: 'leaflet-div-icon', html: d.html, iconSize: d.size, iconAnchor: d.anchor }), interactive: !!d.click, keyboard: false });
-      if (d.click) mk.on('click', d.click);
-      mk.addTo(d.layer === 'badge' ? badgeLayer.current : markerLayer.current);
-      markers.current.set(key, { mk, html: d.html, anchor });
+      if (kept) { if (kept.sig !== sig) { kept.mk.getElement().className = d.cls; kept.mk.getElement().textContent = d.html; kept.sig = sig; } kept.mk.setLngLat([d.lng, d.lat]); continue; }
+      const node = document.createElement('div'); node.className = d.cls; node.textContent = d.html;
+      if (d.click) { const fn = d.click; node.addEventListener('click', ev => { ev.stopPropagation(); fn(); }); }
+      const mk = new maplibregl.Marker({ element: node, anchor: 'center' }).setLngLat([d.lng, d.lat]).addTo(m);
+      markers.current.set(key, { mk, sig });
     }
   }
 

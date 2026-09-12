@@ -2,7 +2,7 @@
 import { BUSINESS_DEFS } from '@content/businesses';
 import { stanceFor } from './generate';
 import { distanceM } from '@geo/project';
-import { STEP_M } from './generate';
+import { STEP_M } from './populate';
 import type { Rng } from './rng';
 import { PLAYER, type Block, type Faction, type FactionId, type World } from './types';
 import { addHeat, addInfluence, adjustRel, clamp, factionOf, log, money } from './util';

@@ -18,6 +18,8 @@ import { markVictorySeen, resetGame, useStore, useWorld } from './store';
 
 export function App() {
   const hasWorld = useStore(s => s.world !== null);
+  const booting = useStore(s => s.booting);
+  if (booting) return <div className="splash"><div className="spinner" /><b>RACKETS</b></div>;
   if (!hasWorld) return <Onboarding />;
   return <Game />;
 }

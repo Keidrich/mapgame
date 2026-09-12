@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import * as L from 'leaflet';
+import * as maplibregl from 'maplibre-gl';
+import { resolveBasemap } from './Map';
 import { generateWorld } from '@sim/index';
 import type { LatLng, Player } from '@sim/types';
 import { newGame } from '@ui/store';
-import { fetchCity } from '@ui/net/overpass';
-import type { GeoCity } from '@geo/types';
-import { addBasemap } from '@ui/basemap';
+import { loadChunk } from '@ui/net/chunks';
+import { chunkKeyAt, type GeoChunk } from '@geo/chunks';
 
 const BACKGROUNDS: { id: Player['background']; label: string; blurb: string; ico: string }[] = [
   { id: 'muscle', label: 'Muscle', blurb: 'You came up on the door. People pay when you ask.', ico: '💪' },
@@ -57,9 +57,10 @@ export function Onboarding() {
     if (!place || building) return;
     const origin: LatLng = { lat: place.lat, lng: place.lng };
     setBuilding('Contacting the map server…');
-    let city: GeoCity | undefined; let note = '';
+    let city: GeoChunk | undefined; let note = '';
     try {
-      city = await fetchCity(origin, s => setBuilding(s));
+      city = await loadChunk(chunkKeyAt(origin), s => setBuilding(s));
+      if (city.source === 'hex') throw new Error('no street data');
     } catch (e) {
       note = `Could not map the real streets here (${(e as Error).message}). Using a grid instead.`;
       setBuilding(note);
@@ -67,7 +68,7 @@ export function Onboarding() {
     }
     setBuilding('Populating the city…');
     await new Promise(r => setTimeout(r, 30));
-    const w = generateWorld({ origin, placeName: place.name, playerName: name.trim() || 'Nobody', background: bg, city });
+    const w = generateWorld({ origin, placeName: place.name, playerName: name.trim() || 'Nobody', background: bg, chunk: city });
     if (note) w.log.push({ day: 1, text: note, tone: 'warn' });
     setBuilding(null);
     newGame(w);
@@ -133,25 +134,26 @@ export function Onboarding() {
 
 function PickMap({ value, onPick }: { value: Place | null; onPick: (lat: number, lng: number) => void }) {
   const el = useRef<HTMLDivElement>(null);
-  const map = useRef<L.Map | null>(null);
-  const pin = useRef<L.Marker | null>(null);
+  const map = useRef<maplibregl.Map | null>(null);
+  const pin = useRef<maplibregl.Marker | null>(null);
   const cb = useRef(onPick); cb.current = onPick;
   useEffect(() => {
     if (!el.current || map.current) return;
-    const m = L.map(el.current, { zoomControl: false, attributionControl: true });
-    m.setView(value ? [value.lat, value.lng] : [40.7128, -74.006], value ? 13 : 3);
-    addBasemap(m);
-    m.on('click', e => cb.current(e.latlng.lat, e.latlng.lng));
+    const m = new maplibregl.Map({ container: el.current, style: { version: 8, sources: {}, layers: [] }, center: value ? [value.lng, value.lat] : [-74.006, 40.7128], zoom: value ? 12 : 2, attributionControl: { compact: true }, dragRotate: false, pitchWithRotate: false });
+    m.touchZoomRotate.disableRotation();
+    let disposed = false;
+    void resolveBasemap().then(style => { if (!disposed) m.setStyle(style); });
+    m.on('error', () => { /* non-fatal */ });
+    m.on('click', (e: maplibregl.MapMouseEvent) => cb.current(e.lngLat.lat, e.lngLat.lng));
     map.current = m;
-    return () => { m.remove(); map.current = null; pin.current = null; };
+    return () => { disposed = true; m.remove(); map.current = null; pin.current = null; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   useEffect(() => {
     const m = map.current; if (!m) return;
     if (!value) { pin.current?.remove(); pin.current = null; return; }
-    const ll: [number, number] = [value.lat, value.lng];
-    if (!pin.current) pin.current = L.marker(ll, { icon: L.divIcon({ className: 'leaflet-div-icon', html: '<div class="pin-marker">📍</div>', iconSize: [0, 0] }), interactive: false }).addTo(m);
-    else pin.current.setLatLng(ll);
+    if (!pin.current) { const node = document.createElement('div'); node.className = 'pin-marker'; node.textContent = '📍'; pin.current = new maplibregl.Marker({ element: node, anchor: 'bottom' }).setLngLat([value.lng, value.lat]).addTo(m); }
+    else pin.current.setLngLat([value.lng, value.lat]);
   }, [value]);
   return <div><div ref={el} className="pickmap" /><p className="small muted mt8">Tap the map to drop your pin.</p></div>;
 }
