@@ -6,7 +6,7 @@ import { assignmentLabel, cap, fmtMoney, initials, playerRackets, playerSafehous
 import { openSheet, useWorld } from '@ui/store';
 import { Sheet } from './Sheet';
 import { Meter, RelMeters, SkillBars } from './Meter';
-import { Act, AmountPicker, Disclosure } from './Act';
+import { Act, AmountPicker, Disclosure, SceneAct } from './Act';
 
 export function NpcSheet({ npcId }: { npcId: Id }) {
   const w = useWorld();
@@ -41,13 +41,13 @@ export function NpcSheet({ npcId }: { npcId: Id }) {
 
       <div className="section-title">Actions</div>
       <div className="actions">
-        <Act action={{ type: 'visit', npcId }} label="Visit" icon="🤝" />
-        <Act action={{ type: 'threaten', npcId }} label="Threaten" icon="😠" kind="danger" />
+        <SceneAct scene={{ kind: 'visit', npcId }} label="Visit" icon="🤝" />
+        <SceneAct scene={{ kind: 'threaten', npcId }} label="Threaten" icon="😠" kind="danger" />
         <Disclosure label="Gift" icon="🎁">
           <AmountPicker presets={[100, 500, 2000]} value={gift} onChange={setGift} min={1} />
           <div className="mt8"><Act action={{ type: 'gift', npcId, amount: gift }} label={`Give ${fmtMoney(gift)}`} kind="primary" block /></div>
         </Disclosure>
-        {canRecruit && <Act action={{ type: 'recruit', npcId }} label="Recruit" icon="🧢" kind="primary" />}
+        {canRecruit && <SceneAct scene={{ kind: 'recruit', npcId }} label="Recruit" icon="🧢" kind="primary" />}
         {n.official && (
           <Disclosure label={`Bribe the ${n.official.kind}`} icon="💼" kind="primary">
             <p className="small muted">{OFFICIAL_BLURB[n.official.kind]}</p>

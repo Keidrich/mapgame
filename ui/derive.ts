@@ -105,3 +105,4 @@ export function safehouseAt(w: World, b: Block) { return b.safehouseId ? w.safeh
 export function rivalBlocks(w: World, f: FactionId): Block[] { return select.blocksOf(w, f); }
 export function conditionTone(c: number) { return c >= 70 ? 'var(--green)' : c >= 40 ? 'var(--orange)' : 'var(--red)'; }
 export function heatTone(h: number) { return h >= 70 ? 'var(--red)' : h >= 40 ? 'var(--orange)' : 'var(--green)'; }
+

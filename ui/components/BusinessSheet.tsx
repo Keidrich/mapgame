@@ -7,7 +7,7 @@ import { PRODUCTS, bizIcon, bizTypeLabel, conditionTone, crewName, fmtMoney, own
 import { openSheet, useWorld } from '@ui/store';
 import { Sheet } from './Sheet';
 import { Meter, RelMeters } from './Meter';
-import { Act, AmountPicker, Disclosure } from './Act';
+import { Act, AmountPicker, Disclosure, SceneAct } from './Act';
 import { NpcRow } from './Rows';
 
 export function BusinessSheet({ businessId }: { businessId: Id }) {
@@ -55,15 +55,15 @@ export function BusinessSheet({ businessId }: { businessId: Id }) {
 
       <div className="section-title">Actions</div>
       <div className="actions">
-        {owner && <Act action={{ type: 'visit', npcId: owner.id }} label="Visit" icon="🤝" />}
-        {owner && <Act action={{ type: 'threaten', npcId: owner.id }} label="Threaten" icon="😠" kind="danger" />}
+        {owner && <SceneAct scene={{ kind: 'visit', npcId: owner.id, businessId }} label="Visit" icon="🤝" />}
+        {owner && <SceneAct scene={{ kind: 'threaten', npcId: owner.id, businessId }} label="Threaten" icon="😠" kind="danger" />}
         {owner && (
           <Disclosure label="Gift" icon="🎁">
             <AmountPicker presets={[100, 500, 2000]} value={gift} onChange={setGift} min={1} />
             <div className="mt8"><Act action={{ type: 'gift', npcId: owner.id, amount: gift }} label={`Give ${fmtMoney(gift)}`} kind="primary" block /></div>
           </Disclosure>
         )}
-        {!yours && extortable && <Act action={{ type: 'shakedown', businessId }} label="Shakedown" icon="👊" kind="danger" />}
+        {!yours && extortable && <SceneAct scene={{ kind: 'shakedown', npcId: biz.ownerId, businessId }} label="Shakedown" icon="👊" kind="danger" />}
         {!yours && extortable && (
           <Disclosure label="Protect" icon="🛡️">
             <p className="small muted">The owner pays you a cut of income, every day.</p>

@@ -4,4 +4,6 @@ export { generateWorld, WORLD_VERSION, emptyStash, controller, stanceFor } from 
 export type { NewGameOptions } from './generate';
 export { dispatch, can } from './reducer';
 export * as select from './select';
+export { sceneFor, approachChance } from './scenes';
+export type { Scene, SceneOption } from './scenes';
 export * as hex from './hex';

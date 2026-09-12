@@ -15,6 +15,7 @@ export type Sheet =
   | { kind: 'business'; businessId: Id }
   | { kind: 'npc'; npcId: Id };
 export interface Selection { blockId?: Id; businessId?: Id; npcId?: Id }
+export interface SceneRequest { kind: 'shakedown' | 'threaten' | 'visit' | 'recruit'; npcId: Id; businessId?: Id }
 export interface Toast { id: number; text: string; tone: LogEntry['tone']; until: number }
 
 export interface UiState {
@@ -24,6 +25,7 @@ export interface UiState {
   tab: Tab;
   sheets: Sheet[];      // stack; the last one is visible
   selection: Selection;
+  scene: SceneRequest | null;
   toasts: Toast[];
   victorySeen: boolean;
 }
@@ -48,7 +50,7 @@ function loadVictorySeen(w: World | null): boolean {
   try { return !!w && localStorage.getItem(VICTORY_KEY) === String(w.seed); } catch { return false; }
 }
 
-let state: UiState = { world: null, booting: true, chunkVersion: 0, tab: 'map', sheets: [], selection: {}, toasts: [], victorySeen: false };
+let state: UiState = { world: null, booting: true, chunkVersion: 0, tab: 'map', sheets: [], selection: {}, scene: null, toasts: [], victorySeen: false };
 const listeners = new Set<() => void>();
 let toastSeq = 1;
 
@@ -84,6 +86,7 @@ export async function populateAndOpen(chunkKey: string, blockId: Id) {
 export function useStore<T>(sel: (s: UiState) => T): T {
   return useSyncExternalStore(subscribe, () => sel(state), () => sel(state));
 }
+useStore.getState = () => state;
 /** World for screens that only render once a game exists. */
 export function useWorld(): World {
   const w = useStore(s => s.world);
@@ -104,7 +107,7 @@ export function act(action: Action): boolean {
   const next = dispatch(w, action);
   save(next);
   // a new day starts on the map, so the event cards are the first thing the player sees
-  set(action.type === 'end_day' ? { world: next, sheets: [], tab: 'map' } : { world: next });
+  set(action.type === 'end_day' ? { world: next, sheets: [], tab: 'map', scene: null } : { world: next });
   pushToasts(next.log.slice(before));
   return true;
 }
@@ -145,6 +148,8 @@ export function openSheet(sheet: Sheet) {
   set({ sheets: same ? state.sheets : [...state.sheets, sheet].slice(-6), selection: sel });
 }
 export function backSheet() { set({ sheets: state.sheets.slice(0, -1) }); }
+export function openScene(scene: SceneRequest) { set({ scene }); }
+export function closeScene() { set({ scene: null }); }
 export function closeSheets() { set({ sheets: [] }); }
 export function selectBlock(blockId?: Id) { set({ selection: { ...state.selection, blockId, businessId: undefined } }); }
 /** Jump to the map and open a block / business (used by log refs). */

@@ -5,6 +5,7 @@ import { emptyStash, stanceFor } from './generate';
 import { populateChunk } from './populate';
 import { launderCapacity, streetPrice } from './economy';
 import { resolveEventOption } from './events';
+import { approachChance, resultLine } from './scenes';
 import { endDay } from './tick';
 import { PLAYER, type Business, type Id, type Npc, type Op, type Racket, type Safehouse, type World } from './types';
 import { activeCrewCount, officialTrust, addHeat, addInfluence, adjustRel, clamp, factionOf, log, money, nid, rngOf, spreadRep, takeCash } from './util';
@@ -23,19 +24,19 @@ export function can(w: World, a: Action): Affordance {
   const biz = (id: Id) => w.businesses[id];
 
   switch (a.type) {
-    case 'visit': { const n = npc(a.npcId); if (!n?.alive) return no('They are gone.'); const r = ap(1); return r ? no(r) : yes({ ap: 1 }); }
+    case 'visit': { const n = npc(a.npcId); if (!n?.alive) return no('They are gone.'); const r = ap(1); if (r) return no(r); if (a.approach === 'drinks' && p.cash < 50) return no('Needs $50.'); return yes({ ap: 1, cash: a.approach === 'drinks' ? 50 : 0 }); }
     case 'gift': { const n = npc(a.npcId); if (!n?.alive) return no('They are gone.'); if (a.amount < 50) return no('That is an insult, not a gift.'); const r = cash(a.amount); return r ? no(r) : yes({ cash: a.amount }); }
-    case 'threaten': { const n = npc(a.npcId); if (!n?.alive) return no('They are gone.'); if (n.official) return no('Threatening an official is a bad idea. Bribe them.'); if (n.role === 'boss') return no('You do not threaten a boss. You go to war with him.'); const r = ap(1); return r ? no(r) : yes({ ap: 1 }); }
+    case 'threaten': { const n = npc(a.npcId); if (!n?.alive) return no('They are gone.'); if (n.official) return no('Threatening an official is a bad idea. Bribe them.'); if (n.role === 'boss') return no('You do not threaten a boss. You go to war with him.'); const r = ap(1); if (r) return no(r); if (a.approach === 'crew' && activeCrewCount(w) === 0) return no('No crew to bring.'); return yes({ ap: 1 }); }
     case 'recruit': {
       const n = npc(a.npcId); if (!n?.alive) return no('They are gone.');
       if (n.crew) return no('Already in your crew.');
       if (!['patron', 'owner', 'soldier', 'fixer'].includes(n.role)) return no('Not the recruiting type.');
       if (n.faction && n.role === 'soldier') return no('They belong to someone else.');
       const r = ap(1); if (r) return no(r);
-      const willing = n.rel.trust >= 20 || (n.traits.includes('coward') && n.rel.fear >= 60) || n.rel.respect >= 50;
-      if (!willing) return no('They do not trust you enough yet. Visit, gift, or get known.');
       if (bedsLeft(w) <= 0) return no('No room. Rent or upgrade a safehouse.');
-      return yes({ ap: 1 });
+      if (a.approach === 'cut' && p.cash < 200) return no('Needs $200 up front.');
+      if (a.approach === 'lean' && n.traits.includes('loyal')) return no('Loyal people do not fold.');
+      return yes({ ap: 1, cash: a.approach === 'cut' ? 200 : 0 });
     }
     case 'fire': { const n = npc(a.npcId); if (!n?.crew) return no('Not your crew.'); return yes(); }
     case 'assign': {
@@ -54,6 +55,7 @@ export function can(w: World, a: Action): Affordance {
       if (b.ownedBy === 'player') return no('You own it. Shake yourself down?');
       if (!BUSINESS_DEFS[b.type].rackets.includes('protection')) return no('Nothing to shake here.');
       if (b.lastShakedownDay !== undefined && w.day - b.lastShakedownDay < 3) return no('You were just here. Give it a few days.');
+      if (a.approach === 'wreck' && activeCrewCount(w) === 0) return no('Needs crew to wreck the place.');
       const r = ap(1); return r ? no(r) : yes({ ap: 1 });
     }
     case 'protect': {
@@ -189,17 +191,18 @@ export function dispatch(prev: World, a: Action): World {
 
   switch (a.type) {
     case 'visit': {
-      const n = npc(a.npcId);
-      const charm = p.skills.charm;
-      const gain = 3 + Math.round(charm / 2) + (n.traits.includes('quiet') ? -1 : 0);
-      adjustRel(n, { trust: gain, respect: 2 });
+      const n = npc(a.npcId); const ap_ = a.approach ?? 'listen';
+      if (a.approach === 'drinks') takeCash(w, 50);
+      const chance = approachChance(w, 'visit', ap_, n); const ok = rng.int(1, 100) <= chance;
       const biz = n.favouriteBusinessIds[0] ? w.businesses[n.favouriteBusinessIds[0]] : undefined;
-      let extra = '';
-      if (n.role === 'patron' && n.rel.trust >= 30 && rng.chance(0.5)) {
-        const tip = patronTip(w, n, rng); if (tip) { extra = ` ${tip}`; }
-      }
+      let gain = 0, respect = 0, extra = '';
+      if (ap_ === 'drinks') { gain = ok ? 8 + Math.round(p.skills.charm / 2) : 4; }
+      else if (ap_ === 'business') { respect = ok ? 6 : 3; gain = 2; if (ok) { const tip = patronTip(w, n, rng); if (tip) extra = ` ${tip}`; } }
+      else { gain = ok ? 5 + Math.round(p.skills.charm / 3) : 2; if (ok && n.role === 'patron' && rng.chance(0.5)) { const tip = patronTip(w, n, rng); if (tip) extra = ` ${tip}`; } }
+      if (n.traits.includes('quiet')) gain = Math.max(1, gain - 1);
+      adjustRel(n, { trust: gain, respect });
       if (n.official && n.rel.trust >= 20) extra = ' They mention, unofficially, that a donation would be remembered.';
-      log(w, `You spend time with ${n.name}${biz ? ` at ${biz.name}` : ''}. (+${gain} trust)${extra}`, 'info', { npcId: n.id, businessId: biz?.id });
+      log(w, `${resultLine('visit', ap_, ok, rng)} ${n.name}${biz ? ` at ${biz.name}` : ''}: +${gain} trust${respect ? `, +${respect} respect` : ''}.${extra}`, ok ? 'good' : 'info', { npcId: n.id, businessId: biz?.id });
       break;
     }
     case 'gift': {
@@ -211,27 +214,38 @@ export function dispatch(prev: World, a: Action): World {
       break;
     }
     case 'threaten': {
-      const n = npc(a.npcId);
-      const force = p.skills.muscle * 6 + p.fear + activeCrewCount(w) * 5 + n.rel.fear * 0.5;
-      if (force + rng.int(0, 40) > n.nerve) {
-        const fear = 12 + Math.round(p.skills.muscle) + (n.traits.includes('coward') ? 15 : 0);
-        adjustRel(n, { fear, trust: -8 }); p.fear = clamp(p.fear + 1); addHeat(w, 1, n.homeBlockId);
-        log(w, `${n.name} gets the message. (+${fear} fear)`, 'info', { npcId: n.id });
+      const n = npc(a.npcId); const ap_ = a.approach ?? 'stare';
+      const chance = approachChance(w, 'threaten', ap_, n); const ok = rng.int(1, 100) <= chance;
+      if (ok) {
+        const fear = (ap_ === 'crew' ? 18 : ap_ === 'family' ? 16 : 12) + Math.round(p.skills.muscle / 2) + (n.traits.includes('coward') ? 12 : 0);
+        adjustRel(n, { fear, trust: ap_ === 'family' ? -15 : -8 }); p.fear = clamp(p.fear + 1);
+        addHeat(w, ap_ === 'crew' ? 2 : 1, n.homeBlockId);
+        if (ap_ === 'crew') spreadRep(w, n.homeBlockId, { fear: 3 });
+        log(w, `${resultLine('threaten', ap_, true, rng)} ${n.name}: +${fear} fear.`, 'info', { npcId: n.id });
       } else {
-        adjustRel(n, { trust: -10, respect: -3, fear: 4 }); addHeat(w, 2, n.homeBlockId);
-        log(w, `${n.name} does not back down. ${n.traits.includes('hothead') ? 'They are looking for a fight now.' : 'Word gets around that you can be ignored.'} (+4 fear anyway)`, 'bad', { npcId: n.id });
+        adjustRel(n, { trust: -10, respect: -3, fear: 3 }); addHeat(w, ap_ === 'crew' ? 4 : 2, n.homeBlockId);
+        if (ap_ === 'family' && (n.traits.includes('honest') || n.rel.trust < -30)) { addHeat(w, 6); log(w, `${n.name} went straight to the precinct. (+6 heat)`, 'bad', { npcId: n.id }); }
+        else log(w, `${resultLine('threaten', ap_, false, rng)} ${n.name} is not impressed. ${n.traits.includes('hothead') ? 'They are looking for a fight now.' : 'Word gets around.'}`, 'bad', { npcId: n.id });
         if (n.faction && w.factions[n.faction]) w.factions[n.faction].standing[PLAYER] -= 5;
       }
       break;
     }
     case 'recruit': {
-      const n = npc(a.npcId);
-      const cut = 30 + Math.round((n.skills.muscle + n.skills.brains + n.skills.charm + n.skills.wheels + n.skills.tech) * 3);
-      n.crew = { loyalty: clamp(40 + n.rel.trust / 2), cut, status: 'idle', statusDays: 0, joinedDay: w.day };
+      const n = npc(a.npcId); const ap_ = a.approach ?? 'promise';
+      const chance = approachChance(w, 'recruit', ap_, n); const ok = rng.int(1, 100) <= chance;
+      if (!ok) {
+        if (ap_ === 'lean') { adjustRel(n, { trust: -15, fear: 5 }); log(w, `${resultLine('recruit', ap_, false, rng)} ${n.name} wants nothing to do with you for a while.`, 'bad', { npcId: n.id }); }
+        else { adjustRel(n, { trust: 2 }); log(w, `${resultLine('recruit', ap_, false, rng)} ${n.name} is not ready. (trust ${n.rel.trust})`, 'info', { npcId: n.id }); }
+        break;
+      }
+      if (ap_ === 'cut') takeCash(w, 200);
+      const base = 30 + Math.round((n.skills.muscle + n.skills.brains + n.skills.charm + n.skills.wheels + n.skills.tech) * 3);
+      const cut = ap_ === 'cut' ? Math.round(base * 1.4) : ap_ === 'lean' ? Math.round(base * 0.7) : base;
+      const loyalty = clamp(ap_ === 'cut' ? 60 + n.rel.trust / 3 : ap_ === 'lean' ? 20 + n.rel.fear / 4 : 40 + n.rel.trust / 2);
+      n.crew = { loyalty, cut, status: 'idle', statusDays: 0, joinedDay: w.day };
       n.role = 'crew'; p.crewIds.push(n.id);
       for (const bid of n.favouriteBusinessIds) { const b = w.businesses[bid]; b.patronIds = b.patronIds.filter(id => id !== n.id); }
-      if (Object.values(w.businesses).some(b => b.ownerId === n.id)) { /* owner keeps managing */ }
-      log(w, `${n.name} joins your crew. Wants ${money(cut)}/day.`, 'good', { npcId: n.id });
+      log(w, `${resultLine('recruit', ap_, true, rng)} ${n.name} joins your crew at ${money(cut)}/day (loyalty ${Math.round(loyalty)}).`, 'good', { npcId: n.id });
       break;
     }
     case 'fire': {
@@ -269,21 +283,24 @@ export function dispatch(prev: World, a: Action): World {
     }
 
     case 'shakedown': {
-      const b = w.businesses[a.businessId]; const owner = npc(b.ownerId);
+      const b = w.businesses[a.businessId]; const owner = npc(b.ownerId); const ap_ = a.approach ?? 'lean';
       b.lastShakedownDay = w.day;
-      const pressure = p.skills.muscle * 5 + p.fear * 0.6 + owner.rel.fear + activeCrewCount(w) * 4 + rng.int(0, 30);
-      const resist = owner.nerve + (owner.rel.trust > 40 ? 20 : 0) + (b.protection && b.protection.factionId !== PLAYER ? 25 : 0);
-      if (pressure > resist) {
-        const take = Math.round(b.baseIncome * (0.8 + rng.float() * 1.2));
-        p.dirty += take; adjustRel(owner, { fear: 12, trust: -10 }); addHeat(w, 2, b.blockId); p.fear = clamp(p.fear + 2);
-        addInfluence(w, b.blockId, PLAYER, 4); spreadRep(w, b.blockId, { fear: 3 });
-        log(w, `${owner.name} hands over ${money(take)} at ${b.name}. (+12 fear)`, 'money', { businessId: b.id, npcId: owner.id });
-        if (b.protection && b.protection.factionId !== PLAYER) { const f = w.factions[b.protection.factionId]; f.standing[PLAYER] -= 12; f.grudges.push(`shakedown:${b.id}`); log(w, `${b.name} pays ${f.name}. They will hear about this.`, 'warn', { factionId: f.id }); }
+      const chance = approachChance(w, 'shakedown', ap_, owner, b); const ok = rng.int(1, 100) <= chance;
+      if (ap_ === 'wreck') { b.condition = clamp(b.condition - 15); addHeat(w, 4, b.blockId); spreadRep(w, b.blockId, { fear: 4 }); adjustRel(owner, { fear: 10, trust: -15 }); }
+      const rival = b.protection && b.protection.factionId !== PLAYER ? w.factions[b.protection.factionId] : undefined;
+      if (ok) {
+        const mult = ap_ === 'wreck' ? 1.6 : ap_ === 'reason' ? 0.9 : 1.2;
+        const take = Math.round(b.baseIncome * mult * (0.8 + rng.float() * 0.8));
+        p.dirty += take;
+        adjustRel(owner, ap_ === 'reason' ? { fear: 5, trust: 3 } : { fear: 12, trust: -8 });
+        addHeat(w, ap_ === 'reason' ? 1 : 2, b.blockId); p.fear = clamp(p.fear + (ap_ === 'reason' ? 1 : 2));
+        addInfluence(w, b.blockId, PLAYER, 4); if (ap_ !== 'reason') spreadRep(w, b.blockId, { fear: 3 });
+        log(w, `${resultLine('shakedown', ap_, true, rng)} ${owner.name} hands over ${money(take)} at ${b.name}.`, 'money', { businessId: b.id, npcId: owner.id });
+        if (rival) { rival.standing[PLAYER] -= 12; rival.grudges.push(`shakedown:${b.id}`); log(w, `${b.name} pays ${rival.name}. They will hear about this.`, 'warn', { factionId: rival.id }); }
       } else {
-        adjustRel(owner, { trust: -15, respect: -5 }); addHeat(w, 5, b.blockId);
-        const called = b.protection && b.protection.factionId !== PLAYER;
-        log(w, `${owner.name} refuses. ${called ? `"I pay ${w.factions[b.protection!.factionId].short}. Take it up with them."` : owner.traits.includes('honest') ? 'They threaten to call the cops.' : 'Not scared. Yet.'} (+5 heat)`, 'bad', { businessId: b.id, npcId: owner.id });
-        if (called) w.factions[b.protection!.factionId].standing[PLAYER] -= 6;
+        adjustRel(owner, { trust: -12, respect: ap_ === 'reason' ? -6 : -3 }); addHeat(w, ap_ === 'wreck' ? 6 : 3, b.blockId);
+        log(w, `${resultLine('shakedown', ap_, false, rng)} ${rival ? `"I pay ${rival.short}. Take it up with them."` : owner.traits.includes('honest') ? 'They threaten to call the cops.' : ''}`, 'bad', { businessId: b.id, npcId: owner.id });
+        if (rival) rival.standing[PLAYER] -= 6;
         if (owner.traits.includes('honest') || owner.rel.trust < -30) addHeat(w, 4);
       }
       break;

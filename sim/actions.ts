@@ -8,15 +8,15 @@ import type { GeoChunk } from '@geo/chunks';
 
 export type Action =
   // --- people ---
-  | { type: 'visit'; npcId: Id }                          // 1 AP: +trust/respect, learn things
+  | { type: 'visit'; npcId: Id; approach?: string }       // 1 AP: a scene; approaches in content/lines.ts
   | { type: 'gift'; npcId: Id; amount: number }           // cash: +trust
-  | { type: 'threaten'; npcId: Id }                       // 1 AP: +fear, -trust, +heat
-  | { type: 'recruit'; npcId: Id }                        // 1 AP: patron -> crew
+  | { type: 'threaten'; npcId: Id; approach?: string }    // 1 AP: +fear, -trust, +heat
+  | { type: 'recruit'; npcId: Id; approach?: string }     // 1 AP: patron -> crew
   | { type: 'fire'; npcId: Id }
   | { type: 'assign'; npcId: Id; assignment?: Assignment }
   | { type: 'bribe_official'; npcId: Id; amount: number } // cash
   // --- businesses ---
-  | { type: 'shakedown'; businessId: Id }                 // 1 AP: demand protection money now
+  | { type: 'shakedown'; businessId: Id; approach?: string } // 1 AP: demand protection money now
   | { type: 'protect'; businessId: Id; rate: number }     // 1 AP: install a protection racket
   | { type: 'buy_business'; businessId: Id; offer: number }
   | { type: 'sell_business'; businessId: Id }

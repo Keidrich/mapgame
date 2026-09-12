@@ -262,3 +262,16 @@ label.field { display: block; font-size: 12px; color: var(--muted); margin-botto
 @keyframes spin { to { transform: rotate(360deg); } }
 
 .start-marker { color: var(--gold); font-size: 18px; line-height: 18px; text-align: center; text-shadow: 0 0 6px #000, 0 0 2px #000; pointer-events: none; transform: translateY(-16px); }
+
+/* ---------- scenes ---------- */
+.scene-backdrop { z-index: 66; align-items: flex-end; padding: 0; }
+.scene { width: 100%; max-width: 640px; border-radius: 18px 18px 0 0; max-height: 92dvh; overflow-y: auto; padding-bottom: calc(var(--sab) + 12px); }
+.scene-head { display: flex; gap: 12px; align-items: center; margin-bottom: 10px; }
+.avatar.big { width: 52px; height: 52px; font-size: 18px; border-radius: 26px; }
+.scene-line { font-style: italic; font-size: 16px; line-height: 1.4; color: var(--text); background: var(--bg-3); border-left: 3px solid var(--gold); padding: 10px 12px; border-radius: 8px; margin: 0 0 12px; }
+.scene-opt .odds { float: right; font-weight: 800; padding: 1px 8px; border-radius: 10px; background: var(--bg-4); }
+.scene-opt .odds.good { color: var(--green); } .scene-opt .odds.mid { color: var(--gold); } .scene-opt .odds.bad { color: var(--red); }
+.scene-opt .stakes { display: flex; gap: 12px; flex-wrap: wrap; font-size: 12px; margin-top: 4px; }
+.scene-result { background: var(--bg-3); border-radius: 10px; padding: 12px; font-size: 15px; line-height: 1.45; border-left: 3px solid var(--blue); }
+.scene-result.good { border-left-color: var(--green); } .scene-result.bad { border-left-color: var(--red); }
+.scene-result p { margin: 0 0 8px; } .scene-result p:last-child { margin: 0; }

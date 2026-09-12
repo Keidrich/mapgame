@@ -12,6 +12,7 @@ import { Onboarding } from './components/Onboarding';
 import { OpsTab } from './components/OpsTab';
 import { TabBar } from './components/TabBar';
 import { Toasts } from './components/Toasts';
+import { SceneSheet } from './components/SceneSheet';
 import { select } from '@sim/index';
 import { fmtMoney } from './derive';
 import { markVictorySeen, resetGame, useStore, useWorld } from './store';
@@ -52,6 +53,7 @@ function Game() {
       {sheet?.kind === 'block' && <BlockSheet blockId={sheet.blockId} />}
       {sheet?.kind === 'business' && <BusinessSheet businessId={sheet.businessId} />}
       {sheet?.kind === 'npc' && <NpcSheet npcId={sheet.npcId} />}
+      <SceneSheet />
       {pending > 0 && <EventModal />}
       {w.victory && !victorySeen && (
         <div className="banner" role="status">

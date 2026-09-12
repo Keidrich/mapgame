@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import type { Action } from '@sim/actions';
-import { act, check, useStore } from '@ui/store';
+import { act, check, openScene, useStore, type SceneRequest } from '@ui/store';
 import { fmtMoney } from '@ui/derive';
 
 /**
@@ -49,6 +49,21 @@ export function Disclosure({ label, children, icon, kind }: { label: string; chi
         <span>{icon && <>{icon} </>}{label} <span className="muted">{open ? '▴' : '▾'}</span></span>
       </button>
       {open && <div className="card mt8">{children}</div>}
+    </div>
+  );
+}
+
+/** A button that opens a scene (approach choice) instead of acting straight away. Gated like Act. */
+export function SceneAct({ scene, label, icon, kind = '' }: { scene: SceneRequest; label: ReactNode; icon?: string; kind?: '' | 'primary' | 'danger' | 'ghost' }) {
+  useStore(s => s.world);
+  const base: Action = scene.kind === 'shakedown' ? { type: 'shakedown', businessId: scene.businessId! } : scene.kind === 'threaten' ? { type: 'threaten', npcId: scene.npcId } : scene.kind === 'recruit' ? { type: 'recruit', npcId: scene.npcId } : { type: 'visit', npcId: scene.npcId };
+  const a = check(base);
+  return (
+    <div className="actwrap">
+      <button type="button" className={`btn${kind ? ` btn-${kind}` : ''}`} disabled={!a.ok} onClick={() => openScene(scene)}>
+        <span>{icon && <>{icon} </>}{label}</span><span className="cost">1 AP</span>
+      </button>
+      {!a.ok && <span className="btn-caption">{a.reason}</span>}
     </div>
   );
 }
