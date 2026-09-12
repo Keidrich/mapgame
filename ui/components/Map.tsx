@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import * as maplibregl from 'maplibre-gl';
 import type { GeoJSONSource, Map as MLMap, StyleSpecification } from 'maplibre-gl';
 import type { Feature as GJFeature, FeatureCollection, Polygon } from 'geojson';
@@ -108,6 +108,7 @@ export function MapView() {
   const worldRef = useRef(world); worldRef.current = world;
   const selRef = useRef({ blockId, businessId }); selRef.current = { blockId, businessId };
   const loading = useRef(new Set<string>());
+  const [loadingCount, setLoadingCount] = useState(0);
 
   useEffect(() => {
     if (!el.current || map.current) return;
@@ -161,8 +162,8 @@ export function MapView() {
     const b = m.getBounds(); const w = worldRef.current;
     for (const key of chunksInBox(b.getSouth(), b.getWest(), b.getNorth(), b.getEast(), 9)) {
       if (loading.current.has(key) || w?.chunks[key] || allCachedChunks().some(c => c.key === key)) continue;
-      loading.current.add(key);
-      void loadChunk(key).then(() => { loading.current.delete(key); bumpChunks(); }).catch(() => loading.current.delete(key));
+      loading.current.add(key); setLoadingCount(loading.current.size);
+      void loadChunk(key).then(() => { loading.current.delete(key); setLoadingCount(loading.current.size); bumpChunks(); }).catch(() => { loading.current.delete(key); setLoadingCount(loading.current.size); });
     }
   }
 
@@ -205,5 +206,10 @@ export function MapView() {
     }
   }
 
-  return <div ref={el} className="map" role="application" aria-label="City map" />;
+  return (
+    <>
+      <div ref={el} className="map" role="application" aria-label="City map" />
+      {loadingCount > 0 && <div className="map-loading" role="status" style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', top: 10, zIndex: 5, padding: '6px 12px', borderRadius: 14, background: 'rgba(20,23,28,0.9)', border: '1px solid var(--line)', fontSize: 12, color: 'var(--muted)', pointerEvents: 'none' }}>🗺️ Mapping new streets…</div>}
+    </>
+  );
 }
