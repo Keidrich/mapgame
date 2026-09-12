@@ -110,9 +110,9 @@ function OfficialRow({ npcId }: { npcId: Id }) {
   return (
     <div className="card" style={{ padding: 10 }}>
       <NpcRow w={w} npc={n} sub={`${cap(n.official.kind)} · corruption ${n.official.corruption} · ${select.relLabel(n)}${n.official.boughtBy ? ` · bought by ${select.factionName(w, n.official.boughtBy)}` : ''}`} />
-      <div className="row mt8">
-        <div className="chips grow">{[1000, 2500, 5000].map(v => <button type="button" key={v} className={`chip btn${amt === v ? ' sel' : ''}`} onClick={() => setAmt(v)}>{fmtMoney(v)}</button>)}</div>
-        <Act action={{ type: 'bribe_official', npcId, amount: amt }} label="Bribe" kind="primary" small />
+      <div className="offer mt8">
+        <div className="chips">{[1000, 2500, 5000].map(v => <button type="button" key={v} className={`chip btn${amt === v ? ' sel' : ''}`} onClick={() => setAmt(v)}>{fmtMoney(v)}</button>)}</div>
+        <Act action={{ type: 'bribe_official', npcId, amount: amt }} label={`Bribe ${fmtMoney(amt)}`} kind="primary" block />
       </div>
     </div>
   );

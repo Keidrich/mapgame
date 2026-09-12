@@ -1,0 +1,21 @@
+import { closeHelp } from '@ui/store';
+import { Sheet } from './Sheet';
+
+/** One-screen "how to play" (the README's first five minutes), opened from the ? in the HUD. */
+export function HelpSheet() {
+  return (
+    <Sheet title="How to play" subtitle="The first five minutes" icon="❓" onClose={closeHelp}>
+      <div className="help">
+        <ol>
+          <li>Tap the bright hex in the middle: that is your block. Open a business and read the owner's traits. Cowards and low-nerve owners fold fast; hotheads and honest owners fight back.</li>
+          <li><b>Threaten</b> an owner until their fear is up, then <b>Shakedown</b> for cash today or <b>Protect</b> for a daily cut. Fair rates (10 to 15%) keep owners loyal.</li>
+          <li>Talk to patrons (<b>Visit</b>). At trust 20 you can <b>Recruit</b> them; assign crew to run rackets so they earn full income and get busted less.</li>
+          <li>Add a <b>Numbers</b> racket to a place you protect, rent a <b>safehouse</b> on your block, build a <b>still</b>, stock it, and sell booze on the street or through a <b>Dealing</b> racket.</li>
+          <li><b>End Day</b> each turn. Read the event cards. Watch heat: past 60 you get raided, at 100 you get busted. Bribe the captain or pay the sergeant to cool off.</li>
+          <li>Check <b>Factions</b> before pushing into coloured hexes. Tension means a warning, beef means sabotage, war means bodies. Sit-downs, tribute, and ceding a block buy peace.</li>
+        </ol>
+        <p className="small muted mt12">Every action costs AP (the gold pips). Cash is clean money; dirty money needs laundering before it buys anything legitimate. Own 60% of the blocks to take the city.</p>
+      </div>
+    </Sheet>
+  );
+}

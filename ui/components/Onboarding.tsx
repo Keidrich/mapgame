@@ -93,14 +93,14 @@ export function Onboarding() {
 
       <div className="section-title">Start location</div>
       <div className="segment">
-        <button type="button" className={mode === 'geo' ? 'on' : ''} onClick={() => { setMode('geo'); locate(); }}>📍 My location</button>
+        <button type="button" className={mode === 'geo' ? 'on' : ''} onClick={() => { setMode('geo'); locate(); }}>📍 Near me</button>
         <button type="button" className={mode === 'search' ? 'on' : ''} onClick={() => setMode('search')}>🔎 Search</button>
-        <button type="button" className={mode === 'pick' ? 'on' : ''} onClick={() => setMode('pick')}>🗺️ Pick on map</button>
+        <button type="button" className={mode === 'pick' ? 'on' : ''} onClick={() => setMode('pick')}>🗺️ On the map</button>
       </div>
       {mode === 'search' && (
         <div className="mt8">
           <form className="row" onSubmit={e => { e.preventDefault(); void search(); }}>
-            <input className="input grow" placeholder="City, neighbourhood, address…" value={q} onChange={e => setQ(e.target.value)} inputMode="search" />
+            <input className="input grow" placeholder="City, neighbourhood, address…" value={q} onChange={e => setQ(e.target.value)} inputMode="search" enterKeyHint="search" autoComplete="off" aria-label="Search for a place" />
             <button type="submit" className="btn" disabled={busy}>Go</button>
           </form>
           {results.length > 0 && (
@@ -118,7 +118,10 @@ export function Onboarding() {
       {place && <p className="mt8">Starting in <b className="gold">{place.name}</b> <span className="muted small">({place.lat.toFixed(3)}, {place.lng.toFixed(3)})</span></p>}
 
       <div className="grow" />
-      <button type="button" className="btn btn-primary btn-block mt16" style={{ minHeight: 52 }} disabled={!place || !!building} onClick={start}>{building ? 'Building your city…' : 'Start'}</button>
+      <div className="onboard-foot">
+        <button type="button" className="btn btn-primary btn-block" style={{ minHeight: 52 }} disabled={!place || !!building} onClick={start}>{building ? 'Building your city…' : place ? `Start in ${place.name}` : 'Start'}</button>
+        {!place && <p className="small muted mt8" style={{ textAlign: 'center', margin: '8px 0 0' }}>Pick a starting point first.</p>}
+      </div>
       {building && (
         <div className="building" role="status" aria-live="polite">
           <div className="spinner" />
@@ -127,7 +130,6 @@ export function Onboarding() {
           <p className="small muted">Real streets, real blocks, real businesses from OpenStreetMap. Ten to twenty seconds.</p>
         </div>
       )}
-      {!place && <p className="small muted mt8" style={{ textAlign: 'center' }}>Pick a starting point first.</p>}
     </div>
   );
 }

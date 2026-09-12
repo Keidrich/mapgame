@@ -96,12 +96,10 @@ export function BusinessSheet({ businessId }: { businessId: Id }) {
               const d = RACKET_DEFS[k];
               const needsProduct = k === 'dealing';
               return (
-                <div key={k} className="card" style={{ padding: 10 }}>
-                  <div className="row" style={{ alignItems: 'flex-start' }}>
-                    <div className="grow"><b>{d.icon} {d.label}</b> <span className="muted small">{d.setupCost ? fmtMoney(d.setupCost) : 'free'}</span><div className="small muted">{d.blurb} Runner skill: {d.skill}.</div></div>
-                    <Act action={{ type: 'start_racket', businessId, kind: k, product: needsProduct ? dealProduct : undefined }} label="Start" small />
-                  </div>
-                  {needsProduct && <div className="chips mt8">{PRODUCTS.map(p => <button type="button" key={p} className={`chip btn${dealProduct === p ? ' sel' : ''}`} onClick={() => setDealProduct(p)}>{PRODUCT_INFO[p].icon} {PRODUCT_INFO[p].label}</button>)}</div>}
+                <div key={k} className="card offer" style={{ padding: 10 }}>
+                  <div><b>{d.icon} {d.label}</b> <span className="muted small">{d.setupCost ? fmtMoney(d.setupCost) : 'free'}</span><div className="small muted">{d.blurb} Runner skill: {d.skill}.</div></div>
+                  {needsProduct && <div className="chips">{PRODUCTS.map(p => <button type="button" key={p} className={`chip btn${dealProduct === p ? ' sel' : ''}`} onClick={() => setDealProduct(p)}>{PRODUCT_INFO[p].icon} {PRODUCT_INFO[p].label}</button>)}</div>}
+                  <Act action={{ type: 'start_racket', businessId, kind: k, product: needsProduct ? dealProduct : undefined }} label={`Start ${d.label}`} block />
                 </div>
               );
             })}

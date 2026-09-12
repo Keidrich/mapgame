@@ -28,6 +28,7 @@ export interface UiState {
   scene: SceneRequest | null;
   toasts: Toast[];
   victorySeen: boolean;
+  help: boolean;       // the 'how to play' sheet
 }
 
 export const SAVE_KEY = 'rackets.save.v3';
@@ -50,7 +51,7 @@ function loadVictorySeen(w: World | null): boolean {
   try { return !!w && localStorage.getItem(VICTORY_KEY) === String(w.seed); } catch { return false; }
 }
 
-let state: UiState = { world: null, booting: true, chunkVersion: 0, tab: 'map', sheets: [], selection: {}, scene: null, toasts: [], victorySeen: false };
+let state: UiState = { world: null, booting: true, chunkVersion: 0, tab: 'map', sheets: [], selection: {}, scene: null, toasts: [], victorySeen: false, help: false };
 const listeners = new Set<() => void>();
 let toastSeq = 1;
 
@@ -107,7 +108,7 @@ export function act(action: Action): boolean {
   const next = dispatch(w, action);
   save(next);
   // a new day starts on the map, so the event cards are the first thing the player sees
-  set(action.type === 'end_day' ? { world: next, sheets: [], tab: 'map', scene: null } : { world: next });
+  set(action.type === 'end_day' ? { world: next, sheets: [], tab: 'map', scene: null, help: false } : { world: next });
   pushToasts(next.log.slice(before));
   return true;
 }
@@ -151,6 +152,8 @@ export function backSheet() { set({ sheets: state.sheets.slice(0, -1) }); }
 export function openScene(scene: SceneRequest) { set({ scene }); }
 export function closeScene() { set({ scene: null }); }
 export function closeSheets() { set({ sheets: [] }); }
+export function openHelp() { set({ help: true }); }
+export function closeHelp() { set({ help: false }); }
 export function selectBlock(blockId?: Id) { set({ selection: { ...state.selection, blockId, businessId: undefined } }); }
 /** Jump to the map and open a block / business (used by log refs). */
 export function focus(ref: { blockId?: Id; businessId?: Id; npcId?: Id }) {

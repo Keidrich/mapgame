@@ -1,4 +1,6 @@
+import { useState } from 'react';
 import { Act } from './components/Act';
+import { HelpSheet } from './components/HelpSheet';
 import { BlockSheet } from './components/BlockSheet';
 import { BusinessSheet } from './components/BusinessSheet';
 import { CrewTab } from './components/CrewTab';
@@ -30,6 +32,7 @@ function Game() {
   const tab = useStore(s => s.tab);
   const sheet = useStore(s => s.sheets[s.sheets.length - 1]);
   const victorySeen = useStore(s => s.victorySeen);
+  const help = useStore(s => s.help);
   const pending = w.pendingEvents.length;
   return (
     <div className="app">
@@ -53,13 +56,14 @@ function Game() {
       {sheet?.kind === 'block' && <BlockSheet blockId={sheet.blockId} />}
       {sheet?.kind === 'business' && <BusinessSheet businessId={sheet.businessId} />}
       {sheet?.kind === 'npc' && <NpcSheet npcId={sheet.npcId} />}
+      {help && <HelpSheet />}
       <SceneSheet />
       {pending > 0 && <EventModal />}
       {w.victory && !victorySeen && (
         <div className="banner" role="status">
           <b>🏆 You own the city.</b>
           <p className="small" style={{ margin: '4px 0 8px' }}>{select.playerBlocks(w).length} blocks are yours. The sandbox keeps going — hold it.</p>
-          <button type="button" className="btn btn-sm" style={{ background: '#000', color: '#fff', borderColor: '#000' }} onClick={markVictorySeen}>Keep playing</button>
+          <button type="button" className="btn" style={{ background: '#000', color: '#fff', borderColor: '#000', minWidth: 160 }} onClick={markVictorySeen}>Keep playing</button>
         </div>
       )}
       {w.gameOver && <GameOver />}
@@ -68,13 +72,17 @@ function Game() {
   );
 }
 
+/** Colour key for the map. A small pill on phones; tap to expand. */
 function MapLegend() {
   const w = useWorld();
+  const [open, setOpen] = useState(() => typeof window !== 'undefined' && window.innerWidth >= 700);
+  const rows = [{ id: 'you', color: '#f2c94c', name: w.player.name }, ...Object.values(w.factions).filter(f => f.alive).map(f => ({ id: f.id, color: f.color, name: f.short }))];
   return (
-    <div className="map-legend" aria-hidden="true">
-      <div><span className="sw" style={{ background: '#f2c94c' }} />{w.player.name}</div>
-      {Object.values(w.factions).filter(f => f.alive).map(f => <div key={f.id}><span className="sw" style={{ background: f.color }} />{f.short}</div>)}
-    </div>
+    <button type="button" className={`map-legend${open ? ' open' : ''}`} onClick={() => setOpen(o => !o)} aria-expanded={open} aria-label="Map legend">
+      {open
+        ? rows.map(r => <div key={r.id} className="name"><span className="sw" style={{ background: r.color }} />{r.name}</div>)
+        : <>{rows.map(r => <span key={r.id} className="sw" style={{ background: r.color }} />)}<span>Legend</span></>}
+    </button>
   );
 }
 

@@ -110,9 +110,9 @@ function SafehouseCard({ w, sh }: { w: World; sh: Safehouse }) {
           {(Object.keys(PRODUCTION_DEFS) as (keyof typeof PRODUCTION_DEFS)[]).map(k => {
             const d = PRODUCTION_DEFS[k];
             return (
-              <div key={k} className="row" style={{ alignItems: 'flex-start' }}>
-                <div className="grow"><b>{d.icon} {d.label}</b> <span className="muted small">{fmtMoney(d.setupCost)}</span><div className="small muted">{d.blurb} Makes {PRODUCT_INFO[d.product].label}; needs {d.skill}.</div></div>
-                <Act action={{ type: 'start_production', safehouseId: sh.id, kind: k }} label="Start" small />
+              <div key={k} className="card offer" style={{ padding: 10 }}>
+                <div><b>{d.icon} {d.label}</b> <span className="muted small">{fmtMoney(d.setupCost)}</span><div className="small muted">{d.blurb} Makes {PRODUCT_INFO[d.product].label}; needs {d.skill}.</div></div>
+                <Act action={{ type: 'start_production', safehouseId: sh.id, kind: k }} label={`Build ${d.label}`} block />
               </div>
             );
           })}
