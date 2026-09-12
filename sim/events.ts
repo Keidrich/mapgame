@@ -1,5 +1,5 @@
 /** The event deck. `drawEvents` picks 0–2 cards for tonight; `resolveEventOption` applies a choice. */
-import { PRODUCT_INFO } from '@content/rackets';
+import { PRODUCT_INFO, RACKET_DEFS } from '@content/rackets';
 import type { Rng } from './rng';
 import { PLAYER, type GameEvent, type World } from './types';
 import { addHeat, addInfluence, adjustRel, clamp, factionOf, log, money, nid, spreadRep } from './util';
@@ -16,7 +16,27 @@ export function drawEvents(w: World, rng: Rng) {
   const hostile = Object.values(w.factions).filter(f => f.alive && (f.stance[PLAYER] === 'tension' || f.stance[PLAYER] === 'beef' || f.stance[PLAYER] === 'war'));
   const friendlyPatrons = Object.values(w.npcs).filter(n => n.alive && n.role === 'patron' && n.rel.trust >= 35);
 
+  const runners = myRackets.filter(r => r.runnerId && w.npcs[r.runnerId]?.crew);
   const cands: Candidate[] = [
+    { w: runners.some(r => (w.npcs[r.runnerId!].crew?.loyalty ?? 100) < 50) ? 3 : 0, make: () => { const r = runners.find(r => (w.npcs[r.runnerId!].crew?.loyalty ?? 100) < 50)!; const n = w.npcs[r.runnerId!]; const b = w.businesses[r.businessId]; const skim = Math.max(80, Math.round(r.lastIncome * 0.3)); return ev('skimming', `${n.name} is skimming`, `The ${RACKET_DEFS[r.kind].label.toLowerCase()} at ${b.name} is light again. ${n.name} runs it. About ${money(skim)} a day is walking out the door.`, [
+      { id: 'confront', label: 'Confront them', detail: 'Muscle check. They stop, or they run with the cash.' },
+      { id: 'slide', label: 'Let it slide', detail: 'Costs you money; they feel looked after' },
+      { id: 'replace', label: 'Pull them off it', detail: 'Racket runs unmanned; −loyalty' },
+    ], { npcId: n.id, racketId: r.id, businessId: b.id }); } },
+    { w: myRackets.length ? 3 : 0, make: () => { const r = rng.pick(myRackets); const b = w.businesses[r.businessId]; const ask = 400 + Math.round(r.lastIncome * 2); return ev('cops_sniffing', 'A detective is asking around', `A plainclothes cop has been sitting across from ${b.name} two nights running, watching the ${RACKET_DEFS[r.kind].label.toLowerCase()}.`, [
+      { id: 'pay', label: `Pay him off (${money(ask)})`, detail: '−heat, he goes away', costCash: ask },
+      { id: 'move', label: 'Go dark for two days', detail: 'No income for 2 days; block heat drops' },
+      { id: 'ride', label: 'Ride it out', detail: 'Half the time nothing happens. The other half is a raid.' },
+    ], { racketId: r.id, businessId: b.id }); } },
+    { w: myRackets.some(r => r.kind === 'bookmaking' || r.kind === 'gambling_den') ? 2 : 0, make: () => { const r = myRackets.find(r => r.kind === 'bookmaking' || r.kind === 'gambling_den')!; const b = w.businesses[r.businessId]; const stake = 1500 + rng.int(0, 3000); return ev('whale', 'A high roller wants credit', `A man in a good coat has been losing big at ${b.name} and wants ${money(stake)} on credit to keep going. The house usually wins. Usually.`, [
+      { id: 'extend', label: 'Extend credit', detail: `Win ${money(Math.round(stake * 1.5))}, or chase a debt` },
+      { id: 'refuse', label: 'Cash only', detail: 'He walks; nothing gained' },
+    ], { racketId: r.id, businessId: b.id }); } },
+    { w: crew.length >= 3 ? 2 : 0, make: () => { const [a, b] = rng.shuffle(crew).slice(0, 2); return ev('crew_beef', `${a.name} and ${b.name} are at each other`, `It started over money and now it is about respect. Somebody is going to get hurt unless you settle it.`, [
+      { id: 'a', label: `Back ${a.name}`, detail: `${a.name} +loyalty, ${b.name} −loyalty` },
+      { id: 'b', label: `Back ${b.name}`, detail: `${b.name} +loyalty, ${a.name} −loyalty` },
+      { id: 'heads', label: 'Knock heads together', detail: 'Muscle check: both fall in line, or both resent you' },
+    ], { npcId: a.id, racketId: undefined, blockId: b.homeBlockId }); } },
     { w: myProtected.length ? 3 : 0, make: () => { const b = rng.pick(myProtected); const o = w.npcs[b.ownerId]; return ev('owner_favour', `${o.name} needs a favour`, `${o.name} from ${b.name} says some kids have been shaking down customers out front. "You said nothing bad would happen. So?"`, [
       { id: 'help', label: 'Send someone to sort it', detail: '+trust, +respect on the block', costAp: 1 },
       { id: 'ignore', label: 'Not my problem', detail: '−trust; the block hears about it' },
@@ -117,7 +137,24 @@ export function resolveEventOption(w: World, e: GameEvent, opt: string, rng: Rng
     case 'invite:go': if (f) { f.standing[PLAYER] = clamp(f.standing[PLAYER] + 18, -100, 100); if (f.temperament === 'greedy' && p.cash > 1000) { const ask = Math.min(p.cash, 1000); p.cash -= ask; f.cash += ask; log(w, `${w.npcs[f.bossId].name} hears you out. Peace, for ${money(ask)} "for the trouble".`, 'info', e.refs); } else log(w, `${w.npcs[f.bossId].name} hears you out. Things cool down.`, 'good', e.refs); if (f.stance[PLAYER] === 'tension' && f.standing[PLAYER] >= -15) f.stance[PLAYER] = 'peace'; } break;
     case 'invite:ignore': if (f) { f.standing[PLAYER] = clamp(f.standing[PLAYER] - 15, -100, 100); log(w, `${f.name} take the silence as an answer.`, 'warn', e.refs); } break;
     case 'opportunity:gift': if (n) { adjustRel(n, { trust: 35, respect: 10 }); log(w, `${n.name} will not forget this.`, 'good', e.refs); } break;
+    case 'skimming:confront': if (n?.crew) { const r = e.refs.racketId ? w.rackets[e.refs.racketId] : undefined; if (muscleCheck()) { n.crew.loyalty = clamp(n.crew.loyalty + 5); log(w, `${n.name} swears it will not happen again. It probably will not.`, 'good', e.refs); } else { p.crewIds = p.crewIds.filter(id => id !== n.id); if (r && r.runnerId === n.id) r.runnerId = undefined; n.crew = undefined; n.role = 'patron'; n.rel.trust = -40; const lost = Math.round((r?.lastIncome ?? 200) * 3); p.dirty = Math.max(0, p.dirty - lost); log(w, `${n.name} ran with the cash box. ${money(lost)} gone.`, 'bad', e.refs); } } break;
+    case 'skimming:slide': if (n?.crew) { n.crew.loyalty = clamp(n.crew.loyalty + 12); const r = e.refs.racketId ? w.rackets[e.refs.racketId] : undefined; p.dirty = Math.max(0, p.dirty - Math.round((r?.lastIncome ?? 200) * 2)); log(w, `${n.name} keeps skimming and starts to like you for it. (+12 loyalty)`, 'info', e.refs); } break;
+    case 'skimming:replace': if (n?.crew) { const r = e.refs.racketId ? w.rackets[e.refs.racketId] : undefined; if (r && r.runnerId === n.id) r.runnerId = undefined; n.crew.assignment = undefined; if (n.crew.status === 'assigned') n.crew.status = 'idle'; n.crew.loyalty = clamp(n.crew.loyalty - 10); log(w, `${n.name} is off the racket and sulking. Assign someone else.`, 'warn', e.refs); } break;
+    case 'cops_sniffing:pay': { const r = e.refs.racketId ? w.rackets[e.refs.racketId] : undefined; p.heat = clamp(p.heat - 6); if (r) w.blocks[w.businesses[r.businessId].blockId].heat = clamp(w.blocks[w.businesses[r.businessId].blockId].heat - 15); log(w, 'The detective finds somewhere else to sit. (−6 heat)', 'money', e.refs); break; }
+    case 'cops_sniffing:move': { const r = e.refs.racketId ? w.rackets[e.refs.racketId] : undefined; if (r) { r.disrupted = Math.max(r.disrupted, 2); const blk = w.blocks[w.businesses[r.businessId].blockId]; blk.heat = clamp(blk.heat - 20); } log(w, 'Lights off for two nights. He gets bored.', 'info', e.refs); break; }
+    case 'cops_sniffing:ride': { const r = e.refs.racketId ? w.rackets[e.refs.racketId] : undefined; if (rng.chance(0.5)) log(w, 'He watches, writes nothing down, and leaves.', 'good', e.refs); else if (r) { r.disrupted = 4; const fine = 600 + Math.round(r.lastIncome * 3); p.cash -= fine; if (r.runnerId && w.npcs[r.runnerId].crew) { const c = w.npcs[r.runnerId]; c.crew!.status = 'jailed'; c.crew!.statusDays = p.lawyer ? 4 : 9; c.crew!.assignment = undefined; r.runnerId = undefined; } addHeat(w, 6); log(w, `RAID. ${money(fine)} in fines, the racket dark for 4 days${r.runnerId ? '' : ', your runner in a cell'}.`, 'bad', e.refs); } break; }
+    case 'whale:extend': { const r = e.refs.racketId ? w.rackets[e.refs.racketId] : undefined; const stake = 1500 + rng.int(0, 3000); if (rng.chance(0.55)) { const win = Math.round(stake * 1.5); p.dirty += win; log(w, `The house wins. ${money(win)} in the box.`, 'money', e.refs); } else { const b = r ? w.businesses[r.businessId] : undefined; const debtor = b && b.patronIds.length ? w.npcs[rng.pick(b.patronIds)] : undefined; log(w, `He wins, then he vanishes owing ${money(stake)}.${debtor ? ` ${debtor.name} says they know where he drinks.` : ''}`, 'bad', e.refs); p.respect = clamp(p.respect - 2); } break; }
+    case 'whale:refuse': log(w, 'He leaves, cursing. The regulars nod: this is a serious house.', 'info', e.refs); break;
+    case 'crew_beef:a': case 'crew_beef:b': { const pair = crewPair(w, e); if (!pair) break; const [win, lose] = opt === 'a' ? pair : [pair[1], pair[0]]; if (win.crew) win.crew.loyalty = clamp(win.crew.loyalty + 12); if (lose.crew) lose.crew.loyalty = clamp(lose.crew.loyalty - 12); log(w, `${win.name} walks taller. ${lose.name} does not forget.`, 'info', e.refs); break; }
+    case 'crew_beef:heads': { const pair = crewPair(w, e); if (!pair) break; const ok = muscleCheck(); for (const c of pair) if (c.crew) c.crew.loyalty = clamp(c.crew.loyalty + (ok ? 8 : -8)); log(w, ok ? 'Two bruised egos and a quiet crew. (+8 loyalty both)' : 'They both think you picked the other side. (−8 loyalty both)', ok ? 'good' : 'bad', e.refs); break; }
     default: break;
   }
   void PRODUCT_INFO; void factionOf;
+}
+
+/** The two crew members named in a crew_beef event (first from refs, second from the title). */
+function crewPair(w: World, e: GameEvent): [import('./types').Npc, import('./types').Npc] | undefined {
+  const a = e.refs.npcId ? w.npcs[e.refs.npcId] : undefined; if (!a) return undefined;
+  const other = w.player.crewIds.map(id => w.npcs[id]).find(c => c.id !== a.id && e.title.includes(c.name));
+  return other ? [a, other] : undefined;
 }
