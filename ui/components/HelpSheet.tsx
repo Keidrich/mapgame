@@ -12,7 +12,10 @@ export function HelpSheet() {
           <li>Talk to patrons (<b>Visit</b>). At trust 20 you can <b>Recruit</b> them; assign crew to run rackets so they earn full income and get busted less. Once someone has loyalty 50 and a few days in, make them a <b>lieutenant</b> over a district: rackets there run themselves, but watch the books.</li>
           <li>Add a <b>Numbers</b> racket to a place you protect, rent a <b>safehouse</b> on your block, build a <b>still</b>, stock it, and sell booze on the street or through a <b>Dealing</b> racket.</li>
           <li><b>End Day</b> each turn. Read the event cards. Watch heat: past 60 you get raided, at 100 you get busted. Bribe the captain or pay the sergeant to cool off.</li>
-          <li>Check <b>Factions</b> before pushing into coloured hexes. Tension means a warning, beef means sabotage, war means bodies. Sit-downs, tribute, and ceding a block buy peace.</li>
+          <li>Check <b>Factions</b> before pushing into coloured blocks. Tension means a warning, beef means sabotage, war means bodies. Sit-downs, tribute, and ceding a block buy peace. When a boss falls, back a lieutenant; when two factions fight, <b>broker</b> a truce for a fee.</li>
+          <li>Small street crews hold corners between the factions. <b>Parley</b> with the boss (payroll, join, or run them off) or take the corner. Ignore them and they grow.</li>
+          <li>Product has <b>quality</b>: better workers, upgraded productions and recipes (steal a formula, or recruit someone who knows one) sell higher. Watch for bad batches and shortages.</li>
+          <li>A hit or a big job opens a <b>cold case</b>. Scare or pay the witness, bribe the captain, keep a lawyer. After day 15 the bosses form the <b>Commission</b>: earn a chair and vote.</li>
         </ol>
         <p className="small muted mt12">Every action costs AP (the gold pips). Cash is clean money; dirty money needs laundering before it buys anything legitimate. Own 60% of the blocks to take the city.</p>
       </div>
