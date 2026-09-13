@@ -1,3 +1,4 @@
+import type { NameGroup } from '@content/names';
 import type { BusinessType, DistrictKind, RacketKind } from '@sim/types';
 
 export interface BusinessDef {
@@ -40,23 +41,43 @@ export interface DistrictDef {
   population: [number, number];
   mix: Partial<Record<BusinessType, number>>; // weights
   perBlock: [number, number];
+  /**
+   * Which naming pools are common here, as weights. COSMETIC ONLY: this decides what
+   * the people on these streets are called and nothing else. Nothing in `sim/` may read
+   * it when working out skills, traits, nerve or trust.
+   */
+  nameGroups: Partial<Record<NameGroup, number>>;
+  /**
+   * How networked the people who live here are, 0..1. Not derived from `nameGroups` and
+   * nothing to do with who lives here: it is social density, the odds that two residents
+   * are family or old friends, and how far across the district those ties reach.
+   */
+  closeness: [number, number];
 }
 
 export const DISTRICT_DEFS: DistrictDef[] = [
   { kind: 'docks', names: ['The Docks', 'Harbourside', 'Pier District', 'The Wharf'], wealth: [20, 45], police: [15, 35], population: [30, 60],
-    mix: { warehouse: 5, bar: 3, garage: 2, cab_company: 1, diner: 2, motel: 1, pawn: 1 }, perBlock: [2, 4] },
+    mix: { warehouse: 5, bar: 3, garage: 2, cab_company: 1, diner: 2, motel: 1, pawn: 1 }, perBlock: [2, 4],
+    nameGroups: { irish: 4, slavic: 3, east_asian: 2, black_american: 2, anglo: 2, middle_eastern: 1 }, closeness: [0.45, 0.65] },
   { kind: 'downtown', names: ['Downtown', 'Financial District', 'City Centre', 'The Core'], wealth: [65, 95], police: [55, 80], population: [60, 100],
-    mix: { bank: 2, restaurant: 4, nightclub: 2, jeweller: 2, construction: 1, bar: 2, armored_depot: 1, cab_company: 1 }, perBlock: [3, 5] },
+    mix: { bank: 2, restaurant: 4, nightclub: 2, jeweller: 2, construction: 1, bar: 2, armored_depot: 1, cab_company: 1 }, perBlock: [3, 5],
+    nameGroups: { anglo: 5, italian: 2, irish: 2, east_asian: 2, slavic: 1, latino: 1, black_american: 1, middle_eastern: 1 }, closeness: [0.05, 0.2] },
   { kind: 'old_quarter', names: ['Old Quarter', 'Little Italy', 'Old Town', 'The Village'], wealth: [40, 65], police: [30, 50], population: [50, 80],
-    mix: { restaurant: 4, barbershop: 3, diner: 2, bar: 3, corner_store: 2, pawn: 1, laundromat: 2 }, perBlock: [3, 5] },
+    mix: { restaurant: 4, barbershop: 3, diner: 2, bar: 3, corner_store: 2, pawn: 1, laundromat: 2 }, perBlock: [3, 5],
+    nameGroups: { italian: 6, irish: 3, middle_eastern: 2, slavic: 1, anglo: 1 }, closeness: [0.65, 0.9] },
   { kind: 'industrial', names: ['Ironworks', 'The Yards', 'Millside', 'Foundry Row'], wealth: [25, 45], police: [10, 30], population: [20, 40],
-    mix: { warehouse: 5, garage: 4, construction: 3, diner: 1, bar: 1, cab_company: 1 }, perBlock: [1, 3] },
+    mix: { warehouse: 5, garage: 4, construction: 3, diner: 1, bar: 1, cab_company: 1 }, perBlock: [1, 3],
+    nameGroups: { slavic: 4, latino: 3, black_american: 2, anglo: 2, irish: 2 }, closeness: [0.4, 0.6] },
   { kind: 'heights', names: ['The Heights', 'Hillcrest', 'Northside', 'Belle Park'], wealth: [70, 100], police: [50, 75], population: [40, 60],
-    mix: { restaurant: 3, jeweller: 2, gym: 1, bank: 1, laundromat: 1, corner_store: 1, nightclub: 1 }, perBlock: [1, 3] },
+    mix: { restaurant: 3, jeweller: 2, gym: 1, bank: 1, laundromat: 1, corner_store: 1, nightclub: 1 }, perBlock: [1, 3],
+    nameGroups: { anglo: 5, italian: 2, east_asian: 2, irish: 1, middle_eastern: 1 }, closeness: [0.08, 0.25] },
   { kind: 'market', names: ['Market Square', 'The Bazaar', 'Merchant Row', 'Fishmarket'], wealth: [35, 60], police: [30, 50], population: [60, 100],
-    mix: { corner_store: 5, pawn: 3, diner: 2, laundromat: 2, barbershop: 2, cab_company: 1, gym: 1 }, perBlock: [3, 5] },
+    mix: { corner_store: 5, pawn: 3, diner: 2, laundromat: 2, barbershop: 2, cab_company: 1, gym: 1 }, perBlock: [3, 5],
+    nameGroups: { middle_eastern: 4, east_asian: 4, latino: 3, anglo: 1, italian: 1 }, closeness: [0.5, 0.72] },
   { kind: 'strip', names: ['The Strip', 'Neon Row', 'Club District', 'Lowlight'], wealth: [45, 70], police: [35, 60], population: [50, 90],
-    mix: { nightclub: 5, bar: 4, motel: 2, restaurant: 1, cab_company: 1, pawn: 1 }, perBlock: [3, 5] },
+    mix: { nightclub: 5, bar: 4, motel: 2, restaurant: 1, cab_company: 1, pawn: 1 }, perBlock: [3, 5],
+    nameGroups: { anglo: 2, italian: 2, latino: 2, black_american: 2, east_asian: 2, slavic: 2, irish: 2, middle_eastern: 2 }, closeness: [0.2, 0.4] },
   { kind: 'projects', names: ['The Projects', 'Southside', 'The Blocks', 'Lowtown'], wealth: [10, 30], police: [20, 45], population: [70, 100],
-    mix: { corner_store: 5, barbershop: 3, gym: 2, laundromat: 2, bar: 2, motel: 1, garage: 1 }, perBlock: [2, 4] },
+    mix: { corner_store: 5, barbershop: 3, gym: 2, laundromat: 2, bar: 2, motel: 1, garage: 1 }, perBlock: [2, 4],
+    nameGroups: { black_american: 5, latino: 4, east_asian: 1, irish: 1, anglo: 1 }, closeness: [0.7, 0.95] },
 ];

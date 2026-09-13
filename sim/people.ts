@@ -2,6 +2,7 @@
  * People with lives of their own: agendas that advance whether or not you show up,
  * grudges that spread through the relationship graph, and what a block remembers.
  */
+import { connectionsOf, familyOf } from './connections';
 import type { Rng } from './rng';
 import { PLAYER, type Agenda, type AgendaKind, type Block, type GameEvent, type Id, type Npc, type World } from './types';
 import { addHeat, adjustRel, clamp, log, money, nid } from './util';
@@ -15,14 +16,20 @@ export function assignAgendas(w: World, npcs: Npc[], rng: Rng) {
   for (const n of npcs) {
     if (n.agenda) continue;
     let kind: AgendaKind | undefined;
-    if (n.role === 'owner' && rng.chance(0.35)) kind = rng.weighted([{ item: 'debt' as AgendaKind, w: 3 }, { item: 'leave', w: 2 }, { item: 'family', w: 2 }, { item: 'revenge', w: 1 }]);
+    // 'family' is only ever real: it needs somebody in the web to be frightened for.
+    const family = familyOf(w, n);
+    if (n.role === 'owner' && rng.chance(0.35)) kind = rng.weighted([{ item: 'debt' as AgendaKind, w: 3 }, { item: 'leave', w: 2 }, { item: 'family', w: family.length ? 2 : 0 }, { item: 'revenge', w: 1 }]);
     else if (n.role === 'patron' && rng.chance(0.15)) kind = rng.weighted([{ item: 'ambition' as AgendaKind, w: 3 }, { item: 'debt', w: 2 }, { item: 'revenge', w: 1 }]);
     else if (n.role === 'lieutenant' && rng.chance(0.4)) kind = rng.chance(0.6) ? 'ambition' : 'revenge';
     if (!kind) continue;
     if (n.traits.includes('ambitious') && rng.chance(0.5)) kind = 'ambition';
     if (n.traits.includes('gambler') && rng.chance(0.5)) kind = 'debt';
+    if (kind === 'family' && !family.length) continue;   // never flavour text with nobody behind it
     const factions = Object.keys(w.factions);
-    n.agenda = { kind, progress: rng.int(5, 40), rate: rng.int(2, 5), target: kind === 'debt' || kind === 'revenge' ? (factions.length ? rng.pick(factions) : undefined) : undefined };
+    const target = kind === 'debt' || kind === 'revenge' ? (factions.length ? rng.pick(factions) : undefined)
+      : kind === 'family' ? rng.pick(family).id   // the person they are actually protecting
+      : undefined;
+    n.agenda = { kind, progress: rng.int(5, 40), rate: rng.int(2, 5), target };
   }
 }
 
@@ -77,10 +84,18 @@ function milestone(w: World, n: Npc, a: Agenda, at: 50 | 100, rng: Rng) {
       ], { npcId: n.id });
       else if (at === 100 && !n.crew && !n.faction) { const fs = Object.values(w.factions).filter(x => x.alive); if (fs.length) { const pick = rng.pick(fs); n.faction = pick.id; n.role = n.role === 'lieutenant' ? 'lieutenant' : 'soldier'; pick.soldiers++; log(w, `${n.name} went to work for ${pick.name}.`, 'info', { npcId: n.id, factionId: pick.id }); } }
       break;
-    case 'family':
-      if (at === 50 && known) log(w, `${n.name} is scared for their family. Pressure will push them to the police; kindness will not be forgotten.`, 'info', { npcId: n.id });
-      if (at === 100) { if (n.rel.fear >= 40 && n.rel.trust < 20) { addHeat(w, 8); log(w, `${n.name} went to the police to protect their family. (+8 heat)`, 'bad', { npcId: n.id }); } else if (n.rel.trust >= 30) { adjustRel(n, { trust: 15 }); log(w, `${n.name} says you're the only one who never threatened their kids. (+15 trust)`, 'good', { npcId: n.id }); } }
+    case 'family': {
+      // a real person in the web, named: the target is an NPC id for this agenda
+      const kin = a.target ? w.npcs[a.target] : familyOf(w, n)[0];
+      const tie = kin ? (n.connections.find(c => c.npcId === kin.id)?.label ?? 'family') : 'family';
+      const who = kin ? `${kin.name}, their ${tie},` : 'their family';
+      if (at === 50 && known) log(w, `${n.name} is scared for ${kin ? `${kin.name} (${tie})` : 'their family'}. Pressure will push them to the police; kindness will not be forgotten.`, 'info', { npcId: n.id });
+      if (at === 100) {
+        if (n.rel.fear >= 40 && n.rel.trust < 20) { addHeat(w, 8); log(w, `${n.name} went to the police to keep ${who} out of it. (+8 heat)`, 'bad', { npcId: n.id }); }
+        else if (n.rel.trust >= 30) { adjustRel(n, { trust: 15 }); if (kin) adjustRel(kin, { trust: 8 }); log(w, `${n.name} says you're the only one who never went near ${who} (+15 trust)`, 'good', { npcId: n.id }); }
+      }
       break;
+    }
   }
 }
 
@@ -90,7 +105,7 @@ export function addGrudge(w: World, n: Npc, reason: string) {
   if (n.agenda?.kind === 'revenge') n.agenda.rate += 3;
 }
 
-/** Word travels along the relationship graph: same block, same bar. */
+/** Word travels along the relationship graph: same block, same bar — and along real family and friends. */
 export function tickGossip(w: World, rng: Rng) {
   for (const n of Object.values(w.npcs)) {
     const g = n.grudge; if (!g || !n.alive || n.hostage) continue; // you cannot spread a story from a cellar
@@ -99,6 +114,8 @@ export function tickGossip(w: World, rng: Rng) {
     const circle = new Set<Id>();
     for (const bid of [...n.favouriteBusinessIds, ...Object.values(w.businesses).filter(b => b.ownerId === n.id).map(b => b.id)]) { const b = w.businesses[bid]; if (!b) continue; circle.add(b.ownerId); for (const p of b.patronIds) circle.add(p); }
     for (const bid of w.blocks[n.homeBlockId]?.businessIds ?? []) { const b = w.businesses[bid]; if (b) circle.add(b.ownerId); }
+    // and the people who actually matter to them: a sister across the district hears it before the man at the next stool
+    for (const c of connectionsOf(w, n)) circle.add(c.npc.id);
     circle.delete(n.id);
     const listeners = rng.shuffle([...circle].map(id => w.npcs[id]).filter(x => x && x.alive && !x.crew)).slice(0, 2);
     for (const l of listeners) { adjustRel(l, { trust: -3, respect: -2 }); if (l.role === 'owner') l.nerve = clamp(l.nerve + 2); }

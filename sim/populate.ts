@@ -5,12 +5,13 @@
 import { RECIPES } from '@content/rackets';
 import { abandonChance, makeAbandoned } from './abandoned';
 import { BUSINESS_DEFS, DISTRICT_DEFS, type DistrictDef } from '@content/businesses';
-import { BUSINESS_NAME_PARTS, FACTION_ARCHETYPES, FIRST_NAMES, LAST_NAMES, NICKNAMES, STYLE_LAST } from '@content/names';
+import { BUSINESS_NAME_PARTS, FACTION_ARCHETYPES, NAME_GROUPS, NAME_GROUP_IDS, NICKNAMES, STYLE_GROUP, STYLE_LAST, type NameGroup } from '@content/names';
 import type { GeoChunk } from '@geo/chunks';
 import { distanceM } from '@geo/project';
 import type { Rng } from './rng';
 import { assignAgendas } from './people';
 import { spawnCrews } from './crews';
+import { linkConnections } from './connections';
 import {
   PLAYER, type Block, type Business, type BusinessType, type District, type DistrictKind, type Faction, type FactionId,
   type Id, type LatLng, type Npc, type ProductKind, type Trait, type World,
@@ -72,6 +73,10 @@ export function populateChunk(w: World, chunk: GeoChunk, rng: Rng, opts: Populat
 
   // ---- businesses: real POIs first, procedural fill after ----
   const used = new Set(Object.values(w.businesses).map(b => b.name));
+  // A name off the real map always wins: reserve them so the procedural filler cannot
+  // take 'Ace Motors' two blocks before the real Ace Motors is placed.
+  const reservedReal = new Set<string>();
+  for (const p of chunk.pois) { if (p.blockId && p.name && !used.has(p.name)) { used.add(p.name); reservedReal.add(p.name); } }
   const poisByBlock = new Map<string, GeoChunk['pois']>();
   for (const p of chunk.pois) { if (!p.blockId) continue; if (!poisByBlock.has(p.blockId)) poisByBlock.set(p.blockId, []); poisByBlock.get(p.blockId)!.push(p); }
   for (const b of added) {
@@ -83,7 +88,7 @@ export function populateChunk(w: World, chunk: GeoChunk, rng: Rng, opts: Populat
       makeAbandoned(b, rng, { police: def.police[0], population: def.population[0] });
       continue;   // no businesses, so no patrons and nobody who could ever testify
     }
-    for (const p of realPois) addBusiness(rng, w, nid, b, p.type, used, p.name);
+    for (const p of realPois) { if (p.name && reservedReal.delete(p.name)) used.delete(p.name); addBusiness(rng, w, nid, b, p.type, used, p.name); }
     const target = rng.int(def.perBlock[0], def.perBlock[1]) * (chunk.source === 'osm' ? Math.min(1.5, Math.max(0.4, b.areaM2 / 40000)) : 1);
     const mix = Object.entries(def.mix).map(([t, wt]) => ({ item: t as BusinessType, w: wt as number }));
     let guard = 0;
@@ -98,6 +103,9 @@ export function populateChunk(w: World, chunk: GeoChunk, rng: Rng, opts: Populat
       for (const f of rng.shuffle(b.businessIds).slice(0, rng.int(1, 2))) { w.businesses[f].patronIds.push(p.id); p.favouriteBusinessIds.push(f); }
     }
   }
+
+  // ---- who is family, who goes back a long way ----
+  linkConnections(w, added, rng);
 
   // ---- agendas for the people worth watching ----
   assignAgendas(w, added.flatMap(b => b.businessIds.flatMap(id => [w.businesses[id].ownerId, ...w.businesses[id].patronIds])).map(id => w.npcs[id]), rng);
@@ -167,7 +175,8 @@ function planDistricts(w: World, chunk: GeoChunk, blocks: Block[], rng: Rng, anc
     const fresh = def.names.filter(n => !usedNames.has(n));
     const nm = name ?? (fresh.length ? rng.pick(fresh) : `${rng.pick(def.names)} ${rng.int(2, 9)}`);
     usedNames.add(nm);
-    const d: District = { id: nid('d'), kind: def.kind, name: nm, blockIds: [], chunkKey: chunk.key };
+    const closeness = Math.round((def.closeness[0] + rng.float() * (def.closeness[1] - def.closeness[0])) * 100) / 100;
+    const d: District = { id: nid('d'), kind: def.kind, name: nm, blockIds: [], chunkKey: chunk.key, closeness, nameGroups: districtNameGroups(def, rng) };
     w.districts[d.id] = d; seeds.push({ center, district: d, def });
   };
   const places: GeoChunk['places'] = [];
@@ -272,10 +281,13 @@ export function addBusiness(rng: Rng, w: World, nid: (p: string) => string, b: B
   w.businesses[biz.id] = biz; b.businessIds.push(biz.id);
   return biz;
 }
-interface NpcOpts { role: Npc['role']; homeBlockId: Id; faction?: FactionId; style?: string; strong?: boolean; nerveBias?: number }
+interface NpcOpts { role: Npc['role']; homeBlockId: Id; faction?: FactionId; style?: string; strong?: boolean; nerveBias?: number; group?: NameGroup }
 export function mkNpc(rng: Rng, w: World, nid: (p: string) => string, o: NpcOpts): Npc {
-  const first = rng.pick(FIRST_NAMES);
-  const last = o.style ? rng.pick(STYLE_LAST[o.style]) : rng.pick(LAST_NAMES);
+  // Name first, and from one pool: a group decides both halves so nobody ends up a
+  // Tony Byrne. It is a naming pool and nothing else — no line below this one reads it.
+  const group = nameGroupFor(rng, w, o);
+  const first = rng.pick(NAME_GROUPS[group].first);
+  const last = o.style ? rng.pick(STYLE_LAST[o.style]) : rng.pick(NAME_GROUPS[group].last);
   const nick = (o.role === 'boss' || o.role === 'lieutenant' || rng.chance(0.15)) ? ` "${rng.pick(NICKNAMES)}"` : '';
   const sk = (base: number) => clamp(Math.round(rng.gauss(base, 2)), 1, 10);
   const strong = o.strong ? 3 : 0;
@@ -284,12 +296,32 @@ export function mkNpc(rng: Rng, w: World, nid: (p: string) => string, o: NpcOpts
   const n: Npc = {
     id: nid('n'), name: `${first}${nick} ${last}`, role: o.role, traits,
     skills: { muscle: sk(4 + strong), brains: sk(4 + strong / 2), charm: sk(4), wheels: sk(3), tech: sk(2) },
-    homeBlockId: o.homeBlockId, faction: o.faction, favouriteBusinessIds: [], rel: { trust: 0, fear: 0, respect: 0 }, nerve, alive: true, known: false, notes: [],
+    homeBlockId: o.homeBlockId, faction: o.faction, favouriteBusinessIds: [], rel: { trust: 0, fear: 0, respect: 0 }, nerve, alive: true, known: false, connections: [], notes: [],
   };
   // a few people know a trade: recruiting them unlocks a recipe
   if ((o.role === 'patron' || o.role === 'owner') && (n.skills.tech >= 5 || n.skills.brains >= 7) && rng.chance(0.25)) n.recipe = rng.pick(Object.keys(RECIPES));
   w.npcs[n.id] = n; return n;
 }
+/**
+ * Which naming pool this person is drawn from. A faction house names its own people
+ * (`style`), otherwise the district's weights decide. Always exactly one RNG draw, whatever
+ * the weights are, so a district's flavour can never shift the rolls that come after it.
+ */
+function nameGroupFor(rng: Rng, w: World, o: NpcOpts): NameGroup {
+  const styled = o.style ? STYLE_GROUP[o.style] : undefined;
+  const weights = o.group ? { [o.group]: 1 } : styled ? { [styled]: 1 } : w.districts[w.blocks[o.homeBlockId]?.districtId ?? '']?.nameGroups;
+  const items = Object.entries(weights ?? {}).filter(([, v]) => (v as number) > 0).map(([g, v]) => ({ item: g as NameGroup, w: v as number }));
+  return items.length ? rng.weighted(items) : rng.pick(NAME_GROUP_IDS);
+}
+
+/** A district's naming palette: the kind's weights, with one group doubled so two Little Italies never feel identical. */
+function districtNameGroups(def: DistrictDef, rng: Rng): Partial<Record<NameGroup, number>> {
+  const out: Partial<Record<NameGroup, number>> = { ...def.nameGroups };
+  const keys = Object.keys(out) as NameGroup[];
+  if (keys.length) { const k = rng.pick(keys); out[k] = (out[k] ?? 1) * 2; }
+  return out;
+}
+
 function bizName(rng: Rng, type: BusinessType, owner: Npc, used: Set<string>): string {
   const parts = BUSINESS_NAME_PARTS[type];
   for (let i = 0; i < 8; i++) {

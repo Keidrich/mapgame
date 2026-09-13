@@ -89,8 +89,18 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
   },
   nerve: {
     title: 'Nerve',
-    body: 'How hard they are to frighten, 0 to 100. Every threat and strongarm approach subtracts it. Cowards start low; hotheads start high.',
+    body: 'How hard they are to frighten, 0 to 100. Every threat and strongarm approach subtracts it. Cowards start low; hotheads start high, and so does anyone with family and old friends on the same streets.',
     note: 'Hidden until you size someone up, or they trust you enough to show it.',
+  },
+  connections: {
+    title: 'Family and friends',
+    body: 'Who this person actually has: relatives and old friends among the other people in the city. Everyone with backup nearby is a little harder to frighten and a little slower to trust a stranger, whoever they are.',
+    note: 'Word travels along these ties. Humiliate somebody and their sister hears about it across the district, not just the regulars at the bar.',
+  },
+  closeness: {
+    title: 'Closeness',
+    body: 'How tightly a district is knitted together, 0 to 100%. An old quarter or a project block is a web of families; downtown is a crowd of strangers who commute in.',
+    note: 'Close districts are harder to lean on person by person, because everybody there has somebody.',
   },
   known: {
     title: 'Traits unknown',

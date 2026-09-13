@@ -8,7 +8,7 @@ import { addBusiness, mkNpc, populateChunk } from './populate';
 import { PLAYER, type LatLng, type Player, type Skills, type World } from './types';
 
 export { controller, stanceFor, STEP_M } from './populate';
-export const WORLD_VERSION = 6; // 6: the player stands somewhere (currentBlockId, legwork)
+export const WORLD_VERSION = 7; // 7: districts have closeness and naming pools, NPCs have family and friends
 export const HEX_SIZE_M = 190;
 
 export interface NewGameOptions {

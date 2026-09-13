@@ -4,6 +4,9 @@
  * be saved as one object and replayed deterministically from a seed.
  */
 
+import type { NameGroup } from '@content/names';
+export type { NameGroup };
+
 export type Id = string;
 export type FactionId = Id; // 'player' is a faction id too
 export const PLAYER: FactionId = 'player';
@@ -23,6 +26,14 @@ export interface District {
   name: string;
   blockIds: Id[];
   chunkKey: string;
+  /**
+   * How networked this district's community is, 0..1. Drives how many family and friend
+   * ties the people here have and how far across the district those ties reach: an old
+   * quarter is a web, a downtown is a crowd of strangers. Independent of `nameGroups`.
+   */
+  closeness: number;
+  /** Naming pools common here, as weights. Cosmetic: it decides names and nothing else. */
+  nameGroups: Partial<Record<NameGroup, number>>;
 }
 
 /** A loaded-and-populated map chunk (~2.2 km square). Geometry for unpopulated chunks lives in the UI cache, not here. */
@@ -105,6 +116,12 @@ export type Trait =
 
 export interface Skills { muscle: number; brains: number; charm: number; wheels: number; tech: number }
 
+/**
+ * A tie between two people: they are family, or they go back a long way. Always mutual —
+ * both NPCs carry the other. `label` is the flavour shown in the UI ('cousin', 'old friend').
+ */
+export interface Connection { npcId: Id; kind: 'family' | 'friend'; label: string }
+
 export interface Relationship {
   trust: number;   // -100..100
   fear: number;    // 0..100
@@ -153,6 +170,7 @@ export interface Npc {
   known: boolean;             // traits and nerve revealed (Read action, a scene, or enough trust)
   recipe?: string;            // a specialist: recruiting them unlocks this RECIPES id
   hostage?: { safehouseId: Id; since: number }; // held by you: alive, but out of their own life
+  connections: Connection[]; // family and friends among the other NPCs; mutual, and nothing to do with the player
   notes: string[];
 }
 
@@ -325,9 +343,12 @@ export interface Commission {
 }
 
 // ---------- player ----------
+export type StartTraitId = 'connected' | 'earner' | 'local' | 'feared';
+
 export interface Player {
   name: string;
-  background: 'muscle' | 'brains' | 'charm';
+  background: 'muscle' | 'brains' | 'charm' | 'wheels' | 'tech' | 'custom';
+  startTrait?: StartTraitId;  // custom characters pick one edge to start with
   skills: Skills;
   cash: number;
   dirty: number;

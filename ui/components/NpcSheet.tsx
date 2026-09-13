@@ -49,6 +49,7 @@ export function NpcSheet({ npcId }: { npcId: Id }) {
         {faction && <><dt><Term id="stance">Faction</Term></dt><dd style={{ color: faction.color }}>{faction.name} ({cap(select.stanceWithPlayer(w, faction.id))})</dd></>}
         <dt><Term id="nerve">Nerve</Term></dt><dd>{select.isKnown(n) ? n.nerve : '?'}</dd>
       </dl>
+      <Connections npcId={npcId} />
       {n.notes.length > 0 && <ul className="small muted mt8" style={{ paddingLeft: 18, margin: 0 }}>{n.notes.map((x, i) => <li key={i}>{x}</li>)}</ul>}
 
       {n.crew && <CrewSection npcId={npcId} />}
@@ -74,6 +75,42 @@ export function NpcSheet({ npcId }: { npcId: Id }) {
       </div>
     </Sheet>
   );
+}
+
+/** Who they have behind them: family first, then old friends. Tap through to any of them. */
+function Connections({ npcId }: { npcId: Id }) {
+  const w = useWorld();
+  const n = w.npcs[npcId];
+  const ties = n ? select.connectionsOf(w, n) : [];
+  if (!ties.length) return null;
+  const family = ties.filter(t => t.kind === 'family');
+  const friends = ties.filter(t => t.kind === 'friend');
+  const line = (label: string, list: typeof ties) => list.length ? (
+    <p className="small mt8" style={{ margin: '8px 0 0' }}>
+      <span className="muted">{label}: </span>
+      {list.map((t, i) => (
+        <span key={t.npc.id}>
+          {i > 0 && ', '}
+          <button type="button" className="linkish" onClick={() => openSheet({ kind: 'npc', npcId: t.npc.id })}>{t.npc.name}</button>
+          <span className="muted"> ({t.label}){whereBlurb(w, t.npc)}</span>
+        </span>
+      ))}
+      .
+    </p>
+  ) : null;
+  return (
+    <>
+      <div className="section-title">People<Info id="connections" /></div>
+      {line('Family', family)}
+      {line('Friends', friends)}
+    </>
+  );
+}
+function whereBlurb(w: ReturnType<typeof useWorld>, npc: { id: Id; homeBlockId: Id }): string {
+  const biz = Object.values(w.businesses).find(b => b.ownerId === npc.id);
+  const block = w.blocks[npc.homeBlockId];
+  if (biz) return `, runs ${biz.name}${block ? ` on ${block.name}` : ''}`;
+  return block ? `, around ${block.name}` : '';
 }
 
 /** The one-word relationship label means different things at different trust and fear. */
