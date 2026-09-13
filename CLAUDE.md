@@ -1,7 +1,8 @@
 # CLAUDE.md
 
 RACKETS: map-based crime empire sim (mobile PWA). Read `docs/DESIGN.md` first; it is
-the design authority. `README.md` explains the layout and commands.
+the design authority. `docs/CHANGELOG.md` says what recent sessions changed and why.
+`README.md` explains the layout and commands.
 
 ## Hard walls
 - `/sim` is pure: no React, no fetch, no `Math.random` (use `sim/rng.ts`). Every
@@ -16,3 +17,29 @@ the design authority. `README.md` explains the layout and commands.
 `npm run typecheck && npm test && npm run sim -- 60` must all pass. The soak bot
 prints the economy curve; if income or faction growth looks broken, fix the balance
 before shipping.
+
+## Leave a trail
+Whoever works here next — a person or another session — starts with no memory of this
+one. Every change says **what** it did, **why**, and **how**, in the places they will
+actually look:
+- **The commit message.** A subject line, then a body: the problem, the fix, and the
+  numbers that moved. Write it for somebody who was not here. Never just "update X".
+- **`docs/CHANGELOG.md`.** One entry per shipped change, newest first, in the what / why
+  / how / files shape the file already uses. Add yours before you push, and say what to
+  watch out for (a save-version bump, a balance shift, a gotcha you hit).
+- **`docs/DESIGN.md`.** When a system changes shape, the design doc changes with it. It
+  is the authority; a changelog entry does not replace it.
+- **`content/glossary.ts`.** When a formula or threshold changes, the player-facing
+  explainer changes with it. House rule, and it is enforced by nothing but you.
+- **Comments at the decision points.** Why this number, why this order, what breaks if
+  you change it. Not what the line does — the code says that.
+
+If you leave something half-built or deliberately out of scope, say so in the changelog
+entry. An unfinished thing nobody knows about is worse than one that is written down.
+
+## Shipping
+`main` is the deploy branch: Cloudflare builds and deploys on every push to it. Once the
+gate above is green, ship straight away without being asked — commit, push your working
+branch, then fast-forward `main` and push that too. If the gate fails, say so instead of
+pushing. A change that bumps `WORLD_VERSION` drops every existing save, so call that out
+when you ship it.

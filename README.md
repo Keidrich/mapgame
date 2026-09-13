@@ -5,7 +5,8 @@ Earth, lay a turf grid over the streets, and build: shake down owners, run racke
 rent safehouses, cook product, pull heists, and negotiate with (or fight) four AI
 factions who are building the same thing.
 
-Design: [`docs/DESIGN.md`](docs/DESIGN.md).
+Design: [`docs/DESIGN.md`](docs/DESIGN.md). What changed lately and why:
+[`docs/CHANGELOG.md`](docs/CHANGELOG.md).
 
 ## Run it
 
