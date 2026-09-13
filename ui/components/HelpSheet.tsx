@@ -43,7 +43,18 @@ export function HelpSheet() {
         <p className="small muted mt12">Every action costs AP (the gold pips). Cash is clean money; dirty money needs laundering before it buys anything legitimate. Own 60% of the blocks to take the city.</p>
         <Cheats />
       </div>
+      <Build />
     </Sheet>
+  );
+}
+
+/** Which build you are actually looking at. The service worker caches the app, so this is how
+ *  you tell a deploy that has not arrived yet from one that has. */
+function Build() {
+  return (
+    <p className="tiny muted mt12" style={{ textAlign: 'center', margin: '12px 0 0' }}>
+      Build {__BUILD_ID__} · updates install themselves the next time you open the game
+    </p>
   );
 }
 

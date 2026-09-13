@@ -56,6 +56,17 @@ function save(w: World | null) {
     if (v) { void idbSet(SAVE_KEY, v); void idbSet(SAVED_AT_KEY, Date.now()); } else { void idbDel(SAVE_KEY); void idbDel(SAVED_AT_KEY); }
   }, 400);
 }
+/**
+ * Write the pending save now rather than in 400ms. Called before the page reloads itself for
+ * a new version: a debounce that loses the last move to an update is not an acceptable trade.
+ */
+export async function flushSave(): Promise<void> {
+  if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+  const v = pendingSave; pendingSave = undefined;
+  if (v === undefined) return;
+  if (v) { await idbSet(SAVE_KEY, v); await idbSet(SAVED_AT_KEY, Date.now()); }
+  else { await idbDel(SAVE_KEY); await idbDel(SAVED_AT_KEY); }
+}
 function loadVictorySeen(w: World | null): boolean {
   try { return !!w && localStorage.getItem(VICTORY_KEY) === String(w.seed); } catch { return false; }
 }

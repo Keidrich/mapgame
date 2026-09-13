@@ -5,6 +5,10 @@ import { VitePWA } from 'vite-plugin-pwa';
 
 const dir = (p: string) => fileURLToPath(new URL(p, import.meta.url));
 
+/** Stamped into the build so "is the new version actually live?" is answerable on the screen. */
+const BUILD_ID = (process.env.CF_PAGES_COMMIT_SHA ?? process.env.COMMIT_REF ?? process.env.GITHUB_SHA ?? '').slice(0, 7)
+  || new Date().toISOString().slice(0, 16).replace('T', ' ');
+
 export default defineConfig({
   resolve: {
     alias: {
@@ -18,6 +22,9 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      // ui/main.tsx registers the worker itself: the injected one-liner never noticed a new
+      // build, so a shipped change sat behind the cached old one until enough reloads
+      injectRegister: null,
       includeAssets: ['favicon.svg', 'icon.svg'],
       manifest: {
         name: 'Rackets: Crime Empire',
@@ -48,6 +55,7 @@ export default defineConfig({
       },
     }),
   ],
+  define: { __BUILD_ID__: JSON.stringify(BUILD_ID) },
   // maplibre-gl ships its worker as a separate module that the dep optimizer breaks in dev
   optimizeDeps: { exclude: ['maplibre-gl'] },
   worker: { format: 'es' },

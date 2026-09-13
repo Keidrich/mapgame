@@ -14,6 +14,42 @@ House rules for an entry (see `CLAUDE.md` → *Leave a trail*):
 
 ---
 
+## 2026-09-13 — Fix: shipped changes took two reloads to reach players
+
+**What.** A new deploy did not appear until the player reloaded **twice**. The Social tab was
+live on the site and still missing on screen. Now one reload is enough, and the Help sheet
+shows which build you are actually running.
+
+**Why it happened.** The app is a PWA. `vite-plugin-pwa` injects a registration one-liner
+(`dist/registerSW.js`) that registers the service worker and nothing else — it never notices a
+newer worker. So: reload one installs the new worker (the page it just served came from the old
+precache), reload two is finally served by it. Measured in a browser, old build vs new: old
+needed two reloads, the fix needs one.
+
+**How.** `injectRegister: null`, and `ui/main.tsx` registers through `virtual:pwa-register`
+itself with `immediate: true`. In `autoUpdate` mode the client calls **`onNeedReload`** when the
+new worker activates — `onNeedRefresh` is never called there, which is a trap worth knowing:
+wiring to it looks right and silently does nothing. That hook flushes the save (new
+`flushSave()` in the store, since the autosave is debounced 400ms and an update must not eat the
+last move) and then reloads. A registration also polls for a new worker hourly, so a tab left
+open overnight is not a week behind.
+
+`__BUILD_ID__` is defined at build time — the commit sha on Cloudflare (`CF_PAGES_COMMIT_SHA` /
+`COMMIT_REF` / `GITHUB_SHA`), a timestamp locally — and printed at the bottom of the Help sheet,
+so "is my deploy live?" takes two seconds to answer instead of a debugging session.
+
+**Files.** `vite.config.ts`, `ui/main.tsx`, `ui/store.ts` (`flushSave`), `ui/vite-env.d.ts`,
+`ui/components/HelpSheet.tsx`, `ui/pwa-update.test.ts` (new), `vitest.config.ts`.
+
+**Watch out.**
+- A player on a build from before this fix still needs two reloads **once** to pick it up. After
+  that, one.
+- `ui/pwa-update.test.ts` is a source-level guard, not a behavioural test: no unit test in this
+  suite runs a service worker. If you change the registration, verify it in a real browser —
+  install build A, serve build B, reload once, check the bundle hash in the page changed.
+- Deployed ≠ delivered. When a change is not visible, check the build stamp in Help before
+  assuming the deploy failed.
+
 ## 2026-09-13 — Social tab: everybody you have met, and who they have
 
 **What.** A sixth tab. It lists every person the player has met, groups them by ties, district
