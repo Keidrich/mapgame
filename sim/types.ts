@@ -92,7 +92,7 @@ export interface Business {
 // ---------- people ----------
 export type Role =
   | 'owner' | 'patron' | 'crew' | 'boss' | 'lieutenant' | 'soldier'
-  | 'cop' | 'official' | 'fixer';
+  | 'cop' | 'official' | 'fixer' | 'gang_boss' | 'gang';
 
 export type Trait =
   | 'greedy' | 'loyal' | 'coward' | 'hothead' | 'connected'
@@ -209,7 +209,7 @@ export interface Safehouse {
 export type OpKind =
   | 'heist_bank' | 'heist_jeweller' | 'heist_armored' | 'heist_warehouse'
   | 'robbery' | 'insurance_fraud' | 'check_kiting' | 'smuggle_run'
-  | 'hit' | 'intimidate' | 'raid_rival';
+  | 'hit' | 'intimidate' | 'raid_rival' | 'takeover';
 
 export type OpStatus = 'planning' | 'ready' | 'done' | 'failed' | 'aborted';
 
@@ -261,6 +261,19 @@ export interface Faction {
   alive: boolean;
   grudges: string[];
   brokenTruces: number;   // by the player; each one lowers the best standing you can ever reach with them
+}
+
+// ---------- street crews: small independent gangs holding one block ----------
+export interface StreetCrew {
+  id: Id;
+  name: string;
+  blockId: Id;
+  bossId: Id;
+  soldierIds: Id[];
+  strength: number;      // 1..10; grows if ignored
+  mood: number;          // -100..100 toward the player
+  tribute?: FactionId;   // who they pay (the player, or a faction that absorbed them)
+  since: number;
 }
 
 // ---------- player ----------
@@ -334,6 +347,7 @@ export interface World {
   safehouses: Record<Id, Safehouse>;
   productions: Record<Id, Production>;
   ops: Record<Id, Op>;
+  crews: Record<Id, StreetCrew>;
   factions: Record<FactionId, Faction>;
   player: Player;
   pendingEvents: GameEvent[]; // must be resolved before End Day

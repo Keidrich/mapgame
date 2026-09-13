@@ -9,6 +9,7 @@ import { resolveEventOption } from './events';
 import { approachChance, resultLine } from './scenes';
 import { AGENDA_LABEL, addGrudge, addMemory } from './people';
 import { standingCap } from './factions';
+import { crewAt, crewOfBoss, parley } from './crews';
 import { endDay } from './tick';
 import { PLAYER, type Business, type Id, type Npc, type Op, type Racket, type Safehouse, type World } from './types';
 import { activeCrewCount, officialTrust, addHeat, addInfluence, adjustRel, clamp, factionOf, log, money, nid, rngOf, spreadRep, takeCash } from './util';
@@ -31,6 +32,7 @@ export function can(w: World, a: Action): Affordance {
     case 'gift': { const n = npc(a.npcId); if (!n?.alive) return no('They are gone.'); if (a.amount < 50) return no('That is an insult, not a gift.'); const r = cash(a.amount); return r ? no(r) : yes({ cash: a.amount }); }
     case 'read': { const n = npc(a.npcId); if (!n?.alive) return no('They are gone.'); if (n.known) return no('You already have their number.'); const r = ap(1); return r ? no(r) : yes({ ap: 1 }); }
     case 'threaten': { const n = npc(a.npcId); if (!n?.alive) return no('They are gone.'); if (n.official) return no('Threatening an official is a bad idea. Bribe them.'); if (n.role === 'boss') return no('You do not threaten a boss. You go to war with him.'); const r = ap(1); if (r) return no(r); if (a.approach === 'crew' && activeCrewCount(w) === 0) return no('No crew to bring.'); return yes({ ap: 1 }); }
+    case 'parley': { const n = npc(a.npcId); if (!n?.alive) return no('They are gone.'); if (!crewOfBoss(w, n.id)) return no('They do not run a crew.'); const r = ap(1); if (r) return no(r); if (a.approach === 'join' && bedsLeft(w) <= 0) return no('No room in your safehouses for their boss.'); return yes({ ap: 1 }); }
     case 'recruit': {
       const n = npc(a.npcId); if (!n?.alive) return no('They are gone.');
       if (n.crew) return no('Already in your crew.');
@@ -151,6 +153,7 @@ export function can(w: World, a: Action): Affordance {
         if (!def.ownBusiness && b.ownedBy === 'player') return no('That is yours.');
       }
       if (def.target === 'npc' && !a.targetNpcId) return no('Pick a target.');
+      if (a.kind === 'takeover') { if (!a.targetBlockId) return no('Pick a block with a street crew.'); if (!crewAt(w, a.targetBlockId)) return no('No street crew holds that block.'); }
       if (def.target === 'npc') { const n = npc(a.targetNpcId!); if (!n?.alive) return no('Already dead.'); if (n.official) return no('Killing an official ends careers. Not available.'); }
       if (a.approach === 'inside' && !insidersFor(w, a.targetBusinessId).length) return no('Nobody at the target trusts you enough (trust 35+).');
       if (a.approach === 'inside' && def.target !== 'business') return no('An inside man needs a place to be inside of.');
@@ -422,6 +425,13 @@ export function dispatch(prev: World, a: Action): World {
     case 'launch_op': { const o = w.ops[a.opId]; o.status = 'ready'; o.daysLeft = 0; o.launched = true; log(w, `${OP_DEFS[o.kind].label} goes tonight.`, 'warn', { opId: o.id }); break; }
     case 'abort_op': { const o = w.ops[a.opId]; o.status = 'aborted'; freeOpCrew(w, o); p.opIds = p.opIds.filter(id => id !== o.id); log(w, `${OP_DEFS[o.kind].label} called off.`, 'info'); break; }
 
+    case 'parley': {
+      const n = npc(a.npcId); const c = crewOfBoss(w, n.id)!; const ap_ = a.approach ?? 'tribute'; n.known = true;
+      const chance = approachChance(w, 'parley', ap_, n); const ok = rng.int(1, 100) <= chance;
+      const tone = parley(w, c, n, ap_, ok, rng);
+      log(w, resultLine('parley', ap_, ok, rng), tone, { npcId: n.id, blockId: c.blockId });
+      break;
+    }
     case 'sit_down': sitDown(w, a.factionId, a.offer, rng); break;
     case 'pay_tribute': {
       const f = w.factions[a.factionId]; spend(w, a.amount); f.cash += a.amount;

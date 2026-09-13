@@ -3,10 +3,10 @@ import { select } from '@sim/index';
 import { PLAYER, type Id, type ProductKind, type Safehouse, type World } from '@sim/types';
 import { PRODUCTION_DEFS, PRODUCT_INFO, SAFEHOUSE_TIERS } from '@content/rackets';
 import { PRODUCTS, crewName, districtName, fmtMoney, influenceRows, safehouseAt, stashLine } from '@ui/derive';
-import { useWorld } from '@ui/store';
+import { openSheet, useWorld } from '@ui/store';
 import { Sheet } from './Sheet';
 import { Meter } from './Meter';
-import { Act, AmountPicker, Disclosure } from './Act';
+import { Act, AmountPicker, Disclosure, SceneAct } from './Act';
 import { BizRow } from './Rows';
 
 export function BlockSheet({ blockId }: { blockId: Id }) {
@@ -16,6 +16,7 @@ export function BlockSheet({ blockId }: { blockId: Id }) {
   const ctrl = select.blockController(w, blockId);
   const rows = influenceRows(w, b);
   const sh = safehouseAt(w, b);
+  const crew = select.crewAt(w, b.id);
   const [product, setProduct] = useState<ProductKind>('booze');
   const [amount, setAmount] = useState(5);
   const carried = w.player.stash;
@@ -44,6 +45,19 @@ export function BlockSheet({ blockId }: { blockId: Id }) {
           <div className="section-title">What people remember</div>
           <ul className="small muted" style={{ paddingLeft: 18, margin: 0 }}>{b.memory.slice(-4).reverse().map((m, i) => <li key={i}>Day {m.day}: {m.text}</li>)}</ul>
         </>
+      )}
+      {crew && (
+        <div className="card mt12" style={{ borderColor: '#9a7b4f' }}>
+          <div className="row between"><b>🏴 The {crew.name}</b><span className="chip">{crew.tribute === PLAYER ? 'On your payroll' : crew.tribute ? `Under ${select.factionName(w, crew.tribute)}` : `Strength ${Math.round(crew.strength)}`}</span></div>
+          <p className="small muted" style={{ margin: '6px 0' }}>{w.npcs[crew.bossId]?.name} and {crew.soldierIds.length} soldiers hold this corner.{!crew.tribute ? ' Your rackets here pay them a street tax until you deal with them. Left alone, they grow.' : ''}</p>
+          <button type="button" className="chip btn mb8" onClick={() => openSheet({ kind: 'npc', npcId: crew.bossId })}>{w.npcs[crew.bossId]?.name}</button>
+          {!crew.tribute && (
+            <div className="actions">
+              <SceneAct scene={{ kind: 'parley', npcId: crew.bossId }} label="Parley" icon="🗣️" kind="primary" />
+              <Act action={{ type: 'plan_op', kind: 'takeover', crewIds: select.idleCrew(w).slice(0, 3).map(n => n.id), targetBlockId: b.id }} label="Take the corner" icon="🏴" kind="danger" />
+            </div>
+          )}
+        </div>
       )}
       <div className="section-title">Demand / day</div>
       <div className="chips">

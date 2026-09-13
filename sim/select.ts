@@ -2,6 +2,8 @@
 import { BUSINESS_DEFS } from '@content/businesses';
 import { OP_APPROACHES, OP_DEFS, RACKET_DEFS, type OpApproach } from '@content/rackets';
 import { controller, stanceFor } from './generate';
+import { CREW_COLOR, crewAt } from './crews';
+export { crewAt };
 import { distanceM } from '@geo/project';
 import { STEP_M } from './populate';
 import { PLAYER, type Block, type Business, type FactionId, type Id, type Npc, type OpKind, type RacketKind, type Stance, type World } from './types';
@@ -12,10 +14,11 @@ export function blockController(w: World, blockId: Id): FactionId | undefined { 
 export function factionColor(w: World, f?: FactionId): string {
   if (!f) return '#666a70';
   if (f === PLAYER) return '#f2c94c';
+  if (w.crews[f]) return CREW_COLOR;
   return w.factions[f]?.color ?? '#666a70';
 }
 export function factionName(w: World, f?: FactionId): string {
-  if (!f) return 'Unclaimed'; if (f === PLAYER) return w.player.name; return w.factions[f]?.name ?? '?';
+  if (!f) return 'Unclaimed'; if (f === PLAYER) return w.player.name; if (w.crews[f]) return `The ${w.crews[f].name}`; return w.factions[f]?.name ?? '?';
 }
 export function businessesIn(w: World, blockId: Id): Business[] { return w.blocks[blockId].businessIds.map(id => w.businesses[id]); }
 export function patronsOf(w: World, biz: Business): Npc[] { return biz.patronIds.map(id => w.npcs[id]).filter(n => n.alive); }

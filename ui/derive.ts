@@ -50,7 +50,7 @@ export function bizTypeLabel(biz: Business) { return BUSINESS_DEFS[biz.type].lab
 export function roleLabel(n: Npc): string {
   if (n.crew) return 'Crew';
   if (n.official) return cap(n.official.kind);
-  return { owner: 'Owner', patron: 'Patron', crew: 'Crew', boss: 'Boss', lieutenant: 'Lieutenant', soldier: 'Soldier', cop: 'Cop', official: 'Official', fixer: 'Fixer' }[n.role];
+  return { owner: 'Owner', patron: 'Patron', crew: 'Crew', boss: 'Boss', lieutenant: 'Lieutenant', soldier: 'Soldier', cop: 'Cop', official: 'Official', fixer: 'Fixer', gang_boss: 'Street boss', gang: 'Street soldier' }[n.role];
 }
 
 export function playerBusinesses(w: World): Business[] { return w.player.businessIds.map(id => w.businesses[id]).filter(Boolean); }

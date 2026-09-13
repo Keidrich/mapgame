@@ -6,6 +6,7 @@
 import { APPROACHES, OPENING, RESULT, type SceneKind } from '@content/lines';
 import type { Rng } from './rng';
 import { activeCrewCount } from './util';
+import { crewOfBoss } from './crews';
 import type { Business, Id, Npc, World } from './types';
 
 export interface SceneOption { id: string; label: string; icon: string; blurb: string; good: string; bad: string; chance: number; costAp: number; costCash: number; disabled?: string }
@@ -34,6 +35,7 @@ function disabledReason(w: World, kind: SceneKind, id: string, n: Npc): string |
   if (kind === 'visit' && id === 'drinks' && w.player.cash < 50) return 'Needs $50.';
   if (kind === 'recruit' && id === 'cut' && w.player.cash < 200) return 'Needs $200 up front.';
   if (kind === 'recruit' && id === 'lean' && n.traits.includes('loyal')) return 'Loyal people do not fold.';
+  if (kind === 'parley' && id === 'join' && bedsLeftFor(w) <= 0) return 'No room in your safehouses for their boss.';
   return undefined;
 }
 
@@ -53,6 +55,9 @@ export function approachChance(w: World, kind: SceneKind, id: string, n: Npc, bi
     case 'visit:drinks': v = 55 + s.charm * 4 + (has('gambler') || has('junkie') ? 15 : 0) - (has('quiet') ? 15 : 0); break;
     case 'visit:business': v = 35 + s.brains * 5 + s.charm * 2 + (has('connected') || has('ambitious') ? 15 : 0) - (has('honest') ? 10 : 0); break;
     case 'visit:listen': v = 60 + s.charm * 2 + (has('quiet') ? 20 : 0); break;
+    case 'parley:tribute': v = 20 + s.charm * 4 + p.respect * 0.6 + p.fear * 0.4 + crew * 4 - (crewOfBoss(w, n.id)?.strength ?? 3) * 4 + (has('greedy') ? 10 : 0) - (has('hothead') ? 10 : 0); break;
+    case 'parley:join': v = 10 + s.charm * 4 + trust * 0.8 + p.respect * 0.7 - (crewOfBoss(w, n.id)?.strength ?? 3) * 3 + (has('ambitious') ? 20 : 0) - (has('loyal') ? 10 : 0); break;
+    case 'parley:warn': v = 25 + s.muscle * 5 + crew * 8 + p.fear * 0.5 - (crewOfBoss(w, n.id)?.strength ?? 3) * 6 + (has('coward') ? 20 : 0) - (has('hothead') ? 10 : 0); break;
     case 'recruit:cut': v = 50 + trust * 0.6 + (has('greedy') || has('ambitious') ? 20 : 0) - (has('loyal') ? 15 : 0); break;
     case 'recruit:promise': v = 25 + s.charm * 5 + trust * 0.6 + p.respect * 0.5 + (has('ambitious') ? 15 : 0) - (has('loyal') ? 10 : 0); break;
     case 'recruit:lean': v = 10 + s.muscle * 3 + fear * 0.8 + p.fear * 0.3 + (has('coward') ? 30 : -10); break;
@@ -67,3 +72,5 @@ export function resultLine(kind: SceneKind, id: string, ok: boolean, rng: Rng): 
   const lines = RESULT[`${kind}:${id}:${ok ? 'ok' : 'fail'}`] ?? [ok ? 'It works.' : 'It does not work.'];
   return rng.pick(lines);
 }
+
+function bedsLeftFor(w: World): number { const beds = 2 + w.player.safehouseIds.reduce((t, id) => t + [3, 6, 12][w.safehouses[id].tier - 1], 0); return beds - w.player.crewIds.filter(id => w.npcs[id].crew?.status !== 'dead').length; }

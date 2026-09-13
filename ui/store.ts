@@ -15,7 +15,7 @@ export type Sheet =
   | { kind: 'business'; businessId: Id }
   | { kind: 'npc'; npcId: Id };
 export interface Selection { blockId?: Id; businessId?: Id; npcId?: Id }
-export interface SceneRequest { kind: 'shakedown' | 'threaten' | 'visit' | 'recruit'; npcId: Id; businessId?: Id }
+export interface SceneRequest { kind: 'shakedown' | 'threaten' | 'visit' | 'recruit' | 'parley'; npcId: Id; businessId?: Id }
 export interface Toast { id: number; text: string; tone: LogEntry['tone']; until: number }
 
 export interface UiState {

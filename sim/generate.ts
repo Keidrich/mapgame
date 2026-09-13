@@ -7,7 +7,7 @@ import { addBusiness, mkNpc, populateChunk } from './populate';
 import { PLAYER, type LatLng, type Player, type Skills, type World } from './types';
 
 export { controller, stanceFor, STEP_M } from './populate';
-export const WORLD_VERSION = 4;
+export const WORLD_VERSION = 5;
 export const HEX_SIZE_M = 190;
 
 export interface NewGameOptions {
@@ -28,7 +28,7 @@ export function generateWorld(opts: NewGameOptions): World {
   const chunk = opts.chunk ?? hexChunk(chunkKeyAt(opts.origin));
   const w: World = {
     version: WORLD_VERSION, seed, rng: seed, day: 1, origin: opts.origin, placeName: opts.placeName, mapSource: chunk.source, hexSizeM: HEX_SIZE_M,
-    chunks: {}, districts: {}, blocks: {}, businesses: {}, npcs: {}, rackets: {}, safehouses: {}, productions: {}, ops: {}, factions: {},
+    chunks: {}, districts: {}, blocks: {}, businesses: {}, npcs: {}, rackets: {}, safehouses: {}, productions: {}, ops: {}, crews: {}, factions: {},
     player: {
       name: opts.playerName, background: opts.background, skills: startingSkills(opts.background),
       cash: 2500, dirty: 0, heat: 0, respect: 5, fear: 0, ap: 8, apMax: 8, stash: emptyStash(),

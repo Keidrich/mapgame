@@ -8,6 +8,7 @@ import type { GeoChunk } from '@geo/chunks';
 import { distanceM } from '@geo/project';
 import type { Rng } from './rng';
 import { assignAgendas } from './people';
+import { spawnCrews } from './crews';
 import {
   PLAYER, type Block, type Business, type BusinessType, type District, type DistrictKind, type Faction, type FactionId,
   type Id, type LatLng, type Npc, type ProductKind, type Trait, type World,
@@ -109,6 +110,7 @@ export function populateChunk(w: World, chunk: GeoChunk, rng: Rng, opts: Populat
       if (BUSINESS_DEFS[biz.type].rackets.includes('protection') && rng.chance(0.55)) { biz.protection = { factionId: ctrl, rate: 0.15, since: w.day }; w.npcs[biz.ownerId].faction = ctrl; }
     }
   }
+  spawnCrews(w, added, rng, nid);
   w.chunks[chunk.key] = { key: chunk.key, source: chunk.source, populatedDay: w.day, districtIds: seeds.map(s => s.district.id) };
   return added;
 }

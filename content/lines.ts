@@ -1,7 +1,7 @@
 /** What people say when you walk in. Picked by the most telling trait; `default` when nothing fits. */
 import type { Trait } from '@sim/types';
 
-export type SceneKind = 'shakedown' | 'threaten' | 'visit' | 'recruit';
+export type SceneKind = 'shakedown' | 'threaten' | 'visit' | 'recruit' | 'parley';
 type Lines = Partial<Record<Trait | 'default' | 'scared' | 'friend', string[]>>;
 
 export const OPENING: Record<SceneKind, Lines> = {
@@ -35,6 +35,15 @@ export const OPENING: Record<SceneKind, Lines> = {
     friend: ['"There he is! Sit, sit. What\'s new?"'],
     default: ['"Haven\'t seen you around. New to the block?"', '"What\'ll it be?"'],
   },
+  parley: {
+    hothead: ['"This is our corner. You lost?"', 'Three of them get up off the stoop at once.'],
+    ambitious: ['"You the one everybody\'s talking about? Good. Let\'s talk."'],
+    coward: ['"We don\'t want trouble. What do you want?"'],
+    greedy: ['"Everything on this block goes through us. Everything. So what\'s in it for us?"'],
+    scared: ['They keep their hands where you can see them.'],
+    friend: ['"Look who it is. Sit down, sit down."'],
+    default: ['"Say what you came to say."', 'Nobody moves. Somebody turns the music down.'],
+  },
   recruit: {
     ambitious: ['"I\'ve been waiting for somebody to ask. What\'s the cut?"'],
     loyal: ['"I don\'t jump ship easy. Convince me."'],
@@ -63,6 +72,11 @@ export const APPROACHES: Record<SceneKind, { id: string; label: string; icon: st
     { id: 'business', label: 'Talk business', icon: '💼', blurb: 'Brains. Who runs what, who owes whom.', good: '+respect and a useful tip', bad: '+respect, no tip' },
     { id: 'listen', label: 'Just listen', icon: '👂', blurb: 'Let them talk. Cheap and slow.', good: '+trust, maybe a rumour', bad: '+trust, a little' },
   ],
+  parley: [
+    { id: 'tribute', label: 'Put them on the payroll', icon: '💸', blurb: 'Charm and respect. They keep the corner, pay you weekly, and the block is yours.', good: 'Block turns yours; weekly cash', bad: 'Laughed off; they dig in' },
+    { id: 'join', label: 'Bring them in', icon: '🤝', blurb: 'Trust. Their boss joins your crew; their people become yours to recruit.', good: 'A made crew member and recruits', bad: 'They want to see more first' },
+    { id: 'warn', label: 'Run them off', icon: '😤', blurb: 'Muscle. Make them small. No body, no cops.', good: 'They lie low; +fear on the block', bad: 'They come back at you tonight' },
+  ],
   recruit: [
     { id: 'cut', label: 'Offer a real cut', icon: '💵', blurb: 'Pay above the going rate. Loyal from day one.', good: 'Joins, high loyalty, +40% wage', bad: 'Joins anyway if they trust you' },
     { id: 'promise', label: 'Sell the dream', icon: '✨', blurb: 'Charm. Respect, money, a name on the block.', good: 'Joins at normal wage', bad: 'Not convinced; try again later' },
@@ -83,6 +97,9 @@ export const RESULT: Record<string, string[]> = {
   'visit:drinks:ok': ['Two rounds later you are old friends.'], 'visit:drinks:fail': ['They drink your drinks and tell you nothing.'],
   'visit:business:ok': ['They know things. They tell you some of them.'], 'visit:business:fail': ['Polite, careful, useless.'],
   'visit:listen:ok': ['They talk. Eventually it gets interesting.'], 'visit:listen:fail': ['Weather, mostly.'],
+  'parley:tribute:ok': ['"Fine. Every Friday. Don\'t make us regret it."'], 'parley:tribute:fail': ['"Pay YOU? Get off our corner."'],
+  'parley:join:ok': ['"About time somebody real showed up. We\'re in."'], 'parley:join:fail': ['"We\'ll think about it." They won\'t.'],
+  'parley:warn:ok': ['They fold. The stoop is empty by the time you reach the corner.'], 'parley:warn:fail': ['Bottles. You leave before the second one lands.'],
   'recruit:cut:ok': ['"When do I start?"'], 'recruit:cut:fail': ['"Money\'s good. I still don\'t know you."'],
   'recruit:promise:ok': ['"A name on the block. Yeah. I\'m in."'], 'recruit:promise:fail': ['"Nice speech."'],
   'recruit:lean:ok': ['They nod without a word. They will not forget how this started.'], 'recruit:lean:fail': ['They walk out and do not come back for a while.'],

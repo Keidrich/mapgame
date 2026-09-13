@@ -5,6 +5,7 @@ import { PLAYER, type Op, type World } from './types';
 import { addHeat, addInfluence, adjustRel, clamp, jailDays, log, money, spreadRep } from './util';
 import { freeOpCrew } from './reducer';
 import { addMemory } from './people';
+import { crewAt, dissolveCrew } from './crews';
 
 /** Resolve one launched op. Called from the tick. */
 export function resolveOp(w: World, o: Op, rng: Rng) {
@@ -64,6 +65,18 @@ export function resolveOp(w: World, o: Op, rng: Rng) {
         addMemory(w, n.homeBlockId, 'hit', `${n.name} was killed. Everybody knows who ordered it.`);
         break;
       }
+      case 'takeover': {
+        const c = o.targetBlockId ? crewAt(w, o.targetBlockId) : undefined;
+        if (c) {
+          const name = c.name; const blk = w.blocks[c.blockId];
+          addInfluence(w, blk.id, PLAYER, (blk.influence[c.id] ?? 40) + 10);
+          dissolveCrew(w, c, 'taken');
+          p.dirty += value; res.cash = value; p.fear = clamp(p.fear + 5); p.respect = clamp(p.respect + 4); spreadRep(w, blk.id, { fear: 8, respect: 3 });
+          addMemory(w, blk.id, 'takeover', `${w.player.name}'s people ran the ${name} off the corner.`);
+          res.text = `The ${name} are finished. ${blk.name} is yours, plus ${money(value)} from their stash. Their people are scared enough to listen.`;
+        } else res.text = 'The corner was empty. Somebody got there first.';
+        break;
+      }
       case 'intimidate': {
         if (target) { const owner = w.npcs[target.ownerId]; adjustRel(owner, { fear: 30, trust: -10 }); target.condition = clamp(target.condition - 15); spreadRep(w, target.blockId, { fear: 6 }); p.fear = clamp(p.fear + 3);
           if (target.protection && target.protection.factionId !== PLAYER) { w.factions[target.protection.factionId].standing[PLAYER] -= 10; } }
@@ -87,6 +100,7 @@ export function resolveOp(w: World, o: Op, rng: Rng) {
       else if (bad && r < 0.65 && def.difficulty >= 55) { victim.crew.status = 'dead'; victim.crew.assignment = undefined; victim.alive = false; fate = `${victim.name} did not make it out.`; }
     }
     res.text = `${def.label}${target ? ` at ${target.name}` : ''} goes wrong. ${fate} ${bad ? 'Sirens everywhere.' : 'You get out with nothing.'}`;
+    if (o.kind === 'takeover' && o.targetBlockId) { const c = crewAt(w, o.targetBlockId); if (c) { c.strength = Math.min(10, c.strength + 1); c.mood -= 30; res.text += ` The ${c.name} are stronger for it.`; } }
     if (o.kind === 'hit' && o.targetNpcId) { const n = w.npcs[o.targetNpcId]; adjustRel(n, { fear: 15, trust: -60 }); if (n.faction && w.factions[n.faction]) { w.factions[n.faction].standing[PLAYER] -= 30; w.factions[n.faction].grudges.push(`attempt:${n.id}`); } }
     if (o.kind === 'insurance_fraud' && target) { target.condition = clamp(target.condition - 40); target.insured = false; target.flags.push('arson_suspect'); res.heat += 10; res.text += ' The fire marshal is asking about you.'; }
     for (const n of crew) if (n.crew) n.crew.loyalty = clamp(n.crew.loyalty - 8);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PLAYER, can, dispatch, generateWorld, select, type World } from './index';
+import { PLAYER, approachChance, can, dispatch, generateWorld, select, type World } from './index';
 
 const mk = (seed = 5) => generateWorld({ origin: { lat: 51.5, lng: -0.12 }, placeName: 'London', playerName: 'T', background: 'muscle', seed });
 const startBlock = (w: World) => select.startBlock(w);
@@ -73,5 +73,55 @@ describe('reducer', () => {
     let w = mk(); const f = Object.values(w.factions)[0];
     w.player.crewIds = []; // no crew → refused
     expect(can(w, { type: 'declare', factionId: f.id, stance: 'war' }).ok).toBe(false);
+  });
+});
+
+describe('street crews', () => {
+  const world = () => { let w = mk(9); w.player.cash = 50000; return w; };
+  it('spawn on open blocks in the right districts and hold influence', () => {
+    const w = world();
+    const crews = Object.values(w.crews);
+    expect(crews.length).toBeGreaterThan(0);
+    for (const c of crews) {
+      expect(select.blockController(w, c.blockId)).toBe(c.id);
+      expect(w.npcs[c.bossId].role).toBe('gang_boss');
+      expect(select.factionName(w, c.id)).toContain(c.name);
+    }
+  });
+  it('parley can put a crew on the payroll, which flips the block', () => {
+    let w = world(); const c = Object.values(w.crews)[0]; const boss = w.npcs[c.bossId];
+    w.player.skills.charm = 10; w.player.respect = 90; w.player.fear = 60; boss.traits = ['greedy', 'coward']; c.strength = 1;
+    expect(approachChance(w, 'parley', 'tribute', boss)).toBeGreaterThan(80);
+    let tries = 0;
+    while (!w.crews[c.id]?.tribute && tries++ < 6) { w = dispatch(w, { type: 'parley', npcId: boss.id, approach: 'tribute' }); w.player.ap = 8; }
+    expect(w.crews[c.id].tribute).toBe(PLAYER);
+    expect(select.blockController(w, c.blockId)).toBe(PLAYER);
+  });
+  it('a takeover op dissolves the crew and takes the corner', () => {
+    let w = world(); const c = Object.values(w.crews)[0];
+    // give the player a strong crew member
+    const patron = Object.values(w.npcs).find(n => n.role === 'patron')!; patron.rel.trust = 80; patron.skills.muscle = 10;
+    let tries = 0;
+    while (!w.npcs[patron.id].crew && tries++ < 6) { w = dispatch(w, { type: 'recruit', npcId: patron.id, approach: 'cut' }); w.player.ap = 8; }
+    expect(w.npcs[patron.id].crew).toBeDefined();
+    w.player.heat = 0; w.crews[c.id].strength = 1;
+    w = dispatch(w, { type: 'plan_op', kind: 'takeover', crewIds: [patron.id], targetBlockId: c.blockId });
+    const op = Object.values(w.ops).find(o => o.kind === 'takeover')!;
+    expect(op.status).toBe('ready');
+    expect(select.opChance(w, 'takeover', [patron.id])).toBeGreaterThan(60);
+    w = dispatch(w, { type: 'launch_op', opId: op.id });
+    for (const e of w.pendingEvents) w = dispatch(w, { type: 'resolve_event', eventId: e.id, optionId: e.options.at(-1)!.id });
+    w = dispatch(w, { type: 'end_day' });
+    const done = w.ops[op.id];
+    expect(['done', 'failed']).toContain(done.status);
+    if (done.status === 'done') { expect(w.crews[c.id]).toBeUndefined(); expect(select.blockController(w, c.blockId)).toBe(PLAYER); }
+  });
+  it('ignored crews grow and get absorbed by a neighbouring faction', () => {
+    let w = world(); const c = Object.values(w.crews)[0]; c.strength = 7.9;
+    const nb = w.blocks[c.blockId].neighborIds[0]; const f = Object.values(w.factions)[0]; w.blocks[nb].influence[f.id] = 80;
+    for (const e of w.pendingEvents) w = dispatch(w, { type: 'resolve_event', eventId: e.id, optionId: e.options.at(-1)!.id });
+    w = dispatch(w, { type: 'end_day' });
+    expect(w.crews[c.id]).toBeUndefined();
+    expect(select.blockController(w, c.blockId)).toBe(f.id);
   });
 });

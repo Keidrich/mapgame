@@ -21,6 +21,7 @@ export function SceneSheet() {
       req.kind === 'shakedown' ? { type: 'shakedown', businessId: req.businessId!, approach: o.id }
       : req.kind === 'threaten' ? { type: 'threaten', npcId: req.npcId, approach: o.id }
       : req.kind === 'recruit' ? { type: 'recruit', npcId: req.npcId, approach: o.id }
+      : req.kind === 'parley' ? { type: 'parley', npcId: req.npcId, approach: o.id }
       : { type: 'visit', npcId: req.npcId, approach: o.id };
     const ok = act(action);
     if (!ok) return;

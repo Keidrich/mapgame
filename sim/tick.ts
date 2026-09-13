@@ -3,6 +3,7 @@ import { PRODUCTION_DEFS, PRODUCT_INFO, RACKET_DEFS, SAFEHOUSE_TIERS } from '@co
 import { launderCapacity, productionOutput, racketIncome, streetPrice } from './economy';
 import { drawEvents } from './events';
 import { addMemory, tickAgendas, tickGossip } from './people';
+import { tickCrews } from './crews';
 import { runFaction } from './factions';
 import { resolveOp } from './ops';
 import { closeRacket, stashTotal } from './reducer';
@@ -104,6 +105,7 @@ export function endDay(w: World): World {
 
   // ---- factions ----
   for (const f of Object.values(w.factions)) runFaction(w, f, rng);
+  tickCrews(w, rng);
 
   // ---- police ----
   const captain = Object.values(w.npcs).find(n => n.official?.kind === 'captain');

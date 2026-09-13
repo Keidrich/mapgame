@@ -13,6 +13,7 @@ export type Action =
   | { type: 'read'; npcId: Id }                           // 1 AP: size someone up (reveals traits, nerve, agenda)
   | { type: 'threaten'; npcId: Id; approach?: string }    // 1 AP: +fear, -trust, +heat
   | { type: 'recruit'; npcId: Id; approach?: string }     // 1 AP: patron -> crew
+  | { type: 'parley'; npcId: Id; approach?: string }      // 1 AP: deal with a street crew's boss
   | { type: 'fire'; npcId: Id }
   | { type: 'assign'; npcId: Id; assignment?: Assignment }
   | { type: 'bribe_official'; npcId: Id; amount: number } // cash

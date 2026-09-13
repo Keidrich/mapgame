@@ -72,6 +72,7 @@ export const OP_DEFS: Record<OpKind, OpDef> = {
   smuggle_run:     { label: 'Smuggle Run', icon: '🛻', blurb: 'Drive a load in from out of town. Product at cost.', planDays: 1, minCrew: 1, maxCrew: 3, needs: { wheels: 8 }, difficulty: 40, payout: [0, 0], lootKind: 'booze', heat: 8, target: 'none', cost: 1500 },
   hit:             { label: 'Hit', icon: '🎯', blurb: 'Someone stops being a problem. Permanently.', planDays: 2, minCrew: 1, maxCrew: 3, needs: { muscle: 10, wheels: 4 }, difficulty: 55, payout: [0, 0], heat: 25, target: 'npc' },
   intimidate:      { label: 'Send a Message', icon: '🔨', blurb: 'Bats and broken windows. Fear without a body.', planDays: 0, minCrew: 1, maxCrew: 3, needs: { muscle: 6 }, difficulty: 25, payout: [0, 0], heat: 6, target: 'business' },
+  takeover:        { label: 'Take the Corner', icon: '🏴', blurb: 'Roll up on a street crew and take their block. Lighter than a faction raid.', planDays: 0, minCrew: 1, maxCrew: 3, needs: { muscle: 8 }, difficulty: 35, payout: [300, 1200], heat: 8, target: 'block' },
   raid_rival:      { label: 'Raid Rival Racket', icon: '⚔️', blurb: 'Hit a rival racket, take the cash box, wreck the place.', planDays: 1, minCrew: 2, maxCrew: 5, needs: { muscle: 12, wheels: 4 }, difficulty: 50, payout: [1500, 6000], heat: 12, target: 'business' },
 };
 

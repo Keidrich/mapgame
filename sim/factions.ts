@@ -21,6 +21,12 @@ export function runFaction(w: World, f: Faction, rng: Rng) {
   income += f.tributeFrom[PLAYER] ?? 0;
   f.cash += income;
   f.cash -= f.soldiers * 60; // wages
+  // a crew that cannot make payroll thins out: soldiers walk when the till is empty
+  if (f.cash < -2000 && f.soldiers > 3 && rng.chance(0.5)) {
+    const gone = Math.min(f.soldiers - 3, 1 + Math.floor(-f.cash / 8000));
+    f.soldiers -= gone; f.cash += gone * 300; // they take severance from what's left in the safehouse
+    if (rng.chance(0.3)) log(w, `${f.name} cannot make payroll. ${gone === 1 ? 'A soldier walks' : `${gone} soldiers walk`}.`, 'info', { factionId: f.id });
+  }
   // an empire costs money to hold: influence far from home fades unless there is a protected business there
   for (const b of controlled) {
     if (b.districtId === f.homeDistrictId) continue;
