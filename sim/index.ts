@@ -2,6 +2,8 @@ export * from './types';
 export type { Action, SitDownOffer, Affordance } from './actions';
 export { generateWorld, WORLD_VERSION, emptyStash, controller, stanceFor } from './generate';
 export type { NewGameOptions } from './generate';
+export { jitterOrigin, shouldJitter, placePrecision, boxSpanM, SECTOR_LABELS, JITTER_MIN_M, JITTER_MAX_M, JITTER_HARD_CAP_M } from './start';
+export type { Corner, PlacePrecision } from './start';
 export { dispatch, can } from './reducer';
 export * as select from './select';
 export { sceneFor, approachChance } from './scenes';

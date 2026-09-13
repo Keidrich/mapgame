@@ -1,24 +1,23 @@
 import { useEffect, useRef, useState } from 'react';
 import * as maplibregl from 'maplibre-gl';
 import { resolveBasemap } from './Map';
-import { generateWorld } from '@sim/index';
+import { BACKGROUND_DEFS } from '@content/backgrounds';
+import { BIG_CITIES } from '@content/cities';
+import { boxSpanM, generateWorld, jitterOrigin, placePrecision, shouldJitter } from '@sim/index';
+import type { PlacePrecision } from '@sim/index';
+import { Rng } from '@sim/rng';
 import type { LatLng, Player } from '@sim/types';
 import { newGame } from '@ui/store';
 import { gridChunk, loadChunk, reason } from '@ui/net/chunks';
 import { chunkBounds, chunkKeyAt, chunkNeighbors, type GeoChunk } from '@geo/chunks';
 
-const BACKGROUNDS: { id: Player['background']; label: string; blurb: string; ico: string; detail: string }[] = [
-  { id: 'muscle', label: 'Muscle', blurb: 'You came up on the door. People pay when you ask.', ico: '💪', detail: 'Muscle 8. Threats, strongarm shakedowns and loud ops land far more often. The fast, noisy opening: take a block by frightening it.' },
-  { id: 'brains', label: 'Brains', blurb: 'Numbers, paper, plans. You see the angles.', ico: '🧠', detail: 'Brains 8, tech 4. Numbers, bookmaking and laundering earn more, quiet ops go cleaner, and you spot a lieutenant skimming. The patient opening: build a machine.' },
-  { id: 'charm', label: 'Charm', blurb: 'Everybody likes you. That is the whole trick.', ico: '🎩', detail: 'Charm 8. Visits, recruiting, sit-downs and brokering all go your way, and product sells for more. The social opening: own people before you own blocks.' },
-];
-export const BIG_CITIES: { name: string; lat: number; lng: number }[] = [
-  { name: 'New York', lat: 40.7128, lng: -74.006 }, { name: 'London', lat: 51.5074, lng: -0.1278 }, { name: 'Chicago', lat: 41.8781, lng: -87.6298 },
-  { name: 'Tokyo', lat: 35.6762, lng: 139.6503 }, { name: 'Mexico City', lat: 19.4326, lng: -99.1332 }, { name: 'Lagos', lat: 6.5244, lng: 3.3792 },
-  { name: 'Berlin', lat: 52.52, lng: 13.405 }, { name: 'São Paulo', lat: -23.5505, lng: -46.6333 },
-];
 type Mode = 'geo' | 'search' | 'pick';
-interface Place { lat: number; lng: number; name: string }
+/**
+ * `lat`/`lng` is where the game will actually start. For a city-level pick that is a
+ * corner of the city rather than its pin: `base` keeps the pin, `corner` says which side
+ * of town, and the 🎲 button below rolls another one.
+ */
+interface Place { lat: number; lng: number; name: string; precision: PlacePrecision; base?: LatLng; spanM?: number; corner?: string; sector?: number }
 
 /** Desktops have no GPS: they ask a network service, which is the half that usually fails. */
 const GEO_ERRORS: Record<number, string> = {
@@ -30,6 +29,20 @@ const GEO_ERRORS: Record<number, string> = {
 /** Chrome does not start the `timeout` clock until the permission prompt is answered, so a prompt nobody
  *  clicks hangs for ever. Our own watchdog is the only thing that ends that wait. */
 const GEO_WATCHDOG_MS = 20000;
+
+/**
+ * Move a city-level pick a few km into one corner of the city. Exact addresses and the
+ * device's own position are never moved: those are where the player meant.
+ */
+function toCorner(p: Place, avoidSector?: number): Place {
+  if (!shouldJitter(p.precision)) return p;
+  const base = p.base ?? { lat: p.lat, lng: p.lng };
+  // the map is the same for everyone, but which corner you get is not: seeded fresh each roll
+  const rng = new Rng(Math.floor(Math.random() * 0x7fffffff));
+  const span = p.spanM;
+  const c = jitterOrigin(base, rng, { avoidSector, maxM: span ? Math.max(1500, Math.min(span / 3, 5000)) : undefined });
+  return { ...p, lat: c.origin.lat, lng: c.origin.lng, base, corner: c.label, sector: c.sector };
+}
 
 export function Onboarding() {
   const [name, setName] = useState('');
@@ -55,7 +68,7 @@ export function Onboarding() {
     const give = (state: 'ok' | 'failed', text: string) => { if (settled) return; settled = true; setBusy(false); setGeoState(state); setStatus(text); };
     const watchdog = setTimeout(() => give('failed', GEO_ERRORS[0]), GEO_WATCHDOG_MS);
     navigator.geolocation.getCurrentPosition(
-      pos => { clearTimeout(watchdog); if (settled) return; give('ok', ''); setPlace({ lat: pos.coords.latitude, lng: pos.coords.longitude, name: 'Where you are' }); },
+      pos => { clearTimeout(watchdog); if (settled) return; give('ok', ''); setPlace({ lat: pos.coords.latitude, lng: pos.coords.longitude, name: 'Where you are', precision: 'device' }); },
       err => { clearTimeout(watchdog); give('failed', GEO_ERRORS[err.code] ?? `Could not get your location (${err.message}). Search for a place instead.`); },
       { enableHighAccuracy: false, timeout: GEO_WATCHDOG_MS, maximumAge: 600000 },
     );
@@ -66,13 +79,22 @@ export function Onboarding() {
     try {
       const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q.trim())}&limit=5`, { headers: { Accept: 'application/json' } });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const rows = (await res.json()) as { lat: string; lon: string; display_name: string }[];
-      const out = rows.map(r => ({ lat: Number(r.lat), lng: Number(r.lon), name: r.display_name.split(',').slice(0, 2).join(',').trim() }));
+      const rows = (await res.json()) as { lat: string; lon: string; display_name: string; class?: string; type?: string; addresstype?: string; boundingbox?: string[] }[];
+      const out: Place[] = rows.map(r => ({
+        lat: Number(r.lat), lng: Number(r.lon), name: r.display_name.split(',').slice(0, 2).join(',').trim(),
+        precision: placePrecision(r), spanM: boxSpanM(r.boundingbox),
+      }));
       setResults(out); setStatus(out.length ? '' : 'Nothing found. Try another name or a random city.');
     } catch (e) { setStatus(`Search failed (${(e as Error).message}). Pick on the map or use a random city.`); }
     setBusy(false);
   };
-  const random = () => { const c = BIG_CITIES[Math.floor(Math.random() * BIG_CITIES.length)]; setPlace({ ...c }); setStatus(''); };
+  const random = () => {
+    const c = BIG_CITIES[Math.floor(Math.random() * BIG_CITIES.length)];
+    setPlace(toCorner({ ...c, precision: 'city' }));
+    setStatus('');
+  };
+  /** Same city, another part of town: never the corner you are standing in now. */
+  const reroll = () => { setPlace(p => (p ? toCorner(p, p.sector) : p)); setStatus(''); };
   const [building, setBuilding] = useState<string | null>(null);
   const skipRef = useRef(false);
   const [buildStart, setBuildStart] = useState(0);
@@ -123,7 +145,7 @@ export function Onboarding() {
 
       <div className="section-title">Background</div>
       <div className="col">
-        {BACKGROUNDS.map(b => (
+        {BACKGROUND_DEFS.map(b => (
           <button type="button" key={b.id} className={`bg-opt${bg === b.id ? ' on' : ''}`} onClick={() => setBg(b.id)}>
             <b>{b.ico} {b.label}</b><span>{b.blurb}</span>
             {bg === b.id && <span className="bg-detail">{b.detail}</span>}
@@ -145,7 +167,11 @@ export function Onboarding() {
           </form>
           {results.length > 0 && (
             <div className="list mt8">
-              {results.map((r, i) => <button type="button" key={i} className={`result${place?.name === r.name ? ' on' : ''}`} onClick={() => setPlace(r)}>{r.name}</button>)}
+              {results.map((r, i) => (
+                <button type="button" key={i} className={`result${place?.name === r.name ? ' on' : ''}`} onClick={() => setPlace(toCorner(r))}>
+                  {r.name}{r.precision === 'city' && <span className="muted small"> · a corner of the city</span>}
+                </button>
+              ))}
             </div>
           )}
         </div>
@@ -159,12 +185,21 @@ export function Onboarding() {
           {geoState !== 'failed' && <p className="small muted mt8">On a phone this is your GPS. On a computer the browser guesses from your network, which does not always work — search is the reliable way there.</p>}
         </div>
       )}
-      {mode === 'pick' && <PickMap value={place} onPick={(lat, lng) => setPlace({ lat, lng, name: `${lat.toFixed(3)}, ${lng.toFixed(3)}` })} />}
+      {mode === 'pick' && <PickMap value={place} onPick={(lat, lng) => setPlace({ lat, lng, name: `${lat.toFixed(3)}, ${lng.toFixed(3)}`, precision: 'exact' })} />}
       {status && <p className="small orange mt8">{status}</p>}
       <div className="row mt8">
         <button type="button" className="btn btn-ghost grow" onClick={random}>🎲 Random big city</button>
       </div>
-      {place && <p className="mt8">Starting in <b className="gold">{place.name}</b> <span className="muted small">({place.lat.toFixed(3)}, {place.lng.toFixed(3)})</span></p>}
+      {place && (
+        <p className="mt8">
+          Starting in <b className="gold">{place.name}</b>
+          {place.corner && <span>, on <b className="gold">{place.corner}</b></span>}
+          {' '}<span className="muted small">({place.lat.toFixed(3)}, {place.lng.toFixed(3)})</span>
+        </p>
+      )}
+      {place && shouldJitter(place.precision) && (
+        <button type="button" className="btn btn-ghost btn-block" onClick={reroll}>🎲 Try a different corner of {place.name}</button>
+      )}
 
       <div className="grow" />
       <div className="onboard-foot">

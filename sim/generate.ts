@@ -4,8 +4,11 @@ import { chunkKeyAt, hexChunk } from '@geo/chunks';
 import { distanceM } from '@geo/project';
 import { Rng, hashString } from './rng';
 import { BUSINESS_DEFS } from '@content/businesses';
+import { BACKGROUND_BY_ID, BASE_SKILLS, TECH_START_RECIPES, WHEELS_BONUS_LEGWORK, legalCustomSkills } from '@content/backgrounds';
 import { addBusiness, mkNpc, populateChunk } from './populate';
-import { PLAYER, type LatLng, type Player, type Skills, type World } from './types';
+import { unlockRecipe } from './production';
+import { adjustRel } from './util';
+import { PLAYER, type Block, type LatLng, type Player, type Skills, type StartTraitId, type World } from './types';
 
 export { controller, stanceFor, STEP_M } from './populate';
 export const WORLD_VERSION = 7; // 7: districts have closeness and naming pools, NPCs have family and friends
@@ -17,6 +20,8 @@ export interface NewGameOptions {
   placeName: string;
   playerName: string;
   background: Player['background'];
+  /** Only for background 'custom': a hand-built spread and the one edge they chose. */
+  custom?: { skills: Partial<Skills>; trait: StartTraitId };
   chunk?: GeoChunk; // the start area, fetched by the UI; defaults to a hex chunk
   extraChunks?: GeoChunk[]; // neighbouring areas to populate at once (when the start sits near a chunk edge)
 }
@@ -31,7 +36,8 @@ export function generateWorld(opts: NewGameOptions): World {
     version: WORLD_VERSION, seed, rng: seed, day: 1, origin: opts.origin, placeName: opts.placeName, mapSource: chunk.source, hexSizeM: HEX_SIZE_M,
     chunks: {}, districts: {}, blocks: {}, businesses: {}, npcs: {}, rackets: {}, safehouses: {}, productions: {}, ops: {}, crews: {}, factions: {},
     player: {
-      name: opts.playerName, background: opts.background, skills: startingSkills(opts.background),
+      name: opts.playerName, background: opts.background, startTrait: opts.background === 'custom' ? opts.custom?.trait : undefined,
+      skills: startingSkills(opts.background, opts.custom?.skills),
       cash: 2500, dirty: 0, heat: 0, respect: 5, fear: 0, ap: 8, apMax: 8, stash: emptyStash(),
       legwork: 0, legworkMax: 0, currentBlockId: '', crewEver: 0,
       crewIds: [], safehouseIds: [], businessIds: [], racketIds: [], opIds: [], lawyer: false, jailedDays: 0, busts: 0, launderedToday: 0, homeBlockId: '',
@@ -59,7 +65,9 @@ export function generateWorld(opts: NewGameOptions): World {
   startBlock.influence[PLAYER] = 12;
   w.player.homeBlockId = startBlock.id; startBlock.tags.push('home');
   w.player.currentBlockId = startBlock.id;
-  w.player.legworkMax = legworkFor(w.player.skills.wheels); w.player.legwork = w.player.legworkMax;
+  // wheels came up driving: legwork on top of what the skill itself gives
+  w.player.legworkMax = legworkFor(w.player.skills.wheels) + (opts.background === 'wheels' ? WHEELS_BONUS_LEGWORK : 0);
+  w.player.legwork = w.player.legworkMax;
   // home turf: people here already know your face
   for (const bid of startBlock.businessIds) for (const id of [w.businesses[bid].ownerId, ...w.businesses[bid].patronIds]) { const n = w.npcs[id]; if (n) { n.rel.trust += 10; n.known = true; } }
   // a guaranteed first mark: at least one extortable place on your block with an owner who folds
@@ -72,13 +80,39 @@ export function generateWorld(opts: NewGameOptions): World {
   const startOwner = w.npcs[w.businesses[startBlock.businessIds[0]].ownerId];
   startOwner.rel.trust = 20; startOwner.rel.respect = 15;
 
-  w.rng = rng.state;
   w.log.push({ day: 1, text: `You arrive in ${opts.placeName}. ${startBlock.name} is where you'll start. Nobody knows your name yet.`, tone: 'info', refs: { blockId: startBlock.id } });
+  // a tech already knows a trade; a hand-built character brings one edge of their own
+  if (opts.background === 'tech') unlockRecipe(w, rng.pick(TECH_START_RECIPES), 'You have been making this since before you needed to.');
+  if (opts.background === 'custom' && opts.custom) applyStartTrait(w, opts.custom.trait, startBlock);
+  w.rng = rng.state;
   return w;
 }
 
-function startingSkills(bg: Player['background']): Skills {
-  const s = { muscle: 4, brains: 4, charm: 4, wheels: 3, tech: 2 };
-  if (bg === 'muscle') s.muscle = 8; else if (bg === 'brains') { s.brains = 8; s.tech = 4; } else s.charm = 8;
-  return s;
+export function startingSkills(bg: Player['background'], custom?: Partial<Skills>): Skills {
+  if (bg === 'custom') return legalCustomSkills(custom);
+  return { ...(BACKGROUND_BY_ID[bg]?.skills ?? BASE_SKILLS) };
+}
+
+/** The one edge a hand-built character picks. All of it lands at generation, none of it is a rule elsewhere. */
+function applyStartTrait(w: World, trait: StartTraitId, startBlock: Block): void {
+  const locals = startBlock.businessIds.flatMap(id => [w.businesses[id].ownerId, ...w.businesses[id].patronIds]).map(id => w.npcs[id]).filter(Boolean);
+  switch (trait) {
+    case 'connected': {
+      for (const n of locals.filter(x => x.role === 'patron').slice(0, 2)) { n.rel.trust = Math.max(n.rel.trust, 45); n.rel.respect = Math.max(n.rel.respect, 25); n.known = true; n.notes.push('Knew you before any of this.'); }
+      w.player.respect += 5;
+      break;
+    }
+    case 'earner':
+      w.player.cash += 2500;
+      break;
+    case 'local':
+      startBlock.influence[PLAYER] = (startBlock.influence[PLAYER] ?? 0) + 10;
+      w.player.respect += 5;
+      for (const n of locals) n.known = true;
+      break;
+    case 'feared':
+      w.player.fear += 15;
+      for (const n of locals.filter(x => x.role === 'owner')) adjustRel(n, { fear: 12, trust: -5 });
+      break;
+  }
 }
