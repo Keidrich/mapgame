@@ -69,10 +69,10 @@ export function Onboarding() {
     if (!useGrid) {
       try {
         const skip = new Promise<never>((_, reject) => { const iv = setInterval(() => { if (skipRef.current) { clearInterval(iv); reject(new Error('skipped')); } }, 200); });
-        city = await Promise.race([loadChunk(startKey, s => setBuilding(s), { attempts: 2, timeoutMs: 40000 }), skip]);
+        city = await Promise.race([loadChunk(startKey, s => setBuilding(s), { attempts: 2, timeoutMs: 70000, priority: 10 }), skip]);
         // a start near a chunk edge would otherwise sit at the edge of the known world: pull in the neighbours that are close
         const near = chunkNeighbors(startKey).filter(k => { const b = chunkBounds(k); const dLat = Math.max(b.south - origin.lat, 0, origin.lat - b.north) * 111320; const dLng = Math.max(b.west - origin.lng, 0, origin.lng - b.east) * 111320 * Math.cos((origin.lat * Math.PI) / 180); return Math.hypot(dLat, dLng) < 450; });
-        if (near.length) { setBuilding(`Mapping the streets next door… (${near.length})`); extra = (await Promise.race([Promise.allSettled(near.map(k => loadChunk(k))), skip])).flatMap(r => (r.status === 'fulfilled' ? [r.value] : [])); }
+        if (near.length) { setBuilding(`Mapping the streets next door… (${near.length})`); extra = (await Promise.race([Promise.allSettled(near.map(k => loadChunk(k, undefined, { priority: 9 }))), skip])).flatMap(r => (r.status === 'fulfilled' ? [r.value] : [])); }
       } catch (e) {
         // no silent grid: say what happened and let the player retry or choose the grid
         const why = (e as Error).message === 'skipped' ? 'You stopped the download.' : `Could not map the real streets here: ${reason(e)}.`;

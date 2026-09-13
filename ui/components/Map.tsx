@@ -167,7 +167,7 @@ export function MapView() {
     for (const key of chunksInBox(b.getSouth(), b.getWest(), b.getNorth(), b.getEast(), 9)) {
       if (loading.current.has(key) || w?.chunks[key] || allCachedChunks().some(c => c.key === key) || recentlyFailed(key)) continue;
       loading.current.add(key); setLoadingCount(loading.current.size);
-      void loadChunk(key).then(() => { loading.current.delete(key); setLoadingCount(loading.current.size); bumpChunks(); }).catch(() => { loading.current.delete(key); setLoadingCount(loading.current.size); });
+      void loadChunk(key, undefined, { priority: 0 }).then(() => { loading.current.delete(key); setLoadingCount(loading.current.size); bumpChunks(); }).catch(() => { loading.current.delete(key); setLoadingCount(loading.current.size); });
     }
   }
 

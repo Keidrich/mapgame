@@ -101,7 +101,7 @@ export async function populateAndOpen(chunkKey: string, blockId: Id) {
   if (!w.chunks[chunkKey]) {
     pushToasts([{ day: w.day, text: 'Getting to know the area…', tone: 'info' }]);
     let chunk;
-    try { chunk = await loadChunk(chunkKey, undefined, { attempts: 2 }); }
+    try { chunk = await loadChunk(chunkKey, undefined, { attempts: 2, priority: 5 }); }
     catch (e) { pushToasts([{ day: w.day, text: `Could not map that area: ${reason(e)}. Tap it again in a moment.`, tone: 'warn' }]); return; }
     if (!state.world || state.world.chunks[chunkKey]) return;
     act({ type: 'populate_chunk', chunk });
@@ -149,7 +149,7 @@ export async function rebuildOnRealStreets(onStatus: (s: string) => void): Promi
   const w = state.world; if (!w) return 'No game.';
   const key = chunkKeyAt(w.origin);
   try {
-    const chunk = await loadChunk(key, onStatus, { attempts: 3, timeoutMs: 45000 });
+    const chunk = await loadChunk(key, onStatus, { attempts: 3, timeoutMs: 70000, priority: 10 });
     onStatus('Populating the city…');
     await new Promise(r => setTimeout(r, 30));
     const { generateWorld } = await import('@sim/generate');

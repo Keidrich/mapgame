@@ -14,7 +14,29 @@ export const OVERPASS_MIRRORS = [
   'https://overpass-api.de/api/interpreter',
   'https://overpass.kumi.systems/api/interpreter',
   'https://overpass.private.coffee/api/interpreter',
+  'https://overpass.openstreetmap.ru/api/interpreter',
+  'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
 ];
+/** Public Overpass servers allow about two requests at a time per address and answer 429 for a while after that, so every
+ *  request in the app goes through one queue: one at a time, the player's tap ahead of the map's background prefetch. */
+const queue: { run: () => Promise<void>; priority: number }[] = [];
+let active = 0;
+const CONCURRENCY = 1;
+function enqueue<T>(fn: () => Promise<T>, priority: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const job = { priority, run: () => fn().then(resolve, reject) };
+    const i = queue.findIndex(q => q.priority < priority);
+    if (i < 0) queue.push(job); else queue.splice(i, 0, job);
+    pump();
+  });
+}
+function pump() {
+  while (active < CONCURRENCY && queue.length) {
+    const job = queue.shift()!; active++;
+    void job.run().finally(() => { active--; pump(); });
+  }
+}
+let rateLimitedUntil = 0; // after a 429, everybody waits
 const MARGIN_DEG = 0.003; // ~330 m so faces on the chunk border are complete
 const CACHE_VERSION = 'c3'; // c3: chunks carry school/police landmarks
 
@@ -30,7 +52,7 @@ export function recentlyFailed(key: string): boolean { return (failedAt.get(key)
 /** The explicit grid: only when the player chooses it. */
 export function gridChunk(key: string): GeoChunk { return hexChunk(key); } // never cached: a grid chunk is never a reason to stop asking for the streets
 
-export interface LoadOptions { onStatus?: (s: string) => void; timeoutMs?: number; attempts?: number }
+export interface LoadOptions { onStatus?: (s: string) => void; timeoutMs?: number; attempts?: number; priority?: number }
 /** Resolves with real street geometry or rejects with a reason. Never a grid. */
 export function loadChunk(key: string, onStatus?: (s: string) => void, opts: LoadOptions = {}): Promise<GeoChunk> {
   const hit = memory.get(key); if (hit) return Promise.resolve(hit);
@@ -42,7 +64,7 @@ export function loadChunk(key: string, onStatus?: (s: string) => void, opts: Loa
     let lastErr: unknown;
     for (let i = 0; i < (opts.attempts ?? 1); i++) {
       try {
-        const chunk = await fetchChunk(key, status, opts.timeoutMs ?? 25000);
+        const chunk = await fetchChunk(key, status, opts.timeoutMs ?? 45000, opts.priority ?? 0);
         memory.set(key, chunk); failedAt.delete(key);
         void idbSet(`${CACHE_VERSION}:${key}`, chunk);
         return chunk;
@@ -58,24 +80,37 @@ export function loadChunk(key: string, onStatus?: (s: string) => void, opts: Loa
 export function reason(e: unknown): string {
   const m = e instanceof Error ? e.message : String(e);
   if (/abort/i.test(m)) return 'map server timed out';
-  if (/HTTP 429|HTTP 504|HTTP 503/.test(m)) return 'map server busy';
+  if (/HTTP 429/.test(m)) return 'map server rate-limited this phone; it clears in about a minute';
+  if (/HTTP 504|HTTP 503|HTTP 502/.test(m)) return 'map server timed out on a dense area';
+  if (/HTTP 400/.test(m)) return 'map server rejected the query';
   if (/Failed to fetch|NetworkError|Load failed/i.test(m)) return 'no connection to the map server';
   return m;
 }
+const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
 /** Mirrors that fail move to the back of the line for the rest of the session. */
 let mirrors = OVERPASS_MIRRORS.slice();
-async function overpass(query: string, onStatus: (s: string) => void, timeoutMs = 25000): Promise<OsmResponse> {
+function overpass(query: string, onStatus: (s: string) => void, timeoutMs: number, priority: number): Promise<OsmResponse> {
+  return enqueue(() => overpassNow(query, onStatus, timeoutMs), priority);
+}
+async function overpassNow(query: string, onStatus: (s: string) => void, timeoutMs: number): Promise<OsmResponse> {
   let lastErr: unknown;
+  const wait = rateLimitedUntil - Date.now();
+  if (wait > 0) { onStatus(`Map server asked us to slow down… (${Math.ceil(wait / 1000)}s)`); await sleep(wait); }
   for (const url of mirrors.slice()) {
     const ctrl = new AbortController(); const t = setTimeout(() => ctrl.abort(), timeoutMs);
     try {
       const res = await fetch(url, { method: 'POST', body: `data=${encodeURIComponent(query)}`, headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, signal: ctrl.signal });
+      if (res.status === 429) { rateLimitedUntil = Date.now() + 8000; throw new Error('HTTP 429'); }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = (await res.json()) as OsmResponse;
       if (!Array.isArray(json.elements)) throw new Error('bad response');
       return json;
-    } catch (e) { lastErr = e; mirrors = [...mirrors.filter(m => m !== url), url]; onStatus(`Map server busy (${reason(e)}), trying another…`); }
+    } catch (e) {
+      lastErr = e; mirrors = [...mirrors.filter(m => m !== url), url];
+      onStatus(`${reason(e)}; trying another server…`);
+      if (/HTTP 429/.test((e as Error).message)) await sleep(2500); // let the limit clear before the next mirror
+    }
     finally { clearTimeout(t); }
   }
   throw lastErr instanceof Error ? lastErr : new Error('Overpass unavailable');
@@ -87,13 +122,13 @@ function bboxOf(key: string): string {
 }
 export function chunkRoadsQuery(key: string): string {
   const bb = bboxOf(key);
-  return `[out:json][timeout:25];(way["highway"~"^(${ROAD_TYPES.join('|')})$"](${bb});way["natural"="water"](${bb});way["waterway"="riverbank"](${bb});way["landuse"~"^(industrial|port|harbour)$"](${bb}););out geom;`;
+  return `[out:json][timeout:60][maxsize:268435456];(way["highway"~"^(${ROAD_TYPES.join('|')})$"](${bb});way["natural"="water"](${bb});way["waterway"="riverbank"](${bb});way["landuse"~"^(industrial|port|harbour)$"](${bb}););out geom;`;
 }
 export function chunkPoisQuery(key: string): string {
   const bb = bboxOf(key);
   const amen = 'bar|pub|biergarten|restaurant|cafe|fast_food|nightclub|bank|taxi|stripclub|casino|gambling|car_wash';
   const shop = 'convenience|pawnbroker|car_repair|hairdresser|jewelry|jewellery|laundry|dry_cleaning|supermarket|tobacco|alcohol|pawn';
-  return `[out:json][timeout:25];(nwr["amenity"~"^(${amen})$"](${bb});nwr["shop"~"^(${shop})$"](${bb});nwr["leisure"="fitness_centre"](${bb});nwr["tourism"~"^(motel|hotel|hostel|guest_house)$"](${bb});nwr["building"~"^(warehouse|industrial)$"](${bb});nwr["office"="construction_company"](${bb});node["place"~"^(neighbourhood|suburb|quarter)$"](${bb}););out center;`;
+  return `[out:json][timeout:40];(nwr["amenity"~"^(${amen})$"](${bb});nwr["shop"~"^(${shop})$"](${bb});nwr["leisure"="fitness_centre"](${bb});nwr["tourism"~"^(motel|hotel|hostel|guest_house)$"](${bb});nwr["building"~"^(warehouse|industrial)$"](${bb});nwr["office"="construction_company"](${bb});node["place"~"^(neighbourhood|suburb|quarter)$"](${bb}););out center;`;
 }
 
 /** Run the polygoniser in a worker when we can, inline otherwise (tests, old browsers). */
@@ -118,14 +153,14 @@ function buildInline(job: ChunkJob): { chunk: GeoChunk; streets: number } {
   return { chunk: buildChunk({ key: job.key, roads: r.roads, nodePos: r.nodePos, water: r.water, industrial: r.industrial, pois: p.pois, places: p.places, landmarks: p.landmarks }), streets: r.roads.length };
 }
 
-async function fetchChunk(key: string, onStatus: (s: string) => void, timeoutMs: number): Promise<GeoChunk> {
+async function fetchChunk(key: string, onStatus: (s: string) => void, timeoutMs: number, priority: number): Promise<GeoChunk> {
   onStatus('Downloading streets…');
-  const roads = await overpass(chunkRoadsQuery(key), onStatus, timeoutMs);
+  const roads = await overpass(chunkRoadsQuery(key), onStatus, timeoutMs, priority);
   const ways = roads.elements.filter(e => e.type === 'way' && e.tags?.highway).length;
   if (ways < 12) throw new Error('not enough streets here (open water, or nothing mapped)');
   onStatus(`Finding businesses… (${ways} streets)`);
   let pois: OsmResponse | null = null;
-  try { pois = await overpass(chunkPoisQuery(key), onStatus, Math.min(timeoutMs, 20000)); } catch { /* businesses get invented */ }
+  try { pois = await overpass(chunkPoisQuery(key), onStatus, Math.min(timeoutMs, 30000), priority); } catch { /* businesses get invented */ }
   onStatus(`Drawing blocks… (${ways} streets)`);
   const job: ChunkJob = { key, roads, pois };
   let built: { chunk: GeoChunk; streets: number };
