@@ -28,7 +28,7 @@ export function NpcSheet({ npcId }: { npcId: Id }) {
       <div className="chips">
         {select.isKnown(n)
           ? n.traits.map(t => <TermChip key={t} id={`trait:${t}`}>{TRAIT_LABELS[t] ?? t}</TermChip>)
-          : <TermChip id="known"><span className="muted">Traits unknown</span></TermChip>}
+          : <TermChip id={n.hint ? 'cased' : 'known'}><span className="muted">{n.hint ?? 'Traits unknown'}</span></TermChip>}
         <TermChip id="relLabel" title="How they see you" body={relBlurb(n)}>{select.relLabel(n)}</TermChip>
         {select.isHeld(n) && <TermChip id="hostage" tone="var(--red)">Held by you</TermChip>}
         {n.grudge && <TermChip id="grudge" tone="var(--red)">Holds a grudge</TermChip>}

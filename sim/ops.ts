@@ -17,7 +17,7 @@ import { take as takeHostage } from './hostages';
 /** Resolve one launched op. Called from the tick. */
 export function resolveOp(w: World, o: Op, rng: Rng) {
   const def = OP_DEFS[o.kind]; const p = w.player; const ap = o.approach ? OP_APPROACHES[o.approach] : undefined;
-  const chance = opChance(w, o.kind, o.crewIds, o.approach);
+  const chance = opChance(w, o.kind, o.crewIds, o.approach, o.targetBusinessId);
   const roll = rng.int(1, 100);
   const success = roll <= chance;
   const crew = o.crewIds.map(id => w.npcs[id]).filter(Boolean);
@@ -33,7 +33,52 @@ export function resolveOp(w: World, o: Op, rng: Rng) {
     res.heat = Math.round(def.heat * (margin > 30 ? 0.6 : 1) * (ap?.heat ?? 1) * kitHeatMult(w));
     if (o.insideId && w.npcs[o.insideId]) adjustRel(w.npcs[o.insideId], { trust: 5, respect: 5 });
     switch (o.kind) {
-      case 'heist_bank': case 'heist_armored': case 'robbery': case 'raid_rival': case 'check_kiting': {
+      case 'ambush_soldiers': {
+        const f = o.targetFactionId ? w.factions[o.targetFactionId] : undefined;
+        p.dirty += value; res.cash = value;
+        if (f) {
+          f.soldiers = Math.max(0, f.soldiers - rng.int(1, 3));
+          f.standing[PLAYER] = clamp(f.standing[PLAYER] - 8, -100, 100);
+          f.grudges.push('ambushed');
+        }
+        res.text = `You took ${f?.short ?? 'them'} on a street of your choosing for once. ${money(value)} off them and two of theirs in the hospital.`;
+        spreadRep(w, blockId ?? p.currentBlockId, { respect: 4, fear: 4 });
+        break;
+      }
+      case 'defend_racket': {
+        const biz2 = target;
+        const held = biz2?.racketIds.map(id => w.rackets[id]).filter(r => r?.owner === PLAYER) ?? [];
+        for (const r of held) { r.threatened = undefined; r.disrupted = 0; }
+        if (biz2) addInfluence(w, biz2.blockId, PLAYER, 6);
+        res.text = `Your people were sitting in ${biz2?.name ?? 'the place'} when the muscle arrived. They turned round and left. Nobody is marking it now.`;
+        spreadRep(w, blockId ?? p.currentBlockId, { respect: 3 });
+        break;
+      }
+      case 'war_strike': {
+        const n = o.targetNpcId ? w.npcs[o.targetNpcId] : undefined;
+        const f = n?.faction ? w.factions[n.faction] : undefined;
+        if (n) { n.alive = false; }
+        if (f) {
+          f.soldiers = Math.max(0, f.soldiers - 2);
+          f.standing[PLAYER] = clamp(f.standing[PLAYER] - 15, -100, 100);
+          f.lieutenantIds = f.lieutenantIds.filter(id => id !== n?.id);
+          if (n && f.bossId === n.id) successionOrDeath(w, f);
+          f.grudges.push(`war_strike:${n?.id ?? ''}`);
+        }
+        res.text = `${n?.name ?? 'Their lieutenant'} is dead, and everybody knows whose war it was. ${f?.short ?? 'They'} are down a man they could not spare.`;
+        spreadRep(w, blockId ?? p.currentBlockId, { fear: 8 });
+        openCase(w, 'hit', `The shooting of ${n?.name ?? 'a lieutenant'}`, { npcId: n?.id, opId: o.id, blockId }, o.crewIds, rng);
+        break;
+      }
+      case 'armed_intimidation': {
+        const owner = target ? w.npcs[target.ownerId] : undefined;
+        if (owner) adjustRel(owner, { fear: 26 + Math.round(p.skills.muscle / 2), trust: -10 });
+        if (target) { target.condition = clamp(target.condition - 8); addMemory(w, target.blockId, 'armed', `Somebody showed ${owner?.name ?? 'the owner'} a gun in ${target.name}.`); }
+        spreadRep(w, blockId ?? p.currentBlockId, { fear: 6 });
+        res.text = `Nobody in ${target?.name ?? 'the place'} is going to forget what was under your coat. ${owner?.name ?? 'The owner'} understood it the first time.`;
+        break;
+      }
+      case 'heist_bank': case 'heist_armored': case 'robbery': case 'armed_robbery': case 'raid_rival': case 'check_kiting': {
         p.dirty += value; res.cash = value; res.text = `${def.label} at ${target?.name ?? '?'}: clean. ${money(value)} in the bag.`;
         if (o.kind === 'raid_rival' && target) {
           const victims = new Set<string>();
@@ -172,6 +217,8 @@ export function resolveOp(w: World, o: Op, rng: Rng) {
     if (o.kind === 'kidnap' && o.targetNpcId) { const n = w.npcs[o.targetNpcId]; adjustRel(n, { fear: 30, trust: -70 }); n.grudge = { since: w.day, reason: 'you tried to put them in a van', spread: 0 }; if (n.faction && w.factions[n.faction]) { const f = w.factions[n.faction]; f.standing[PLAYER] -= 30; f.grudges.push(`grab:${n.name.split(' ')[0]}`); } addMemory(w, n.homeBlockId, 'kidnap', `Somebody tried to grab ${n.name} in the street and failed.`); }
     if (o.kind === 'frame' && o.targetNpcId) { const n = w.npcs[o.targetNpcId]; adjustRel(n, { trust: -50 }); if (n.faction && w.factions[n.faction]) { const f = w.factions[n.faction]; f.standing[PLAYER] -= 30; f.grudges.push(`frame:${n.name.split(' ')[0]}`); res.text += ` ${f.short} found the plant and know whose it was.`; } }
     if (o.kind === 'hit' && o.targetNpcId) { const n = w.npcs[o.targetNpcId]; adjustRel(n, { fear: 15, trust: -60 }); if (n.faction && w.factions[n.faction]) { w.factions[n.faction].standing[PLAYER] -= 30; w.factions[n.faction].grudges.push(`attempt:${n.id}`); } }
+    if (o.kind === 'war_strike' && o.targetNpcId) { const n = w.npcs[o.targetNpcId]; const f = n.faction ? w.factions[n.faction] : undefined; if (f) { f.standing[PLAYER] = clamp(f.standing[PLAYER] - 20, -100, 100); f.soldiers += 2; f.grudges.push(`war_strike_failed:${n.id}`); res.text += ` ${f.short} know exactly who sent them, and they are hiring.`; } }
+    if (o.kind === 'defend_racket' && target) { const held = target.racketIds.map(id => w.rackets[id]).filter(r => r?.owner === PLAYER); for (const r of held) r.disrupted = Math.max(r.disrupted, 3); res.text += ' They came through anyway.'; }
     if (o.kind === 'insurance_fraud' && target) { target.condition = clamp(target.condition - 40); target.insured = false; target.flags.push('arson_suspect'); res.heat += 10; res.text += ' The fire marshal is asking about you.'; }
     for (const n of crew) if (n.crew) n.crew.loyalty = clamp(n.crew.loyalty - 8);
   }

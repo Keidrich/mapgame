@@ -6,6 +6,7 @@ import { BlockSheet } from './components/BlockSheet';
 import { BusinessSheet } from './components/BusinessSheet';
 import { CrewTab } from './components/CrewTab';
 import { EmpireTab } from './components/EmpireTab';
+import { ConfrontModal } from './components/ConfrontModal';
 import { EventModal } from './components/EventModal';
 import { RecapSheet } from './components/RecapSheet';
 import { FactionsTab } from './components/FactionsTab';
@@ -72,6 +73,7 @@ function Game() {
       <SceneSheet />
       {recap && <RecapSheet />}
       {pending > 0 && !recap && <EventModal />}
+      {!recap && <ConfrontModal />}
       {w.victory && !victorySeen && (
         <div className="banner" role="status">
           <b>🏆 You own the city.</b>

@@ -105,7 +105,7 @@ function Planner() {
   const needsTarget = def ? def.target !== 'none' : false;
   const hasTarget = !!(target.businessId || target.npcId || target.factionId || target.blockId || target.districtId);
   const step = !kind ? 0 : needsTarget && !hasTarget ? 1 : 2;
-  const chance = kind ? select.opChance(w, kind, crewIds, approach) : 0;
+  const chance = kind ? select.opChance(w, kind, crewIds, approach, target.businessId) : 0;
   const insiders = select.insidersFor(w, target.businessId);
   const sums = select.crewSkillSum(w, crewIds);
   const targets = useMemo(() => kind ? select.opTargets(w, kind) : [], [w, kind]);
@@ -175,7 +175,7 @@ function Planner() {
                 {(Object.keys(OP_APPROACHES) as OpApproach[]).map(k => { const a = OP_APPROACHES[k]; const on = approach === k; const insideOff = k === 'inside' && (def.target !== 'business' || !insiders.length);
                   return (
                     <button type="button" key={k} className={`opt${on ? ' sel' : ''}`} disabled={insideOff} onClick={() => setApproach(on ? undefined : k)}>
-                      <span className="lbl">{a.icon} {a.label} <span className="odds" style={{ float: 'right' }}>{select.opChance(w, kind!, crewIds, k)}%</span></span>
+                      <span className="lbl">{a.icon} {a.label} <span className="odds" style={{ float: 'right' }}>{select.opChance(w, kind!, crewIds, k, target.businessId)}%</span></span>
                       <span className="det">{a.blurb}{k === 'inside' && insiders.length ? ` ${insiders[0].name} would do it.` : ''}</span>
                       <span className="stakes"><b className="green">✓ {a.good}</b> <b className="red">✗ {a.bad}</b></span>
                       {insideOff && <span className="cst">{def.target !== 'business' ? 'Needs a place as the target.' : 'Nobody there trusts you enough yet (trust 35+).'}</span>}

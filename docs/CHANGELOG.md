@@ -14,6 +14,63 @@ House rules for an entry (see `CLAUDE.md` → *Leave a trail*):
 
 ---
 
+## 2026-09-13 — Combat you take part in, war work, and casing a place
+
+**What.** Four things: a faction attacking you directly now waits for an answer instead of
+resolving overnight; ops that only exist while somebody is at beef or war with you; armed
+versions of the everyday jobs; and "case the joint". Plus the arsenal the kit system was asking
+for — ten weapons across melee, pistol, shotgun, rifle and explosive.
+
+**Why.** Being attacked was a line in the morning log: the most dramatic thing that happens to a
+player was the one thing they could not touch. And the kit layer that landed an hour ago had
+exactly three weapons, so "what are you carrying" was a thin question.
+
+**How.**
+
+*Confrontations* (`sim/combat.ts`). The three direct branches of `actAgainstPlayer` —
+racket, business, crew — now call `queueConfrontation` instead of applying damage. A queued
+confrontation blocks every other action (the same gate pending events use) until answered with
+fight / backup / flee. The three answers map onto the three op approaches (loud / inside /
+quiet), which is what lets `kitSkillBoost`, `kitApproachBias` and `kitHeatMult` be reused
+unchanged rather than re-derived — a pump-action helps you stand and does nothing for you
+running. The odds shown are the odds rolled (`confrontChance` is what the reducer uses).
+Ambushes on blocks you hold stay automatic, because nobody is standing in front of you for that.
+Anything unanswered lands at End Day exactly as it would have before, which also keeps the
+soak bot honest. Measured over 60 days at war: 39 confrontations, answered or landed.
+
+*War and armed ops.* `OpRequires` gained `stance` and `weapon` rather than a second gating
+mechanism, so `opLocked` explains them like everything else. New: Ambush Their Soldiers, Dig In
+(answers a racket carrying the new `threatened` marker), War Strike (war only), Armed Robbery
+and Armed Message (locked without a weapon equipped).
+
+*Case the joint.* 2 AP, in person, once per few days per place: sets `Npc.hint` on everybody
+inside who is not already known — a feel, no trait names, no numbers — and `Business.casedUntil`,
+which `opChance` reads as a difficulty cut for the next job there. `opChance` now takes the
+target business so the bonus reaches both the odds the player sees and the roll.
+
+*Weapons.* Melee (knuckles, bat, machete), pistols (pistol, magnum, **suppressed** — the one
+weapon that helps a quiet job), shotguns (sawn-off, pump), a hunting rifle, and explosives
+(molotov, pipe bomb, at 1.7× and 1.9× heat). Families climb their own ladders; the catalogue test
+checks that rather than one global ordering.
+
+**Files.** `sim/combat.ts` (new), `sim/factions.ts`, `sim/tick.ts`, `sim/reducer.ts`,
+`sim/select.ts`, `sim/ops.ts`, `sim/types.ts`, `content/rackets.ts`, `content/items.ts`,
+`content/glossary.ts`, `ui/components/ConfrontModal.tsx` (new), `ui/App.tsx`,
+`ui/components/BusinessSheet.tsx`, `ui/components/OpsTab.tsx`, `ui/components/NpcSheet.tsx`,
+`ui/components/Kit.tsx`, `scripts/headless.ts`, `sim/combat.test.ts` (new),
+`sim/case-joint.test.ts` (new), `sim/items.test.ts`, `docs/DESIGN.md` §4.8–4.9.
+
+**Watch out.**
+- **No `WORLD_VERSION` bump**: `confrontations`, `casedUntil`, `hint` and `threatened` are all
+  optional, so v7 saves load.
+- A confrontation blocks other actions but **not** End Day — deliberately, so a player can always
+  end the day, and so the headless bot cannot deadlock. The soak answers them explicitly.
+- `Dig In` targets a business you run something in, which the generic plan_op check used to
+  refuse with "That is yours." There is now an `ownRacket` flag on the op def for that case;
+  reuse it rather than special-casing a kind.
+- Explosives stack multiplicatively with everything else carried: a pipe bomb and a molotov
+  together is 3.2× heat before the approach multiplier. That is a real decision, not a bug.
+
 ## 2026-09-13 — Kit: items, markets, and equipment that changes a job
 
 **What.** Personal equipment as a layer alongside the product stash: a small catalogue of

@@ -367,6 +367,42 @@ city without one would cap the weapon ladder at a baseball bat.
 Items do not wear out, break or get lost in this phase. When something eventually takes a
 piece of kit off the player, it removes one id and that is the whole of it.
 
+### 4.8 When they come for you
+
+A faction's tick used to resolve its attacks alone: you read in the morning that your numbers
+racket had been wrecked. Now a **direct** attack — on a racket, a place you own, or one of your
+people — queues a **confrontation** instead. Nothing else happens until you answer it: stand and
+fight, call your crew in, or walk away, each with the odds it actually rolls.
+
+The three answers are cut from the three op approaches — fight is loud, flee is quiet, backup is
+an inside job — so `sim/items.ts` reads the carried kit unchanged: `kitSkillBoost` adds to your
+side, `kitApproachBias` scales it, `kitHeatMult` scales what the night leaves behind. A
+pump-action is worth having when you stand; it is worth nothing when you run.
+
+Territorial pressure — soldiers leaning on a block you hold — stays automatic. Nobody is
+standing in front of you for that one.
+
+Ignore a confrontation and End Day lands it exactly as it would have before any of this
+existed, which is also what keeps the headless soak honest.
+
+### 4.9 War work, armed work, and casing a place
+
+`OpRequires` gained two conditions rather than a parallel gate: `stance` (somebody must be at
+beef or war with you) and `weapon` (you must be carrying one). Both report through `opLocked`
+like every other requirement, so the ops tree explains them the same way.
+
+- **Ambush Their Soldiers**, **Dig In** (defend a racket a faction has marked — rackets carry a
+  `threatened` day for it) and **War Strike** (a lieutenant, framed as an act of war) appear only
+  at beef or war, and a war strike only at war.
+- **Armed Robbery** and **Armed Message** are the ordinary jobs done with something in your hand:
+  more payout, more heat, and locked unless a weapon is equipped.
+
+**Case the joint** (2 AP, in person) reads a whole room at once: every patron and owner who is
+not already known gets a `hint` — a feel, with no trait names and no numbers — and the business
+is `casedUntil` a few days out, which is worth a real difficulty cut on the next op there. It is
+deliberately coarser than a size-up: casing tells you a little about everybody, `read` tells you
+everything about one person.
+
 ## 5. Rackets, production, ops
 
 **Rackets** (persistent, on a business): protection, numbers, bookmaking, gambling

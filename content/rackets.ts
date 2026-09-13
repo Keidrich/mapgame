@@ -1,4 +1,4 @@
-import type { RacketKind, ProductionKind, OpKind, ProductKind, Skills } from '@sim/types';
+import type { RacketKind, ProductionKind, OpKind, ProductKind, Skills, Stance } from '@sim/types';
 
 export interface RacketDef {
   label: string;
@@ -58,6 +58,7 @@ export interface OpDef {
   heat: number;
   target: 'business' | 'npc' | 'faction' | 'block' | 'district' | 'none';
   targetTypes?: string[];      // business types
+  ownRacket?: boolean;         // aimed at a place where you run something: yours to defend, not to rob
   ownBusiness?: boolean;       // must target your own business
   cost?: number;               // upfront
   tier?: number;               // where it sits in the ops tree, for layout only
@@ -71,6 +72,10 @@ export interface OpRequires {
   racketKinds?: RacketKind[];  // at least one of these running right now
   businessOwned?: boolean;     // you own a business outright
   priorOps?: OpKind[];         // you have pulled off at least one of these
+  /** Somebody has to be at one of these stances with you. War work is not on the table in peacetime. */
+  stance?: Stance[];
+  /** Something in your hand: these are jobs you do not walk into empty-handed. */
+  weapon?: boolean;
 }
 export const OP_DEFS: Record<OpKind, OpDef> = {
   heist_bank:      { label: 'Bank Job', icon: '🏦', blurb: 'The big one. Vault, hostages, getaway.', planDays: 5, minCrew: 3, maxCrew: 5, needs: { brains: 14, muscle: 10, wheels: 8, tech: 8 }, difficulty: 80, payout: [40000, 120000], heat: 35, target: 'business', targetTypes: ['bank'], tier: 4, requires: { priorOps: ['heist_jeweller', 'heist_armored'] } },
@@ -84,6 +89,14 @@ export const OP_DEFS: Record<OpKind, OpDef> = {
   frame:           { label: 'Frame', icon: '🗂️', blurb: 'Plant product and paper on a rival boss or lieutenant and let the cops do the rest. Quiet, if it works.', planDays: 2, minCrew: 1, maxCrew: 2, needs: { brains: 8, tech: 6 }, difficulty: 55, payout: [0, 0], heat: 5, target: 'npc', cost: 500, tier: 1, requires: { crewCount: 1 } },
   hit:             { label: 'Hit', icon: '🎯', blurb: 'Someone stops being a problem. Permanently.', planDays: 2, minCrew: 1, maxCrew: 3, needs: { muscle: 10, wheels: 4 }, difficulty: 55, payout: [0, 0], heat: 25, target: 'npc', tier: 2, requires: { crewCount: 2, racketKinds: ['protection', 'numbers', 'bookmaking', 'gambling_den', 'loansharking', 'fencing', 'chop_shop', 'dealing', 'laundering', 'smuggling', 'no_show_jobs'] } },
   intimidate:      { label: 'Send a Message', icon: '🔨', blurb: 'Bats and broken windows. Fear without a body.', planDays: 0, minCrew: 0, maxCrew: 3, needs: { muscle: 6 }, difficulty: 25, payout: [0, 0], heat: 6, target: 'business', tier: 0 },
+  // ---- armed work: the same jobs with something in your hand. Heavier payout, heavier heat,
+  // and the kit you carry does the talking through the usual opChance pipeline.
+  armed_robbery:   { label: 'Armed Robbery', icon: '🔫', blurb: 'Not a demand. An instruction. Everything in the drawer, and the safe.', planDays: 0, minCrew: 0, maxCrew: 3, needs: { muscle: 9 }, difficulty: 40, payout: [1600, 6000], heat: 18, target: 'business', tier: 1, requires: { weapon: true } },
+  armed_intimidation: { label: 'Armed Message', icon: '😨', blurb: 'They see it. Nobody has to use it. Nobody argues afterwards.', planDays: 0, minCrew: 0, maxCrew: 3, needs: { muscle: 7 }, difficulty: 28, payout: [0, 0], heat: 10, target: 'business', tier: 1, requires: { weapon: true } },
+  // ---- war work: only while somebody wants you dead ----
+  ambush_soldiers: { label: 'Ambush Their Soldiers', icon: '🥊', blurb: 'Catch a crew of theirs off their own turf and take the fight to them for once.', planDays: 1, minCrew: 1, maxCrew: 4, needs: { muscle: 12, wheels: 5 }, difficulty: 45, payout: [800, 3500], heat: 14, target: 'faction', tier: 2, requires: { stance: ['beef', 'war'] } },
+  defend_racket:   { label: 'Dig In', icon: '🛡️', blurb: 'Put people on a racket they have marked, and be there when the muscle arrives.', planDays: 0, minCrew: 1, maxCrew: 3, needs: { muscle: 8, brains: 4 }, difficulty: 35, payout: [0, 0], heat: 5, target: 'business', ownRacket: true, tier: 1, requires: { stance: ['beef', 'war'] } },
+  war_strike:      { label: 'War Strike', icon: '⚔️', blurb: 'Take one of their lieutenants off the board while the shooting is already started. An act of war, and read as one.', planDays: 2, minCrew: 2, maxCrew: 4, needs: { muscle: 12, wheels: 6, brains: 4 }, difficulty: 55, payout: [0, 0], heat: 20, target: 'npc', tier: 3, requires: { stance: ['war'], crewCount: 2 } },
   takeover:        { label: 'Take the Corner', icon: '🏴', blurb: 'Roll up on a street crew and take their block. Lighter than a faction raid.', planDays: 0, minCrew: 0, maxCrew: 3, needs: { muscle: 8 }, difficulty: 35, payout: [300, 1200], heat: 8, target: 'block', tier: 0 },
   steal_formula:   { label: 'Steal a Formula', icon: '📜', blurb: 'Break into a rival cook, a pharmacy or a print works and leave with something you can use.', planDays: 2, minCrew: 1, maxCrew: 3, needs: { tech: 8, brains: 6 }, difficulty: 50, payout: [0, 0], heat: 10, target: 'none', tier: 2, requires: { crewCount: 2, racketKinds: ['protection', 'numbers', 'bookmaking', 'gambling_den', 'loansharking', 'fencing', 'chop_shop', 'dealing', 'laundering', 'smuggling', 'no_show_jobs'] } },
   scout_block:     { label: 'Scout the Edges', icon: '🔦', blurb: 'Walk the dead streets at the edge of a district and find out what is still standing. You may come back with nothing.', planDays: 1, minCrew: 0, maxCrew: 2, needs: { brains: 5, tech: 3, wheels: 3 }, difficulty: 30, payout: [0, 0], heat: 2, target: 'district', tier: 0 },
@@ -155,6 +168,13 @@ export const LIEUTENANT = {
 export const TRAIT_LABELS: Record<string, string> = {
   greedy: 'Greedy', loyal: 'Loyal', coward: 'Coward', hothead: 'Hothead', connected: 'Connected',
   honest: 'Honest', ambitious: 'Ambitious', junkie: 'Junkie', gambler: 'Gambler', quiet: 'Quiet',
+};
+
+/** Casing a place: what it costs, how long the read lasts, and what it is worth on the job. */
+export const CASE_JOINT = {
+  ap: 2,
+  days: 4,          // how long what you learned stays useful
+  difficulty: -14,  // an op on a place you have walked is that much easier
 };
 
 export type OpApproach = 'loud' | 'quiet' | 'inside';

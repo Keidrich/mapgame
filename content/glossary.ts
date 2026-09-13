@@ -102,6 +102,16 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
     body: 'How hard they are to frighten, 0 to 100. Every threat and strongarm approach subtracts it. Cowards start low; hotheads start high, and so does anyone with family and old friends on the same streets.',
     note: 'Hidden until you size someone up, or they trust you enough to show it.',
   },
+  confrontation: {
+    title: 'On your doorstep',
+    body: 'A faction has come for a racket, a place or one of your people, and you are standing there. Stand and fight, call your crew in, or walk away — the odds shown are the odds rolled, and whatever you are carrying counts.',
+    note: 'Ignore it until End Day and they do what they came to do, the same as if you had never been there.',
+  },
+  cased: {
+    title: 'Cased',
+    body: 'You have walked this place, counted the exits and read the room. Ops here are meaningfully easier for a few days, and you have a rough feel for everybody who was inside.',
+    note: 'A proper size-up still tells you far more about one person than casing tells you about all of them.',
+  },
   kit: {
     title: 'Kit',
     body: 'The equipment you personally own and carry: weapons, tools, tech, a car. You can have three things on you at once, and only what you are carrying counts on a job.',

@@ -1,6 +1,6 @@
 import { select } from '@sim/index';
 import type { Id } from '@sim/types';
-import { CATEGORY_LABELS, ITEM_DEFS, type ItemDef } from '@content/items';
+import { CATEGORY_LABELS, FAMILY_LABELS, ITEM_DEFS, type ItemDef } from '@content/items';
 import { fmtMoney } from '@ui/derive';
 import { useWorld } from '@ui/store';
 import { Act } from './Act';
@@ -43,7 +43,7 @@ function KitRow({ item }: { item: ItemDef }) {
         <div className="sub" style={{ whiteSpace: 'normal' }}>{item.detail}</div>
       </div>
       <div className="col" style={{ gap: 4, flex: 'none' }}>
-        <TermChip id={`itemCat:${item.category}`} title={CATEGORY_LABELS[item.category]} body={item.blurb}>{CATEGORY_LABELS[item.category]}</TermChip>
+        <TermChip id={`itemCat:${item.category}`} title={item.family ? FAMILY_LABELS[item.family] : CATEGORY_LABELS[item.category]} body={item.blurb}>{item.family ? FAMILY_LABELS[item.family] : CATEGORY_LABELS[item.category]}</TermChip>
         {on < have && <Act action={{ type: 'equip', itemId: item.id, on: true }} label="Carry" small />}
         {on > 0 && <Act action={{ type: 'equip', itemId: item.id, on: false }} label="Leave" kind="ghost" small />}
       </div>
@@ -66,7 +66,7 @@ export function MarketSection({ businessId }: { businessId: Id }) {
           <div key={item.id} className="listitem" style={{ alignItems: 'flex-start' }}>
             <span className="ico">{item.icon}</span>
             <div className="grow" style={{ minWidth: 0 }}>
-              <div className="title">{item.label} <span className="muted small">{fmtMoney(select.buyPrice(item))}</span></div>
+              <div className="title">{item.label} <span className="muted small">{fmtMoney(select.buyPrice(item))}</span>{item.family && <span className="chip" style={{ marginLeft: 6 }}>{FAMILY_LABELS[item.family]}</span>}</div>
               <div className="sub" style={{ whiteSpace: 'normal' }}>{item.detail}</div>
             </div>
             <Act action={{ type: 'buy_item', businessId, itemId: item.id }} label="Buy" kind="primary" small />

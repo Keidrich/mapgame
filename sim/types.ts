@@ -103,6 +103,8 @@ export interface Business {
   racketIds: Id[];
   insured: boolean;
   lastShakedownDay?: number;
+  casedUntil?: number;  // you walked it and know the layout: an op here is easier until this day
+
   flags: string[];      // free-form markers ('torched', 'raided', ...)
 }
 
@@ -169,6 +171,7 @@ export interface Npc {
   agenda?: Agenda;            // a want that advances daily whether or not you show up
   grudge?: { since: number; reason: string; spread: number }; // holds it against you and tells people
   known: boolean;             // traits and nerve revealed (Read action, a scene, or enough trust)
+  hint?: string;              // the coarse read you get from casing the place: a feel, not a file
   recipe?: string;            // a specialist: recruiting them unlocks this RECIPES id
   hostage?: { safehouseId: Id; since: number }; // held by you: alive, but out of their own life
   fixer?: { day: number; amount: number; cap: number }; // role 'fixer': today's window, and what is left of it
@@ -208,6 +211,7 @@ export interface Racket {
   product?: ProductKind; // dealing
   lastIncome: number;
   disrupted: number;     // days remaining disrupted (raid/sabotage)
+  threatened?: number;   // a faction has it in their sights until this day; 'defend_racket' answers that
 }
 
 // ---------- safehouses & production ----------
@@ -246,7 +250,11 @@ export type OpKind =
   | 'heist_bank' | 'heist_jeweller' | 'heist_armored' | 'heist_warehouse'
   | 'robbery' | 'insurance_fraud' | 'check_kiting' | 'smuggle_run'
   | 'hit' | 'intimidate' | 'raid_rival' | 'takeover' | 'steal_formula' | 'frame'
-  | 'scout_block' | 'claim_abandoned' | 'kidnap';
+  | 'scout_block' | 'claim_abandoned' | 'kidnap'
+  // armed work: the same shapes, done with something in your hand
+  | 'armed_robbery' | 'armed_intimidation'
+  // only on the table while a faction is at beef or war with you
+  | 'ambush_soldiers' | 'defend_racket' | 'war_strike';
 
 export type OpStatus = 'planning' | 'ready' | 'done' | 'failed' | 'aborted';
 
@@ -386,6 +394,24 @@ export interface Player {
   homeBlockId: Id;
 }
 
+// ---------- confrontations: somebody came for you, and you are standing there ----------
+export type ConfrontKind = 'racket' | 'business' | 'crew';
+/** How you meet it. Each maps onto an op approach, so carried kit reads the same way it does on a job. */
+export type ConfrontApproach = 'fight' | 'flee' | 'backup';
+
+export interface Confrontation {
+  id: Id;
+  day: number;
+  factionId: FactionId;
+  kind: ConfrontKind;
+  war: boolean;
+  text: string;              // what is happening as you arrive
+  racketId?: Id;
+  businessId?: Id;
+  npcId?: Id;                // the crew member they came for
+  blockId?: Id;
+}
+
 // ---------- events ----------
 export interface EventOption {
   id: string;
@@ -439,6 +465,7 @@ export interface World {
   commission?: Commission; // the bosses' table, once the city is big enough to need one
   market?: { shortage: Partial<Record<ProductionKind, number>>; saturation: Partial<Record<ProductKind, number>> }; // 'until day' markers
   pendingEvents: GameEvent[]; // must be resolved before End Day
+  confrontations?: Confrontation[]; // somebody is on your doorstep right now; answered, or it lands anyway at End Day
   log: LogEntry[];
   cheated?: true;          // the testing tools were used on this save
   gameOver?: { reason: string; text: string };

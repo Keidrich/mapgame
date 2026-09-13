@@ -62,6 +62,9 @@ export type Action =
   | { type: 'hire_lawyer' }
   // --- movement ---
   | { type: 'move'; toBlockId: Id }                        // legwork: walk the block graph to another block
+  // --- someone is at the door ---
+  | { type: 'resolve_confrontation'; id: Id; approach: 'fight' | 'flee' | 'backup' }
+  | { type: 'case_joint'; businessId: Id }   // 2 AP: walk a place and read the room
   // --- turn ---
   | { type: 'resolve_event'; eventId: Id; optionId: string }
   | { type: 'end_day' }

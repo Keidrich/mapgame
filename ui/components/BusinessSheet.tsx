@@ -70,6 +70,7 @@ export function BusinessSheet({ businessId }: { businessId: Id }) {
       <MarketSection businessId={businessId} />
       <div className="section-title">Actions<Info id="odds" /></div>
       <div className="actions">
+        <Act action={{ type: 'case_joint', businessId }} label={(w.businesses[businessId].casedUntil ?? 0) >= w.day ? 'Cased' : 'Case the joint'} icon="🕵️" />
         {owner && <SceneAct scene={{ kind: 'visit', npcId: owner.id, businessId }} label="Visit" icon="🤝" />}
         {owner && <SceneAct scene={{ kind: 'threaten', npcId: owner.id, businessId }} label="Threaten" icon="😠" kind="danger" />}
         {owner && (

@@ -14,6 +14,12 @@ const goTo = (blockId?: string) => !!blockId && (at(blockId) || tryAct({ type: '
 const npcBlock = (id: string) => w.npcs[id]?.homeBlockId;
 
 for (let d = 0; d < days; d++) {
+  // somebody at the door: fight when the odds are decent, otherwise get people down there
+  while (select.activeConfrontation(w)) {
+    const c = select.activeConfrontation(w)!;
+    const best = select.confrontOptions(w, c).filter(o => !o.disabled).sort((a, b) => b.chance - a.chance)[0];
+    w = dispatch(w, { type: 'resolve_confrontation', id: c.id, approach: best.id });
+  }
   while (w.pendingEvents.length) { const e = w.pendingEvents[0]; const opts = e.options.filter(o => can(w, { type: 'resolve_event', eventId: e.id, optionId: o.id }).ok); const o = opts.length ? rng.pick(opts) : e.options[e.options.length - 1]; w = dispatch(w, { type: 'resolve_event', eventId: e.id, optionId: o.id }); }
   // promote the best-qualified idle crew member to run a district that has nobody
   for (const d of select.districtsRunnable(w)) { if (select.lieutenantOf(w, d.id)) continue; const pool = select.crew(w).filter(n => n.crew?.status === 'idle' || n.crew?.assignment?.kind === 'racket'); const pick = pool.find(n => !select.promoteReason(w, n, d.id)); if (pick) tryAct({ type: 'assign', npcId: pick.id, assignment: { kind: 'lieutenant', districtId: d.id } }); }

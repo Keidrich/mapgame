@@ -31,12 +31,22 @@ describe('the catalogue', () => {
     const all = Object.values(ITEM_DEFS);
     expect(all.length).toBeGreaterThanOrEqual(7);
     for (const cat of ['weapon', 'tool', 'tech', 'vehicle'] as const) expect(all.some(i => i.category === cat), cat).toBe(true);
-    const weapons = all.filter(i => i.category === 'weapon').sort((a, b) => a.cost - b.cost);
-    expect(weapons.length).toBeGreaterThanOrEqual(3);
-    for (let i = 1; i < weapons.length; i++) {
-      expect(weapons[i].cost).toBeGreaterThan(weapons[i - 1].cost);                                     // tiers cost more
-      expect(weapons[i].mods.approachBias!.loud!).toBeGreaterThan(weapons[i - 1].mods.approachBias!.loud!); // and hit harder
+    const weapons = all.filter(i => i.category === 'weapon');
+    expect(weapons.length).toBeGreaterThanOrEqual(8);
+    // every family, and within a family the ladder climbs: dearer means louder and hotter
+    for (const family of ['melee', 'pistol', 'shotgun', 'rifle', 'explosive'] as const) {
+      const rung = weapons.filter(i => i.family === family).sort((a, b) => a.cost - b.cost);
+      expect(rung.length, family).toBeGreaterThan(0);
+      for (let i = 1; i < rung.length; i++) {
+        if (rung[i].mods.approachBias!.quiet! > 0) continue;  // a suppressor buys quiet, not noise
+        expect(rung[i].mods.approachBias!.loud!, `${family} ${rung[i].id}`).toBeGreaterThan(rung[i - 1].mods.approachBias!.loud!);
+      }
     }
+    // the loudest thing in the catalogue is a firearm or a bomb, not a bat
+    const loudest = weapons.slice().sort((a, b) => (b.mods.approachBias?.loud ?? 0) - (a.mods.approachBias?.loud ?? 0))[0];
+    expect(['shotgun', 'explosive', 'rifle']).toContain(loudest.family);
+    // and exactly one weapon is worth taking on a quiet job
+    expect(weapons.filter(i => (i.mods.approachBias?.quiet ?? 0) > 0).map(i => i.id)).toEqual(['suppressed']);
     // every item that helps one approach hurts another, or pays for itself in heat
     for (const item of all) {
       const bias = Object.values(item.mods.approachBias ?? {});

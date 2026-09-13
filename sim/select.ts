@@ -1,6 +1,6 @@
 /** Read-only helpers for the UI. Never mutate. */
 import { BUSINESS_DEFS } from '@content/businesses';
-import { OP_APPROACHES, OP_DEFS, RACKET_DEFS, type OpApproach } from '@content/rackets';
+import { CASE_JOINT, OP_APPROACHES, OP_DEFS, RACKET_DEFS, type OpApproach } from '@content/rackets';
 import { controller, stanceFor } from './generate';
 import { CREW_COLOR, crewAt } from './crews';
 export { crewAt };
@@ -11,7 +11,12 @@ export { route, travelCost, isHere, npcIsHere, npcBlockIds, npcReachBlock, curre
 export { openCases, caseWitnessOf } from './cases';
 export { connectionsOf, familyOf, backingOf } from './connections';
 export { ownedItems, equippedItems, isEquipped, ownedCount, equippedCount, equipSlotsLeft, kitSkillBoost, kitApproachBias, kitHeatMult, kitMods, isMarket, marketStock, buyPrice, sellPrice, EQUIP_MAX } from './items';
-import { kitApproachBias, kitSkillBoost } from './items';
+import { equippedItems, kitApproachBias, kitSkillBoost } from './items';
+export { confrontations, activeConfrontation, confrontOptions, confrontChance, backupCrew, CONFRONT_AS } from './combat';
+/** Rackets a faction has marked: the ones 'Dig In' answers. */
+export function threatenedRackets(w: World) {
+  return w.player.racketIds.map(id => w.rackets[id]).filter(r => r && (r.threatened ?? 0) >= w.day);
+}
 import { connectionsOf } from './connections';
 export { seatReason, members as commissionMembers } from './commission';
 export { protectRoute, protectReason, PROTECT_TRUST, PROTECT_FAVOUR_RATE } from './economy';
@@ -19,7 +24,7 @@ export { fixerRate, fixerDailyCap, fixerUsedToday, fixerCapToday, fixerCapLeft, 
 export { knownRecipes, recipesForKind, restockCost, qualityOf, sellMult, shortageActive, saturationActive, productionQuality } from './production';
 import { distanceM } from '@geo/project';
 import { STEP_M } from './populate';
-import { PLAYER, type Block, type Business, type FactionId, type Id, type Npc, type OpKind, type RacketKind, type Stance, type World } from './types';
+import { PLAYER, type Block, type Business, type Faction, type FactionId, type Id, type Npc, type OpKind, type RacketKind, type Stance, type World } from './types';
 
 export { controller, stanceFor };
 
@@ -61,7 +66,7 @@ export function crewSkillSum(w: World, ids: Id[]): Record<string, number> {
   for (const id of ids) { const n = w.npcs[id]; if (!n) continue; for (const k of Object.keys(s)) s[k] += n.skills[k as keyof typeof n.skills]; }
   return s;
 }
-export function opChance(w: World, kind: OpKind, crewIds: Id[], approach?: OpApproach): number {
+export function opChance(w: World, kind: OpKind, crewIds: Id[], approach?: OpApproach, targetBusinessId?: Id): number {
   const d = OP_DEFS[kind]; const s = crewSkillSum(w, crewIds); const ap = approach ? OP_APPROACHES[approach] : undefined;
   // what the player is carrying counts: kit adds to the crew's hands, and it pulls an
   // approach's weights up or down — a sawn-off makes a loud job better and a quiet one worse
@@ -70,7 +75,9 @@ export function opChance(w: World, kind: OpKind, crewIds: Id[], approach?: OpApp
   let ratio = 0, n = 0;
   for (const [k, need] of Object.entries(d.needs)) { const wgt = (ap?.skillWeight[k as keyof typeof ap.skillWeight] ?? 1) * bias; ratio += Math.min(1.3, (s[k] * wgt) / (need || 1)); n++; }
   ratio = n ? ratio / n : 1;
-  const base = 50 + (ratio - 1) * 70 - (d.difficulty + (ap?.difficulty ?? 0) - 50) * 0.6 - w.player.heat * 0.15;
+  // a place you have walked in the last few days is a place you know the back of
+  const cased = targetBusinessId && (w.businesses[targetBusinessId]?.casedUntil ?? 0) >= w.day ? CASE_JOINT.difficulty : 0;
+  const base = 50 + (ratio - 1) * 70 - (d.difficulty + (ap?.difficulty ?? 0) + cased - 50) * 0.6 - w.player.heat * 0.15;
   return Math.max(3, Math.min(97, Math.round(base)));
 }
 /** People at a target who trust you enough to be an inside man (best first). */
@@ -148,8 +155,17 @@ export function opLocked(w: World, kind: OpKind): string | undefined {
     const done = new Set(Object.values(w.ops).filter(o => o.status === 'done').map(o => o.kind));
     if (!req.priorOps.some(k => done.has(k))) return `Needs a ${req.priorOps.map(k => OP_DEFS[k].label).join(' or ')} behind you.`;
   }
+  if (req.stance?.length && !factionsAt(w, req.stance).length) {
+    return `War work. Nobody is at ${req.stance.join(' or ')} with you${req.stance.includes('beef') ? ' yet' : ''}.`;
+  }
+  if (req.weapon && !equippedItems(w).some(i => i.category === 'weapon')) return 'You do not walk into this one empty-handed. Carry a weapon.';
   return undefined;
 }
+/** Factions holding one of these stances toward the player right now. */
+export function factionsAt(w: World, stances: Stance[]): Faction[] {
+  return Object.values(w.factions).filter(f => f.alive && stances.includes(f.stance[PLAYER] ?? 'peace'));
+}
+
 /** Ops whose requirements are met right now. */
 export function opsAvailable(w: World): OpKind[] {
   return (Object.keys(OP_DEFS) as OpKind[]).filter(k => !opLocked(w, k));

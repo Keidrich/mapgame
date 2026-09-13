@@ -21,6 +21,8 @@ import { claimedByPlayer } from './abandoned';
 import { isHeld, resolveHostage, roomFor } from './hostages';
 import { PLAYER_NOTE_MAX, opLocked } from './select';
 import { EQUIP_MAX, buyPrice, equipSlotsLeft, isMarket, marketStock, ownedCount, sellPrice } from './items';
+import { activeConfrontation, confrontOptions, confrontations, resolveConfrontation } from './combat';
+import { CASE_JOINT } from '@content/rackets';
 import { ITEM_DEFS } from '@content/items';
 import { moveProduct, onJoin, recipesForKind, restockCost, sellMult } from './production';
 import { PRODUCTION_UPGRADE_MULT, RECIPES } from '@content/rackets';
@@ -35,7 +37,12 @@ export function can(w: World, a: Action): Affordance {
   if (w.gameOver) return no('The game is over.');
   const p = w.player;
   // bookkeeping (renaming yourself, a note to self, streaming in geometry) is not a move, so it is never blocked
-  if (!['end_day', 'resolve_event', 'rename', 'set_note', 'populate_chunk'].includes(a.type) && w.pendingEvents.length) return no('Deal with what is in front of you first.');
+  const freeAlways = ['end_day', 'resolve_event', 'rename', 'set_note', 'populate_chunk'];
+  if (!freeAlways.includes(a.type) && w.pendingEvents.length) return no('Deal with what is in front of you first.');
+  // somebody is standing in front of you: nothing else happens until you answer them
+  if (!freeAlways.includes(a.type) && a.type !== 'resolve_confrontation' && activeConfrontation(w)) {
+    return no(`${w.factions[activeConfrontation(w)!.factionId]?.short ?? 'They'} are in front of you right now. Deal with that first.`);
+  }
   const ap = (n: number) => (p.ap >= n ? null : `Needs ${n} AP. You are out of time today.`);
   const cash = (n: number) => (p.cash >= n ? null : `Needs ${money(n)} clean cash.`);
   const npc = (id: Id) => w.npcs[id];
@@ -65,6 +72,18 @@ export function can(w: World, a: Action): Affordance {
     case 'threaten': { const n = npc(a.npcId); if (!n?.alive) return no('They are gone.'); if (n.official) return no('Threatening an official is a bad idea. Bribe them.'); if (n.role === 'boss') return no('You do not threaten a boss. You go to war with him.'); const h = hereNpc(n); if (h) return no(h); const r = ap(1); if (r) return no(r); if (a.approach === 'crew' && activeCrewCount(w) === 0) return no('No crew to bring.'); return yes({ ap: 1 }); }
     case 'parley': { const n = npc(a.npcId); if (!n?.alive) return no('They are gone.'); const c0 = crewOfBoss(w, n.id); if (!c0) return no('They do not run a crew.'); if (!isHere(w, c0.blockId)) return no(`The ${c0.name} hold ${blockNameOf(w, c0.blockId)}. Walk over first${travelCost(w, c0.blockId) !== undefined ? ` (${travelCost(w, c0.blockId)} legwork)` : ''}.`); const r = ap(1); if (r) return no(r); if (a.approach === 'join' && bedsLeft(w) <= 0) return no('No room in your safehouses for their boss.'); return yes({ ap: 1 }); }
     case 'broker': { const n = npc(a.npcId); if (!n?.alive) return no('They are gone.'); const why = brokerReason(w, n, a.otherFactionId); if (why) return no(why); const r = ap(2); if (r) return no(r); if (a.approach === 'split') { const c = cash(4000); if (c) return no(c); } return yes({ ap: 2, cash: a.approach === 'split' ? 4000 : 0 }); }
+    case 'resolve_confrontation': {
+      const c = confrontations(w).find(x => x.id === a.id); if (!c) return no('That is over.');
+      const opt = confrontOptions(w, c).find(o => o.id === a.approach);
+      if (opt?.disabled) return no(opt.disabled);
+      return yes();
+    }
+    case 'case_joint': {
+      const b = biz(a.businessId); if (!b) return no('No such place.');
+      const h = hereBiz(b); if (h) return no(h);
+      if ((b.casedUntil ?? 0) > w.day) return no(`You have already walked ${b.name}. What you know keeps until day ${b.casedUntil}.`);
+      const r = ap(CASE_JOINT.ap); return r ? no(r) : yes({ ap: CASE_JOINT.ap });
+    }
     case 'set_note': { const n = npc(a.npcId); if (!n) return no('Nobody by that name.'); if (a.text.length > PLAYER_NOTE_MAX) return no(`Keep it under ${PLAYER_NOTE_MAX} characters.`); return yes(); }
     case 'petition_seat': { const why = seatReason(w); if (why) return no(why); const r = ap(2); return r ? no(r) : yes({ ap: 2 }); }
     case 'resolve_hostage': { const n = npc(a.npcId); if (!n || !isHeld(n)) return no('You are not holding them.'); const r = ap(1); return r ? no(r) : yes({ ap: 1 }); }
@@ -236,9 +255,22 @@ export function can(w: World, a: Action): Affordance {
         if (def.ownBusiness && b.ownedBy !== 'player') return no('Must be a place you own.');
         if (a.kind === 'insurance_fraud' && !b.insured) return no('Insure it first.');
         if (def.targetTypes && !def.targetTypes.includes(b.type)) return no('Wrong kind of target.');
-        if (!def.ownBusiness && b.ownedBy === 'player') return no('That is yours.');
+        // your own place is not a target — unless the job is to defend what you run there
+        if (!def.ownBusiness && !def.ownRacket && b.ownedBy === 'player') return no('That is yours.');
+        if (def.ownRacket && !b.racketIds.some(id => w.rackets[id]?.owner === PLAYER)) return no('You do not run anything there.');
       }
       if (def.target === 'npc' && !a.targetNpcId) return no('Pick a target.');
+      if (def.requires?.stance?.length) {
+        // war work is aimed at somebody in particular, and they have to be the ones at war
+        const at = a.targetFactionId ?? (a.targetNpcId ? npc(a.targetNpcId)?.faction : undefined)
+          ?? (a.targetBusinessId ? biz(a.targetBusinessId)?.protection?.factionId : undefined);
+        const f = at ? w.factions[at] : undefined;
+        if (a.kind === 'defend_racket') {
+          const r = a.targetBusinessId ? biz(a.targetBusinessId)?.racketIds.map(id => w.rackets[id]).find(x => x?.owner === PLAYER && (x.threatened ?? 0) >= w.day) : undefined;
+          if (!r) return no('Nothing of yours is marked there. Dig in where they have already come once.');
+        } else if (!f) return no('Pick who this is aimed at.');
+        else if (!def.requires.stance.includes(f.stance[PLAYER] ?? 'peace')) return no(`${f.name} is not at ${def.requires.stance.join(' or ')} with you.`);
+      }
       if (a.kind === 'takeover') { if (!a.targetBlockId) return no('Pick a block with a street crew.'); if (!crewAt(w, a.targetBlockId)) return no('No street crew holds that block.'); }
       if (a.kind === 'claim_abandoned') {
         const b = a.targetBlockId ? w.blocks[a.targetBlockId] : undefined; if (!b) return no('Pick a derelict block.');
@@ -624,6 +656,20 @@ export function dispatch(prev: World, a: Action): World {
       p.equipped = carried;
       break;
     }
+    case 'resolve_confrontation': {
+      const c = confrontations(w).find(x => x.id === a.id)!;
+      resolveConfrontation(w, c, a.approach, rng);
+      break;
+    }
+    case 'case_joint': {
+      const b = w.businesses[a.businessId];
+      b.casedUntil = w.day + CASE_JOINT.days;
+      // a coarse read on everyone inside: enough to pick a mark, not enough to know them
+      const people = [b.ownerId, ...b.patronIds].map(id => npc(id)).filter(n => n && n.alive);
+      for (const n of people) if (!n.known) n.hint = caseHint(n);
+      log(w, `You spend an hour in ${b.name} looking at exits and faces. ${people.length} ${people.length === 1 ? 'person' : 'people'} read, and you know the way the place works until day ${b.casedUntil}.`, 'good', { businessId: b.id });
+      break;
+    }
     case 'set_note': {
       // the player's own words, kept apart from n.notes (which is the sim's flavour text);
       // an empty note clears the field rather than storing ''
@@ -861,6 +907,21 @@ function sitDown(w: World, fid: string, offer: SitDownOffer, rng: import('./rng'
       break;
     }
   }
+}
+
+/**
+ * What an hour in the room tells you about somebody: how they carry themselves, not their file.
+ * Deliberately coarser than `read` — a direction, with no numbers and no trait names.
+ */
+export function caseHint(n: import('./types').Npc): string {
+  const t = n.traits;
+  if (t.includes('coward') || n.nerve < 30) return 'Looks like they would fold if you raised your voice.';
+  if (t.includes('hothead')) return 'Wound tight. Would swing first.';
+  if (t.includes('connected')) return 'People keep stopping at their table.';
+  if (t.includes('honest')) return 'Straight-backed. The type who calls it in.';
+  if (t.includes('greedy') || t.includes('gambler')) return 'Watches the money in the room.';
+  if (n.nerve > 65) return 'Steady. Would not scare easy.';
+  return 'Nothing obvious either way.';
 }
 
 function agendaText(n: import('./types').Npc): string { return n.agenda ? AGENDA_LABEL[n.agenda.kind] : ''; }
