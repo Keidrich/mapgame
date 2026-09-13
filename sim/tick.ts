@@ -64,9 +64,11 @@ export function endDay(w: World): World {
       case 'laundering': { const cap = Math.max(0, launderCapacity(w, r) - p.launderedToday); const amt = Math.min(p.dirty, cap); if (amt > 0) { p.dirty -= amt; const clean = Math.round(amt * 0.85); p.cash += clean; income = clean; summary.clean += clean; p.launderedToday += amt; } break; }
       case 'protection': {
         income = Math.round(racketIncome(w, r) * (1 + Math.min(0.3, collectors(w) * 0.1) + (lt ? 0.1 : 0))); // collectors (and a lieutenant) make sure it all arrives
-        // owners under protection drift: fair rates build trust, high rates build resentment
-        if ((b.protection?.rate ?? 0.15) <= 0.15) { if (rng.chance(0.2)) adjustRel(owner, { trust: 1 }); } else if (rng.chance(0.3)) adjustRel(owner, { trust: -1 });
-        if (owner.rel.trust < -40 && owner.rel.fear < 30 && rng.chance(0.1)) { addHeat(w, 6, b.blockId); log(w, `${owner.name} at ${b.name} talked to the police. (+6 heat)`, 'bad', { businessId: b.id, npcId: owner.id }); }
+        // owners under protection drift: fair rates build trust, high rates build resentment. A partner is crew: neither applies.
+        if (!b.protection?.partner) {
+          if ((b.protection?.rate ?? 0.15) <= 0.15) { if (rng.chance(0.2)) adjustRel(owner, { trust: 1 }); } else if (rng.chance(0.3)) adjustRel(owner, { trust: -1 });
+          if (owner.rel.trust < -40 && owner.rel.fear < 30 && rng.chance(0.1)) { addHeat(w, 6, b.blockId); log(w, `${owner.name} at ${b.name} talked to the police. (+6 heat)`, 'bad', { businessId: b.id, npcId: owner.id }); }
+        }
         break;
       }
       default: income = Math.round(racketIncome(w, r));
@@ -76,7 +78,9 @@ export function endDay(w: World): World {
     if (def.dirty) { p.dirty += income; summary.dirty += income; } else if (r.kind !== 'laundering') { p.cash += income; summary.clean += income; }
     addHeat(w, def.heat * 0.25 * r.level, b.blockId);
     // incidents
-    const risk = def.risk * (1 + (r.level - 1) * 0.5) * (w.blocks[b.blockId].police / 50) * (r.runnerId ? 0.7 : lt ? LIEUTENANT.riskMult : 1.2);
+    // a partner minds their own place without being assigned to it, so it runs as safely as one with a runner
+    const minded = !!r.runnerId || (r.kind === 'protection' && !!b.protection?.partner);
+    const risk = def.risk * (1 + (r.level - 1) * 0.5) * (w.blocks[b.blockId].police / 50) * (minded ? 0.7 : lt ? LIEUTENANT.riskMult : 1.2);
     if (rng.chance(risk)) {
       if (rng.chance(0.5)) { r.disrupted = rng.int(1, 3); addHeat(w, 4, b.blockId); log(w, `Cops rolled through ${b.name}. ${def.label} shut for ${r.disrupted} day${r.disrupted > 1 ? 's' : ''}.`, 'bad', { businessId: b.id, racketId: r.id }); }
       else if (r.runnerId && rng.chance(0.4)) { const n = w.npcs[r.runnerId]; if (n.crew) { n.crew.status = 'jailed'; n.crew.statusDays = jailDays(w, 10); n.crew.assignment = undefined; r.runnerId = undefined; log(w, `${n.name} got picked up running the ${def.label.toLowerCase()} at ${b.name}. ${p.lawyer ? 'Your lawyer is on it.' : 'No lawyer, so it will be a while.'}`, 'bad', { npcId: n.id, businessId: b.id }); } }

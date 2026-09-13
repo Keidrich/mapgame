@@ -20,6 +20,17 @@ export const BIG_CITIES: { name: string; lat: number; lng: number }[] = [
 type Mode = 'geo' | 'search' | 'pick';
 interface Place { lat: number; lng: number; name: string }
 
+/** Desktops have no GPS: they ask a network service, which is the half that usually fails. */
+const GEO_ERRORS: Record<number, string> = {
+  1: 'Your browser blocked the location request. Allow location for this site (the padlock in the address bar), then try again — or just search for where you are.',
+  2: 'Your device could not work out where it is. Laptops and desktops have no GPS and guess from wi-fi, which often fails. Search for your city instead.',
+  3: 'Finding you took too long. Try again, or search for your city.',
+  0: 'Your browser never answered. The permission bubble may still be waiting at the top of the window — or this computer simply cannot work out where it is. Search for your city instead.',
+};
+/** Chrome does not start the `timeout` clock until the permission prompt is answered, so a prompt nobody
+ *  clicks hangs for ever. Our own watchdog is the only thing that ends that wait. */
+const GEO_WATCHDOG_MS = 20000;
+
 export function Onboarding() {
   const [name, setName] = useState('');
   const [bg, setBg] = useState<Player['background']>('charm');
@@ -29,14 +40,24 @@ export function Onboarding() {
   const [q, setQ] = useState('');
   const [results, setResults] = useState<Place[]>([]);
   const [busy, setBusy] = useState(false);
+  const [geoState, setGeoState] = useState<'idle' | 'asking' | 'ok' | 'failed'>('idle');
 
-  const locate = () => {
-    if (!navigator.geolocation) { setStatus('Geolocation is not available on this device.'); return; }
-    setBusy(true); setStatus('Finding you…');
+  const locate = async () => {
+    if (!navigator.geolocation) { setGeoState('failed'); setStatus('This browser has no location service at all. Search for a place instead.'); return; }
+    if (typeof window !== 'undefined' && window.isSecureContext === false) { setGeoState('failed'); setStatus('Location only works on a secure (https) connection. Search for a place instead.'); return; }
+    setBusy(true); setGeoState('asking'); setStatus('Asking your browser where you are — say yes to the permission prompt.');
+    try {
+      // a permission already refused never prompts again: say so rather than spinning
+      const perm = await navigator.permissions?.query({ name: 'geolocation' as PermissionName });
+      if (perm?.state === 'denied') { setBusy(false); setGeoState('failed'); setStatus(GEO_ERRORS[1]); return; }
+    } catch { /* Safari and older browsers have no permissions API; just ask */ }
+    let settled = false;
+    const give = (state: 'ok' | 'failed', text: string) => { if (settled) return; settled = true; setBusy(false); setGeoState(state); setStatus(text); };
+    const watchdog = setTimeout(() => give('failed', GEO_ERRORS[0]), GEO_WATCHDOG_MS);
     navigator.geolocation.getCurrentPosition(
-      pos => { setBusy(false); setStatus(''); setPlace({ lat: pos.coords.latitude, lng: pos.coords.longitude, name: 'Where you are' }); },
-      err => { setBusy(false); setStatus(`Could not get your location (${err.message}). Try search or a random city.`); },
-      { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 },
+      pos => { clearTimeout(watchdog); if (settled) return; give('ok', ''); setPlace({ lat: pos.coords.latitude, lng: pos.coords.longitude, name: 'Where you are' }); },
+      err => { clearTimeout(watchdog); give('failed', GEO_ERRORS[err.code] ?? `Could not get your location (${err.message}). Search for a place instead.`); },
+      { enableHighAccuracy: false, timeout: GEO_WATCHDOG_MS, maximumAge: 600000 },
     );
   };
   const search = async () => {
@@ -64,15 +85,16 @@ export function Onboarding() {
     const origin: LatLng = { lat: place.lat, lng: place.lng };
     setBuilding('Contacting the map server…'); setFailed(null);
     skipRef.current = false;
-    let city: GeoChunk | undefined; let extra: GeoChunk[] = []; let note = '';
+    let city: GeoChunk | undefined; const extra: GeoChunk[] = []; let note = '';
     const startKey = chunkKeyAt(origin);
     if (!useGrid) {
       try {
         const skip = new Promise<never>((_, reject) => { const iv = setInterval(() => { if (skipRef.current) { clearInterval(iv); reject(new Error('skipped')); } }, 200); });
-        city = await Promise.race([loadChunk(startKey, s => setBuilding(s), { attempts: 2, timeoutMs: 70000, priority: 10 }), skip]);
-        // a start near a chunk edge would otherwise sit at the edge of the known world: pull in the neighbours that are close
+        // one attempt, one budget: a dense city centre that cannot answer in 45s is a failure to report, not a longer wait
+        city = await Promise.race([loadChunk(startKey, s => setBuilding(s), { attempts: 1, timeoutMs: 25000, budgetMs: 45000, priority: 10 }), skip]);
+        // a start near a chunk edge sits at the edge of the known world: warm the close neighbours, but never wait on them
         const near = chunkNeighbors(startKey).filter(k => { const b = chunkBounds(k); const dLat = Math.max(b.south - origin.lat, 0, origin.lat - b.north) * 111320; const dLng = Math.max(b.west - origin.lng, 0, origin.lng - b.east) * 111320 * Math.cos((origin.lat * Math.PI) / 180); return Math.hypot(dLat, dLng) < 450; });
-        if (near.length) { setBuilding(`Mapping the streets next door… (${near.length})`); extra = (await Promise.race([Promise.allSettled(near.map(k => loadChunk(k, undefined, { priority: 9 }))), skip])).flatMap(r => (r.status === 'fulfilled' ? [r.value] : [])); }
+        for (const k of near) void loadChunk(k, undefined, { priority: 1 }).catch(() => { /* they load again when you walk there */ });
       } catch (e) {
         // no silent grid: say what happened and let the player retry or choose the grid
         const why = (e as Error).message === 'skipped' ? 'You stopped the download.' : `Could not map the real streets here: ${reason(e)}.`;
@@ -111,7 +133,7 @@ export function Onboarding() {
 
       <div className="section-title">Start location</div>
       <div className="segment">
-        <button type="button" className={mode === 'geo' ? 'on' : ''} onClick={() => { setMode('geo'); locate(); }}>📍 Near me</button>
+        <button type="button" className={mode === 'geo' ? 'on' : ''} onClick={() => { setMode('geo'); void locate(); }}>📍 Near me</button>
         <button type="button" className={mode === 'search' ? 'on' : ''} onClick={() => setMode('search')}>🔎 Search</button>
         <button type="button" className={mode === 'pick' ? 'on' : ''} onClick={() => setMode('pick')}>🗺️ On the map</button>
       </div>
@@ -126,6 +148,15 @@ export function Onboarding() {
               {results.map((r, i) => <button type="button" key={i} className={`result${place?.name === r.name ? ' on' : ''}`} onClick={() => setPlace(r)}>{r.name}</button>)}
             </div>
           )}
+        </div>
+      )}
+      {mode === 'geo' && (
+        <div className="mt8">
+          <div className="row" style={{ gap: 8 }}>
+            <button type="button" className="btn btn-ghost grow" disabled={busy} onClick={() => void locate()}>{busy ? 'Finding you…' : geoState === 'idle' ? 'Find me' : 'Try again'}</button>
+            {geoState === 'failed' && <button type="button" className="btn btn-ghost" onClick={() => { setMode('search'); setStatus(''); }}>Search instead</button>}
+          </div>
+          {geoState !== 'failed' && <p className="small muted mt8">On a phone this is your GPS. On a computer the browser guesses from your network, which does not always work — search is the reliable way there.</p>}
         </div>
       )}
       {mode === 'pick' && <PickMap value={place} onPick={(lat, lng) => setPlace({ lat, lng, name: `${lat.toFixed(3)}, ${lng.toFixed(3)}` })} />}
@@ -155,8 +186,8 @@ export function Onboarding() {
           <div className="spinner" />
           <b>Mapping {place?.name}</b>
           <p className="small muted">{building}</p>
-          <p className="small muted">Real streets, real blocks, real businesses from OpenStreetMap. Dense cities take longer; a minute is normal on a slow map server{buildStart ? ` · ${Math.round((Date.now() - buildStart) / 1000)}s` : ''}.</p>
-          {buildStart > 0 && Date.now() - buildStart > 30000 && !skipRef.current && (
+          <p className="small muted">Real streets, real blocks, real businesses from OpenStreetMap. Dense cities take longer; the map server is free and sometimes slow. It gives up on its own after 45s{buildStart ? ` · ${Math.round((Date.now() - buildStart) / 1000)}s` : ''}.</p>
+          {buildStart > 0 && Date.now() - buildStart > 8000 && !skipRef.current && (
             <button type="button" className="btn btn-ghost mt8" onClick={() => { skipRef.current = true; setBuilding('Stopping…'); }}>Stop and choose</button>
           )}
         </div>

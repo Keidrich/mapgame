@@ -73,6 +73,7 @@ export interface Protection {
   factionId: FactionId;
   rate: number; // 0..1 share of income taken
   since: number; // day
+  partner?: true; // the owner is in your crew: a fixed cut, minded by them, ending when they leave
 }
 
 export interface Business {
@@ -408,6 +409,7 @@ export interface World {
   market?: { shortage: Partial<Record<ProductionKind, number>>; saturation: Partial<Record<ProductKind, number>> }; // 'until day' markers
   pendingEvents: GameEvent[]; // must be resolved before End Day
   log: LogEntry[];
+  cheated?: true;          // the testing tools were used on this save
   gameOver?: { reason: string; text: string };
   victory?: boolean;
   nextId: number;

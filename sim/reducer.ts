@@ -1,10 +1,10 @@
 import { BUSINESS_DEFS } from '@content/businesses';
 import { OP_APPROACHES, OP_DEFS, PRODUCTION_DEFS, PRODUCT_INFO, RACKET_DEFS, RACKET_UPGRADE_COST, SAFEHOUSE_TIERS } from '@content/rackets';
 import { insidersFor } from './select';
-import type { Action, Affordance, SitDownOffer } from './actions';
+import type { Action, Affordance, CheatKind, SitDownOffer } from './actions';
 import { emptyStash, stanceFor } from './generate';
 import { populateChunk } from './populate';
-import { launderCapacity, streetPrice } from './economy';
+import { PARTNER_RATE, businessesOwnedBy, launderCapacity, protectReason, protectRoute, streetPrice } from './economy';
 import { resolveEventOption } from './events';
 import { approachChance, resultLine } from './scenes';
 import { AGENDA_LABEL, addGrudge, addMemory } from './people';
@@ -15,7 +15,7 @@ import { PLAYER, type Business, type Id, type Npc, type Op, type Racket, type Sa
 import { onDemote, promote, promoteReason } from './lieutenants';
 import { backCandidate, broker, brokerReason } from './politics';
 import { buryEvidence, caseWitnessOf, silenceWitness } from './cases';
-import { blockName as blockNameOf, isHere, npcBlockIds, npcIsHere, route, travelCost } from './travel';
+import { blockName as blockNameOf, isHere, legworkFor, npcBlockIds, npcIsHere, route, travelCost } from './travel';
 import { petition, seatReason } from './commission';
 import { claimedByPlayer } from './abandoned';
 import { isHeld, resolveHostage, roomFor } from './hostages';
@@ -108,7 +108,7 @@ export function can(w: World, a: Action): Affordance {
       if (a.rate < 0.05 || a.rate > 0.4) return no('Rate must be 5–40%.');
       const r = ap(1); if (r) return no(r);
       const owner = npc(b.ownerId);
-      if (owner.rel.fear + owner.rel.respect < owner.nerve * 0.6) return no(`${owner.name} is not scared of you yet. Shake them down or send a message first.`);
+      const why = protectReason(owner, a.rate); if (why) return no(why);
       return yes({ ap: 1 });
     }
     case 'buy_business': {
@@ -246,6 +246,7 @@ export function can(w: World, a: Action): Affordance {
     case 'end_day': return w.pendingEvents.length ? no('Resolve the events first.') : yes();
     case 'populate_chunk': return w.chunks[a.chunk.key] ? no('Already populated.') : yes();
     case 'rename': return a.name.trim() ? yes() : no('Name?');
+    case 'cheat': return yes();
   }
 }
 
@@ -328,6 +329,16 @@ export function dispatch(prev: World, a: Action): World {
       for (const bid of n.favouriteBusinessIds) { const b = w.businesses[bid]; b.patronIds = b.patronIds.filter(id => id !== n.id); }
       log(w, `${resultLine('recruit', ap_, true, rng)} ${n.name} joins your crew at ${money(cut)}/day (loyalty ${Math.round(loyalty)}).`, 'good', { npcId: n.id });
       onJoin(w, n);
+      // an owner does not leave their place behind: it comes in with them, at a partner's cut, minded by them
+      for (const b of businessesOwnedBy(w, n.id)) {
+        const prev = b.protection;
+        if (prev?.factionId === PLAYER) continue;
+        if (prev && w.factions[prev.factionId]) { const f = w.factions[prev.factionId]; f.standing[PLAYER] -= 15; f.grudges.push(`stolen:${b.id}`); log(w, `${f.name} was collecting from ${b.name}. They are not any more.`, 'warn', { factionId: f.id, businessId: b.id }); }
+        b.protection = { factionId: PLAYER, rate: PARTNER_RATE, since: w.day, partner: true };
+        const pr = mkRacket(w, 'protection', b);
+        addInfluence(w, b.blockId, PLAYER, 10);
+        log(w, `${b.name} comes with them: ${Math.round(PARTNER_RATE * 100)}% off the top, and nobody has to stand over it.`, 'good', { businessId: b.id, racketId: pr.id, npcId: n.id });
+      }
       break;
     }
     case 'fire': {
@@ -403,12 +414,20 @@ export function dispatch(prev: World, a: Action): World {
       const b = w.businesses[a.businessId]; const owner = npc(b.ownerId);
       const prev = b.protection;
       if (prev && prev.factionId !== PLAYER) { const f = w.factions[prev.factionId]; f.standing[PLAYER] -= 20; f.grudges.push(`stolen:${b.id}`); log(w, `You just took ${b.name} away from ${f.name}. That is a provocation.`, 'warn', { factionId: f.id, businessId: b.id }); }
+      const route = protectRoute(owner, a.rate);
       b.protection = { factionId: PLAYER, rate: a.rate, since: w.day };
       owner.faction = PLAYER;
       const r = mkRacket(w, 'protection', b);
-      adjustRel(owner, { fear: 5, trust: a.rate <= 0.15 ? 3 : -5 });
-      addInfluence(w, b.blockId, PLAYER, 8); addHeat(w, 1, b.blockId);
-      log(w, `${b.name} now pays you ${Math.round(a.rate * 100)}%.`, 'good', { businessId: b.id, racketId: r.id });
+      if (route === 'friend') {
+        // nobody was leaned on, so nobody is frightened and nobody resents it
+        adjustRel(owner, { trust: 5, respect: 3 });
+        addInfluence(w, b.blockId, PLAYER, 10); addHeat(w, 1, b.blockId);
+        log(w, `${owner.name} would rather you looked after ${b.name} than anyone else. ${Math.round(a.rate * 100)}%, between friends.`, 'good', { businessId: b.id, racketId: r.id, npcId: owner.id });
+      } else {
+        adjustRel(owner, { fear: 5, trust: a.rate <= 0.15 ? 3 : -5 });
+        addInfluence(w, b.blockId, PLAYER, 8); addHeat(w, 1, b.blockId);
+        log(w, `${b.name} now pays you ${Math.round(a.rate * 100)}%.`, 'good', { businessId: b.id, racketId: r.id });
+      }
       break;
     }
     case 'buy_business': {
@@ -555,9 +574,10 @@ export function dispatch(prev: World, a: Action): World {
       resolveEventOption(w, e, o.id, rng);
       break;
     }
-    case 'end_day': { done(); return endDay(w); }
+    case 'end_day': { endPartnerships(w); done(); return endDay(w); }
     case 'populate_chunk': { const added = populateChunk(w, a.chunk, rng); if (added.length) log(w, `You get to know a new part of town: ${added.length} blocks around ${w.blocks[added[0].id].name}.`, 'info', { blockId: added[0].id }); break; }
     case 'rename': p.name = a.name.trim(); break;
+    case 'cheat': { cheat(w, a.what); break; }
   }
   done();
   return w;
@@ -584,6 +604,73 @@ function spend(w: World, amount: number) {
 export function mkRacket(w: World, kind: Racket['kind'], b: Business): Racket {
   const r: Racket = { id: nid(w, 'r'), kind, businessId: b.id, owner: PLAYER, startedDay: w.day, level: 1, lastIncome: 0, disrupted: 0 };
   w.rackets[r.id] = r; b.racketIds.push(r.id); w.player.racketIds.push(r.id); return r;
+}
+
+/** Testing tools. Ordinary reducer work — no hidden state, no branch anywhere else in the sim reads `cheated`;
+ *  it is there so a save that was messed with is never mistaken for a real playthrough. */
+function cheat(w: World, what: CheatKind) {
+  const p = w.player; w.cheated = true;
+  const here = w.blocks[p.currentBlockId];
+  switch (what) {
+    case 'cash': p.cash += 10000; log(w, 'Testing: +$10,000 clean.', 'money'); break;
+    case 'dirty': p.dirty += 10000; log(w, 'Testing: +$10,000 dirty.', 'money'); break;
+    case 'ap': p.ap = p.apMax; log(w, 'Testing: AP refilled.', 'info'); break;
+    case 'legwork': p.legwork = p.legworkMax; log(w, 'Testing: legwork refilled.', 'info'); break;
+    case 'heat': p.heat = 0; for (const b of Object.values(w.blocks)) b.heat = 0; log(w, 'Testing: heat cleared.', 'good'); break;
+    case 'skills': for (const k of Object.keys(p.skills) as (keyof typeof p.skills)[]) p.skills[k] = 10; p.legworkMax = legworkFor(p.skills.wheels); log(w, 'Testing: every skill at 10.', 'good'); break;
+    case 'crew': {
+      const pool = Object.values(w.npcs).filter(n => n.alive && !n.crew && !n.official && ['patron', 'owner'].includes(n.role)).slice(0, 3);
+      for (const n of pool) {
+        n.crew = { loyalty: 80, cut: 50, status: 'idle', statusDays: 0, joinedDay: w.day };
+        n.role = 'crew'; n.known = true; p.crewIds.push(n.id); p.crewEver++;
+      }
+      log(w, `Testing: ${pool.length} people joined your crew.`, 'good');
+      break;
+    }
+    case 'unlock': {
+      p.crewEver = Math.max(p.crewEver, 10);
+      for (const kind of Object.keys(OP_DEFS) as (keyof typeof OP_DEFS)[]) {
+        if (Object.values(w.ops).some(o => o.kind === kind && o.status === 'done')) continue;
+        const id = nid(w, 'o');
+        w.ops[id] = { id, kind, crewIds: [], planDays: 0, daysLeft: 0, status: 'done', createdDay: w.day };
+      }
+      log(w, 'Testing: every op has a prior job behind it.', 'good');
+      break;
+    }
+    case 'safehouse': {
+      const s: Safehouse = { id: nid(w, 'sh'), blockId: here.id, name: `Test house on ${here.name}`, tier: 3, owner: PLAYER, stash: emptyStash(), cash: 0, productionIds: [], capacity: SAFEHOUSE_TIERS[2].capacity, hostageIds: [] };
+      w.safehouses[s.id] = s; here.safehouseId = s.id; p.safehouseIds.push(s.id);
+      log(w, `Testing: a tier 3 safehouse on ${here.name}.`, 'good', { blockId: here.id });
+      break;
+    }
+    case 'own_block': {
+      for (const id of here.businessIds) { const b = w.businesses[id]; if (b.ownedBy === 'player') continue; b.ownedBy = 'player'; b.protection = undefined; p.businessIds.push(b.id); w.npcs[b.ownerId].faction = PLAYER; }
+      log(w, `Testing: every business on ${here.name} is yours.`, 'good', { blockId: here.id });
+      break;
+    }
+    case 'turf': addInfluence(w, here.id, PLAYER, 60); log(w, `Testing: ${here.name} is your turf.`, 'good', { blockId: here.id }); break;
+    case 'reveal': {
+      for (const n of Object.values(w.npcs)) n.known = true;
+      for (const b of Object.values(w.blocks)) if (b.abandoned) b.abandoned.known = true;
+      log(w, 'Testing: everyone is known and every derelict block is on the map.', 'info');
+      break;
+    }
+    case 'stash': for (const k of Object.keys(p.stash) as (keyof typeof p.stash)[]) p.stash[k] += 50; log(w, 'Testing: +50 of every product.', 'good'); break;
+  }
+}
+
+/** A partnership lasts exactly as long as the partner does. However they leave the crew — fired, walked out,
+ *  jailed for good, killed — the place goes back to being their own. One sweep covers every exit. */
+function endPartnerships(w: World) {
+  for (const rid of w.player.racketIds.slice()) {
+    const r = w.rackets[rid]; if (!r || r.kind !== 'protection') continue;
+    const b = w.businesses[r.businessId]; if (!b?.protection?.partner) continue;
+    const owner = w.npcs[b.ownerId];
+    if (owner?.alive && owner.crew && owner.crew.status !== 'dead') continue;
+    closeRacket(w, rid);
+    b.protection = undefined;
+    log(w, `${b.name} is not yours any more. The partnership ended with ${owner?.name ?? 'its owner'}.`, 'warn', { businessId: b.id });
+  }
 }
 
 export function closeRacket(w: World, id: Id) {

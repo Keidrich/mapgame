@@ -52,7 +52,9 @@ export function recentlyFailed(key: string): boolean { return (failedAt.get(key)
 /** The explicit grid: only when the player chooses it. */
 export function gridChunk(key: string): GeoChunk { return hexChunk(key); } // never cached: a grid chunk is never a reason to stop asking for the streets
 
-export interface LoadOptions { onStatus?: (s: string) => void; timeoutMs?: number; attempts?: number; priority?: number }
+/** `timeoutMs` caps one request to one mirror; `budgetMs` caps the whole hunt for a query across mirrors, which is
+ *  what the player actually feels. Without the budget, five mirrors x one timeout is a wait nobody sits through. */
+export interface LoadOptions { onStatus?: (s: string) => void; timeoutMs?: number; budgetMs?: number; attempts?: number; priority?: number }
 /** Resolves with real street geometry or rejects with a reason. Never a grid. */
 export function loadChunk(key: string, onStatus?: (s: string) => void, opts: LoadOptions = {}): Promise<GeoChunk> {
   const hit = memory.get(key); if (hit) return Promise.resolve(hit);
@@ -64,7 +66,7 @@ export function loadChunk(key: string, onStatus?: (s: string) => void, opts: Loa
     let lastErr: unknown;
     for (let i = 0; i < (opts.attempts ?? 1); i++) {
       try {
-        const chunk = await fetchChunk(key, status, opts.timeoutMs ?? 45000, opts.priority ?? 0);
+        const chunk = await fetchChunk(key, status, opts.timeoutMs ?? 25000, opts.budgetMs ?? 60000, opts.priority ?? 0);
         memory.set(key, chunk); failedAt.delete(key);
         void idbSet(`${CACHE_VERSION}:${key}`, chunk);
         return chunk;
@@ -90,15 +92,19 @@ const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
 /** Mirrors that fail move to the back of the line for the rest of the session. */
 let mirrors = OVERPASS_MIRRORS.slice();
-function overpass(query: string, onStatus: (s: string) => void, timeoutMs: number, priority: number): Promise<OsmResponse> {
-  return enqueue(() => overpassNow(query, onStatus, timeoutMs), priority);
+export const MIRRORS_PER_TRY = 3; // the rest are there for a later attempt, not for one long queue of timeouts
+function overpass(query: string, onStatus: (s: string) => void, timeoutMs: number, budgetMs: number, priority: number): Promise<OsmResponse> {
+  // the budget starts when the job leaves the queue, so waiting behind another download never eats it
+  return enqueue(() => overpassNow(query, onStatus, timeoutMs, Date.now() + budgetMs), priority);
 }
-async function overpassNow(query: string, onStatus: (s: string) => void, timeoutMs: number): Promise<OsmResponse> {
+async function overpassNow(query: string, onStatus: (s: string) => void, timeoutMs: number, deadline: number): Promise<OsmResponse> {
   let lastErr: unknown;
-  const wait = rateLimitedUntil - Date.now();
+  const wait = Math.min(rateLimitedUntil - Date.now(), deadline - Date.now());
   if (wait > 0) { onStatus(`Map server asked us to slow down… (${Math.ceil(wait / 1000)}s)`); await sleep(wait); }
-  for (const url of mirrors.slice()) {
-    const ctrl = new AbortController(); const t = setTimeout(() => ctrl.abort(), timeoutMs);
+  for (const url of mirrors.slice(0, MIRRORS_PER_TRY)) {
+    const left = deadline - Date.now();
+    if (left < 2000) { lastErr ??= new Error('map server timed out'); break; }
+    const ctrl = new AbortController(); const t = setTimeout(() => ctrl.abort(), Math.min(timeoutMs, left));
     try {
       const res = await fetch(url, { method: 'POST', body: `data=${encodeURIComponent(query)}`, headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, signal: ctrl.signal });
       if (res.status === 429) { rateLimitedUntil = Date.now() + 8000; throw new Error('HTTP 429'); }
@@ -109,7 +115,7 @@ async function overpassNow(query: string, onStatus: (s: string) => void, timeout
     } catch (e) {
       lastErr = e; mirrors = [...mirrors.filter(m => m !== url), url];
       onStatus(`${reason(e)}; trying another server…`);
-      if (/HTTP 429/.test((e as Error).message)) await sleep(2500); // let the limit clear before the next mirror
+      if (/HTTP 429/.test((e as Error).message)) await sleep(Math.min(2500, Math.max(0, deadline - Date.now()))); // let the limit clear before the next mirror
     }
     finally { clearTimeout(t); }
   }
@@ -153,14 +159,15 @@ function buildInline(job: ChunkJob): { chunk: GeoChunk; streets: number } {
   return { chunk: buildChunk({ key: job.key, roads: r.roads, nodePos: r.nodePos, water: r.water, industrial: r.industrial, pois: p.pois, places: p.places, landmarks: p.landmarks }), streets: r.roads.length };
 }
 
-async function fetchChunk(key: string, onStatus: (s: string) => void, timeoutMs: number, priority: number): Promise<GeoChunk> {
+async function fetchChunk(key: string, onStatus: (s: string) => void, timeoutMs: number, budgetMs: number, priority: number): Promise<GeoChunk> {
   onStatus('Downloading streets…');
-  const roads = await overpass(chunkRoadsQuery(key), onStatus, timeoutMs, priority);
+  const roads = await overpass(chunkRoadsQuery(key), onStatus, timeoutMs, budgetMs, priority);
   const ways = roads.elements.filter(e => e.type === 'way' && e.tags?.highway).length;
   if (ways < 12) throw new Error('not enough streets here (open water, or nothing mapped)');
   onStatus(`Finding businesses… (${ways} streets)`);
   let pois: OsmResponse | null = null;
-  try { pois = await overpass(chunkPoisQuery(key), onStatus, Math.min(timeoutMs, 30000), priority); } catch { /* businesses get invented */ }
+  // businesses get invented when this fails, so it never gets more than a short slice of the wait
+  try { pois = await overpass(chunkPoisQuery(key), onStatus, Math.min(timeoutMs, 20000), Math.min(budgetMs, 25000), priority); } catch { /* businesses get invented */ }
   onStatus(`Drawing blocks… (${ways} streets)`);
   const job: ChunkJob = { key, roads, pois };
   let built: { chunk: GeoChunk; streets: number };

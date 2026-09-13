@@ -38,6 +38,87 @@ describe('reducer', () => {
     expect(w.player.dirty).toBeGreaterThan(dirty);
     expect(w.player.ap).toBe(w.player.apMax);
   });
+  it('a friend does not have to be frightened first', () => {
+    let w = mk(); const t = softTarget(w);
+    const owner = w.npcs[t.ownerId];
+    owner.rel.fear = 0; owner.rel.respect = 0; owner.nerve = Math.max(owner.nerve, 30); owner.rel.trust = 45;
+    // a favour, yes; a third of the till, no
+    const greedy = can(w, { type: 'protect', businessId: t.id, rate: 0.3 });
+    expect(greedy.ok).toBe(false);
+    expect(greedy.ok === false && greedy.reason).toMatch(/not a favour/i);
+    expect(can(w, { type: 'protect', businessId: t.id, rate: 0.15 }).ok).toBe(true);
+    w = dispatch(w, { type: 'protect', businessId: t.id, rate: 0.15 });
+    expect(w.businesses[t.id].protection?.factionId).toBe(PLAYER);
+    const after = w.npcs[t.ownerId];
+    expect(after.rel.fear).toBe(0);                       // nobody got hurt to get here
+    expect(after.rel.trust).toBeGreaterThan(45);          // and it brought you closer, not further
+  });
+  it('a stranger is told both doors, not just the violent one', () => {
+    const w = mk(); const t = softTarget(w);
+    const owner = w.npcs[t.ownerId];
+    owner.rel.fear = 0; owner.rel.respect = 0; owner.nerve = Math.max(owner.nerve, 30); owner.rel.trust = 0;
+    const r = can(w, { type: 'protect', businessId: t.id, rate: 0.15 });
+    expect(r.ok).toBe(false);
+    expect(r.ok === false && r.reason).toMatch(/scared/i);
+    expect(r.ok === false && r.reason).toMatch(/trust to 40/i);
+  });
+  it('an owner takes far more talking round than a regular', () => {
+    const w = mk(); const t = softTarget(w); const owner = w.npcs[t.ownerId];
+    owner.rel.trust = 50; w.player.skills.charm = 6; owner.traits = [];
+    const asOwner = approachChance(w, 'recruit', 'promise', owner);
+    owner.role = 'patron';
+    const asPatron = approachChance(w, 'recruit', 'promise', owner);
+    expect(asOwner).toBeLessThan(asPatron);
+    expect(asPatron - asOwner).toBeGreaterThan(20);
+  });
+  it('a recruited owner brings their place in as a partner, and takes it back when they go', () => {
+    let w = mk(); const t = softTarget(w); const owner = w.npcs[t.ownerId];
+    owner.rel.trust = 95; owner.traits = []; w.player.skills.charm = 10;
+    w.player.currentBlockId = owner.homeBlockId;
+    let tries = 0;
+    while (!w.npcs[owner.id].crew && tries++ < 20) {
+      if (w.player.ap === 0) { for (const e of w.pendingEvents.slice()) w = dispatch(w, { type: 'resolve_event', eventId: e.id, optionId: e.options.at(-1)!.id }); w = dispatch(w, { type: 'end_day' }); }
+      w = dispatch(w, { type: 'recruit', npcId: owner.id, approach: 'promise' });
+    }
+    expect(w.npcs[owner.id].crew).toBeDefined();
+    const b = w.businesses[t.id];
+    expect(b.protection?.partner).toBe(true);
+    expect(b.protection?.rate).toBe(0.2);                     // not a negotiation
+    expect(b.protection?.factionId).toBe(PLAYER);
+    const r = w.rackets[b.racketIds.find(id => w.rackets[id].kind === 'protection')!];
+    expect(r).toBeDefined();
+    expect(r.runnerId).toBeUndefined();                       // nobody stands over it
+    expect(w.npcs[owner.id].crew!.status).toBe('idle');       // and they are free for other work
+    // it pays like any protection racket
+    for (const e of w.pendingEvents.slice()) w = dispatch(w, { type: 'resolve_event', eventId: e.id, optionId: e.options.at(-1)!.id });
+    const dirty = w.player.dirty; w = dispatch(w, { type: 'end_day' });
+    expect(w.player.dirty).toBeGreaterThan(dirty);
+    // and it lasts exactly as long as the partner does
+    for (const e of w.pendingEvents.slice()) w = dispatch(w, { type: 'resolve_event', eventId: e.id, optionId: e.options.at(-1)!.id });
+    w = dispatch(w, { type: 'fire', npcId: owner.id });
+    w = dispatch(w, { type: 'end_day' });
+    expect(w.businesses[t.id].protection).toBeUndefined();
+    expect(w.player.racketIds.some(id => w.rackets[id]?.businessId === t.id)).toBe(false);
+  });
+  it('the testing tools all apply, and leave a world the sim still plays', () => {
+    let w = mk();
+    const all = ['cash', 'dirty', 'ap', 'legwork', 'heat', 'skills', 'crew', 'unlock', 'safehouse', 'own_block', 'turf', 'reveal', 'stash'] as const;
+    expect(w.cheated).toBeUndefined();
+    for (const what of all) { expect(can(w, { type: 'cheat', what }).ok).toBe(true); w = dispatch(w, { type: 'cheat', what }); }
+    expect(w.cheated).toBe(true);
+    expect(w.player.cash).toBeGreaterThanOrEqual(10000);
+    expect(w.player.ap).toBe(w.player.apMax);
+    expect(w.player.heat).toBe(0);
+    expect(w.player.crewIds.length).toBe(3);
+    expect(w.player.safehouseIds.length).toBe(1);
+    expect(select.opsAvailable(w)).toContain('heist_bank');
+    expect(select.controller(w.blocks[w.player.currentBlockId])).toBe(PLAYER);
+    // and the day still ends cleanly on top of all of it
+    for (const e of w.pendingEvents.slice()) w = dispatch(w, { type: 'resolve_event', eventId: e.id, optionId: e.options.at(-1)!.id });
+    w = dispatch(w, { type: 'end_day' });
+    expect(w.day).toBe(2);
+    expect(w.gameOver).toBeUndefined();
+  });
   it('buying a business requires trust or a premium', () => {
     let w = mk(); const b = select.businessesIn(w, startBlock(w).id).find(b => b.type !== 'bank' && b.type !== 'armored_depot')!;
     w.player.cash = 1e6;

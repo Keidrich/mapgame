@@ -33,7 +33,7 @@ export function BusinessSheet({ businessId }: { businessId: Id }) {
     <Sheet title={biz.name} subtitle={`${bizTypeLabel(biz)} · ${block?.name ?? ''}`} icon={bizIcon(biz)} accent={yours ? '#f2c94c' : biz.protection ? select.factionColor(w, biz.protection.factionId) : undefined}>
       <div className="row wrap" style={{ gap: 6 }}>
         <span className="chip" style={yours ? { color: 'var(--gold)' } : undefined}>{yours ? 'Yours' : `Owner: ${ownerLabel(w, biz)}`}</span>
-        {prot && <TermChip id="protection" tone={select.factionColor(w, biz.protection!.factionId)}>🛡️ {prot}</TermChip>}
+        {prot && <TermChip id={biz.protection!.partner ? 'partner' : 'protection'} tone={select.factionColor(w, biz.protection!.factionId)}>{biz.protection!.partner ? '🤝' : '🛡️'} {prot}</TermChip>}
         {biz.insured && <TermChip id="insured">Insured</TermChip>}
         {biz.flags.map(f => <span key={f} className="chip red">{f}</span>)}
       </div>
@@ -79,9 +79,14 @@ export function BusinessSheet({ businessId }: { businessId: Id }) {
         {!yours && extortable && <SceneAct scene={{ kind: 'shakedown', npcId: biz.ownerId, businessId }} label="Shakedown" icon="👊" kind="danger" />}
         {!yours && extortable && (
           <Disclosure label="Protect" icon="🛡️">
-            <p className="small muted">The owner pays you a cut of income, every day.</p>
+            <p className="small muted">The owner pays you a cut of income, every day. They agree when they are afraid of you — or when they trust you and the rate is a favour rather than a tax.</p>
             <div className="chips mb8">{[0.1, 0.2, 0.3].map(r => <button type="button" key={r} className={`chip btn${rate === r ? ' sel' : ''}`} onClick={() => setRate(r)}>{pct(r)}</button>)}</div>
             <p className="small muted">About {fmtMoney(biz.baseIncome * rate * 3)}/day. Fair rates build trust; greedy ones breed snitches.</p>
+            {owner && (select.protectRoute(owner, rate) === 'friend'
+              ? <p className="small mt8" style={{ color: 'var(--green)' }}>🤝 {owner.name} trusts you enough to say yes as a favour. No threats needed.</p>
+              : select.protectRoute(owner, rate) === 'fear'
+                ? <p className="small muted mt8">😠 {owner.name} is frightened enough of you to agree.</p>
+                : <p className="small orange mt8">{select.protectReason(owner, rate)}</p>)}
             <Act action={{ type: 'protect', businessId, rate }} label={`Protect at ${pct(rate)}`} kind="primary" block />
           </Disclosure>
         )}

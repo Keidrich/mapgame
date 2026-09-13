@@ -43,6 +43,7 @@ export function ownerLabel(w: World, biz: Business): string {
 }
 export function protectionLabel(w: World, biz: Business): string | undefined {
   if (!biz.protection) return undefined;
+  if (biz.protection.partner) return `Your partner runs it (${pct(biz.protection.rate)})`;
   return biz.protection.factionId === PLAYER ? `Protected by you (${pct(biz.protection.rate)})` : `Protected by ${select.factionName(w, biz.protection.factionId)}`;
 }
 export function bizIcon(biz: Business) { return BUSINESS_DEFS[biz.type].icon; }

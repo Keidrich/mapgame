@@ -63,7 +63,13 @@ export type Action =
   // --- world streaming ---
   | { type: 'populate_chunk'; chunk: GeoChunk }   // the UI fetched geometry for a new area; the sim fills it with people
   // --- meta ---
-  | { type: 'rename'; name: string };
+  | { type: 'rename'; name: string }
+  // --- testing ---
+  | { type: 'cheat'; what: CheatKind };          // debug only; stamps the save as cheated so nothing is mistaken for real play
+
+/** The testing tools in the help sheet. Every one of them is an ordinary reducer case, so a cheated world
+ *  is still a world the rest of the sim understands. */
+export type CheatKind = 'cash' | 'dirty' | 'ap' | 'legwork' | 'heat' | 'skills' | 'crew' | 'unlock' | 'safehouse' | 'own_block' | 'turf' | 'reveal' | 'stash';
 
 export type SitDownOffer =
   | { kind: 'truce'; days: number }

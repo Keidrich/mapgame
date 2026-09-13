@@ -332,7 +332,11 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
   },
   protection: {
     title: 'Protection',
-    body: 'The daily cut you take for making sure nothing happens. Ten to fifteen percent keeps the owner warm. Higher breeds resentment, then snitches, then a rival they run to.',
+    body: 'The daily cut you take for making sure nothing happens. There are two ways in: fear, where their fear plus respect beats their nerve, or friendship, where an owner who trusts you (40+) agrees to 20% or less as a favour — you never have to hurt a friend to look after their place. Ten to fifteen percent keeps any owner warm. Higher breeds resentment, then snitches, then a rival they run to.',
+  },
+  partner: {
+    title: 'Partner',
+    body: 'A business owner you recruited brings their place in with them. You take a flat 20% — not a negotiation, and not something you lean on them for — and because they run it themselves it needs nobody assigned to it and carries the lower risk of a minded racket. Owners are much harder to recruit than regulars, and the better their place does the harder they are. The partnership ends the day they leave your crew, however they leave it.',
   },
   insured: {
     title: 'Insured',

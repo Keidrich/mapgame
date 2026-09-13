@@ -8,6 +8,7 @@ import { APPROACHES, OPENING, RESULT, type SceneKind } from '@content/lines';
 import type { Rng } from './rng';
 import { activeCrewCount } from './util';
 import { crewOfBoss } from './crews';
+import { ownerResistance } from './economy';
 import type { Business, Id, Npc, World } from './types';
 
 export interface SceneOption { id: string; label: string; icon: string; blurb: string; good: string; bad: string; chance: number; costAp: number; costCash: number; disabled?: string }
@@ -70,6 +71,7 @@ export function approachChance(w: World, kind: SceneKind, id: string, n: Npc, bi
     case 'recruit:promise': v = 25 + s.charm * 5 + trust * 0.6 + p.respect * 0.5 + (has('ambitious') ? 15 : 0) - (has('loyal') ? 10 : 0); break;
     case 'recruit:lean': v = 10 + s.muscle * 3 + fear * 0.8 + p.fear * 0.3 + (has('coward') ? 30 : -10); break;
   }
+  if (kind === 'recruit' && n.role === 'owner') v -= ownerResistance(w, n); // walking away from your own place is a big ask
   if (biz && biz.protection && biz.protection.factionId !== 'player' && kind === 'shakedown') v -= 20;
   if (n.grudge && (kind === 'shakedown' || kind === 'threaten' || kind === 'recruit')) v -= 10; // they have their guard up
   if (n.homeBlockId === w.player.homeBlockId) v += 5; // home turf

@@ -28,17 +28,34 @@ export interface OsmResponse { elements: OsmElement[] }
 
 export interface ParsedRoads { roads: Polyline[]; nodePos: Map<string, XY>; water: XY[][]; industrial: XY[][] }
 
+/**
+ * Accepts either Overpass output shape: `out geom`, where every way carries its own
+ * coordinates (what we ask for), and `out body; >; out skel qt;`, where nodes arrive once and
+ * ways reference them by id. Measured on a real extract the two are within a third of each
+ * other in size with geom ahead, so we ask for geom; the node-list path is here because
+ * mirrors and cached responses are not always the shape you asked for.
+ */
 export function parseRoads(res: OsmResponse, origin: LatLng): ParsedRoads {
   const roads: Polyline[] = []; const nodePos = new Map<string, XY>(); const water: XY[][] = []; const industrial: XY[][] = [];
+  // pass one: every standalone node, so ways can look their geometry up
+  const pos = new Map<string, XY>();
   for (const el of res.elements) {
-    if (el.type !== 'way' || !el.geometry || !el.nodes) continue;
+    if (el.type !== 'node' || el.lat === undefined || el.lon === undefined) continue;
+    pos.set(String(el.id), toXY(origin, { lat: el.lat, lng: el.lon }));
+  }
+  for (const el of res.elements) {
+    if (el.type !== 'way' || !el.nodes) continue;
     const t = el.tags ?? {};
-    const ring = el.geometry.map(p => toXY(origin, { lat: p.lat, lng: p.lon }));
+    const ring = el.geometry
+      ? el.geometry.map(p => toXY(origin, { lat: p.lat, lng: p.lon }))
+      : el.nodes.map(id => pos.get(String(id))).filter((p): p is XY => !!p);
+    if (ring.length < 2) continue;
     if (t.natural === 'water' || t.waterway === 'riverbank') { if (ring.length >= 4) water.push(ring); continue; }
     if (t.landuse) { if (ring.length >= 4) industrial.push(ring); continue; }
     if (!t.highway) continue;
     if (t.tunnel === 'yes' || t.area === 'yes') continue; // tunnels do not bound blocks; pedestrian areas are plazas
-    const ids = el.nodes.map(String);
+    const ids = el.geometry ? el.nodes.map(String) : el.nodes.map(String).filter(id => pos.has(id));
+    if (ids.length !== ring.length) continue;   // a way we only have part of cannot bound a block
     ids.forEach((id, i) => { if (!nodePos.has(id)) nodePos.set(id, ring[i]); });
     roads.push({ id: String(el.id), nodes: ids, name: t.name });
   }

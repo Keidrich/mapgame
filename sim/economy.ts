@@ -1,7 +1,40 @@
 /** Income formulas for rackets and productions. Shared by the tick and by estimates. */
 import { LIEUTENANT, PRODUCTION_DEFS, PRODUCTION_LEVEL, PRODUCT_INFO, RACKET_DEFS, RECIPES } from '@content/rackets';
 import { coverFor } from './lieutenants';
-import type { Npc, Production, Racket, World } from './types';
+import type { Business, Id, Npc, Production, Racket, World } from './types';
+
+/** An owner has a place, a name and a living to lose, so they take far more talking round than a regular —
+ *  and the better the place is doing, the less your offer is worth to them. */
+export const OWNER_RECRUIT_RESIST = 30;
+export function businessesOwnedBy(w: World, npcId: Id): Business[] {
+  return Object.values(w.businesses).filter(b => b.ownerId === npcId && b.ownedBy === 'npc');
+}
+export function ownerResistance(w: World, n: Npc): number {
+  const own = businessesOwnedBy(w, n.id);
+  if (!own.length) return 0;
+  return OWNER_RECRUIT_RESIST + Math.min(20, Math.max(...own.map(b => b.baseIncome)) / 20);
+}
+/** An owner who joins brings their place with them: a partner's cut, fixed, and nobody has to stand over it. */
+export const PARTNER_RATE = 0.2;
+
+/** Two ways a place ends up under your protection. Fear is the classic one: they are more afraid of you than
+ *  their own nerve. Friendship is the other: somebody who trusts you will let you look after the place, but
+ *  only as a favour — a friend does not hand over a third of the till, so the friendly route caps the rate. */
+export const PROTECT_TRUST = 40;      // trust that counts as "we are friends"
+export const PROTECT_FAVOUR_RATE = 0.2; // the most a friend will agree to without being leaned on
+export const PROTECT_NERVE = 0.6;     // fear + respect needed, as a share of their nerve
+export type ProtectRoute = 'fear' | 'friend';
+export function protectRoute(owner: Npc, rate: number): ProtectRoute | undefined {
+  if (owner.rel.fear + owner.rel.respect >= owner.nerve * PROTECT_NERVE) return 'fear';
+  if (owner.rel.trust >= PROTECT_TRUST && rate <= PROTECT_FAVOUR_RATE) return 'friend';
+  return undefined;
+}
+/** Why they said no, in their words. */
+export function protectReason(owner: Npc, rate: number): string | undefined {
+  if (protectRoute(owner, rate)) return undefined;
+  if (owner.rel.trust >= PROTECT_TRUST) return `${owner.name} trusts you, but ${Math.round(rate * 100)}% is not a favour. Ask ${Math.round(PROTECT_FAVOUR_RATE * 100)}% or less as a friend, or make them afraid of you first.`;
+  return `${owner.name} is neither scared of you nor close to you. Shake them down or send a message — or get their trust to ${PROTECT_TRUST} and ask for ${Math.round(PROTECT_FAVOUR_RATE * 100)}% as a favour.`;
+}
 
 /** How well a racket or production is run. A runner is best; a lieutenant covering the district is a decent second; nobody is half. */
 export function runnerFactor(w: World, runnerId: string | undefined, skill: keyof Npc['skills'], cover?: Npc): number {

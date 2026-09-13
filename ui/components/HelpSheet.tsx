@@ -1,5 +1,24 @@
-import { closeHelp } from '@ui/store';
+import type { CheatKind } from '@sim/actions';
+import { closeHelp, useStore } from '@ui/store';
+import { Act, Disclosure } from './Act';
 import { Sheet } from './Sheet';
+
+/** Testing tools. Temporary, deliberately behind a fold, and every one of them stamps the save as cheated. */
+const CHEATS: { what: CheatKind; label: string; icon: string }[] = [
+  { what: 'cash', label: '+$10,000 clean', icon: '💵' },
+  { what: 'dirty', label: '+$10,000 dirty', icon: '💰' },
+  { what: 'ap', label: 'Refill AP', icon: '⚡' },
+  { what: 'legwork', label: 'Refill legwork', icon: '🚶' },
+  { what: 'heat', label: 'Clear all heat', icon: '🧊' },
+  { what: 'skills', label: 'Every skill to 10', icon: '🎓' },
+  { what: 'crew', label: 'Three people join your crew', icon: '👥' },
+  { what: 'unlock', label: 'Unlock the op tree', icon: '🔓' },
+  { what: 'safehouse', label: 'Tier 3 safehouse here', icon: '🏠' },
+  { what: 'own_block', label: 'Own every business here', icon: '🏪' },
+  { what: 'turf', label: 'Make this block your turf', icon: '👑' },
+  { what: 'reveal', label: 'Reveal people and derelict blocks', icon: '🗺️' },
+  { what: 'stash', label: '+50 of every product', icon: '📦' },
+];
 
 /** One-screen "how to play" (the README's first five minutes), opened from the ? in the HUD. */
 export function HelpSheet() {
@@ -21,7 +40,24 @@ export function HelpSheet() {
           <li>A hit or a big job opens a <b>cold case</b>. Scare or pay the witness, bribe the captain, keep a lawyer. After day 15 the bosses form the <b>Commission</b>: earn a chair and vote.</li>
         </ol>
         <p className="small muted mt12">Every action costs AP (the gold pips). Cash is clean money; dirty money needs laundering before it buys anything legitimate. Own 60% of the blocks to take the city.</p>
+        <Cheats />
       </div>
     </Sheet>
+  );
+}
+
+function Cheats() {
+  const cheated = useStore(s => !!s.world?.cheated);
+  return (
+    <div className="mt12">
+      <Disclosure label="Testing tools" icon="🛠️">
+        <p className="small muted" style={{ margin: 0 }}>
+          For testing this build. Anything here happens instantly and for free, and marks the save as cheated{cheated ? ' — which this one already is.' : '.'}
+        </p>
+        <div className="col mt8">
+          {CHEATS.map(c => <Act key={c.what} action={{ type: 'cheat', what: c.what }} label={c.label} icon={c.icon} block small />)}
+        </div>
+      </Disclosure>
+    </div>
   );
 }
