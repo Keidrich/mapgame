@@ -72,9 +72,9 @@ idle nights (up to three) and shows a recap.
    district; rackets there run without a runner. Audit their books now and then.
 10. Street crews hold corners between the factions: **parley** with the boss (payroll,
     join, or run them off) or **take the corner**. Ignore them and they grow.
-11. People have their own people. Family and old friends tie NPCs to each other, thickest
-    in close-knit districts: they make somebody harder to scare, slower to trust you, and
-    they carry gossip across the neighbourhood.
+11. Everyone has people. Households of three to six relatives, plus old friends, tie the
+    city together — thickest in close-knit districts. Somebody with more backup than their
+    neighbours is harder to scare and slower to trust you, and gossip runs along the ties.
 12. After day 15 the bosses form the **Commission**. Blocks, respect or an ally get you
     a chair; votes move standing. A hit or a big job opens a **cold case**: scare or
     pay the witness, bribe the captain, keep a lawyer.

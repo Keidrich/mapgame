@@ -1,15 +1,22 @@
 /**
  * The web of family and old friends between NPCs.
  *
- * People here are not islands. Somebody's brother runs the bakery two streets over; the
- * man at the bar went to school with the woman behind the counter. The web is mutual
- * (both sides carry the link), lives on `Npc.connections`, and has nothing to do with the
- * player — it is the city's own social fabric.
+ * Nobody in a city knows nobody. Everyone here has people — a household of relatives, a
+ * couple of old friends, usually both — and the web is mutual (each side carries the
+ * other), lives on `Npc.connections`, and has nothing to do with the player. It is the
+ * city's own social fabric.
  *
- * How dense the web is comes from one number: the district's `closeness` (0..1). A close
- * district webs the whole neighbourhood together; a district of strangers gets a handful
- * of block-local ties and no more. `closeness` is a property of the district, not of the
- * people in it: it is never read from, and never stands in for, anybody's name group.
+ * It is built in two passes:
+ *   1. **Households.** Most people belong to a family: three to five relatives, all tied
+ *      to each other, sharing a surname, living on the same block or — where the
+ *      neighbourhood is close — spread across the district.
+ *   2. **Friends.** Then everybody is topped up to at least a couple of ties, more where
+ *      people are close, so nobody stands entirely alone.
+ *
+ * How dense and how far-reaching the web is comes from one number: the district's
+ * `closeness` (0..1). A close district is one big web of cousins; a district of strangers
+ * is households of two and a friend at the bar. `closeness` is a property of the place,
+ * never read from and never a stand-in for anybody's name group.
  */
 import { groupsOfLastName } from '@content/names';
 import type { Rng } from './rng';
@@ -17,17 +24,27 @@ import type { Block, Connection, District, Id, Npc, World } from './types';
 
 const clamp = (v: number, lo = 0, hi = 100) => Math.max(lo, Math.min(hi, v));
 
-/** Chance a person has any ties at all, and how much closeness adds to it. */
-export const LINK_BASE = 0.1;
-export const LINK_PER_CLOSENESS = 0.6;
+/** Ties everybody ends up with, wherever they live: a household, a couple of friends, or both. */
+export const MIN_TIES = 3;
 /** Nobody is the hub of the whole neighbourhood. */
-export const MAX_LINKS = 4;
-/** How much a person's living ties in their own district stiffen them, per tie, up to MAX_BACKING. */
+export const MAX_LINKS = 8;
+/** Households: how many relatives, and how many people have one at all. */
+export const HOUSEHOLD_MIN = 3;        // a family, not a pair
+export const HOUSEHOLD_MAX = 6;        // at closeness 1
+export const HOUSEHOLD_SHARE = 0.85;   // the rest have friends but no family in this city
+/** Friends on top of family: more of them where people are close. */
+export const FRIENDS_PER_CLOSENESS = 3;
+/**
+ * Backup stiffens somebody — but only the ties they have *beyond what everyone has*, so a
+ * city where everybody knows people is not a city where everybody is hard to frighten.
+ */
+export const TIES_BASELINE = MIN_TIES;
 export const BACKING_NERVE = 4;
 export const BACKING_TRUST = 2;
 export const MAX_BACKING = 3;
 
-export const FAMILY_LABELS = ['sibling', 'cousin', 'in-law', 'second cousin'];
+export const FAMILY_LABELS = ['sibling', 'cousin', 'second cousin'];
+export const IN_LAW_LABELS = ['in-law', 'married in', 'family by marriage'];
 export const FRIEND_LABELS = ['old friend', 'grew up together', 'army buddy', 'school friend', 'drinking partner', 'used to work together'];
 
 const lastNameOf = (n: Npc) => n.name.split(' ').slice(-1)[0];
@@ -72,38 +89,87 @@ export function linkConnections(w: World, blocks: Block[], rng: Rng): void {
     list.push(...people);
     byDistrict.set(b.districtId, list);
   }
+  // every name in the city, so taking a household's surname can never produce two
+  // identical people standing in the same family
+  const usedNames = new Set(Object.values(w.npcs).map(n => n.name));
   for (const [districtId, pool] of byDistrict) {
     const d: District | undefined = w.districts[districtId];
     if (!d || pool.length < 2) continue;
-    linkDistrict(d, pool, rng);
+    linkDistrict(d, pool, rng, usedNames);
     for (const n of pool) applyBacking(w, n);
   }
 }
 
-function linkDistrict(d: District, pool: Npc[], rng: Rng): void {
+function linkDistrict(d: District, pool: Npc[], rng: Rng, usedNames: Set<string>): void {
   const closeness = clamp(d.closeness, 0, 1);
   const byBlock = new Map<Id, Npc[]>();
   for (const n of pool) { const list = byBlock.get(n.homeBlockId) ?? []; list.push(n); byBlock.set(n.homeBlockId, list); }
+  const reachFor = (n: Npc) => (rng.chance(closeness) ? pool : (byBlock.get(n.homeBlockId) ?? pool));
+  formHouseholds(closeness, pool, reachFor, rng, usedNames);
+  makeFriends(closeness, pool, reachFor, rng);
+}
+
+/**
+ * Families, not pairs: a household is everybody tied to everybody, under one surname.
+ * Households stay on one block unless the neighbourhood is close enough to spread across
+ * the district — which is how a tight district ends up webbed together.
+ */
+function formHouseholds(closeness: number, pool: Npc[], reachFor: (n: Npc) => Npc[], rng: Rng, usedNames: Set<string>): void {
+  const placed = new Set<Id>();
+  for (const head of rng.shuffle(pool)) {
+    if (placed.has(head.id)) continue;
+    placed.add(head.id);
+    if (!rng.chance(HOUSEHOLD_SHARE)) continue;   // some people really did arrive alone
+    const biggest = HOUSEHOLD_MIN + Math.round(closeness * (HOUSEHOLD_MAX - HOUSEHOLD_MIN));
+    const size = rng.int(HOUSEHOLD_MIN, biggest);
+    const free = reachFor(head).filter(o => o.id !== head.id && !placed.has(o.id));
+    // relatives come out of one naming pool; an in-law from another keeps their own name
+    const kin = free.filter(o => sameNamePool(head, o));
+    // the odd namesake across a city is fine; two of them in one family reads as a mistake
+    const names = new Set([head.name]);
+    const picks: Npc[] = [];
+    for (const o of rng.shuffle(kin.length >= size - 1 ? kin : free)) {
+      if (picks.length >= size - 1) break;
+      if (names.has(o.name)) continue;
+      names.add(o.name); picks.push(o);
+    }
+    if (!picks.length) continue;
+    const unit = [head, ...picks];
+    // The household name comes from an owner when there is one, because a business name
+    // hangs off its owner's surname and must not drift. Everyone else takes it; a second
+    // owner, or a relative out of another naming pool, keeps their own and married in.
+    const named = unit.find(m => m.role === 'owner') ?? head;
+    const surname = lastNameOf(named);
+    for (const m of picks) placed.add(m.id);
+    for (const m of unit) if (m !== named && m.role !== 'owner' && sameNamePool(named, m)) takeSurname(m, surname, usedNames);
+    for (let i = 0; i < unit.length; i++) for (let j = i + 1; j < unit.length; j++) connect(unit[i], unit[j], 'family', familyLabel(unit[i], unit[j], rng));
+  }
+}
+
+/** Everybody ends up with somebody: family counts, and friends make up the difference. */
+function makeFriends(closeness: number, pool: Npc[], reachFor: (n: Npc) => Npc[], rng: Rng): void {
   for (const n of pool) {
-    // one roll for a first tie, a second roll only where the neighbourhood is tight
-    const attempts = 1 + (rng.chance(closeness) ? 1 : 0);
-    for (let i = 0; i < attempts; i++) {
-      if (!rng.chance(LINK_BASE + LINK_PER_CLOSENESS * closeness)) continue;
-      if (n.connections.length >= MAX_LINKS) break;
-      // how far the tie reaches: the whole district where people are close, the block where they are not
-      const reach = rng.chance(closeness) ? pool : (byBlock.get(n.homeBlockId) ?? pool);
-      const other = pickPartner(n, reach, rng);
-      if (!other) continue;
-      const kind: Connection['kind'] = lastNameOf(n) === lastNameOf(other) || rng.chance(0.35 + 0.2 * closeness) ? 'family' : 'friend';
-      const label = kind === 'family' ? rng.pick(FAMILY_LABELS) : rng.pick(FRIEND_LABELS);
-      if (!connect(n, other, kind, label)) continue;
-      // families share a name more often than not; only patrons take one, so business names stay
-      // put, and only within one naming pool, so nobody ends up a Wei Marconi
-      if (kind === 'family' && other.role === 'patron' && lastNameOf(n) !== lastNameOf(other) && sameNamePool(n, other) && rng.chance(0.6)) {
-        other.name = `${other.name.split(' ').slice(0, -1).join(' ')} ${lastNameOf(n)}`;
-      }
+    const want = Math.min(MAX_LINKS, MIN_TIES + rng.int(0, Math.round(closeness * FRIENDS_PER_CLOSENESS)));
+    let guard = 0;
+    while (n.connections.length < want && guard++ < 6) {
+      const other = pickPartner(n, reachFor(n), rng);
+      if (!other) break;                            // a block of three people can only do so much
+      connect(n, other, 'friend', rng.pick(FRIEND_LABELS));
     }
   }
+}
+
+/** Take the household's surname, unless that would make two people in this city the same person. */
+function takeSurname(n: Npc, surname: string, usedNames: Set<string>): void {
+  const next = `${n.name.split(' ').slice(0, -1).join(' ')} ${surname}`;
+  if (next === n.name || usedNames.has(next)) return;
+  usedNames.delete(n.name); usedNames.add(next);
+  n.name = next;
+}
+
+/** What two relatives are to each other. Same name, blood; different name, married in. */
+function familyLabel(a: Npc, b: Npc, rng: Rng): string {
+  return lastNameOf(a) === lastNameOf(b) ? rng.pick(FAMILY_LABELS) : rng.pick(IN_LAW_LABELS);
 }
 
 /** Do two people's surnames come out of the same naming pool? Cosmetic: it only guards renames. */
@@ -112,12 +178,10 @@ function sameNamePool(a: Npc, b: Npc): boolean {
   return groupsOfLastName(lastNameOf(b)).some(g => ga.includes(g));
 }
 
-/** Someone free to be tied to, preferring a shared surname: that is what makes a family read as one. */
+/** Someone free to be tied to, preferring a neighbour with room left for another friend. */
 function pickPartner(n: Npc, reach: Npc[], rng: Rng): Npc | undefined {
   const free = reach.filter(o => o.id !== n.id && o.alive && o.connections.length < MAX_LINKS && !isConnected(n, o));
-  if (!free.length) return undefined;
-  const kin = free.filter(o => lastNameOf(o) === lastNameOf(n));
-  return kin.length && rng.chance(0.7) ? rng.pick(kin) : rng.pick(free);
+  return free.length ? rng.pick(free) : undefined;
 }
 
 /**
@@ -126,8 +190,8 @@ function pickPartner(n: Npc, reach: Npc[], rng: Rng): Npc | undefined {
  * their district's names come from.
  */
 export function applyBacking(w: World, n: Npc): void {
-  const backing = Math.min(MAX_BACKING, backingOf(w, n));
-  if (!backing) return;
+  const backing = Math.min(MAX_BACKING, backingOf(w, n) - TIES_BASELINE);
+  if (backing <= 0) return;
   n.nerve = clamp(n.nerve + backing * BACKING_NERVE);
   n.rel.trust = clamp(n.rel.trust - backing * BACKING_TRUST, -100, 100);
 }

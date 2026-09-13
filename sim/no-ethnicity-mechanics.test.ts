@@ -8,7 +8,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { generateWorld } from './generate';
-import { applyBacking, connect } from './connections';
+import { TIES_BASELINE, applyBacking, connect } from './connections';
 import { mkNpc } from './populate';
 import { Rng } from './rng';
 import type { Npc } from './types';
@@ -45,15 +45,18 @@ describe('a name group changes names and nothing else', () => {
     const blockId = Object.keys(w.blocks)[0];
     const district = w.districts[w.blocks[blockId].districtId];
     const rng = new Rng(99);
-    const make = (weights: Record<string, number>, tag: string) => { district.nameGroups = weights; return mkNpc(rng, w, p => `${p}${tag}`, { role: 'patron', homeBlockId: blockId, nerveBias: 50 }); };
-    const a = make({ italian: 1 }, 'a'); const aKin = make({ italian: 1 }, 'ak');
-    const b = make({ east_asian: 1 }, 'b'); const bKin = make({ east_asian: 1 }, 'bk');
-    for (const n of [a, aKin, b, bKin]) { n.nerve = 50; n.rel.trust = 0; }
-    connect(a, aKin, 'family', 'cousin'); connect(b, bKin, 'family', 'cousin');
+    const make = (weights: Record<string, number>, tag: string) => { district.nameGroups = weights; const n = mkNpc(rng, w, p => `${p}${tag}`, { role: 'patron', homeBlockId: blockId, nerveBias: 50 }); n.nerve = 50; n.rel.trust = 0; return n; };
+    // two people with identical households, from two different naming pools
+    const a = make({ italian: 1 }, 'a'); const b = make({ east_asian: 1 }, 'b');
+    const ties = TIES_BASELINE + 2;
+    for (let i = 0; i < ties; i++) {
+      connect(a, make({ italian: 1 }, `ak${i}`), 'family', 'cousin');
+      connect(b, make({ east_asian: 1 }, `bk${i}`), 'family', 'cousin');
+    }
     applyBacking(w, a); applyBacking(w, b);
     expect(a.nerve).toBe(b.nerve);
     expect(a.rel.trust).toBe(b.rel.trust);
-    expect(a.nerve).toBeGreaterThan(50);
+    expect(a.nerve).toBeGreaterThan(50);   // backup above what everyone has does stiffen somebody
   });
 });
 

@@ -140,17 +140,30 @@ you at 35+ opens the door; if it fails they are burned).
 
 ### 3.6 The family and friend web
 
-People are not islands. At generation time NPCs are linked to each other as **family** or
-**friends** — mutual, stored on `Npc.connections`, and nothing to do with the player. How
-many ties there are, and how far they reach, comes from the district's `closeness`: a tight
-district webs the whole neighbourhood together, a district of strangers gets a handful of
-block-local ties. Nobody carries more than four.
+Nobody in a city knows nobody. At generation time every NPC ends up with people — mutual
+ties stored on `Npc.connections`, nothing to do with the player — built in two passes:
+
+1. **Households.** Most people (~85%) belong to a family: three to six relatives, *all*
+   tied to each other, under one surname. The household name comes from an owner when the
+   family has one, because business names hang off their owner's surname; a second owner or
+   a relative out of another naming pool keeps their own name and married in.
+2. **Friends.** Everybody is then topped up to at least three ties, with more where people
+   are close, so the loners of the first pass still drink with somebody.
+
+How dense the web is, how big the households are and how far they reach comes from the
+district's `closeness`: a tight district is one web of cousins spanning the neighbourhood,
+a cold one is households of three who keep to their own block. In practice a generated city
+runs 3.5–5.5 ties a head, ~90% of people with living family, and a hundred-odd households of
+three or more. Nobody carries more than eight ties.
 
 What the web does today:
 
-- **Backup.** Living ties inside your own district make you a little harder to frighten and
-  a little slower to trust a stranger (+4 nerve and −2 starting trust each, up to three).
-  Identical for everybody: it reads the connection count and nothing else.
+- **Backup.** Ties inside your own district *beyond the three everybody has* make you
+  harder to frighten and slower to trust a stranger (+4 nerve and −2 starting trust each, up
+  to three of them). Measuring from the baseline is what keeps a city where everyone knows
+  people from being a city where everyone is hard to frighten: it is the people with more
+  backup than their neighbours who are stiff. Identical for everybody: it reads the
+  connection count and nothing else.
 - **The family agenda** is only ever handed to somebody who actually has family, and names
   them: "went to the police to keep Rosa Esposito, their cousin, out of it."
 - **Gossip** travels along real ties as well as the same-block, same-bar circle, so a
