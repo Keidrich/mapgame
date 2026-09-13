@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { select } from '@sim/index';
-import type { Assignment, Id, World } from '@sim/types';
+import type { Assignment, Id } from '@sim/types';
 import { PRODUCTION_DEFS, RACKET_DEFS, RECIPES, TRAIT_LABELS } from '@content/rackets';
 import { assignmentLabel, cap, fmtMoney, initials, playerRackets, playerSafehouses, roleLabel } from '@ui/derive';
 import { openSheet, useWorld } from '@ui/store';
@@ -9,6 +9,8 @@ import { Meter, RelMeters, SkillBars } from './Meter';
 import { Act, AmountPicker, Disclosure, SceneAct } from './Act';
 import { Info, Term, TermChip } from './Info';
 import { AwayNotice } from './Walk';
+import { NoteEditor } from './Note';
+import { whereabouts } from './SocialTab';
 
 export function NpcSheet({ npcId }: { npcId: Id }) {
   const w = useWorld();
@@ -49,8 +51,16 @@ export function NpcSheet({ npcId }: { npcId: Id }) {
         {faction && <><dt><Term id="stance">Faction</Term></dt><dd style={{ color: faction.color }}>{faction.name} ({cap(select.stanceWithPlayer(w, faction.id))})</dd></>}
         <dt><Term id="nerve">Nerve</Term></dt><dd>{select.isKnown(n) ? n.nerve : '?'}</dd>
       </dl>
+      {n.playerNote && (
+        <div className="card mt12" style={{ borderColor: 'var(--gold)' }}>
+          <b className="small gold">📝 Your note</b>
+          <p className="small" style={{ margin: '4px 0 0' }}>{n.playerNote}</p>
+        </div>
+      )}
       <Connections npcId={npcId} />
+      {/* the sim's own flavour, kept separate from the player's note above */}
       {n.notes.length > 0 && <ul className="small muted mt8" style={{ paddingLeft: 18, margin: 0 }}>{n.notes.map((x, i) => <li key={i}>{x}</li>)}</ul>}
+      <Disclosure label={n.playerNote ? 'Edit your note' : 'Make a note'} icon="📝"><NoteEditor npcId={npcId} /></Disclosure>
 
       {n.crew && <CrewSection npcId={npcId} />}
 
@@ -126,7 +136,7 @@ function Connections({ npcId }: { npcId: Id }) {
         <span key={t.npc.id}>
           {i > 0 && ', '}
           <button type="button" className="linkish" onClick={() => openSheet({ kind: 'npc', npcId: t.npc.id })}>{t.npc.name}</button>
-          <span className="muted"> ({t.label}){whereBlurb(w, t.npc)}</span>
+          <span className="muted"> ({t.label}), {whereabouts(w, t.npc).toLowerCase()}</span>
         </span>
       ))}
       .
@@ -140,14 +150,6 @@ function Connections({ npcId }: { npcId: Id }) {
     </>
   );
 }
-/** ", runs Casa Roma on Mott St" — where you would actually find them. */
-function whereBlurb(w: World, npc: { id: Id; homeBlockId: Id }): string {
-  const biz = Object.values(w.businesses).find(b => b.ownerId === npc.id);
-  const block = w.blocks[npc.homeBlockId];
-  if (biz) return `, runs ${biz.name}${block ? ` on ${block.name}` : ''}`;
-  return block ? `, around ${block.name}` : '';
-}
-
 /** The one-word relationship label means different things at different trust and fear. */
 function relBlurb(n: { rel: { trust: number; fear: number; respect: number } }): string {
   const { trust, fear } = n.rel;

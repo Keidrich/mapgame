@@ -65,6 +65,7 @@ export type Action =
   | { type: 'populate_chunk'; chunk: GeoChunk }   // the UI fetched geometry for a new area; the sim fills it with people
   // --- meta ---
   | { type: 'rename'; name: string }
+  | { type: 'set_note'; npcId: Id; text: string }   // the player's own note on somebody; free, no AP, never touches notes[]
   // --- testing ---
   | { type: 'cheat'; what: CheatKind };          // debug only; stamps the save as cheated so nothing is mistaken for real play
 

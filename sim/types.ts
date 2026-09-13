@@ -172,7 +172,8 @@ export interface Npc {
   hostage?: { safehouseId: Id; since: number }; // held by you: alive, but out of their own life
   fixer?: { day: number; amount: number; cap: number }; // role 'fixer': today's window, and what is left of it
   connections: Connection[]; // family and friends among the other NPCs; mutual, and nothing to do with the player
-  notes: string[];
+  notes: string[];            // the sim's own flavour ("Runs the Eastside Boys"). Never the player's words.
+  playerNote?: string;        // the player's memory aid, set from the Social tab or their sheet. The sim never writes it.
 }
 
 export type AgendaKind = 'debt' | 'leave' | 'revenge' | 'ambition' | 'family';

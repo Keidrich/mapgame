@@ -14,6 +14,55 @@ House rules for an entry (see `CLAUDE.md` → *Leave a trail*):
 
 ---
 
+## 2026-09-13 — Social tab: everybody you have met, and who they have
+
+**What.** A sixth tab. It lists every person the player has met, groups them by ties, district
+or faction, opens each one's family and friends in place, walks from a tie to that person's
+row, and keeps the player's own note on anybody.
+
+**Why.** The family/friend web went in two changes ago and had exactly one window onto it: a
+line at the bottom of one person's sheet. You could see that Rosa is somebody's cousin, but
+not who *you* know, who is connected to whom, or which household you had already leaned on.
+The ask was specifically about keeping track of who is related to who, which is a roster
+problem, not a sheet problem.
+
+**How.** Two read-only selectors do the thinking, per the /sim rule:
+`select.metNpcs(w)` (alive and `isKnown` — the same either-or the person's own sheet uses to
+decide whether to show traits, so the roster never knows more than the sheet does) and
+`select.knownConnectionsOf(w, n)` (ties to people you have also met, which is what the
+"connected" grouping means). Grouping itself is presentation and stays in the component.
+
+Tapping a tie walks to that person's row when you know them and opens their sheet when you
+do not; unmet people show in a tie list marked "not met", which is the same information their
+own sheet would give you (a name, nothing else).
+
+`Npc.playerNote` is new and deliberately separate from `notes`: one is what the player wrote,
+the other is what the sim wrote, and neither touches the other. It goes through a `set_note`
+action like every other change to the world, capped at `PLAYER_NOTE_MAX` 240, trimmed, and
+cleared to `undefined` rather than `''`. It is exempt from the "deal with what is in front of
+you first" gate — a note is bookkeeping, not a move — and costs nothing.
+
+The sheet gained the note (shown above the sim's flavour, in its own card) and now phrases its
+tie list through the same `whereabouts()` helper the tab uses, so both screens say
+"Nestor Morales (in-law), runs Chez Roma on City Centre K7".
+
+**Files.** `ui/components/SocialTab.tsx` (new), `ui/components/Note.tsx` (new),
+`ui/components/NpcSheet.tsx`, `ui/components/TabBar.tsx`, `ui/App.tsx`, `ui/store.ts` (the
+`Tab` union), `ui/styles.css` (six tabs on a 320px phone), `ui/components/HelpSheet.tsx`,
+`sim/types.ts`, `sim/actions.ts`, `sim/reducer.ts`, `sim/select.ts`, `sim/social.test.ts` (new),
+`ui/social.test.tsx` (new), `docs/DESIGN.md` §3.6.
+
+**Watch out.**
+- **No `WORLD_VERSION` bump**: `playerNote` is optional, so v7 saves load fine and simply have
+  no notes yet.
+- Driven in a real browser as well as the tests (inject a save into IndexedDB, click through):
+  traversal, note saving and the six-tab bar all behave. The SSR tests cannot click, so
+  expanding a row and walking a tie are covered by `sim/social.test.ts` at the data level
+  rather than through the DOM.
+- The grid banner ("London is on a grid") is `position: absolute` and overlaps the top of any
+  tab panel, including this one's grouping control. Pre-existing on every tab; worth fixing
+  separately.
+
 ## 2026-09-13 — Fix: opening a street crew's corner blanked the game
 
 **What.** Clicking a block held by a street crew unmounted the whole app and left a black

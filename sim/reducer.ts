@@ -19,7 +19,7 @@ import { blockName as blockNameOf, isHere, legworkFor, npcBlockIds, npcIsHere, r
 import { petition, seatReason } from './commission';
 import { claimedByPlayer } from './abandoned';
 import { isHeld, resolveHostage, roomFor } from './hostages';
-import { opLocked } from './select';
+import { PLAYER_NOTE_MAX, opLocked } from './select';
 import { moveProduct, onJoin, recipesForKind, restockCost, sellMult } from './production';
 import { PRODUCTION_UPGRADE_MULT, RECIPES } from '@content/rackets';
 import { FIXER, LAUNDER_RATE, LIEUTENANT } from '@content/rackets';
@@ -32,7 +32,8 @@ const yes = (cost?: { ap?: number; cash?: number }): Affordance => ({ ok: true, 
 export function can(w: World, a: Action): Affordance {
   if (w.gameOver) return no('The game is over.');
   const p = w.player;
-  if (a.type !== 'end_day' && a.type !== 'resolve_event' && a.type !== 'rename' && a.type !== 'populate_chunk' && w.pendingEvents.length) return no('Deal with what is in front of you first.');
+  // bookkeeping (renaming yourself, a note to self, streaming in geometry) is not a move, so it is never blocked
+  if (!['end_day', 'resolve_event', 'rename', 'set_note', 'populate_chunk'].includes(a.type) && w.pendingEvents.length) return no('Deal with what is in front of you first.');
   const ap = (n: number) => (p.ap >= n ? null : `Needs ${n} AP. You are out of time today.`);
   const cash = (n: number) => (p.cash >= n ? null : `Needs ${money(n)} clean cash.`);
   const npc = (id: Id) => w.npcs[id];
@@ -62,6 +63,7 @@ export function can(w: World, a: Action): Affordance {
     case 'threaten': { const n = npc(a.npcId); if (!n?.alive) return no('They are gone.'); if (n.official) return no('Threatening an official is a bad idea. Bribe them.'); if (n.role === 'boss') return no('You do not threaten a boss. You go to war with him.'); const h = hereNpc(n); if (h) return no(h); const r = ap(1); if (r) return no(r); if (a.approach === 'crew' && activeCrewCount(w) === 0) return no('No crew to bring.'); return yes({ ap: 1 }); }
     case 'parley': { const n = npc(a.npcId); if (!n?.alive) return no('They are gone.'); const c0 = crewOfBoss(w, n.id); if (!c0) return no('They do not run a crew.'); if (!isHere(w, c0.blockId)) return no(`The ${c0.name} hold ${blockNameOf(w, c0.blockId)}. Walk over first${travelCost(w, c0.blockId) !== undefined ? ` (${travelCost(w, c0.blockId)} legwork)` : ''}.`); const r = ap(1); if (r) return no(r); if (a.approach === 'join' && bedsLeft(w) <= 0) return no('No room in your safehouses for their boss.'); return yes({ ap: 1 }); }
     case 'broker': { const n = npc(a.npcId); if (!n?.alive) return no('They are gone.'); const why = brokerReason(w, n, a.otherFactionId); if (why) return no(why); const r = ap(2); if (r) return no(r); if (a.approach === 'split') { const c = cash(4000); if (c) return no(c); } return yes({ ap: 2, cash: a.approach === 'split' ? 4000 : 0 }); }
+    case 'set_note': { const n = npc(a.npcId); if (!n) return no('Nobody by that name.'); if (a.text.length > PLAYER_NOTE_MAX) return no(`Keep it under ${PLAYER_NOTE_MAX} characters.`); return yes(); }
     case 'petition_seat': { const why = seatReason(w); if (why) return no(why); const r = ap(2); return r ? no(r) : yes({ ap: 2 }); }
     case 'resolve_hostage': { const n = npc(a.npcId); if (!n || !isHeld(n)) return no('You are not holding them.'); const r = ap(1); return r ? no(r) : yes({ ap: 1 }); }
     case 'back_candidate': { const f = w.factions[a.factionId]; if (!f?.alive || !f.crisis) return no('No crisis there.'); if (!f.crisis.candidateIds.includes(a.npcId)) return no('They are not in the running.'); if (a.amount < 500) return no('Under $500 is an insult.'); const c = cash(a.amount); return c ? no(c) : yes({ cash: a.amount }); }
@@ -562,6 +564,13 @@ export function dispatch(prev: World, a: Action): World {
       const chance = approachChance(w, 'parley', ap_, n); const ok = rng.int(1, 100) <= chance;
       const tone = parley(w, c, n, ap_, ok, rng);
       log(w, resultLine('parley', ap_, ok, rng), tone, { npcId: n.id, blockId: c.blockId });
+      break;
+    }
+    case 'set_note': {
+      // the player's own words, kept apart from n.notes (which is the sim's flavour text);
+      // an empty note clears the field rather than storing ''
+      const n = npc(a.npcId); const text = a.text.trim().slice(0, PLAYER_NOTE_MAX);
+      n.playerNote = text || undefined;
       break;
     }
     case 'move': {

@@ -14,6 +14,7 @@ import { MapView } from './components/Map';
 import { NpcSheet } from './components/NpcSheet';
 import { Onboarding } from './components/Onboarding';
 import { OpsTab } from './components/OpsTab';
+import { SocialTab } from './components/SocialTab';
 import { TabBar } from './components/TabBar';
 import { Toasts } from './components/Toasts';
 import { SceneSheet } from './components/SceneSheet';
@@ -49,6 +50,7 @@ function Game() {
             <ErrorBoundary what={`the ${tab} tab`} onReset={() => setTab('map')} resetLabel="Back to the map">
               {tab === 'crew' && <CrewTab />}
               {tab === 'ops' && <OpsTab />}
+              {tab === 'social' && <SocialTab />}
               {tab === 'factions' && <FactionsTab />}
               {tab === 'empire' && <EmpireTab />}
             </ErrorBoundary>

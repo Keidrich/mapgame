@@ -76,6 +76,8 @@ idle nights (up to three) and shows a recap.
 11. Everyone has people. Households of three to six relatives, plus old friends, tie the
     city together — thickest in close-knit districts. Somebody with more backup than their
     neighbours is harder to scare and slower to trust you, and gossip runs along the ties.
+    The **Social** tab lists everybody you have met, who is family and who is an old friend,
+    and keeps your own notes on them.
 12. After day 15 the bosses form the **Commission**. Blocks, respect or an ally get you
     a chair; votes move standing. A hit or a big job opens a **cold case**: scare or
     pay the witness, bribe the captain, keep a lawyer.

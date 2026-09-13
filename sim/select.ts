@@ -10,6 +10,7 @@ export { brokerReason } from './politics';
 export { route, travelCost, isHere, npcIsHere, npcBlockIds, npcReachBlock, currentBlock, yourTurf, footholdBlocks, legworkFor, FOOTHOLD } from './travel';
 export { openCases, caseWitnessOf } from './cases';
 export { connectionsOf, familyOf, backingOf } from './connections';
+import { connectionsOf } from './connections';
 export { seatReason, members as commissionMembers } from './commission';
 export { protectRoute, protectReason, PROTECT_TRUST, PROTECT_FAVOUR_RATE } from './economy';
 export { fixerRate, fixerDailyCap, fixerUsedToday, fixerCapToday, fixerCapLeft, fixersKnown } from './economy';
@@ -96,6 +97,22 @@ export function agendaLabel(n: Npc): string | undefined {
   return `${L[n.agenda.kind]} (${Math.round(n.agenda.progress)}%)`;
 }
 export function isKnown(n: Npc): boolean { return n.known || n.rel.trust >= 20; }
+
+// ---------------------------------------------------------------- who you know
+/** How long a note the player can keep on somebody. */
+export const PLAYER_NOTE_MAX = 240;
+/**
+ * Everybody the player has met, for the Social tab. "Met" is the same test the person's own
+ * sheet uses to decide whether to show their traits, so the roster never knows more than the
+ * sheet does. The dead are left out: this is an address book, not a memorial.
+ */
+export function metNpcs(w: World): Npc[] {
+  return Object.values(w.npcs).filter(n => n.alive && isKnown(n)).sort((a, b) => a.name.localeCompare(b.name));
+}
+/** Their ties to people the player has also met — the ones worth tracking in a roster. */
+export function knownConnectionsOf(w: World, n: Npc) {
+  return connectionsOf(w, n).filter(c => isKnown(c.npc));
+}
 export function relLabel(n: Npc): string {
   const { trust, fear } = n.rel;
   if (trust >= 60) return 'Friend'; if (trust >= 25) return 'Warm'; if (fear >= 60) return 'Terrified';

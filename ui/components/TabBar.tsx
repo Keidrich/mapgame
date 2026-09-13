@@ -3,7 +3,7 @@ import { activeOps } from '@ui/derive';
 
 const TABS: { id: Tab; label: string; ico: string }[] = [
   { id: 'map', label: 'Map', ico: '🗺️' }, { id: 'crew', label: 'Crew', ico: '👥' }, { id: 'ops', label: 'Ops', ico: '🎯' },
-  { id: 'factions', label: 'Factions', ico: '🤝' }, { id: 'empire', label: 'Empire', ico: '🏛️' },
+  { id: 'social', label: 'Social', ico: '🕸️' }, { id: 'factions', label: 'Factions', ico: '🤝' }, { id: 'empire', label: 'Empire', ico: '🏛️' },
 ];
 
 export function TabBar() {

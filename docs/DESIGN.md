@@ -170,6 +170,20 @@ What the web does today:
   humiliation reaches somebody's sister across the district instead of stopping at the bar.
 - The NPC sheet lists who somebody has, and every name opens their own sheet.
 
+**The Social tab** is where the web is legible: everybody the player has met (the same
+"have we met" test a person's own sheet uses to decide whether to show traits), grouped by
+whether they are connected to anyone else you know, by district, or by faction. Opening a
+row lists their family and friends by kind; tapping one walks to that person's row, so a
+family can be followed across a district. People you have not met still appear inside
+somebody's tie list, marked *not met*, and tapping them opens their (mostly blank) sheet.
+
+Alongside it, `Npc.playerNote` — the player's own memory aid, set through the `set_note`
+action from either screen, capped at 240 characters and kept apart from `notes`, which is
+the sim's own flavour ("Runs the Eastside Boys"). The two are never merged and neither
+overwrites the other: one is what the game says about somebody, the other is what the player
+says. A note is bookkeeping rather than a move, so it is free and can be written even while
+an event is waiting.
+
 Phase 2, not built: leverage plays on top of the graph (threatening a named relative,
 friend-referral recruiting, turning a rival's brother into an inside man).
 

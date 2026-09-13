@@ -10,7 +10,7 @@ import { idbDel, idbGet, idbSet } from '@ui/net/idb';
 import { loadChunk, reason } from '@ui/net/chunks';
 import { chunkKeyAt } from '@geo/chunks';
 
-export type Tab = 'map' | 'crew' | 'ops' | 'factions' | 'empire';
+export type Tab = 'map' | 'crew' | 'ops' | 'social' | 'factions' | 'empire';
 export type Sheet =
   | { kind: 'block'; blockId: Id }
   | { kind: 'business'; businessId: Id }
