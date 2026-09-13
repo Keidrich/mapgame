@@ -20,7 +20,7 @@ function chunkFor(key: string) {
   const t0 = performance.now();
   const r = parseRoads(clip(allRoads, b.south - m, b.west - ml, b.north + m, b.east + ml), b.center);
   const p = parsePois(clip(allPois, b.south - m, b.west - ml, b.north + m, b.east + ml));
-  const c = buildChunk({ key, roads: r.roads, nodePos: r.nodePos, water: r.water, industrial: r.industrial, pois: p.pois, places: p.places });
+  const c = buildChunk({ key, roads: r.roads, nodePos: r.nodePos, water: r.water, industrial: r.industrial, pois: p.pois, places: p.places, landmarks: p.landmarks });
   console.log(`chunk ${key}: ${r.roads.length} ways, ${r.nodePos.size} nodes → ${c.blocks.length} blocks, ${c.pois.length} pois, ${c.places.length} places in ${(performance.now() - t0).toFixed(0)} ms`);
   return c;
 }

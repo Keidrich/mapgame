@@ -6,6 +6,7 @@ import { BusinessSheet } from './components/BusinessSheet';
 import { CrewTab } from './components/CrewTab';
 import { EmpireTab } from './components/EmpireTab';
 import { EventModal } from './components/EventModal';
+import { RecapSheet } from './components/RecapSheet';
 import { FactionsTab } from './components/FactionsTab';
 import { Hud } from './components/Hud';
 import { MapView } from './components/Map';
@@ -33,6 +34,7 @@ function Game() {
   const sheet = useStore(s => s.sheets[s.sheets.length - 1]);
   const victorySeen = useStore(s => s.victorySeen);
   const help = useStore(s => s.help);
+  const recap = useStore(s => s.recap);
   const pending = w.pendingEvents.length;
   return (
     <div className="app">
@@ -58,7 +60,8 @@ function Game() {
       {sheet?.kind === 'npc' && <NpcSheet npcId={sheet.npcId} />}
       {help && <HelpSheet />}
       <SceneSheet />
-      {pending > 0 && <EventModal />}
+      {recap && <RecapSheet />}
+      {pending > 0 && !recap && <EventModal />}
       {w.victory && !victorySeen && (
         <div className="banner" role="status">
           <b>🏆 You own the city.</b>

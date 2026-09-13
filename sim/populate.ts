@@ -62,6 +62,13 @@ export function populateChunk(w: World, chunk: GeoChunk, rng: Rng, opts: Populat
   const seenNames = new Map<string, number>();
   for (const b of Object.values(w.blocks)) { const n = seenNames.get(b.name) ?? 0; seenNames.set(b.name, n + 1); if (n) b.name = `${b.name} ${n + 1}`; }
 
+  // ---- landmarks: schools make every incident louder, police stations answer faster ----
+  for (const l of chunk.landmarks ?? []) {
+    const b = l.blockId ? w.blocks[l.blockId] : undefined; if (!b || !added.includes(b)) continue;
+    if (!b.tags.includes(l.kind)) b.tags.push(l.kind);
+    if (l.kind === 'police') { b.police = clamp(b.police + 25); for (const nb of b.neighborIds) if (w.blocks[nb]) w.blocks[nb].police = clamp(w.blocks[nb].police + 10); }
+  }
+
   // ---- businesses: real POIs first, procedural fill after ----
   const used = new Set(Object.values(w.businesses).map(b => b.name));
   const poisByBlock = new Map<string, GeoChunk['pois']>();

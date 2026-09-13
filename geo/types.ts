@@ -20,6 +20,8 @@ export interface GeoPoi {
   blockId?: string;
 }
 
+export interface GeoLandmark { kind: 'school' | 'police'; name?: string; pos: LatLng; blockId?: string }
+
 export interface GeoPlace { name: string; pos: LatLng; kind: 'neighbourhood' | 'suburb' | 'quarter' }
 
 export interface GeoCity {

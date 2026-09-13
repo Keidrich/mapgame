@@ -17,6 +17,12 @@ export type Sheet =
 export interface Selection { blockId?: Id; businessId?: Id; npcId?: Id }
 export interface SceneRequest { kind: 'shakedown' | 'threaten' | 'visit' | 'recruit' | 'parley'; npcId: Id; businessId?: Id }
 export interface Toast { id: number; text: string; tone: LogEntry['tone']; until: number }
+/** What happened overnight (or while the app was closed): the UI captures the before-state and reads the log slice. */
+export interface Recap { fromDay: number; toDay: number; idle: boolean; cashBefore: number; dirtyBefore: number; heatBefore: number; logStart: number }
+
+/** Idle play: one day resolves per this many hours away, up to the cap. No server; it runs on reopen. */
+export const IDLE_HOURS_PER_DAY = 6;
+export const IDLE_MAX_DAYS = 3;
 
 export interface UiState {
   world: World | null;
@@ -29,10 +35,12 @@ export interface UiState {
   toasts: Toast[];
   victorySeen: boolean;
   help: boolean;       // the 'how to play' sheet
+  recap: Recap | null; // the overnight report, shown before the day's events
 }
 
 export const SAVE_KEY = 'rackets.save.v3';
 const VICTORY_KEY = 'rackets.victory.v1';
+const SAVED_AT_KEY = 'rackets.savedAt.v1';
 const TOAST_MS = 3000;
 
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
@@ -44,14 +52,14 @@ function save(w: World | null) {
   saveTimer = setTimeout(() => {
     saveTimer = null;
     const v = pendingSave; pendingSave = undefined;
-    if (v) void idbSet(SAVE_KEY, v); else void idbDel(SAVE_KEY);
+    if (v) { void idbSet(SAVE_KEY, v); void idbSet(SAVED_AT_KEY, Date.now()); } else { void idbDel(SAVE_KEY); void idbDel(SAVED_AT_KEY); }
   }, 400);
 }
 function loadVictorySeen(w: World | null): boolean {
   try { return !!w && localStorage.getItem(VICTORY_KEY) === String(w.seed); } catch { return false; }
 }
 
-let state: UiState = { world: null, booting: true, chunkVersion: 0, tab: 'map', sheets: [], selection: {}, scene: null, toasts: [], victorySeen: false, help: false };
+let state: UiState = { world: null, booting: true, chunkVersion: 0, tab: 'map', sheets: [], selection: {}, scene: null, toasts: [], victorySeen: false, help: false, recap: null };
 const listeners = new Set<() => void>();
 let toastSeq = 1;
 
@@ -67,7 +75,23 @@ export async function boot() {
   const w = await idbGet<World>(SAVE_KEY);
   const ok = !!w && typeof w === 'object' && w.version === WORLD_VERSION;
   if (w && !ok) void idbDel(SAVE_KEY);
+  const savedAt = ok ? await idbGet<number>(SAVED_AT_KEY) : undefined;
   set({ world: ok ? w : null, booting: false, victorySeen: loadVictorySeen(ok ? w : null) });
+  if (ok && w) idleTick(w, savedAt, Date.now());
+}
+
+/** Resolve the days that passed while the app was closed, stopping at the first night that leaves something to decide. */
+export function idleTick(w: World, savedAt: number | undefined, now: number) {
+  if (!savedAt || w.gameOver || w.pendingEvents.length) return;
+  let days = Math.min(IDLE_MAX_DAYS, Math.floor((now - savedAt) / (IDLE_HOURS_PER_DAY * 3600 * 1000)));
+  if (days < 1) return;
+  const recap: Recap = { fromDay: w.day, toDay: w.day, idle: true, cashBefore: w.player.cash, dirtyBefore: w.player.dirty, heatBefore: w.player.heat, logStart: w.log.length };
+  let next = w;
+  while (days-- > 0 && !next.pendingEvents.length && !next.gameOver && can(next, { type: 'end_day' }).ok) next = dispatch(next, { type: 'end_day' });
+  if (next === w) return;
+  recap.toDay = next.day;
+  save(next);
+  set({ world: next, recap, tab: 'map', sheets: [], scene: null });
 }
 export function bumpChunks() { set({ chunkVersion: state.chunkVersion + 1 }); }
 /** The player tapped an unpopulated block: fetch/populate its chunk, then open the block. */
@@ -107,19 +131,24 @@ export function act(action: Action): boolean {
   const before = w.log.length;
   const next = dispatch(w, action);
   save(next);
-  // a new day starts on the map, so the event cards are the first thing the player sees
-  set(action.type === 'end_day' ? { world: next, sheets: [], tab: 'map', scene: null, help: false } : { world: next });
+  // a new day starts on the map: first the overnight report, then the event cards
+  if (action.type === 'end_day') {
+    const recap: Recap = { fromDay: w.day, toDay: next.day, idle: false, cashBefore: w.player.cash, dirtyBefore: w.player.dirty, heatBefore: w.player.heat, logStart: before };
+    set({ world: next, sheets: [], tab: 'map', scene: null, help: false, recap });
+    return true;
+  }
+  set({ world: next });
   pushToasts(next.log.slice(before));
   return true;
 }
 export function newGame(w: World) {
   save(w);
-  set({ world: w, booting: false, tab: 'map', sheets: [], selection: {}, toasts: [], victorySeen: false, chunkVersion: state.chunkVersion + 1 });
+  set({ world: w, booting: false, tab: 'map', sheets: [], selection: {}, toasts: [], victorySeen: false, recap: null, chunkVersion: state.chunkVersion + 1 });
 }
 export function resetGame() {
   save(null);
   try { localStorage.removeItem(VICTORY_KEY); } catch { /* ignore */ }
-  set({ world: null, tab: 'map', sheets: [], selection: {}, toasts: [], victorySeen: false });
+  set({ world: null, tab: 'map', sheets: [], selection: {}, toasts: [], victorySeen: false, recap: null });
 }
 export function importWorld(json: string): string | null {
   try {
@@ -153,10 +182,12 @@ export function openScene(scene: SceneRequest) { set({ scene }); }
 export function closeScene() { set({ scene: null }); }
 export function closeSheets() { set({ sheets: [] }); }
 export function openHelp() { set({ help: true }); }
+export function closeRecap() { set({ recap: null }); }
 export function closeHelp() { set({ help: false }); }
 export function selectBlock(blockId?: Id) { set({ selection: { ...state.selection, blockId, businessId: undefined } }); }
 /** Jump to the map and open a block / business (used by log refs). */
 export function focus(ref: { blockId?: Id; businessId?: Id; npcId?: Id }) {
+  if (state.recap) set({ recap: null });
   if (ref.businessId && state.world?.businesses[ref.businessId]) { set({ tab: 'map', sheets: [] }); openSheet({ kind: 'business', businessId: ref.businessId }); return; }
   if (ref.blockId && state.world?.blocks[ref.blockId]) { set({ tab: 'map', sheets: [] }); openSheet({ kind: 'block', blockId: ref.blockId }); return; }
   if (ref.npcId && state.world?.npcs[ref.npcId]) { openSheet({ kind: 'npc', npcId: ref.npcId }); }

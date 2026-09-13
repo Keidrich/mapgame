@@ -10,8 +10,8 @@ self.onmessage = (ev: MessageEvent<ChunkJob>) => {
   try {
     const origin = chunkBounds(key).center;
     const r = parseRoads(roads, origin);
-    const p = pois ? parsePois(pois) : { pois: [], places: [] };
-    const chunk = buildChunk({ key, roads: r.roads, nodePos: r.nodePos, water: r.water, industrial: r.industrial, pois: p.pois, places: p.places });
+    const p = pois ? parsePois(pois) : { pois: [], places: [], landmarks: [] };
+    const chunk = buildChunk({ key, roads: r.roads, nodePos: r.nodePos, water: r.water, industrial: r.industrial, pois: p.pois, places: p.places, landmarks: p.landmarks });
     self.postMessage({ ok: true, chunk, streets: r.roads.length });
   } catch (e) {
     self.postMessage({ ok: false, error: (e as Error).message });

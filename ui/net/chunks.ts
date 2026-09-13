@@ -14,7 +14,7 @@ export const OVERPASS_MIRRORS = [
   'https://overpass.private.coffee/api/interpreter',
 ];
 const MARGIN_DEG = 0.003; // ~330 m so faces on the chunk border are complete
-const CACHE_VERSION = 'c2';
+const CACHE_VERSION = 'c3'; // c3: chunks carry school/police landmarks
 
 const inflight = new Map<string, Promise<GeoChunk>>();
 const memory = new Map<string, GeoChunk>();
@@ -89,8 +89,8 @@ function buildInWorker(job: ChunkJob): Promise<{ chunk: GeoChunk; streets: numbe
 function buildInline(job: ChunkJob): { chunk: GeoChunk; streets: number } {
   const origin = chunkBounds(job.key).center;
   const r = parseRoads(job.roads, origin);
-  const p = job.pois ? parsePois(job.pois) : { pois: [], places: [] };
-  return { chunk: buildChunk({ key: job.key, roads: r.roads, nodePos: r.nodePos, water: r.water, industrial: r.industrial, pois: p.pois, places: p.places }), streets: r.roads.length };
+  const p = job.pois ? parsePois(job.pois) : { pois: [], places: [], landmarks: [] };
+  return { chunk: buildChunk({ key: job.key, roads: r.roads, nodePos: r.nodePos, water: r.water, industrial: r.industrial, pois: p.pois, places: p.places, landmarks: p.landmarks }), streets: r.roads.length };
 }
 
 async function fetchChunk(key: string, onStatus: (s: string) => void): Promise<GeoChunk> {

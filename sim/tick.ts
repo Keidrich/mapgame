@@ -126,7 +126,7 @@ export function endDay(w: World): World {
   const captain = Object.values(w.npcs).find(n => n.official?.kind === 'captain');
   const captainHelp = captain && captain.rel.trust >= 30 ? 1.5 : 0;
   if (p.heat >= 100) bust(w, rng);
-  else if (p.heat > 60 && rng.chance((p.heat - 60) / 150)) raid(w, rng);
+  else if (p.heat > 60 && rng.chance(((p.heat - 60) / 150) * (nearPoliceAssets(w).length ? 1.5 : 1))) raid(w, rng);
   p.heat = clamp(p.heat - (4 + captainHelp + p.heat * 0.03)); // old news cools fastest
   for (const b of Object.values(w.blocks)) b.heat = clamp(b.heat - 3);
 
@@ -167,11 +167,25 @@ function spend(w: World, amount: number) {
   const fromDirty = Math.min(w.player.dirty, amount); w.player.dirty -= fromDirty; w.player.cash -= amount - fromDirty;
 }
 
+/** Blocks with a police station on them or next door. */
+export function nearPolice(w: World, blockId: string): boolean {
+  const b = w.blocks[blockId]; if (!b) return false;
+  return b.tags.includes('police') || b.neighborIds.some(id => w.blocks[id]?.tags.includes('police'));
+}
+function nearPoliceAssets(w: World): ({ kind: 'racket'; id: string } | { kind: 'safehouse'; id: string })[] {
+  const p = w.player;
+  return [
+    ...p.racketIds.filter(id => w.rackets[id] && nearPolice(w, w.businesses[w.rackets[id].businessId].blockId)).map(id => ({ kind: 'racket' as const, id })),
+    ...p.safehouseIds.filter(id => w.safehouses[id] && nearPolice(w, w.safehouses[id].blockId)).map(id => ({ kind: 'safehouse' as const, id })),
+  ];
+}
+
 function raid(w: World, rng: import('./rng').Rng) {
   const p = w.player;
   const targets = [...p.racketIds.map(id => ({ kind: 'racket' as const, id })), ...p.safehouseIds.map(id => ({ kind: 'safehouse' as const, id }))];
   if (!targets.length) return;
-  const t = rng.pick(targets);
+  const close = nearPoliceAssets(w); // the station down the street gets there first
+  const t = close.length && rng.chance(0.7) ? rng.pick(close) : rng.pick(targets);
   if (t.kind === 'racket') {
     const r = w.rackets[t.id]; const b = w.businesses[r.businessId];
     r.disrupted = rng.int(3, 6); const fine = Math.round(500 + r.lastIncome * 4); spend(w, fine);

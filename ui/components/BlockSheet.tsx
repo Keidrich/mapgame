@@ -23,11 +23,12 @@ export function BlockSheet({ blockId }: { blockId: Id }) {
 
   return (
     <Sheet title={b.name} subtitle={`${districtName(w, b)} · ${select.factionName(w, ctrl)}${ctrl ? ' turf' : ''}${b.tags.includes('home') ? ' · 🏠 Home turf' : ''}`} accent={select.factionColor(w, ctrl)}>
-      {(b.tags.includes('home') || b.tags.includes('school') || b.tags.includes('police')) && (
+      {(b.tags.includes('home') || b.tags.includes('school') || b.tags.includes('police') || select.nearPolice(w, b.id)) && (
         <div className="chips mb8">
           {b.tags.includes('home') && <span className="chip" style={{ color: 'var(--gold)' }}>Home turf: less heat, warmer people</span>}
           {b.tags.includes('school') && <span className="chip" style={{ color: 'var(--orange)' }}>School nearby: heat ×1.5</span>}
           {b.tags.includes('police') && <span className="chip" style={{ color: 'var(--red)' }}>Police station: raids come fast</span>}
+          {!b.tags.includes('police') && select.nearPolice(w, b.id) && <span className="chip" style={{ color: 'var(--orange)' }}>Station next door: raids hit here first</span>}
         </div>
       )}
       <div className="col" style={{ gap: 4 }}>

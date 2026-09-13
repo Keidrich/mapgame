@@ -9,7 +9,7 @@ import type { LatLng } from '@sim/types';
 import { buildGraph, faces } from './polygonize';
 import type { Polyline } from './polygonize';
 import { centroid, labelPoint, pointInRing, signedArea, simplifyRing, toLatLng, toXY, type XY } from './project';
-import type { GeoBlock, GeoPlace, GeoPoi } from './types';
+import type { GeoBlock, GeoPlace, GeoPoi, GeoLandmark } from './types';
 import { hexCorners, hexCenter, hexKey, latLngToHex, neighbors, spiral, hexToMeters, metersToLatLng } from '@sim/hex';
 
 export const CHUNK_DEG = 0.02; // latitude degrees per chunk (~2.2 km)
@@ -49,6 +49,7 @@ export interface GeoChunk {
   blocks: GeoBlock[];   // each with edgeKeys for cross-chunk linking
   pois: GeoPoi[];
   places: GeoPlace[];
+  landmarks?: GeoLandmark[]; // schools and police stations with the block they sit in (absent on older cached chunks)
   industrialBlockIds: string[];
   waterAdjacentBlockIds: string[];
 }
@@ -61,6 +62,7 @@ export interface ChunkInput {
   industrial: XY[][];
   pois: { id: string; name?: string; type: GeoPoi['type']; pos: LatLng }[];
   places: GeoPlace[];
+  landmarks?: GeoLandmark[];
   minAreaM2?: number;
   maxAreaM2?: number;
   maxBlocks?: number;
@@ -108,10 +110,12 @@ export function buildChunk(input: ChunkInput): GeoChunk {
     const i = rings.findIndex(r => pointInRing(xy, r));
     if (i >= 0) pois.push({ id: p.id, name: p.name, type: p.type, pos: p.pos, blockId: blocks[i].id });
   }
+  const landmarks: GeoLandmark[] = [];
+  for (const l of input.landmarks ?? []) { const xy = toXY(origin, l.pos); const i = rings.findIndex(r => pointInRing(xy, r)); if (i >= 0) landmarks.push({ ...l, blockId: blocks[i].id }); }
   const industrialBlockIds = blocks.filter((_, i) => { const c = centroid(rings[i]); return input.industrial.some(r => pointInRing(c, r)); }).map(b => b.id);
   const waterAdjacentBlockIds = blocks.filter((b, i) => rings[i].some(p => input.water.some(w => distToRing(p, w) < 60)) || (b.neighborIds.length <= 2 && b.areaM2 > 20000)).map(b => b.id);
   const places = input.places.filter(p => p.pos.lat >= bounds.south && p.pos.lat < bounds.north && p.pos.lng >= bounds.west && p.pos.lng < bounds.east);
-  return { key: input.key, source: 'osm', blocks, pois, places, industrialBlockIds, waterAdjacentBlockIds };
+  return { key: input.key, source: 'osm', blocks, pois, places, landmarks, industrialBlockIds, waterAdjacentBlockIds };
 }
 
 /** Offline / empty-area fallback: hexes tiling the chunk, ids stable by hex coordinate. */
@@ -126,7 +130,7 @@ export function hexChunk(key: string): GeoChunk {
     // edge keys let hex chunks link to their neighbours across the chunk border
     edgeKeys: hexEdgeKeys(origin, h, size),
   }));
-  return { key, source: 'hex', blocks, pois: [], places: [], industrialBlockIds: [], waterAdjacentBlockIds: [] };
+  return { key, source: 'hex', blocks, pois: [], places: [], landmarks: [], industrialBlockIds: [], waterAdjacentBlockIds: [] };
 }
 function hexEdgeKeys(origin: LatLng, h: { q: number; r: number }, size: number): string[] {
   // global hex edge = the two adjacent hexes' global keys; hexes are global because chunks share the same lattice only within a chunk,
