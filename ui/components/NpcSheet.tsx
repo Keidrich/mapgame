@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { select } from '@sim/index';
-import type { Assignment, Id } from '@sim/types';
+import type { Assignment, Id, World } from '@sim/types';
 import { PRODUCTION_DEFS, RACKET_DEFS, RECIPES, TRAIT_LABELS } from '@content/rackets';
 import { assignmentLabel, cap, fmtMoney, initials, playerRackets, playerSafehouses, roleLabel } from '@ui/derive';
 import { openSheet, useWorld } from '@ui/store';
@@ -106,7 +106,8 @@ function Connections({ npcId }: { npcId: Id }) {
     </>
   );
 }
-function whereBlurb(w: ReturnType<typeof useWorld>, npc: { id: Id; homeBlockId: Id }): string {
+/** ", runs Casa Roma on Mott St" — where you would actually find them. */
+function whereBlurb(w: World, npc: { id: Id; homeBlockId: Id }): string {
   const biz = Object.values(w.businesses).find(b => b.ownerId === npc.id);
   const block = w.blocks[npc.homeBlockId];
   if (biz) return `, runs ${biz.name}${block ? ` on ${block.name}` : ''}`;

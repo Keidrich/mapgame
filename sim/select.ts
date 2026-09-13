@@ -9,7 +9,7 @@ export { nearPolice } from './tick';
 export { brokerReason } from './politics';
 export { route, travelCost, isHere, npcIsHere, npcBlockIds, npcReachBlock, currentBlock, yourTurf, footholdBlocks, legworkFor, FOOTHOLD } from './travel';
 export { openCases, caseWitnessOf } from './cases';
-export { connectionsOf, familyOf, friendsOf, backingOf, connectionBlurb } from './connections';
+export { connectionsOf, familyOf, backingOf } from './connections';
 export { seatReason, members as commissionMembers } from './commission';
 export { protectRoute, protectReason, PROTECT_TRUST, PROTECT_FAVOUR_RATE } from './economy';
 export { knownRecipes, recipesForKind, restockCost, qualityOf, sellMult, shortageActive, saturationActive, productionQuality } from './production';

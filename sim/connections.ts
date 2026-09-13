@@ -48,7 +48,6 @@ export function connectionsOf(w: World, n: Npc): { npc: Npc; kind: Connection['k
   return (n.connections ?? []).map(c => ({ npc: w.npcs[c.npcId], kind: c.kind, label: c.label })).filter(x => x.npc && x.npc.alive);
 }
 export function familyOf(w: World, n: Npc): Npc[] { return connectionsOf(w, n).filter(c => c.kind === 'family').map(c => c.npc); }
-export function friendsOf(w: World, n: Npc): Npc[] { return connectionsOf(w, n).filter(c => c.kind === 'friend').map(c => c.npc); }
 
 /**
  * Real backup: living connections who live in the same district. This — not where anyone
@@ -131,12 +130,4 @@ export function applyBacking(w: World, n: Npc): void {
   if (!backing) return;
   n.nerve = clamp(n.nerve + backing * BACKING_NERVE);
   n.rel.trust = clamp(n.rel.trust - backing * BACKING_TRUST, -100, 100);
-}
-
-/** How a connection reads on a sheet: "Rosa Marconi (cousin), runs Casa Roma on Mott St". */
-export function connectionBlurb(w: World, c: { npc: Npc; kind: Connection['kind']; label: string }): string {
-  const biz = Object.values(w.businesses).find(b => b.ownerId === c.npc.id);
-  const where = w.blocks[c.npc.homeBlockId]?.name;
-  const what = biz ? `runs ${biz.name}` : c.npc.crew ? 'runs with your crew' : c.npc.faction ? `is with ${w.factions[c.npc.faction]?.short ?? 'a crew'}` : 'is around';
-  return `${c.npc.name} (${c.label}), ${what}${where ? ` on ${where}` : ''}.`;
 }
