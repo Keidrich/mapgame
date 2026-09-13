@@ -330,6 +330,43 @@ What they give is deliberately worse than the real thing, for ever:
 They start at trust `FIXER.startTrust` 20 and `known: true` — usable on day one, a long way
 from the best deal.
 
+### 4.7 Kit: what you carry
+
+A layer alongside the product Stash, not a replacement for it. The stash is bulk goods sold
+by the unit; **kit** is equipment you own (`player.items`) and carry (`player.equipped`, three
+slots). Definitions live in `content/items.ts`; `sim/items.ts` reads them and nothing invents
+per-item behaviour anywhere else.
+
+An item is three numbers and never a flat upgrade:
+
+- `skillBoost` folds into the crew's skill total in `opChance()`, as if somebody brought an
+  extra pair of hands.
+- `approachBias` scales the chosen approach's skill weights. A sawn-off is +0.5 on loud and
+  −0.35 on quiet; lockpicks are +0.35 quiet and −0.15 loud. The same kit that makes one
+  approach a good idea makes another a bad one.
+- `heatMult` multiplies what a job leaves behind, the same way an approach's `heat` does, on
+  success and on failure.
+
+One limit worth knowing: `opChance` caps each skill's contribution at 1.3× what the job needs,
+so kit cannot gild a job the crew is already over-qualified for — it closes gaps on the hard
+jobs, and the penalty side always lands. That is the intended shape, and
+`sim/items.test.ts` pins it.
+
+The catalogue starts small and real: three weapon tiers (bat → pistol → sawn-off), a lockpick
+set, a getaway car, a burner phone and a laptop. The last two are deliberately the groundwork
+for a later cybercrime pass — the type can already represent them; nothing reads them yet.
+
+**Markets.** Pawn shops sell what they can legally display; a **back room**
+(`black_market`, one per ~15 blocks of a district, never where the police are thick) carries
+the rest. Stock is derived from the business id, so a shop's shelf is its own, stable, and
+costs nothing in the save. Buying takes clean cash and being there in person, like every other
+purchase; selling pays **dirty**, like anything else out of a back room — there is no
+laundering exception for used kit. Every generated city has at least one back room, because a
+city without one would cap the weapon ladder at a baseball bat.
+
+Items do not wear out, break or get lost in this phase. When something eventually takes a
+piece of kit off the player, it removes one id and that is the whole of it.
+
 ## 5. Rackets, production, ops
 
 **Rackets** (persistent, on a business): protection, numbers, bookmaking, gambling

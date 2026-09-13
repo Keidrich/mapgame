@@ -10,6 +10,7 @@ import { Meter, RelMeters } from './Meter';
 import { Act, AmountPicker, Disclosure, SceneAct } from './Act';
 import { NpcRow } from './Rows';
 import { Info, Term, TermChip } from './Info';
+import { MarketSection } from './Kit';
 import { AwayNotice } from './Walk';
 
 export function BusinessSheet({ businessId }: { businessId: Id }) {
@@ -66,6 +67,7 @@ export function BusinessSheet({ businessId }: { businessId: Id }) {
       )}
 
       <AwayNotice blockId={biz.blockId} what={biz.name} />
+      <MarketSection businessId={businessId} />
       <div className="section-title">Actions<Info id="odds" /></div>
       <div className="actions">
         {owner && <SceneAct scene={{ kind: 'visit', npcId: owner.id, businessId }} label="Visit" icon="🤝" />}

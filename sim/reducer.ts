@@ -20,6 +20,8 @@ import { petition, seatReason } from './commission';
 import { claimedByPlayer } from './abandoned';
 import { isHeld, resolveHostage, roomFor } from './hostages';
 import { PLAYER_NOTE_MAX, opLocked } from './select';
+import { EQUIP_MAX, buyPrice, equipSlotsLeft, isMarket, marketStock, ownedCount, sellPrice } from './items';
+import { ITEM_DEFS } from '@content/items';
 import { moveProduct, onJoin, recipesForKind, restockCost, sellMult } from './production';
 import { PRODUCTION_UPGRADE_MULT, RECIPES } from '@content/rackets';
 import { FIXER, LAUNDER_RATE, LIEUTENANT } from '@content/rackets';
@@ -129,6 +131,30 @@ export function can(w: World, a: Action): Affordance {
     case 'insure': { const b = biz(a.businessId); if (b?.ownedBy !== 'player') return no('Not yours.'); if (b.insured) return no('Already insured.'); const c = Math.round(b.value * 0.08); const r = cash(c); return r ? no(r) : yes({ cash: c }); }
     case 'repair': { const b = biz(a.businessId); if (b?.ownedBy !== 'player') return no('Not yours.'); if (b.condition >= 95) return no('Nothing to fix.'); const c = Math.round((100 - b.condition) * b.value / 400); const r = cash(c); return r ? no(r) : yes({ cash: c }); }
 
+    case 'buy_item': {
+      const b = biz(a.businessId); if (!b) return no('No such place.');
+      if (!isMarket(b)) return no(`${b.name} does not deal in that kind of thing.`);
+      const item = ITEM_DEFS[a.itemId]; if (!item) return no('No such thing.');
+      if (!marketStock(b).some(i => i.id === item.id)) return no(`${b.name} has no ${item.label.toLowerCase()} on the shelf.`);
+      const h = hereBiz(b); if (h) return no(h);
+      const r = cash(buyPrice(item)); return r ? no(r) : yes({ cash: buyPrice(item) });
+    }
+    case 'sell_item': {
+      const b = biz(a.businessId); if (!b) return no('No such place.');
+      if (!isMarket(b)) return no(`${b.name} is not buying.`);
+      const item = ITEM_DEFS[a.itemId]; if (!item) return no('No such thing.');
+      if (!ownedCount(w, item.id)) return no(`You do not have a ${item.label.toLowerCase()}.`);
+      const h = hereBiz(b); if (h) return no(h);
+      return yes();
+    }
+    case 'equip': {
+      const item = ITEM_DEFS[a.itemId]; if (!item) return no('No such thing.');
+      if (!a.on) return (p.equipped ?? []).includes(item.id) ? yes() : no('Not on you.');
+      if (!ownedCount(w, item.id)) return no(`You do not own a ${item.label.toLowerCase()}.`);
+      if ((p.equipped ?? []).filter(id => id === item.id).length >= ownedCount(w, item.id)) return no(`You are already carrying ${ownedCount(w, item.id) > 1 ? 'all of those' : 'it'}.`);
+      if (equipSlotsLeft(w) <= 0) return no(`You can carry ${EQUIP_MAX} things. Leave something at home first.`);
+      return yes();
+    }
     case 'start_racket': {
       const b = biz(a.businessId); if (!b) return no('No such place.');
       const def = RACKET_DEFS[a.kind];
@@ -564,6 +590,38 @@ export function dispatch(prev: World, a: Action): World {
       const chance = approachChance(w, 'parley', ap_, n); const ok = rng.int(1, 100) <= chance;
       const tone = parley(w, c, n, ap_, ok, rng);
       log(w, resultLine('parley', ap_, ok, rng), tone, { npcId: n.id, blockId: c.blockId });
+      break;
+    }
+    case 'buy_item': {
+      const b = w.businesses[a.businessId]; const item = ITEM_DEFS[a.itemId];
+      const price = buyPrice(item);
+      takeCash(w, price);                                  // clean cash, like every other purchase
+      p.items = [...(p.items ?? []), item.id];
+      adjustRel(npc(b.ownerId), { trust: 2, respect: 1 }); // a paying customer is a customer
+      log(w, `${item.icon} ${item.label} — ${money(price)} at ${b.name}.`, 'money', { businessId: b.id });
+      break;
+    }
+    case 'sell_item': {
+      const b = w.businesses[a.businessId]; const item = ITEM_DEFS[a.itemId];
+      const paid = sellPrice(w, item);
+      const owned = [...(p.items ?? [])];
+      owned.splice(owned.indexOf(item.id), 1);
+      p.items = owned;
+      // it goes out of your hands whether you were carrying it or not
+      const carried = [...(p.equipped ?? [])];
+      const worn = carried.indexOf(item.id);
+      if (worn >= 0 && carried.filter(id => id === item.id).length > owned.filter(id => id === item.id).length) carried.splice(worn, 1);
+      p.equipped = carried;
+      p.dirty += paid;                                     // back-room money is dirty money
+      log(w, `${b.name} takes the ${item.label.toLowerCase()} off you for ${money(paid)}. Used goods, used prices.`, 'money', { businessId: b.id });
+      break;
+    }
+    case 'equip': {
+      const item = ITEM_DEFS[a.itemId];
+      const carried = [...(p.equipped ?? [])];
+      if (a.on) carried.push(item.id);
+      else carried.splice(carried.indexOf(item.id), 1);
+      p.equipped = carried;
       break;
     }
     case 'set_note': {

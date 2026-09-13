@@ -112,6 +112,7 @@ export const BUSINESS_NAME_PARTS = {
   bank: [['First','National','Merchants','Union','Federal','Commerce','Peoples'], ['Bank','Savings & Loan','Trust','Credit Union']],
   jeweller: [['Goldstein','Royal','Diamond','Crown','Fine','Antique'], ['Jewelers','Gold & Gems','Jewelry','Watches']],
   armored_depot: [['Iron','Titan','Secure','Brinkley','Fortress'], ['Armored','Security','Transport','Vault Services']],
+  black_market: [['Back Room','The Lot','Night','Iron','Cut-Rate','Surplus','Cousin'], ['Trading Post','Exchange','Lock-Up','Outfitters','Supply','Sundries']],
 } as const;
 
 export const FACTION_ARCHETYPES = [

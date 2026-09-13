@@ -14,6 +14,61 @@ House rules for an entry (see `CLAUDE.md` → *Leave a trail*):
 
 ---
 
+## 2026-09-13 — Kit: items, markets, and equipment that changes a job
+
+**What.** Personal equipment as a layer alongside the product stash: a small catalogue of
+weapons, tools, tech and a car; markets that buy and sell them; and real effects on an op's
+odds and its heat. A loadout screen on the Crew tab, the shelf on a market's sheet, and the
+carried kit shown against the approach you are picking in Ops.
+
+**Why.** Everything after this — cybercrime, muggings, better heists — needs a place for
+things the player owns and carries. The stash is bulk goods sold by the unit and the wrong
+shape for it, so this is a new layer rather than a change to that one.
+
+**How.** `content/items.ts` holds the catalogue; `sim/items.ts` reads it and nothing invents
+per-item behaviour elsewhere. Each item is `skillBoost` (folded into the crew total in
+`opChance`), `approachBias` (scales the chosen approach's skill weights) and `heatMult`
+(multiplies what the job leaves, like an approach's own `heat`). Three carried at once.
+
+Every item is a tradeoff, enforced by a test: a sawn-off is +0.5 loud / −0.35 quiet, lockpicks
++0.35 quiet / −0.15 loud, a burner cuts heat 15%. **Measured** across the op list with a
+three-hand crew: a sawn-off takes a bank job's loud odds 33% → 44% and its quiet odds 32% → 10%;
+lockpicks take the same job 33% → 29% loud and 32% → 42% quiet.
+
+One limit worth knowing, found while writing the tests rather than assumed: `opChance` caps
+each skill's contribution at 1.3× the job's need, so on an easy job an over-qualified crew is
+already at the ceiling and kit adds nothing on that side — while the penalty side still lands.
+Kit closes gaps on hard jobs. That is the right shape, and there is a test named for it.
+
+Markets reuse the buy/sell reducer pattern rather than new economy plumbing: buying takes clean
+cash and being there in person, selling pays **dirty**, and selling one of a pair leaves the one
+in your hand alone. A shop's stock is derived from its business id — stable per shop, nothing
+stored in the save. Pawn shops carry what they can display; the new `black_market` type carries
+the under-counter half.
+
+**Files.** `content/items.ts` (new), `sim/items.ts` (new), `sim/types.ts`, `sim/actions.ts`,
+`sim/reducer.ts`, `sim/select.ts` (`opChance`), `sim/ops.ts` (heat), `sim/generate.ts`,
+`sim/populate.ts`, `content/businesses.ts`, `content/names.ts`, `content/glossary.ts`,
+`ui/components/Kit.tsx` (new), `ui/components/CrewTab.tsx`, `ui/components/BusinessSheet.tsx`,
+`ui/components/OpsTab.tsx`, `scripts/headless.ts`, `sim/items.test.ts` (new), `docs/DESIGN.md` §4.7.
+
+**Watch out.**
+- **No `WORLD_VERSION` bump**: `items` and `equipped` are optional on `Player` and every read
+  goes through `sim/items.ts`, which defaults them, so v7 saves load and simply own nothing.
+- Markets were unreachable in some cities on the first cut — a starting chunk only generates
+  **two** districts, so a one-per-district rule meant exactly one back room, and cities whose
+  districts did not carry the type had none at all. Now: one per ~15 blocks of a district,
+  never where police > 55, plus a guarantee of at least one per city. A city grows as you
+  explore (1 → 4 → 8 back rooms over three more chunks).
+- The soak bot buys kit when a market is within one block. It first shopped across town every
+  day, which cost it about a third of its take across six seeds — a bot problem, not a balance
+  one, but the reason the summary line now prints what it is carrying.
+- `black_market` rolls that fail the rarity test become pawn shops, which nudges pawn-shop
+  counts up slightly in the districts that carry the type.
+- UI tests compare rendered HTML, where an NPC nickname's quotes are escaped
+  (`Darlene &quot;Grip&quot; Reed`). That has broken two assertions now; `ui/test-util.ts`
+  holds `asHtml()` for it — use it for any name comparison.
+
 ## 2026-09-13 — Trim the dead band under the tab bar on a home-screen install
 
 **What.** Installed to the home screen, the bottom nav reserved the whole home-indicator inset

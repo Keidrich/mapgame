@@ -5,6 +5,7 @@ import { addProduct, knownRecipes, unlockRecipe } from './production';
 import { OP_APPROACHES, OP_DEFS } from '@content/rackets';
 import type { Rng } from './rng';
 import { opChance } from './select';
+import { kitHeatMult } from './items';
 import { PLAYER, type Op, type World } from './types';
 import { addHeat, addInfluence, adjustRel, clamp, jailDays, log, money, spreadRep } from './util';
 import { freeOpCrew } from './reducer';
@@ -28,7 +29,8 @@ export function resolveOp(w: World, o: Op, rng: Rng) {
   if (success) {
     const [lo, hi] = def.payout;
     const value = Math.round(lo + (hi - lo) * rng.float() * (0.7 + Math.min(1, Math.max(0, margin) / 60)) * (ap?.payout ?? 1));
-    res.heat = Math.round(def.heat * (margin > 30 ? 0.6 : 1) * (ap?.heat ?? 1));
+    // the kit you carried changes what the job leaves behind, the same way the approach does
+    res.heat = Math.round(def.heat * (margin > 30 ? 0.6 : 1) * (ap?.heat ?? 1) * kitHeatMult(w));
     if (o.insideId && w.npcs[o.insideId]) adjustRel(w.npcs[o.insideId], { trust: 5, respect: 5 });
     switch (o.kind) {
       case 'heist_bank': case 'heist_armored': case 'robbery': case 'raid_rival': case 'check_kiting': {
@@ -152,7 +154,7 @@ export function resolveOp(w: World, o: Op, rng: Rng) {
     p.respect = clamp(p.respect + (def.difficulty >= 60 ? 6 : 2));
     for (const n of crew) if (n.crew) n.crew.loyalty = clamp(n.crew.loyalty + 5);
   } else {
-    res.heat = Math.round(def.heat * 1.4 * (ap?.heat ?? 1));
+    res.heat = Math.round(def.heat * 1.4 * (ap?.heat ?? 1) * kitHeatMult(w));
     const bad = -margin > 30; // badly failed
     if (o.insideId && w.npcs[o.insideId]) { const ins = w.npcs[o.insideId]; ins.rel.trust = -50; ins.notes.push('Burned as an inside man.'); if (target) adjustRel(w.npcs[target.ownerId], { trust: -30, fear: 10 }); }
     if (o.approach === 'loud' && bad && crew.length && rng.chance(0.3)) { const v = rng.pick(crew); if (v.crew && v.crew.status !== 'dead') { v.crew.status = 'dead'; v.crew.assignment = undefined; v.alive = false; } }

@@ -41,7 +41,7 @@ export function generateWorld(opts: NewGameOptions): World {
       name: opts.playerName, background: opts.background, startTrait: opts.background === 'custom' ? opts.custom?.trait : undefined,
       skills: startingSkills(opts.background, opts.custom?.skills),
       cash: 2500, dirty: 0, heat: 0, respect: 5, fear: 0, ap: 8, apMax: 8, stash: emptyStash(),
-      legwork: 0, legworkMax: 0, currentBlockId: '', crewEver: 0,
+      legwork: 0, legworkMax: 0, currentBlockId: '', crewEver: 0, items: [], equipped: [],
       crewIds: [], safehouseIds: [], businessIds: [], racketIds: [], opIds: [], lawyer: false, jailedDays: 0, busts: 0, launderedToday: 0, homeBlockId: '',
     },
     pendingEvents: [], log: [], nextId: 1,
@@ -84,6 +84,15 @@ export function generateWorld(opts: NewGameOptions): World {
   // at a bad rate a bad opening can dead-end. They stand on the start block: zero legwork,
   // reachable before anything else in the city.
   addFixer(w, rng, nid, startBlock);
+  // Every city has one back room. Pawn shops sell what they can display — a bat, a burner,
+  // lockpicks — and the rest of the catalogue exists only under a counter, so a city without
+  // one would cap the whole weapon ladder at a baseball bat.
+  if (!Object.values(w.businesses).some(b => b.type === 'black_market')) {
+    const near = blocks.slice().sort((a, b) => distanceM(a.center, opts.origin) - distanceM(b.center, opts.origin))
+      .find(b => b.id !== startBlock.id && !b.abandoned) ?? startBlock;
+    const m = addBusiness(rng, w, nid, near, 'black_market', used);
+    w.log.push({ day: 1, text: `Somebody points you at ${m.name} on ${near.name}. They sell the kind of thing you cannot ask for by name.`, tone: 'info', refs: { businessId: m.id } });
+  }
   const startOwner = w.npcs[w.businesses[startBlock.businessIds[0]].ownerId];
   startOwner.rel.trust = 20; startOwner.rel.respect = 15;
 

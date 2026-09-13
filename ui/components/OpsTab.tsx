@@ -9,6 +9,36 @@ import { Info, Term, TermChip } from './Info';
 import { OpTree } from './OpTree';
 
 
+/** What the kit you are carrying is doing to the approach on the table. */
+function KitOnApproach({ approach }: { approach?: OpApproach }) {
+  const w = useWorld();
+  const carried = select.equippedItems(w);
+  if (!carried.length) return <p className="small muted mt8">You are carrying nothing. A weapon, a lockpick set or a car changes these odds — kit is on the Crew tab, and markets sell it.</p>;
+  const heat = select.kitHeatMult(w);
+  return (
+    <div className="card mt8">
+      <div className="row between">
+        <b className="small">🧰 What you are carrying<Info id="kit" /></b>
+        {heat !== 1 && <span className={`chip ${heat > 1 ? 'red' : 'green'}`}>Heat ×{heat.toFixed(2)}</span>}
+      </div>
+      <div className="col mt8" style={{ gap: 4 }}>
+        {carried.map(item => {
+          const bias = approach ? item.mods.approachBias?.[approach] ?? 0 : 0;
+          const boost = Object.entries(item.mods.skillBoost ?? {}).map(([k, v]) => `${k} +${v}`).join(', ');
+          return (
+            <div key={item.id} className="row between small">
+              <span>{item.icon} {item.label}{boost && <span className="muted"> · {boost}</span>}</span>
+              {approach
+                ? <span className={bias > 0 ? 'green' : bias < 0 ? 'red' : 'muted'}>{bias === 0 ? 'no help here' : `${bias > 0 ? '+' : ''}${Math.round(bias * 100)}% on ${OP_APPROACHES[approach].label.toLowerCase()}`}</span>
+                : <span className="muted">pick an approach</span>}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export function OpsTab() {
   const w = useWorld();
   const active = activeOps(w);
@@ -152,6 +182,7 @@ function Planner() {
                     </button>
                   ); })}
               </div>
+              <KitOnApproach approach={approach} />
               {kind === 'kidnap' && (
                 <>
                   <div className="section-title">Where do they go?</div>

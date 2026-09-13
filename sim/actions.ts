@@ -30,6 +30,10 @@ export type Action =
   | { type: 'sell_business'; businessId: Id }
   | { type: 'insure'; businessId: Id }
   | { type: 'repair'; businessId: Id }
+  // --- kit (content/items.ts) ---
+  | { type: 'buy_item'; businessId: Id; itemId: string }    // clean cash, at a market, face to face
+  | { type: 'sell_item'; businessId: Id; itemId: string }   // dirty cash back, like anything else sold out of a back room
+  | { type: 'equip'; itemId: string; on: boolean }          // carry it or leave it at home; free
   // --- rackets ---
   | { type: 'start_racket'; businessId: Id; kind: RacketKind; product?: ProductKind }
   | { type: 'upgrade_racket'; racketId: Id }

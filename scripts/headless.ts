@@ -17,6 +17,15 @@ for (let d = 0; d < days; d++) {
   while (w.pendingEvents.length) { const e = w.pendingEvents[0]; const opts = e.options.filter(o => can(w, { type: 'resolve_event', eventId: e.id, optionId: o.id }).ok); const o = opts.length ? rng.pick(opts) : e.options[e.options.length - 1]; w = dispatch(w, { type: 'resolve_event', eventId: e.id, optionId: o.id }); }
   // promote the best-qualified idle crew member to run a district that has nobody
   for (const d of select.districtsRunnable(w)) { if (select.lieutenantOf(w, d.id)) continue; const pool = select.crew(w).filter(n => n.crew?.status === 'idle' || n.crew?.assignment?.kind === 'racket'); const pick = pool.find(n => !select.promoteReason(w, n, d.id)); if (pick) tryAct({ type: 'assign', npcId: pick.id, assignment: { kind: 'lieutenant', districtId: d.id } }); }
+  // kit: buy when a market is on the doorstep and there is money spare. A sensible player
+  // does not spend a day's legwork crossing town for a bat — measured across six seeds, that
+  // habit alone cost the bot about a third of its take.
+  if (w.player.cash > 800 && (w.player.equipped ?? []).length < select.EQUIP_MAX) {
+    const shop = Object.values(w.businesses).filter(b => select.isMarket(b) && (select.travelCost(w, b.blockId) ?? 9) <= 1)[0];
+    const want = shop && select.marketStock(shop).filter(i => !(w.player.items ?? []).includes(i.id)).sort((a, b) => b.cost - a.cost).find(i => i.cost < w.player.cash * 0.7);
+    if (shop && want && goTo(shop.blockId)) tryAct({ type: 'buy_item', businessId: shop.id, itemId: want.id });
+  }
+  for (const item of select.ownedItems(w)) if (select.equipSlotsLeft(w) > 0 && !select.isEquipped(w, item.id)) tryAct({ type: 'equip', itemId: item.id, on: true });
   let guard = 0;
   while (w.player.ap > 0 && guard++ < 30) {
     const p = w.player; const biz = nearBiz();
@@ -72,7 +81,7 @@ for (let d = 0; d < days; d++) {
 const p = w.player;
 console.log(`Day ${w.day} | cash ${Math.round(p.cash)} dirty ${Math.round(p.dirty)} heat ${Math.round(p.heat)} respect ${p.respect} fear ${p.fear}`);
 console.log(`productions ${Object.values(w.productions).map(pr => `${pr.kind} L${pr.level} q${pr.quality ?? '-'}${pr.recipe ? ` (${pr.recipe})` : ''} ${pr.lastOutput}/day`).join(', ') || 'none'} | recipes ${(p.recipes ?? []).join(',') || 'none'} | booze q${select.qualityOf(p, 'booze')} x${Math.round(p.stash.booze)}`);
-console.log(`standing on ${w.blocks[p.currentBlockId]?.name ?? '?'} | legwork ${p.legwork}/${p.legworkMax}`);
+console.log(`standing on ${w.blocks[p.currentBlockId]?.name ?? '?'} | legwork ${p.legwork}/${p.legworkMax} | kit ${select.equippedItems(w).map(i => i.label).join(', ') || 'none'}${(p.items ?? []).length > (p.equipped ?? []).length ? ` (owns ${(p.items ?? []).length})` : ''}`);
 console.log(`crew ${p.crewIds.length} (${select.crew(w).map(n => n.crew?.status).join(',')}) | businesses ${p.businessIds.length} | rackets ${p.racketIds.length} (${p.racketIds.map(id => w.rackets[id].kind).join(',')}) | safehouses ${p.safehouseIds.length} | control ${(select.controlShare(w) * 100).toFixed(1)}%`);
 for (const f of Object.values(w.factions)) console.log(`${f.name.padEnd(24)} ${f.temperament.padEnd(11)} soldiers ${String(f.soldiers).padStart(2)} cash ${String(Math.round(f.cash)).padStart(7)} blocks ${String(select.blocksOf(w, f.id).length).padStart(3)} stance→player ${f.stance[PLAYER]} (${Math.round(f.standing[PLAYER])})`);
 for (const l of w.log.filter(l => l.text.startsWith('Day ') && l.day % 5 === 0)) console.log(`[${l.day}] ${l.text}`);

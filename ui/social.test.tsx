@@ -10,6 +10,7 @@ import type { World } from '@sim/types';
 import { SocialTab } from './components/SocialTab';
 import { NpcSheet } from './components/NpcSheet';
 import { newGame } from './store';
+import { asHtml } from './test-util';
 
 const mk = (seed = 12) => generateWorld({ origin: { lat: 51.5, lng: -0.12 }, placeName: 'London', playerName: 'T', background: 'muscle', seed });
 const render = (w: World) => { newGame(w); return renderToString(<SocialTab />); };
@@ -20,11 +21,11 @@ describe('the Social tab', () => {
     const html = render(w);
     const met = select.metNpcs(w);
     expect(met.length).toBeGreaterThan(2);
-    for (const n of met) expect(html, n.name).toContain(n.name);
+    for (const n of met) expect(html, n.name).toContain(asHtml(n.name));
     const strangers = Object.values(w.npcs).filter(n => !select.isKnown(n));
     expect(strangers.length).toBeGreaterThan(0);
     // an unmet person's name only shows up once you open somebody who knows them
-    for (const n of strangers.slice(0, 25)) expect(html, n.name).not.toContain(n.name);
+    for (const n of strangers.slice(0, 25)) expect(html, n.name).not.toContain(asHtml(n.name));
   });
 
   it('renders every grouping without falling over, even with nobody met', () => {

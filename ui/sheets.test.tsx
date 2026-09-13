@@ -14,6 +14,7 @@ import { BlockSheet } from './components/BlockSheet';
 import { BusinessSheet } from './components/BusinessSheet';
 import { NpcSheet } from './components/NpcSheet';
 import { newGame } from './store';
+import { asHtml } from './test-util';
 
 const mk = (seed: number) => generateWorld({ origin: { lat: 51.5, lng: -0.12 }, placeName: 'London', playerName: 'T', background: 'muscle', seed });
 /** A city with street crews holding corners. */
@@ -36,8 +37,8 @@ describe('every sheet renders', () => {
   it('names the crew on a corner they hold', () => {
     const crew = Object.values(w.crews)[0];
     const html = renderToString(<BlockSheet blockId={crew.blockId} />);
-    expect(html).toContain(crew.name);
-    expect(html).toContain(w.npcs[crew.bossId].name);
+    expect(html).toContain(asHtml(crew.name));
+    expect(html).toContain(asHtml(w.npcs[crew.bossId].name));
   });
 
   it('opens every business', () => {

@@ -10,6 +10,8 @@ export { brokerReason } from './politics';
 export { route, travelCost, isHere, npcIsHere, npcBlockIds, npcReachBlock, currentBlock, yourTurf, footholdBlocks, legworkFor, FOOTHOLD } from './travel';
 export { openCases, caseWitnessOf } from './cases';
 export { connectionsOf, familyOf, backingOf } from './connections';
+export { ownedItems, equippedItems, isEquipped, ownedCount, equippedCount, equipSlotsLeft, kitSkillBoost, kitApproachBias, kitHeatMult, kitMods, isMarket, marketStock, buyPrice, sellPrice, EQUIP_MAX } from './items';
+import { kitApproachBias, kitSkillBoost } from './items';
 import { connectionsOf } from './connections';
 export { seatReason, members as commissionMembers } from './commission';
 export { protectRoute, protectReason, PROTECT_TRUST, PROTECT_FAVOUR_RATE } from './economy';
@@ -61,8 +63,12 @@ export function crewSkillSum(w: World, ids: Id[]): Record<string, number> {
 }
 export function opChance(w: World, kind: OpKind, crewIds: Id[], approach?: OpApproach): number {
   const d = OP_DEFS[kind]; const s = crewSkillSum(w, crewIds); const ap = approach ? OP_APPROACHES[approach] : undefined;
+  // what the player is carrying counts: kit adds to the crew's hands, and it pulls an
+  // approach's weights up or down — a sawn-off makes a loud job better and a quiet one worse
+  for (const [k, v] of Object.entries(kitSkillBoost(w))) s[k] = (s[k] ?? 0) + (v ?? 0);
+  const bias = 1 + kitApproachBias(w, approach);
   let ratio = 0, n = 0;
-  for (const [k, need] of Object.entries(d.needs)) { const wgt = ap?.skillWeight[k as keyof typeof ap.skillWeight] ?? 1; ratio += Math.min(1.3, (s[k] * wgt) / (need || 1)); n++; }
+  for (const [k, need] of Object.entries(d.needs)) { const wgt = (ap?.skillWeight[k as keyof typeof ap.skillWeight] ?? 1) * bias; ratio += Math.min(1.3, (s[k] * wgt) / (need || 1)); n++; }
   ratio = n ? ratio / n : 1;
   const base = 50 + (ratio - 1) * 70 - (d.difficulty + (ap?.difficulty ?? 0) - 50) * 0.6 - w.player.heat * 0.15;
   return Math.max(3, Math.min(97, Math.round(base)));

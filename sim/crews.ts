@@ -5,7 +5,7 @@
  */
 import { onJoin } from './production';
 import type { Rng } from './rng';
-import { mkNpc } from './populate';
+import { controller, mkNpc } from './populate';
 import { PLAYER, type Block, type District, type FactionId, type Id, type Npc, type StreetCrew, type World } from './types';
 import { addHeat, addInfluence, adjustRel, clamp, log, money, spreadRep } from './util';
 import { addMemory } from './people';
@@ -70,7 +70,11 @@ export function tickCrews(w: World, rng: Rng) {
       if (target) { target.protection = { factionId: c.id, rate: 0.15, since: w.day }; log(w, `The ${c.name} started collecting from ${target.name}. They are a real racket now.`, 'warn', { blockId: b.id, businessId: target.id }); }
     }
     if (c.strength >= 8) {
-      const nearby = b.neighborIds.map(id => Object.entries(w.blocks[id]?.influence ?? {}).filter(([k, v]) => v >= 30 && w.factions[k]?.alive).map(([k]) => k)[0]).find(Boolean);
+      // whoever actually holds the next block over — the game's own notion of control, not
+      // whichever influence key happened to be written first
+      const nearby = b.neighborIds
+        .map(id => { const nb = w.blocks[id]; const ctrl = nb ? controller(nb) : undefined; return ctrl && w.factions[ctrl]?.alive ? ctrl : undefined; })
+        .find(Boolean);
       if (nearby) { const f = w.factions[nearby]; f.soldiers += c.soldierIds.length + 1; addInfluence(w, b.id, f.id, 45); dissolveCrew(w, c, 'absorbed', f.id); addMemory(w, b.id, 'absorbed', `${f.short} took the ${c.name} under their wing.`); log(w, `${f.name} absorbed the ${c.name}. ${b.name} is theirs now.`, 'warn', { blockId: b.id, factionId: f.id }); }
     }
   }

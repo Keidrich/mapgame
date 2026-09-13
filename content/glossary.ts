@@ -102,6 +102,11 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
     body: 'How hard they are to frighten, 0 to 100. Every threat and strongarm approach subtracts it. Cowards start low; hotheads start high, and so does anyone with family and old friends on the same streets.',
     note: 'Hidden until you size someone up, or they trust you enough to show it.',
   },
+  kit: {
+    title: 'Kit',
+    body: 'The equipment you personally own and carry: weapons, tools, tech, a car. You can have three things on you at once, and only what you are carrying counts on a job.',
+    note: 'Every piece is a tradeoff. A sawn-off makes a loud job far better and a quiet one much worse; lockpicks do the reverse. Nothing here is a flat upgrade.',
+  },
   connections: {
     title: 'Family and friends',
     body: 'Who this person actually has. Everybody in the city has people — a household of relatives, a couple of old friends, usually both. Anyone with more backup than their neighbours is harder to frighten and slower to trust a stranger, whoever they are.',

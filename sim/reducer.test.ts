@@ -201,7 +201,10 @@ describe('street crews', () => {
   });
   it('ignored crews grow and get absorbed by a neighbouring faction', () => {
     let w = world(); const c = Object.values(w.crews)[0]; c.strength = 7.9;
-    const nb = w.blocks[c.blockId].neighborIds[0]; const f = Object.values(w.factions)[0]; w.blocks[nb].influence[f.id] = 80;
+    // one neighbour, unambiguously theirs: absorption follows whoever holds the next block
+    const nb = w.blocks[c.blockId].neighborIds[0]; const f = Object.values(w.factions)[0];
+    for (const other of w.blocks[c.blockId].neighborIds) w.blocks[other].influence = {};
+    w.blocks[nb].influence[f.id] = 80;
     for (const e of w.pendingEvents) w = dispatch(w, { type: 'resolve_event', eventId: e.id, optionId: e.options.at(-1)!.id });
     w = dispatch(w, { type: 'end_day' });
     expect(w.crews[c.id]).toBeUndefined();

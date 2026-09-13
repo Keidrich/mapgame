@@ -95,6 +95,15 @@ export function populateChunk(w: World, chunk: GeoChunk, rng: Rng, opts: Populat
     while (b.businessIds.length < Math.round(target) && guard++ < 12) {
       let type = rng.weighted(mix);
       if ((type === 'bank' || type === 'armored_depot') && (b.wealth < 55 || b.businessIds.some(id => w.businesses[id].type === type))) type = 'restaurant';
+      // Back rooms are uncommon but not unique: roughly one per fifteen blocks of a
+      // district, and never where the police are thick. Beyond that the slot becomes the
+      // pawn shop such a place fronts as.
+      if (type === 'black_market') {
+        const district = w.districts[b.districtId];
+        const room = 1 + Math.floor((district?.blockIds.length ?? 0) / 15);
+        const already = Object.values(w.businesses).filter(z => z.type === 'black_market' && w.blocks[z.blockId]?.districtId === b.districtId).length;
+        if (b.police > 55 || already >= room) type = 'pawn';
+      }
       addBusiness(rng, w, nid, b, type, used);
     }
     const patronCount = Math.round(2 + b.population / 25 + rng.int(0, 2));

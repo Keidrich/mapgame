@@ -8,6 +8,7 @@ import { TRAIT_LABELS } from '@content/rackets';
 import { openSheet } from '@ui/store';
 import { Info, Term, TermChip } from './Info';
 import { BACKGROUND_BY_ID, START_TRAIT_BY_ID } from '@content/backgrounds';
+import { KitSection } from './Kit';
 
 export function CrewTab() {
   const w = useWorld();
@@ -43,6 +44,8 @@ export function CrewTab() {
         </div>
         {!p.lawyer && <div className="mt8"><Act action={{ type: 'hire_lawyer' }} label="Hire lawyer" icon="⚖️" block /></div>}
       </div>
+
+      <KitSection />
 
       <div className="section-title">Your people ({crew.length})<Info id="loyalty" /></div>
       {crew.length > 0 && (

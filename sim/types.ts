@@ -78,7 +78,8 @@ export interface Abandoned { known: boolean; claimedBy?: FactionId }
 export type BusinessType =
   | 'bar' | 'diner' | 'restaurant' | 'laundromat' | 'pawn' | 'garage'
   | 'nightclub' | 'corner_store' | 'barbershop' | 'gym' | 'cab_company'
-  | 'construction' | 'warehouse' | 'motel' | 'bank' | 'jeweller' | 'armored_depot';
+  | 'construction' | 'warehouse' | 'motel' | 'bank' | 'jeweller' | 'armored_depot'
+  | 'black_market';   // a back room that trades in kit; see content/items.ts
 
 export interface Protection {
   factionId: FactionId;
@@ -363,6 +364,13 @@ export interface Player {
   legworkMax: number;   // from wheels, refilled at End Day
   currentBlockId: Id;   // where you are standing; face-to-face actions need you here
   stash: Stash;       // product carried / at the front
+  /**
+   * Kit: ids from `content/items.ts`, duplicates allowed. `items` is everything owned,
+   * `equipped` what is on you now (EQUIP_MAX). Optional so a save made before kit existed
+   * still loads; every read goes through `sim/items.ts`, which defaults them.
+   */
+  items?: Id[];
+  equipped?: Id[];
   quality?: Partial<Record<ProductKind, number>>; // running average quality of the carried stash
   recipes?: string[]; // RECIPES ids unlocked (stolen formulas, specialists)
   crewIds: Id[];
