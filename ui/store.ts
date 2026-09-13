@@ -153,7 +153,12 @@ export async function rebuildOnRealStreets(onStatus: (s: string) => void): Promi
     onStatus('Populating the city…');
     await new Promise(r => setTimeout(r, 30));
     const { generateWorld } = await import('@sim/generate');
-    const next = generateWorld({ origin: w.origin, placeName: w.placeName, playerName: w.player.name, background: w.player.background, chunk });
+    const next = generateWorld({
+      origin: w.origin, placeName: w.placeName, playerName: w.player.name, background: w.player.background,
+      // a hand-built character keeps the spread and the edge they chose
+      custom: w.player.background === 'custom' ? { skills: w.player.skills, trait: w.player.startTrait ?? 'connected' } : undefined,
+      chunk,
+    });
     newGame(next);
     return null;
   } catch (e) { return reason(e); }

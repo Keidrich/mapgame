@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import * as maplibregl from 'maplibre-gl';
 import { resolveBasemap } from './Map';
-import { BACKGROUND_DEFS } from '@content/backgrounds';
+import {
+  BACKGROUND_DEFS, CUSTOM_BUDGET, CUSTOM_SKILL_MAX, CUSTOM_SKILL_MIN, SKILL_BLURBS, SKILL_LABELS, SKILL_ORDER, START_TRAITS, legalCustomSkills, remaining,
+} from '@content/backgrounds';
 import { BIG_CITIES } from '@content/cities';
 import { boxSpanM, generateWorld, jitterOrigin, placePrecision, shouldJitter } from '@sim/index';
 import type { PlacePrecision } from '@sim/index';
 import { Rng } from '@sim/rng';
-import type { LatLng, Player } from '@sim/types';
+import type { LatLng, Player, Skills, StartTraitId } from '@sim/types';
 import { newGame } from '@ui/store';
 import { gridChunk, loadChunk, reason } from '@ui/net/chunks';
 import { chunkBounds, chunkKeyAt, chunkNeighbors, type GeoChunk } from '@geo/chunks';
@@ -47,6 +49,12 @@ function toCorner(p: Place, avoidSector?: number): Place {
 export function Onboarding() {
   const [name, setName] = useState('');
   const [bg, setBg] = useState<Player['background']>('charm');
+  const [maker, setMaker] = useState<'preset' | 'custom'>('preset');
+  // point-buy starts flat at the floor: every point above it is the player's own choice
+  const [custom, setCustom] = useState<Skills>(() => legalCustomSkills({}));
+  const [trait, setTrait] = useState<StartTraitId>('connected');
+  const left = remaining(custom);
+  const customReady = left === 0;
   const [mode, setMode] = useState<Mode>('search');
   const [place, setPlace] = useState<Place | null>(null);
   const [status, setStatus] = useState('');
@@ -129,7 +137,12 @@ export function Onboarding() {
     }
     setBuilding('Populating the city…');
     await new Promise(r => setTimeout(r, 30));
-    const w = generateWorld({ origin, placeName: place.name, playerName: name.trim() || 'Nobody', background: bg, chunk: city, extraChunks: extra });
+    const w = generateWorld({
+      origin, placeName: place.name, playerName: name.trim() || 'Nobody',
+      background: maker === 'custom' ? 'custom' : bg,
+      custom: maker === 'custom' ? { skills: custom, trait } : undefined,
+      chunk: city, extraChunks: extra,
+    });
     if (note) w.log.push({ day: 1, text: note, tone: 'warn' });
     setBuilding(null);
     newGame(w);
@@ -144,14 +157,22 @@ export function Onboarding() {
       <input id="ob-name" className="input" placeholder="What do they call you?" value={name} onChange={e => setName(e.target.value)} autoComplete="off" maxLength={24} />
 
       <div className="section-title">Background</div>
-      <div className="col">
-        {BACKGROUND_DEFS.map(b => (
-          <button type="button" key={b.id} className={`bg-opt${bg === b.id ? ' on' : ''}`} onClick={() => setBg(b.id)}>
-            <b>{b.ico} {b.label}</b><span>{b.blurb}</span>
-            {bg === b.id && <span className="bg-detail">{b.detail}</span>}
-          </button>
-        ))}
+      <div className="segment">
+        <button type="button" className={maker === 'preset' ? 'on' : ''} onClick={() => setMaker('preset')}>Pick a life</button>
+        <button type="button" className={maker === 'custom' ? 'on' : ''} onClick={() => setMaker('custom')}>🛠️ Build your own</button>
       </div>
+      {maker === 'preset' ? (
+        <div className="col mt8">
+          {BACKGROUND_DEFS.map(b => (
+            <button type="button" key={b.id} className={`bg-opt${bg === b.id ? ' on' : ''}`} onClick={() => setBg(b.id)}>
+              <b>{b.ico} {b.label}</b><span>{b.blurb}</span>
+              {bg === b.id && <span className="bg-detail">{b.detail}</span>}
+            </button>
+          ))}
+        </div>
+      ) : (
+        <CustomMaker skills={custom} onSkills={setCustom} trait={trait} onTrait={setTrait} />
+      )}
 
       <div className="section-title">Start location</div>
       <div className="segment">
@@ -213,8 +234,9 @@ export function Onboarding() {
             </div>
           </div>
         )}
-        <button type="button" className="btn btn-primary btn-block" style={{ minHeight: 52 }} disabled={!place || !!building} onClick={() => void start(false)}>{building ? 'Building your city…' : place ? `Start in ${place.name}` : 'Start'}</button>
+        <button type="button" className="btn btn-primary btn-block" style={{ minHeight: 52 }} disabled={!place || !!building || (maker === 'custom' && !customReady)} onClick={() => void start(false)}>{building ? 'Building your city…' : place ? `Start in ${place.name}` : 'Start'}</button>
         {!place && <p className="small muted mt8" style={{ textAlign: 'center', margin: '8px 0 0' }}>Pick a starting point first.</p>}
+        {place && maker === 'custom' && !customReady && <p className="small orange mt8" style={{ textAlign: 'center', margin: '8px 0 0' }}>{left} point{left === 1 ? '' : 's'} still to spend.</p>}
       </div>
       {building && (
         <div className="building" role="status" aria-live="polite">
@@ -227,6 +249,49 @@ export function Onboarding() {
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * Point-buy. Fewer points than any preset and a lower ceiling, in exchange for a trait of
+ * your own: broad and pointed, against a preset's spike and its perk.
+ */
+function CustomMaker({ skills, onSkills, trait, onTrait }: { skills: Skills; onSkills: (s: Skills) => void; trait: StartTraitId; onTrait: (t: StartTraitId) => void }) {
+  const left = remaining(skills);
+  const set = (k: keyof Skills, v: number) => {
+    const next = { ...skills, [k]: Math.max(CUSTOM_SKILL_MIN, Math.min(CUSTOM_SKILL_MAX, v)) };
+    if (remaining(next) < 0) return;
+    onSkills(next);
+  };
+  return (
+    <div className="mt8">
+      <div className="row between">
+        <span className="small muted">Spend {CUSTOM_BUDGET} points, {CUSTOM_SKILL_MIN} to {CUSTOM_SKILL_MAX} each.</span>
+        <span className={`chip${left === 0 ? '' : ' sel'}`}>{left} left</span>
+      </div>
+      <div className="col mt8">
+        {SKILL_ORDER.map(k => (
+          <div key={k} className="buy-row">
+            <div className="grow">
+              <b>{SKILL_LABELS[k]}</b>
+              <span className="small muted" style={{ display: 'block' }}>{SKILL_BLURBS[k]}</span>
+            </div>
+            <button type="button" className="chip btn" aria-label={`Less ${SKILL_LABELS[k]}`} disabled={skills[k] <= CUSTOM_SKILL_MIN} onClick={() => set(k, skills[k] - 1)}>−</button>
+            <b className="buy-value">{skills[k]}</b>
+            <button type="button" className="chip btn" aria-label={`More ${SKILL_LABELS[k]}`} disabled={skills[k] >= CUSTOM_SKILL_MAX || left <= 0} onClick={() => set(k, skills[k] + 1)}>+</button>
+          </div>
+        ))}
+      </div>
+      <div className="section-title">One thing you bring with you</div>
+      <div className="col">
+        {START_TRAITS.map(t => (
+          <button type="button" key={t.id} className={`bg-opt${trait === t.id ? ' on' : ''}`} onClick={() => onTrait(t.id)}>
+            <b>{t.ico} {t.label}</b><span>{t.blurb}</span>
+            {trait === t.id && <span className="bg-detail">{t.detail}</span>}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }

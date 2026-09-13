@@ -286,6 +286,10 @@ label.field { display: block; font-size: 12px; color: var(--muted); margin-botto
 .onboard-foot { position: sticky; bottom: 0; padding: 12px 0 calc(var(--sab) + 12px); margin-top: 8px; background: linear-gradient(180deg, rgba(11,13,16,0), var(--bg) 35%); }
 .onboard h1 { font-size: 34px; letter-spacing: 0.08em; color: var(--gold); }
 .onboard .tag { color: var(--muted); margin-bottom: 20px; }
+/* point-buy row: label and blurb, then −  value  + */
+.buy-row { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg-2); }
+.buy-row .buy-value { min-width: 24px; text-align: center; font-size: 17px; color: var(--gold); }
+.buy-row .chip.btn:disabled { opacity: 0.35; }
 .bg-opt { text-align: left; padding: 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--bg-2); color: var(--text); min-height: 56px; }
 .bg-opt.on { border-color: var(--gold); background: rgba(242,201,76,0.08); }
 .bg-opt b { display: block; }

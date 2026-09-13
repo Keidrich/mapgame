@@ -7,6 +7,7 @@ import { NpcRow } from './Rows';
 import { TRAIT_LABELS } from '@content/rackets';
 import { openSheet } from '@ui/store';
 import { Info, Term, TermChip } from './Info';
+import { BACKGROUND_BY_ID, START_TRAIT_BY_ID } from '@content/backgrounds';
 
 export function CrewTab() {
   const w = useWorld();
@@ -26,7 +27,13 @@ export function CrewTab() {
     <div className="panel-inner">
       <h2>Crew</h2>
       <div className="card gold">
-        <div className="row between"><b style={{ fontSize: 17 }}>{p.name}</b><span className="chip">{cap(p.background)}</span></div>
+        <div className="row between">
+          <b style={{ fontSize: 17 }}>{p.name}</b>
+          <span className="chips">
+            <span className="chip">{BACKGROUND_BY_ID[p.background]?.label ?? cap(p.background)}</span>
+            {p.startTrait && START_TRAIT_BY_ID[p.startTrait] && <span className="chip" title={START_TRAIT_BY_ID[p.startTrait].detail}>{START_TRAIT_BY_ID[p.startTrait].ico} {START_TRAIT_BY_ID[p.startTrait].label}</span>}
+          </span>
+        </div>
         <div className="mt8"><SkillBars skills={p.skills} /></div>
         <div className="row wrap mt8 small muted" style={{ gap: 10 }}>
           <span><Term id="respect">Respect</Term> <b className="gold">{Math.round(p.respect)}</b></span>
