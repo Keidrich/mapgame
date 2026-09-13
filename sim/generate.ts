@@ -33,7 +33,7 @@ export function generateWorld(opts: NewGameOptions): World {
     player: {
       name: opts.playerName, background: opts.background, skills: startingSkills(opts.background),
       cash: 2500, dirty: 0, heat: 0, respect: 5, fear: 0, ap: 8, apMax: 8, stash: emptyStash(),
-      legwork: 0, legworkMax: 0, currentBlockId: '',
+      legwork: 0, legworkMax: 0, currentBlockId: '', crewEver: 0,
       crewIds: [], safehouseIds: [], businessIds: [], racketIds: [], opIds: [], lawyer: false, jailedDays: 0, busts: 0, launderedToday: 0, homeBlockId: '',
     },
     pendingEvents: [], log: [], nextId: 1,

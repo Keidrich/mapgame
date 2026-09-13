@@ -28,6 +28,7 @@ export function NpcSheet({ npcId }: { npcId: Id }) {
           ? n.traits.map(t => <TermChip key={t} id={`trait:${t}`}>{TRAIT_LABELS[t] ?? t}</TermChip>)
           : <TermChip id="known"><span className="muted">Traits unknown</span></TermChip>}
         <TermChip id="relLabel" title="How they see you" body={relBlurb(n)}>{select.relLabel(n)}</TermChip>
+        {select.isHeld(n) && <TermChip id="hostage" tone="var(--red)">Held by you</TermChip>}
         {n.grudge && <TermChip id="grudge" tone="var(--red)">Holds a grudge</TermChip>}
         {n.homeBlockId === w.player.homeBlockId && <TermChip id="homeTurf" tone="var(--gold)">Home turf</TermChip>}
         {select.agendaLabel(n) && <TermChip id="agenda" tone="var(--blue)">{select.agendaLabel(n)}</TermChip>}

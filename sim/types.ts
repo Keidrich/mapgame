@@ -55,9 +55,13 @@ export interface Block {
   safehouseId?: Id;
   memory: BlockMemory[];        // what people here remember (capped)
   tags: ('school' | 'police' | 'home')[];
+  abandoned?: Abandoned;        // derelict: no businesses, nobody watching, nobody to testify
 }
 
 export interface BlockMemory { day: number; kind: string; text: string }
+
+/** A block nobody runs any more. `known` is whether the player has found it; scouting flips it. */
+export interface Abandoned { known: boolean; claimedBy?: FactionId }
 
 // ---------- businesses ----------
 export type BusinessType =
@@ -147,6 +151,7 @@ export interface Npc {
   grudge?: { since: number; reason: string; spread: number }; // holds it against you and tells people
   known: boolean;             // traits and nerve revealed (Read action, a scene, or enough trust)
   recipe?: string;            // a specialist: recruiting them unlocks this RECIPES id
+  hostage?: { safehouseId: Id; since: number }; // held by you: alive, but out of their own life
   notes: string[];
 }
 
@@ -210,13 +215,16 @@ export interface Safehouse {
   cash: number;          // hidden dirty cash
   productionIds: Id[];
   capacity: number;      // product units
+  hostageIds: Id[];      // people you are holding here
+  squatted?: boolean;    // taken on a claimed derelict block: no rent
 }
 
 // ---------- ops (one-off) ----------
 export type OpKind =
   | 'heist_bank' | 'heist_jeweller' | 'heist_armored' | 'heist_warehouse'
   | 'robbery' | 'insurance_fraud' | 'check_kiting' | 'smuggle_run'
-  | 'hit' | 'intimidate' | 'raid_rival' | 'takeover' | 'steal_formula' | 'frame';
+  | 'hit' | 'intimidate' | 'raid_rival' | 'takeover' | 'steal_formula' | 'frame'
+  | 'scout_block' | 'claim_abandoned' | 'kidnap';
 
 export type OpStatus = 'planning' | 'ready' | 'done' | 'failed' | 'aborted';
 
@@ -227,6 +235,8 @@ export interface Op {
   targetNpcId?: Id;
   targetFactionId?: FactionId;
   targetBlockId?: Id;
+  targetDistrictId?: Id;
+  safehouseId?: Id;      // kidnap: where they go
   crewIds: Id[];
   approach?: 'loud' | 'quiet' | 'inside';
   insideId?: Id;   // the contact used for an inside job
@@ -340,6 +350,7 @@ export interface Player {
   jailedDays: number;
   busts: number;
   launderedToday: number;
+  crewEver: number;   // people who have ever joined your crew, for op requirements
   homeBlockId: Id;
 }
 

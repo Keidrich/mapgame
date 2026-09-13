@@ -168,6 +168,46 @@ protection at 15%). It is a rule of the project that a balance change in `sim/` 
 the matching glossary entry. Onboarding also spells out what each background actually
 changes rather than only its flavour.
 
+### 4.2 Derelict ground
+
+Some blocks are dead: no businesses, almost no police, almost nobody living there. They are
+generated only where the map itself has nothing (a block carrying real OpenStreetMap
+business data is never emptied) and only where the police band is in its bottom third,
+which the industrial and dock districts hit most often. About 3% of blocks.
+
+They carry no special heat or risk rule. The racket and production formulas already scale
+with the block's `police`, and the witness pool for a cold case is drawn from a block's
+businesses, so a derelict block is quieter and unprosecutable purely because of what it
+already is. **Scout the Edges** searches a district and may turn up one unknown derelict
+block, or nothing. **Take the Lot** claims a found one, loud (force), quiet (patience) or
+inside (a councillor moves a file). A claimed block can be squatted: a safehouse there
+costs nothing to take and nothing to keep, which is how it becomes production and storage
+through the systems that already exist.
+
+### 4.3 Hostages
+
+**Take Someone** moves a person into one of your safehouses. They stay alive but out of
+their own life: agendas stop, gossip stops, and they cannot be met on the street. They take
+one of the safehouse's beds.
+
+Holding carries a daily risk built from the same fields as everything else: the block's
+police and population, multiplied by the days held, adjusted by their traits. Nothing says
+"a derelict block is safer"; it simply is. When it breaks: somebody calls it in (heat, and
+a case file opens), they get loose (a permanent grudge and the block remembers), or they
+hurt one of your crew. Settle it by **ransom** (their faction pays what it can afford, and
+resents it), **leverage** (a charm roll against their nerve, better the longer you have held
+them, giving you a hold or a permanent enemy), or letting them go.
+
+### 4.4 Op progression
+
+`OpDef.requires` gates each op on crew ever recruited, safehouse tier, a racket running, a
+business owned, or a prior op completed. `select.opsAvailable(w)` and `select.opLocked(w, k)`
+report it, in the same shape as `availableRackets`. The Ops tab is a tree by tier with every
+op visible, locked ones included: edges are drawn from `priorOps` and the other requirements
+are badges. A locked node explains exactly what is missing through the same explainer
+component the glossary uses. The street tier (stick-up, send a message, take the corner,
+scout, take the lot) has `minCrew: 0` and is genuinely solo.
+
 ## 5. Rackets, production, ops
 
 **Rackets** (persistent, on a business): protection, numbers, bookmaking, gambling

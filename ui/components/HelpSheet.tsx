@@ -17,6 +17,7 @@ export function HelpSheet() {
           <li>Check <b>Factions</b> before pushing into coloured blocks. Tension means a warning, beef means sabotage, war means bodies. Sit-downs, tribute, and ceding a block buy peace. When a boss falls, back a lieutenant; when two factions fight, <b>broker</b> a truce for a fee.</li>
           <li>Small street crews hold corners between the factions. <b>Parley</b> with the boss (payroll, join, or run them off) or take the corner. Ignore them and they grow.</li>
           <li>Product has <b>quality</b>: better workers, upgraded productions and recipes (steal a formula, or recruit someone who knows one) sell higher. Watch for bad batches and shortages.</li>
+          <li>Ops open up as you grow: the tree shows everything, including what is still locked and why. The street tier runs solo. <b>Scout the Edges</b> of a quiet district for derelict blocks, then <b>Take the Lot</b>: a safehouse on claimed ground is free, and nobody there can testify against you.</li>
           <li>A hit or a big job opens a <b>cold case</b>. Scare or pay the witness, bribe the captain, keep a lawyer. After day 15 the bosses form the <b>Commission</b>: earn a chair and vote.</li>
         </ol>
         <p className="small muted mt12">Every action costs AP (the gold pips). Cash is clean money; dirty money needs laundering before it buys anything legitimate. Own 60% of the blocks to take the city.</p>

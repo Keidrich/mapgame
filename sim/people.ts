@@ -29,7 +29,7 @@ export function assignAgendas(w: World, npcs: Npc[], rng: Rng) {
 /** One day of everybody's private business. Milestones surface as events or quiet changes. */
 export function tickAgendas(w: World, rng: Rng) {
   for (const n of Object.values(w.npcs)) {
-    const a = n.agenda; if (!a || a.done || !n.alive || n.crew) continue;
+    const a = n.agenda; if (!a || a.done || !n.alive || n.crew || n.hostage) continue; // held people are not getting on with their lives
     a.progress = clamp(a.progress + a.rate);
     if (a.progress >= 50 && !a.milestone50) { a.milestone50 = true; milestone(w, n, a, 50, rng); }
     if (a.progress >= 100) { a.done = true; milestone(w, n, a, 100, rng); }
@@ -93,7 +93,7 @@ export function addGrudge(w: World, n: Npc, reason: string) {
 /** Word travels along the relationship graph: same block, same bar. */
 export function tickGossip(w: World, rng: Rng) {
   for (const n of Object.values(w.npcs)) {
-    const g = n.grudge; if (!g || !n.alive) continue;
+    const g = n.grudge; if (!g || !n.alive || n.hostage) continue; // you cannot spread a story from a cellar
     if (n.rel.fear >= 60 || w.day - g.since > 20) { n.grudge = undefined; continue; } // scared quiet, or old news
     if (g.spread >= 4 || !rng.chance(0.5)) continue;
     const circle = new Set<Id>();

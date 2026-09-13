@@ -16,6 +16,7 @@ import { coverFor, tickLieutenants } from './lieutenants';
 import { addProduct, productionQuality, recipeFor, sellMult } from './production';
 import { tickCases } from './cases';
 import { tickCommission } from './commission';
+import { heldIds, tickHostages } from './hostages';
 import { PRODUCTION_LEVEL } from '@content/rackets';
 
 export function endDay(w: World): World {
@@ -108,8 +109,8 @@ export function endDay(w: World): World {
         if (worker?.crew && rng.chance(0.3)) { worker.crew.status = 'jailed'; worker.crew.statusDays = jailDays(w, 12); worker.crew.assignment = undefined; pr.workerId = undefined; log(w, `The cops came with the fire department. ${worker.name} was inside.`, 'bad', { npcId: worker.id, blockId: s.blockId }); }
       }
     }
-    const rent = Math.round(SAFEHOUSE_TIERS[s.tier - 1].rent / 30); // daily rent
-    if (p.cash + p.dirty >= rent) spend(w, rent); else { addInfluence(w, s.blockId, PLAYER, -4); if (w.day % 5 === 0) log(w, `You are behind on rent at ${s.name}.`, 'warn', { blockId: s.blockId }); }
+    const rent = s.squatted ? 0 : Math.round(SAFEHOUSE_TIERS[s.tier - 1].rent / 30); // nobody bills you for a place you took
+    if (!rent) { /* squatted */ } else if (p.cash + p.dirty >= rent) spend(w, rent); else { addInfluence(w, s.blockId, PLAYER, -4); if (w.day % 5 === 0) log(w, `You are behind on rent at ${s.name}.`, 'warn', { blockId: s.blockId }); }
     addInfluence(w, s.blockId, PLAYER, 2);
   }
 
@@ -135,11 +136,13 @@ export function endDay(w: World): World {
 
   // ---- people's own business ----
   tickAgendas(w, rng); tickGossip(w, rng);
+  tickHostages(w, rng);
   tickCases(w, rng); tickCommission(w, rng);
 
   // ---- relationship drift & influence decay ----
+  const held = heldIds(w);
   for (const n of Object.values(w.npcs)) {
-    if (!n.alive) continue;
+    if (!n.alive || held.has(n.id)) continue;   // a person in a cellar is not drifting back to normal
     if (n.rel.fear > 0 && w.day % 2 === 0) n.rel.fear = clamp(n.rel.fear - 1);
     if (n.rel.trust > 0 && !n.crew && w.day % 4 === 0 && n.faction !== PLAYER) n.rel.trust--;
     if (n.rel.trust < 0 && w.day % 3 === 0) n.rel.trust++;

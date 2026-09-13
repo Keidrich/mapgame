@@ -102,3 +102,31 @@ export function relLabel(n: Npc): string {
 export function controlShare(w: World): number {
   const all = Object.values(w.blocks); return all.filter(b => controller(b) === PLAYER).length / all.length;
 }
+
+// ---------------------------------------------------------------- op progression
+/** Why this op is not on the table yet, or undefined when it is. Same shape as availableRackets. */
+export function opLocked(w: World, kind: OpKind): string | undefined {
+  const req = OP_DEFS[kind].requires; if (!req) return undefined;
+  const p = w.player;
+  if (req.crewCount !== undefined && p.crewEver < req.crewCount) return `Needs ${req.crewCount} ${req.crewCount === 1 ? 'person' : 'people'} to have joined your crew. You have had ${p.crewEver}.`;
+  if (req.safehouseTier !== undefined) {
+    const best = Math.max(0, ...p.safehouseIds.map(id => w.safehouses[id]?.tier ?? 0));
+    if (best < req.safehouseTier) return `Needs a tier ${req.safehouseTier} safehouse. Your best is ${best || 'none'}.`;
+  }
+  if (req.businessOwned && !p.businessIds.length) return 'Needs a business of your own.';
+  if (req.racketKinds?.length) {
+    const running = new Set(p.racketIds.map(id => w.rackets[id]?.kind).filter(Boolean));
+    if (!req.racketKinds.some(k => running.has(k))) return 'Needs a racket of your own up and running.';
+  }
+  if (req.priorOps?.length) {
+    const done = new Set(Object.values(w.ops).filter(o => o.status === 'done').map(o => o.kind));
+    if (!req.priorOps.some(k => done.has(k))) return `Needs a ${req.priorOps.map(k => OP_DEFS[k].label).join(' or ')} behind you.`;
+  }
+  return undefined;
+}
+/** Ops whose requirements are met right now. */
+export function opsAvailable(w: World): OpKind[] {
+  return (Object.keys(OP_DEFS) as OpKind[]).filter(k => !opLocked(w, k));
+}
+export { isAbandoned, isKnownAbandoned, isClaimable, claimedByPlayer, abandonedBlocks } from './abandoned';
+export { allHostages, hostagesOf, isHeld, daysHeld, ransomValue, holdRisk } from './hostages';

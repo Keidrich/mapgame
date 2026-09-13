@@ -3,6 +3,7 @@
  * a new faction. Deterministic given the world's RNG state and the chunk data.
  */
 import { RECIPES } from '@content/rackets';
+import { abandonChance, makeAbandoned } from './abandoned';
 import { BUSINESS_DEFS, DISTRICT_DEFS, type DistrictDef } from '@content/businesses';
 import { BUSINESS_NAME_PARTS, FACTION_ARCHETYPES, FIRST_NAMES, LAST_NAMES, NICKNAMES, STYLE_LAST } from '@content/names';
 import type { GeoChunk } from '@geo/chunks';
@@ -75,7 +76,14 @@ export function populateChunk(w: World, chunk: GeoChunk, rng: Rng, opts: Populat
   for (const p of chunk.pois) { if (!p.blockId) continue; if (!poisByBlock.has(p.blockId)) poisByBlock.set(p.blockId, []); poisByBlock.get(p.blockId)!.push(p); }
   for (const b of added) {
     const def = seeds.find(s => s.district.id === b.districtId)!.def;
-    for (const p of (poisByBlock.get(b.id) ?? []).slice(0, 6)) addBusiness(rng, w, nid, b, p.type, used, p.name);
+    const realPois = (poisByBlock.get(b.id) ?? []).slice(0, 6);
+    // Derelict blocks: only ever where the map itself has nothing, and only in the quiet
+    // districts. A block carrying real business data is never emptied out.
+    if (!realPois.length && !b.tags.length && rng.chance(abandonChance(def.kind, b, def))) {
+      makeAbandoned(b, rng, { police: def.police[0], population: def.population[0] });
+      continue;   // no businesses, so no patrons and nobody who could ever testify
+    }
+    for (const p of realPois) addBusiness(rng, w, nid, b, p.type, used, p.name);
     const target = rng.int(def.perBlock[0], def.perBlock[1]) * (chunk.source === 'osm' ? Math.min(1.5, Math.max(0.4, b.areaM2 / 40000)) : 1);
     const mix = Object.entries(def.mix).map(([t, wt]) => ({ item: t as BusinessType, w: wt as number }));
     let guard = 0;

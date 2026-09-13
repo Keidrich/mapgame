@@ -2,12 +2,12 @@ import { useMemo, useState } from 'react';
 import { select } from '@sim/index';
 import type { Id, Op, OpKind } from '@sim/types';
 import { OP_APPROACHES, OP_DEFS, type OpApproach } from '@content/rackets';
-import { SKILL_KEYS, activeOps, cap, finishedOps, fmtMoney, opTargetLabel } from '@ui/derive';
+import { SKILL_KEYS, activeOps, cap, finishedOps, fmtMoney, opTargetLabel, playerSafehouses } from '@ui/derive';
 import { act, check, openSheet, useWorld } from '@ui/store';
 import { Act } from './Act';
 import { Info, Term, TermChip } from './Info';
+import { OpTree } from './OpTree';
 
-const KINDS = Object.keys(OP_DEFS) as OpKind[];
 
 export function OpsTab() {
   const w = useWorld();
@@ -65,37 +65,29 @@ function OpCard({ o }: { o: Op }) {
 function Planner() {
   const w = useWorld();
   const [kind, setKind] = useState<OpKind | null>(null);
-  const [target, setTarget] = useState<{ businessId?: Id; npcId?: Id; factionId?: Id; blockId?: Id }>({});
+  const [target, setTarget] = useState<{ businessId?: Id; npcId?: Id; factionId?: Id; blockId?: Id; districtId?: Id }>({});
+  const [safehouseId, setSafehouseId] = useState<Id | undefined>(undefined);
   const [crewIds, setCrewIds] = useState<Id[]>([]);
   const [approach, setApproach] = useState<OpApproach | undefined>(undefined);
   const [filter, setFilter] = useState('');
   const idle = select.idleCrew(w);
   const def = kind ? OP_DEFS[kind] : null;
   const needsTarget = def ? def.target !== 'none' : false;
-  const hasTarget = !!(target.businessId || target.npcId || target.factionId || target.blockId);
+  const hasTarget = !!(target.businessId || target.npcId || target.factionId || target.blockId || target.districtId);
   const step = !kind ? 0 : needsTarget && !hasTarget ? 1 : 2;
   const chance = kind ? select.opChance(w, kind, crewIds, approach) : 0;
   const insiders = select.insidersFor(w, target.businessId);
   const sums = select.crewSkillSum(w, crewIds);
   const targets = useMemo(() => kind ? select.opTargets(w, kind) : [], [w, kind]);
   const npcs = useMemo(() => Object.values(w.npcs).filter(n => n.alive && !n.crew && (n.role === 'boss' || n.role === 'lieutenant' || n.role === 'owner' || n.role === 'official' || n.role === 'soldier')).filter(n => !filter || n.name.toLowerCase().includes(filter.toLowerCase())).slice(0, 40), [w, filter]);
-  const action = kind ? { type: 'plan_op' as const, kind, crewIds, approach, targetBusinessId: target.businessId, targetNpcId: target.npcId, targetFactionId: target.factionId, targetBlockId: target.blockId } : null;
-  const reset = () => { setKind(null); setTarget({}); setCrewIds([]); setApproach(undefined); setFilter(''); };
+  const action = kind ? { type: 'plan_op' as const, kind, crewIds, approach, targetBusinessId: target.businessId, targetNpcId: target.npcId, targetFactionId: target.factionId, targetBlockId: target.blockId, targetDistrictId: target.districtId, safehouseId } : null;
+  const reset = () => { setKind(null); setTarget({}); setCrewIds([]); setApproach(undefined); setFilter(''); setSafehouseId(undefined); };
   const toggle = (id: Id) => setCrewIds(ids => ids.includes(id) ? ids.filter(x => x !== id) : def && ids.length >= def.maxCrew ? ids : [...ids, id]);
 
   return (
     <div className="card">
       <div className="steps"><div className={step >= 0 ? 'on' : ''} /><div className={step >= 1 ? 'on' : ''} /><div className={step >= 2 ? 'on' : ''} /></div>
-      {!kind && (
-        <div className="grid2">
-          {KINDS.map(k => { const d = OP_DEFS[k]; return (
-            <button type="button" key={k} className="opcard" onClick={() => setKind(k)}>
-              <span className="ico">{d.icon}</span><b>{d.label}</b><span>{d.blurb}</span>
-              <span>{d.planDays}d plan · {d.minCrew}–{d.maxCrew} crew{d.cost ? ` · ${fmtMoney(d.cost)}` : ''}</span>
-            </button>
-          ); })}
-        </div>
-      )}
+      {!kind && <OpTree onPick={k => setKind(k)} />}
       {kind && def && (
         <>
           <div className="row between">
@@ -125,6 +117,20 @@ function Planner() {
                     {npcs.map(n => <button type="button" key={n.id} className="listitem" onClick={() => setTarget({ npcId: n.id })}><div className="grow"><div className="title">{n.name}</div><div className="sub">{cap(n.role)}{n.faction ? ` · ${select.factionName(w, n.faction)}` : ''} · {w.blocks[n.homeBlockId]?.name}</div></div></button>)}
                   </div>
                 </>
+              ) : def.target === 'district' ? (
+                <div className="list">{Object.values(w.districts).map(d => { const n = select.abandonedBlocks(w, { known: false }).filter(b => b.districtId === d.id).length; return (
+                  <button type="button" key={d.id} className="listitem" onClick={() => setTarget({ districtId: d.id })}>
+                    <div className="grow"><div className="title">{d.name}</div><div className="sub">{cap(d.kind.replace('_', ' '))} · {d.blockIds.length} blocks{n ? '' : ' · you have walked all of it'}</div></div>
+                  </button>); })}</div>
+              ) : def.target === 'block' && kind === 'claim_abandoned' ? (
+                <div className="list">
+                  {select.abandonedBlocks(w, { known: true, unclaimed: true }).map(b => (
+                    <button type="button" key={b.id} className="listitem" onClick={() => setTarget({ blockId: b.id })}>
+                      <div className="grow"><div className="title">{b.name}</div><div className="sub">{w.districts[b.districtId]?.name} · police {Math.round(b.police)} · nobody living there</div></div>
+                    </button>
+                  ))}
+                  {select.abandonedBlocks(w, { known: true, unclaimed: true }).length === 0 && <p className="small muted">No derelict blocks found yet. Run Scout the Edges on a quiet district.</p>}
+                </div>
               ) : def.target === 'faction' ? (
                 <div className="list">{Object.values(w.factions).filter(f => f.alive).map(f => <button type="button" key={f.id} className="listitem" onClick={() => setTarget({ factionId: f.id })}><span className="swatch" style={{ background: f.color }} /><div className="grow"><div className="title">{f.name}</div></div></button>)}</div>
               ) : (
@@ -146,6 +152,15 @@ function Planner() {
                     </button>
                   ); })}
               </div>
+              {kind === 'kidnap' && (
+                <>
+                  <div className="section-title">Where do they go?</div>
+                  <div className="chips mb8">
+                    {playerSafehouses(w).map(s => <button type="button" key={s.id} className={`chip btn${(safehouseId ?? playerSafehouses(w)[0]?.id) === s.id ? ' sel' : ''}`} onClick={() => setSafehouseId(s.id)}>{s.name}</button>)}
+                    {playerSafehouses(w).length === 0 && <span className="small muted">You need a safehouse first.</span>}
+                  </div>
+                </>
+              )}
               <div className="section-title">Crew ({crewIds.length}/{def.maxCrew}, min {def.minCrew})</div>
               <div className="list">
                 {idle.map(n => { const on = crewIds.includes(n.id); return (

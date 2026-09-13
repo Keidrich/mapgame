@@ -17,6 +17,8 @@ export type Action =
   | { type: 'broker'; npcId: Id; otherFactionId: FactionId; approach?: string } // 2 AP: mediate between this NPC's faction and another at beef/war
   | { type: 'back_candidate'; factionId: FactionId; npcId: Id; amount: number } // cash: back a lieutenant in a succession crisis
   | { type: 'petition_seat' }                             // 2 AP: ask the Commission for a chair
+  // --- hostages ---
+  | { type: 'resolve_hostage'; npcId: Id; mode: 'ransom' | 'leverage' | 'release' }
   | { type: 'fire'; npcId: Id }
   | { type: 'assign'; npcId: Id; assignment?: Assignment }   // a 'lieutenant' assignment promotes them to run a district (1 AP)
   | { type: 'audit'; npcId: Id }                          // 1 AP: go over a lieutenant's books
@@ -45,7 +47,7 @@ export type Action =
   | { type: 'sell_product'; product: ProductKind; amount: number; blockId: Id } // 1 AP street sale
   | { type: 'launder'; amount: number } // via laundering rackets capacity (auto at tick too)
   // --- ops ---
-  | { type: 'plan_op'; kind: OpKind; crewIds: Id[]; approach?: 'loud' | 'quiet' | 'inside'; targetBusinessId?: Id; targetNpcId?: Id; targetFactionId?: FactionId; targetBlockId?: Id }
+  | { type: 'plan_op'; kind: OpKind; crewIds: Id[]; approach?: 'loud' | 'quiet' | 'inside'; targetBusinessId?: Id; targetNpcId?: Id; targetFactionId?: FactionId; targetBlockId?: Id; targetDistrictId?: Id; safehouseId?: Id }
   | { type: 'launch_op'; opId: Id }
   | { type: 'abort_op'; opId: Id }
   // --- factions / politics ---

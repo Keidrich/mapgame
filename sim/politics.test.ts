@@ -55,7 +55,7 @@ describe('frame op', () => {
   it('puts a lieutenant away and can trigger a crisis on a boss', () => {
     const w = mk(); w.player.cash = 20000; const { f } = withLieutenants(w);
     const me = Object.values(w.npcs).find(n => n.role === 'patron' && !n.faction && n.alive)!;
-    me.crew = { loyalty: 70, cut: 60, status: 'idle', statusDays: 0, joinedDay: 1 }; me.role = 'crew'; me.skills.brains = 10; me.skills.tech = 10; w.player.crewIds.push(me.id);
+    me.crew = { loyalty: 70, cut: 60, status: 'idle', statusDays: 0, joinedDay: 1 }; me.role = 'crew'; me.skills.brains = 10; me.skills.tech = 10; w.player.crewIds.push(me.id); w.player.crewEver++;
     expect(can(w, { type: 'plan_op', kind: 'frame', crewIds: [me.id], targetNpcId: me.id }).ok).toBe(false); // not a faction boss/lt
     const boss = w.npcs[f.bossId];
     const w2 = dispatch(w, { type: 'plan_op', kind: 'frame', crewIds: [me.id], targetNpcId: boss.id });
@@ -72,6 +72,7 @@ describe('brokering', () => {
     let w = mk(); w.player.cash = 20000; w.player.skills.charm = 10; w.player.respect = 80;
     const [a, b] = Object.values(w.factions); expect(b).toBeDefined();
     const voice = w.npcs[a.lieutenantIds[0] ?? a.bossId];
+    a.stance[b.id] = b.stance[a.id] = 'peace'; a.standing[b.id] = b.standing[a.id] = 20;
     expect(can(w, { type: 'broker', npcId: voice.id, otherFactionId: b.id, approach: 'split' }).ok).toBe(false); // not fighting
     a.stance[b.id] = b.stance[a.id] = 'war'; a.standing[b.id] = b.standing[a.id] = -80; a.standing[PLAYER] = b.standing[PLAYER] = 10; a.temperament = b.temperament = 'diplomatic';
     expect(can(w, { type: 'broker', npcId: voice.id, otherFactionId: b.id, approach: 'split' }).ok).toBe(true);

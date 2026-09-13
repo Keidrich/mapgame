@@ -17,6 +17,9 @@ import { backCandidate, broker, brokerReason } from './politics';
 import { buryEvidence, caseWitnessOf, silenceWitness } from './cases';
 import { blockName as blockNameOf, isHere, npcBlockIds, npcIsHere, route, travelCost } from './travel';
 import { petition, seatReason } from './commission';
+import { claimedByPlayer } from './abandoned';
+import { isHeld, resolveHostage, roomFor } from './hostages';
+import { opLocked } from './select';
 import { moveProduct, onJoin, recipesForKind, restockCost, sellMult } from './production';
 import { PRODUCTION_UPGRADE_MULT, RECIPES } from '@content/rackets';
 import { LIEUTENANT } from '@content/rackets';
@@ -36,6 +39,7 @@ export function can(w: World, a: Action): Affordance {
   const biz = (id: Id) => w.businesses[id];
   /** Face to face: you have to be standing where they are. */
   const hereNpc = (n: Npc) => {
+    if (isHeld(n)) return `${n.name} is tied to a chair in one of your safehouses. Settle that first.`;
     if (npcIsHere(w, n)) return null;
     const where = npcBlockIds(w, n)[0];
     const c = where ? travelCost(w, where) : undefined;
@@ -59,6 +63,7 @@ export function can(w: World, a: Action): Affordance {
     case 'parley': { const n = npc(a.npcId); if (!n?.alive) return no('They are gone.'); const c0 = crewOfBoss(w, n.id); if (!c0) return no('They do not run a crew.'); if (!isHere(w, c0.blockId)) return no(`The ${c0.name} hold ${blockNameOf(w, c0.blockId)}. Walk over first${travelCost(w, c0.blockId) !== undefined ? ` (${travelCost(w, c0.blockId)} legwork)` : ''}.`); const r = ap(1); if (r) return no(r); if (a.approach === 'join' && bedsLeft(w) <= 0) return no('No room in your safehouses for their boss.'); return yes({ ap: 1 }); }
     case 'broker': { const n = npc(a.npcId); if (!n?.alive) return no('They are gone.'); const why = brokerReason(w, n, a.otherFactionId); if (why) return no(why); const r = ap(2); if (r) return no(r); if (a.approach === 'split') { const c = cash(4000); if (c) return no(c); } return yes({ ap: 2, cash: a.approach === 'split' ? 4000 : 0 }); }
     case 'petition_seat': { const why = seatReason(w); if (why) return no(why); const r = ap(2); return r ? no(r) : yes({ ap: 2 }); }
+    case 'resolve_hostage': { const n = npc(a.npcId); if (!n || !isHeld(n)) return no('You are not holding them.'); const r = ap(1); return r ? no(r) : yes({ ap: 1 }); }
     case 'back_candidate': { const f = w.factions[a.factionId]; if (!f?.alive || !f.crisis) return no('No crisis there.'); if (!f.crisis.candidateIds.includes(a.npcId)) return no('They are not in the running.'); if (a.amount < 500) return no('Under $500 is an insult.'); const c = cash(a.amount); return c ? no(c) : yes({ cash: a.amount }); }
     case 'recruit': {
       const n = npc(a.npcId); if (!n?.alive) return no('They are gone.');
@@ -141,7 +146,8 @@ export function can(w: World, a: Action): Affordance {
     case 'rent_safehouse': {
       const b = w.blocks[a.blockId]; if (!b) return no('No such block.');
       if (b.safehouseId) return no('There is already a safehouse on this block.');
-      const c = SAFEHOUSE_TIERS[0].rent; const r = cash(c); if (r) return no(r);
+      const c = claimedByPlayer(b) ? 0 : SAFEHOUSE_TIERS[0].rent;   // nobody collects rent on a derelict block you took
+      const r = c ? cash(c) : null; if (r) return no(r);
       const ctrl = factionOf(w, a.blockId);
       if (ctrl && ctrl !== PLAYER && (w.factions[ctrl].stance[PLAYER] === 'war' || w.factions[ctrl].stance[PLAYER] === 'beef')) return no(`${w.factions[ctrl].name} would burn it down the same night.`);
       return yes({ cash: c });
@@ -174,6 +180,7 @@ export function can(w: World, a: Action): Affordance {
 
     case 'plan_op': {
       const def = OP_DEFS[a.kind];
+      const locked = opLocked(w, a.kind); if (locked) return no(locked);
       if (a.crewIds.length < def.minCrew) return no(`Needs at least ${def.minCrew} crew.`);
       if (a.crewIds.length > def.maxCrew) return no(`Too many. Max ${def.maxCrew}.`);
       for (const id of a.crewIds) { const n = npc(id); if (!n?.crew || n.crew.status !== 'idle') return no(`${n?.name ?? 'Someone'} is not available.`); }
@@ -187,9 +194,30 @@ export function can(w: World, a: Action): Affordance {
       }
       if (def.target === 'npc' && !a.targetNpcId) return no('Pick a target.');
       if (a.kind === 'takeover') { if (!a.targetBlockId) return no('Pick a block with a street crew.'); if (!crewAt(w, a.targetBlockId)) return no('No street crew holds that block.'); }
+      if (a.kind === 'claim_abandoned') {
+        const b = a.targetBlockId ? w.blocks[a.targetBlockId] : undefined; if (!b) return no('Pick a derelict block.');
+        if (!b.abandoned) return no('There are people and businesses on that block. Take it the usual way.');
+        if (!b.abandoned.known) return no('You have not found that block yet. Scout the edges first.');
+        if (b.abandoned.claimedBy === PLAYER) return no('You already hold it.');
+        if (b.abandoned.claimedBy) return no('Somebody else moved in there first.');
+        if (a.approach === 'inside' && officialTrust(w, 'councillor') < 30) return no('The paperwork route needs a councillor who takes your calls (trust 30).');
+      }
+      if (def.target === 'district' && !a.targetDistrictId) return no('Pick a district to walk.');
+      if (a.kind === 'kidnap') {
+        const n = a.targetNpcId ? npc(a.targetNpcId) : undefined; if (!n?.alive) return no('Pick somebody.');
+        if (isHeld(n)) return no('You already have them.');
+        if (n.official) return no('Taking an official is how task forces get built. Not available.');
+        const s = a.safehouseId ? w.safehouses[a.safehouseId] : w.safehouses[p.safehouseIds[0]];
+        if (!s || s.owner !== PLAYER) return no('You need a safehouse to put them in.');
+        if (roomFor(s, SAFEHOUSE_TIERS[s.tier - 1].crewBeds) <= 0) return no(`${s.name} has nowhere to put anyone else.`);
+      }
       if (def.target === 'npc') { const n = npc(a.targetNpcId!); if (!n?.alive) return no('Already gone.'); if (n.official) return no('Going after an official ends careers. Not available.'); if (a.kind === 'frame' && !(n.faction && w.factions[n.faction] && (n.role === 'boss' || n.role === 'lieutenant'))) return no('A frame only sticks on a faction boss or lieutenant.'); }
-      if (a.approach === 'inside' && !insidersFor(w, a.targetBusinessId).length) return no('Nobody at the target trusts you enough (trust 35+).');
-      if (a.approach === 'inside' && def.target !== 'business') return no('An inside man needs a place to be inside of.');
+      // The inside route normally means somebody at a targeted business opening a door.
+      // `claim_abandoned` has its own: a councillor moving a file, checked above.
+      if (a.approach === 'inside' && a.kind !== 'claim_abandoned') {
+        if (def.target !== 'business') return no('An inside man needs a place to be inside of.');
+        if (!insidersFor(w, a.targetBusinessId).length) return no('Nobody at the target trusts you enough (trust 35+).');
+      }
       const r = ap(1); if (r) return no(r);
       return yes({ ap: 1, cash: def.cost });
     }
@@ -296,7 +324,7 @@ export function dispatch(prev: World, a: Action): World {
       const cut = ap_ === 'cut' ? Math.round(base * 1.4) : ap_ === 'lean' ? Math.round(base * 0.7) : base;
       const loyalty = clamp(ap_ === 'cut' ? 60 + n.rel.trust / 3 : ap_ === 'lean' ? 20 + n.rel.fear / 4 : 40 + n.rel.trust / 2);
       n.crew = { loyalty, cut, status: 'idle', statusDays: 0, joinedDay: w.day };
-      n.role = 'crew'; p.crewIds.push(n.id);
+      n.role = 'crew'; p.crewIds.push(n.id); p.crewEver++;
       for (const bid of n.favouriteBusinessIds) { const b = w.businesses[bid]; b.patronIds = b.patronIds.filter(id => id !== n.id); }
       log(w, `${resultLine('recruit', ap_, true, rng)} ${n.name} joins your crew at ${money(cut)}/day (loyalty ${Math.round(loyalty)}).`, 'good', { npcId: n.id });
       onJoin(w, n);
@@ -415,12 +443,15 @@ export function dispatch(prev: World, a: Action): World {
     case 'fund_racket': { const r = w.rackets[a.racketId]; spend(w, a.amount); r.float = (r.float ?? 0) + a.amount; log(w, `Float at ${w.businesses[r.businessId].name} is now ${money(r.float)}.`, 'money', { racketId: r.id }); break; }
 
     case 'rent_safehouse': {
-      takeCash(w, SAFEHOUSE_TIERS[0].rent);
       const b = w.blocks[a.blockId];
-      const s: Safehouse = { id: nid(w, 's'), blockId: b.id, name: `${SAFEHOUSE_TIERS[0].label} on ${b.name}`, tier: 1, owner: PLAYER, stash: emptyStash(), cash: 0, productionIds: [], capacity: SAFEHOUSE_TIERS[0].capacity };
+      const squat = claimedByPlayer(b);
+      if (!squat) takeCash(w, SAFEHOUSE_TIERS[0].rent);
+      const s: Safehouse = { id: nid(w, 's'), blockId: b.id, name: `${squat ? 'Squat' : SAFEHOUSE_TIERS[0].label} on ${b.name}`, tier: 1, owner: PLAYER, stash: emptyStash(), cash: 0, productionIds: [], capacity: SAFEHOUSE_TIERS[0].capacity, hostageIds: [], squatted: squat || undefined };
       w.safehouses[s.id] = s; b.safehouseId = s.id; p.safehouseIds.push(s.id);
       addInfluence(w, b.id, PLAYER, 10);
-      log(w, `Rented a ${SAFEHOUSE_TIERS[0].label.toLowerCase()} on ${b.name}.`, 'good', { blockId: b.id });
+      log(w, squat
+        ? `You move into ${b.name}. It is not on anyone's books, so there is no rent and nobody to ask questions.`
+        : `Rented a ${SAFEHOUSE_TIERS[0].label.toLowerCase()} on ${b.name}.`, 'good', { blockId: b.id });
       break;
     }
     case 'upgrade_safehouse': { const s = w.safehouses[a.safehouseId]; takeCash(w, SAFEHOUSE_TIERS[s.tier].rent); s.tier++; s.capacity = SAFEHOUSE_TIERS[s.tier - 1].capacity; s.name = `${SAFEHOUSE_TIERS[s.tier - 1].label} on ${w.blocks[s.blockId].name}`; log(w, `${s.name} upgraded to tier ${s.tier}.`, 'good', { blockId: s.blockId }); break; }
@@ -465,7 +496,7 @@ export function dispatch(prev: World, a: Action): World {
     case 'plan_op': {
       const def = OP_DEFS[a.kind]; if (def.cost) takeCash(w, def.cost);
       const insider = a.approach === 'inside' ? insidersFor(w, a.targetBusinessId)[0] : undefined;
-      const o: Op = { id: nid(w, 'o'), kind: a.kind, approach: a.approach, insideId: insider?.id, targetBusinessId: a.targetBusinessId, targetNpcId: a.targetNpcId, targetFactionId: a.targetFactionId, targetBlockId: a.targetBlockId, crewIds: a.crewIds.slice(), planDays: def.planDays, daysLeft: def.planDays, status: def.planDays === 0 ? 'ready' : 'planning', createdDay: w.day };
+      const o: Op = { id: nid(w, 'o'), kind: a.kind, approach: a.approach, insideId: insider?.id, targetBusinessId: a.targetBusinessId, targetNpcId: a.targetNpcId, targetFactionId: a.targetFactionId, targetBlockId: a.targetBlockId, targetDistrictId: a.targetDistrictId, safehouseId: a.safehouseId ?? (a.kind === 'kidnap' ? p.safehouseIds[0] : undefined), crewIds: a.crewIds.slice(), planDays: def.planDays, daysLeft: def.planDays, status: def.planDays === 0 ? 'ready' : 'planning', createdDay: w.day };
       w.ops[o.id] = o; p.opIds.push(o.id);
       for (const id of a.crewIds) { const n = npc(id); n.crew!.assignment = { kind: 'op', opId: o.id }; n.crew!.status = 'assigned'; }
       log(w, `${def.label}${a.approach ? ` (${OP_APPROACHES[a.approach].label.toLowerCase()}${insider ? `, ${insider.name} inside` : ''})` : ''} is ${o.status === 'ready' ? 'ready to go' : `in planning (${def.planDays} days)`}.`, 'info', { opId: o.id });
@@ -500,6 +531,7 @@ export function dispatch(prev: World, a: Action): World {
     }
     case 'back_candidate': { const f = w.factions[a.factionId]; takeCash(w, a.amount); backCandidate(w, f, a.npcId, a.amount); break; }
     case 'petition_seat': petition(w, rng); break;
+    case 'resolve_hostage': { const n = npc(a.npcId); resolveHostage(w, n, a.mode, rng); break; }
     case 'pay_tribute': {
       const f = w.factions[a.factionId]; spend(w, a.amount); f.cash += a.amount;
       const gain = Math.round(Math.min(25, Math.sqrt(a.amount) / 4) * (f.temperament === 'greedy' ? 1.5 : 1));

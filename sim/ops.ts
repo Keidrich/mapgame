@@ -10,6 +10,8 @@ import { addHeat, addInfluence, adjustRel, clamp, jailDays, log, money, spreadRe
 import { freeOpCrew } from './reducer';
 import { addMemory } from './people';
 import { crewAt, dissolveCrew } from './crews';
+import { claim, revealOne } from './abandoned';
+import { take as takeHostage } from './hostages';
 
 /** Resolve one launched op. Called from the tick. */
 export function resolveOp(w: World, o: Op, rng: Rng) {
@@ -100,6 +102,34 @@ export function resolveOp(w: World, o: Op, rng: Rng) {
         addMemory(w, n.homeBlockId, 'frame', `${n.name} went away on a case nobody around here believes.`);
         break;
       }
+      case 'scout_block': {
+        const d = o.targetDistrictId ? w.districts[o.targetDistrictId] : undefined;
+        const found = d ? revealOne(w, d.id, rng) : undefined;
+        if (found) { res.text = `Past the fences on ${d!.name} there is a whole block with nothing left on it: ${found.name}. Nobody has collected anything there in years.`; }
+        else { res.text = `${d ? d.name : 'The district'} is walked end to end. Everything still standing has somebody in it.`; res.heat = Math.min(res.heat, 1); }
+        break;
+      }
+      case 'claim_abandoned': {
+        const b = w.blocks[o.targetBlockId!];
+        claim(w, b);
+        addInfluence(w, b.id, PLAYER, 45);
+        if (o.approach === 'loud') { p.fear = clamp(p.fear + 4); spreadRep(w, b.id, { fear: 5 }); res.text = `You run the squatters off ${b.name} with bats and a lot of noise. The lots are yours.`; }
+        else if (o.approach === 'inside') { const c = Object.values(w.npcs).find(x => x.official?.kind === 'councillor'); if (c) adjustRel(c, { trust: 4 }); res.text = `A file moves at City Hall and ${b.name} quietly becomes somebody else's problem. Yours.`; }
+        else res.text = `You take ${b.name} over a few quiet nights. Nobody who was sleeping there wanted an argument.`;
+        break;
+      }
+      case 'kidnap': {
+        const n = w.npcs[o.targetNpcId!];
+        const s = o.safehouseId ? w.safehouses[o.safehouseId] : w.safehouses[p.safehouseIds[0]];
+        if (!s) { res.text = 'Nowhere to put them. The van drives around the block twice and goes home.'; break; }
+        takeHostage(w, n, s);
+        if (n.crew) { p.crewIds = p.crewIds.filter(id => id !== n.id); n.crew = undefined; }
+        p.fear = clamp(p.fear + 6); spreadRep(w, n.homeBlockId, { fear: 8, trust: -5 });
+        addMemory(w, n.homeBlockId, 'kidnap', `${n.name} went out for cigarettes and did not come back.`);
+        if (n.faction && w.factions[n.faction]) { const f = w.factions[n.faction]; f.standing[PLAYER] = clamp(f.standing[PLAYER] - 10, -100, 100); }
+        res.text = `${n.name} is in the back of a van and then in ${s.name}. Now you have to decide what they are worth.`;
+        break;
+      }
       case 'takeover': {
         const c = o.targetBlockId ? crewAt(w, o.targetBlockId) : undefined;
         if (c) {
@@ -136,6 +166,8 @@ export function resolveOp(w: World, o: Op, rng: Rng) {
     }
     res.text = `${def.label}${target ? ` at ${target.name}` : ''} goes wrong. ${fate} ${bad ? 'Sirens everywhere.' : 'You get out with nothing.'}`;
     if (o.kind === 'takeover' && o.targetBlockId) { const c = crewAt(w, o.targetBlockId); if (c) { c.strength = Math.min(10, c.strength + 1); c.mood -= 30; res.text += ` The ${c.name} are stronger for it.`; } }
+    if (o.kind === 'claim_abandoned' && o.targetBlockId) { const b = w.blocks[o.targetBlockId]; if (b?.abandoned) { addHeat(w, 3, b.id); res.text += ` Whoever is living in ${b.name} is still living in ${b.name}.`; } }
+    if (o.kind === 'kidnap' && o.targetNpcId) { const n = w.npcs[o.targetNpcId]; adjustRel(n, { fear: 30, trust: -70 }); n.grudge = { since: w.day, reason: 'you tried to put them in a van', spread: 0 }; if (n.faction && w.factions[n.faction]) { const f = w.factions[n.faction]; f.standing[PLAYER] -= 30; f.grudges.push(`grab:${n.name.split(' ')[0]}`); } addMemory(w, n.homeBlockId, 'kidnap', `Somebody tried to grab ${n.name} in the street and failed.`); }
     if (o.kind === 'frame' && o.targetNpcId) { const n = w.npcs[o.targetNpcId]; adjustRel(n, { trust: -50 }); if (n.faction && w.factions[n.faction]) { const f = w.factions[n.faction]; f.standing[PLAYER] -= 30; f.grudges.push(`frame:${n.name.split(' ')[0]}`); res.text += ` ${f.short} found the plant and know whose it was.`; } }
     if (o.kind === 'hit' && o.targetNpcId) { const n = w.npcs[o.targetNpcId]; adjustRel(n, { fear: 15, trust: -60 }); if (n.faction && w.factions[n.faction]) { w.factions[n.faction].standing[PLAYER] -= 30; w.factions[n.faction].grudges.push(`attempt:${n.id}`); } }
     if (o.kind === 'insurance_fraud' && target) { target.condition = clamp(target.condition - 40); target.insured = false; target.flags.push('arson_suspect'); res.heat += 10; res.text += ' The fire marshal is asking about you.'; }

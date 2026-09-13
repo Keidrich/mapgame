@@ -56,26 +56,40 @@ export interface OpDef {
   payout: [number, number];    // cash or loot value range
   lootKind?: ProductKind;
   heat: number;
-  target: 'business' | 'npc' | 'faction' | 'block' | 'none';
+  target: 'business' | 'npc' | 'faction' | 'block' | 'district' | 'none';
   targetTypes?: string[];      // business types
   ownBusiness?: boolean;       // must target your own business
   cost?: number;               // upfront
+  tier?: number;               // where it sits in the ops tree, for layout only
+  requires?: OpRequires;       // what the empire must look like before this is on the table
+}
+
+/** What an op needs from you before it is even offered. All conditions must hold. */
+export interface OpRequires {
+  crewCount?: number;          // people who have ever joined your crew
+  safehouseTier?: number;      // a safehouse at this tier or better
+  racketKinds?: RacketKind[];  // at least one of these running right now
+  businessOwned?: boolean;     // you own a business outright
+  priorOps?: OpKind[];         // you have pulled off at least one of these
 }
 export const OP_DEFS: Record<OpKind, OpDef> = {
-  heist_bank:      { label: 'Bank Job', icon: '🏦', blurb: 'The big one. Vault, hostages, getaway.', planDays: 5, minCrew: 3, maxCrew: 5, needs: { brains: 14, muscle: 10, wheels: 8, tech: 8 }, difficulty: 80, payout: [40000, 120000], heat: 35, target: 'business', targetTypes: ['bank'] },
-  heist_jeweller:  { label: 'Jewel Heist', icon: '💎', blurb: 'Smash and grab, or cut the glass. Loot needs fencing.', planDays: 3, minCrew: 2, maxCrew: 4, needs: { brains: 8, tech: 8, wheels: 6 }, difficulty: 60, payout: [12000, 40000], lootKind: 'hot_goods', heat: 20, target: 'business', targetTypes: ['jeweller'] },
-  heist_armored:   { label: 'Armored Car', icon: '🚚', blurb: 'Hit the truck on its route. Loud.', planDays: 4, minCrew: 3, maxCrew: 5, needs: { muscle: 16, wheels: 10, brains: 6 }, difficulty: 70, payout: [25000, 70000], heat: 30, target: 'business', targetTypes: ['armored_depot'] },
-  heist_warehouse: { label: 'Warehouse Job', icon: '📦', blurb: 'Empty a warehouse overnight. Goods, not cash.', planDays: 2, minCrew: 2, maxCrew: 4, needs: { muscle: 6, wheels: 8, tech: 4 }, difficulty: 45, payout: [6000, 18000], lootKind: 'hot_goods', heat: 12, target: 'business', targetTypes: ['warehouse'] },
-  robbery:         { label: 'Stick-Up', icon: '🔫', blurb: 'Walk in, take the till. Quick and dumb.', planDays: 0, minCrew: 1, maxCrew: 2, needs: { muscle: 5 }, difficulty: 30, payout: [400, 1800], heat: 8, target: 'business' },
-  insurance_fraud: { label: 'Insurance Fraud', icon: '🔥', blurb: 'Torch your own insured place, collect the policy.', planDays: 2, minCrew: 1, maxCrew: 2, needs: { tech: 5, brains: 4 }, difficulty: 40, payout: [0, 0], heat: 10, target: 'business', ownBusiness: true },
-  check_kiting:    { label: 'Check Kiting', icon: '🧾', blurb: 'Float bad paper between banks through a front you own.', planDays: 3, minCrew: 1, maxCrew: 2, needs: { brains: 10 }, difficulty: 50, payout: [5000, 15000], heat: 8, target: 'business', ownBusiness: true },
-  smuggle_run:     { label: 'Smuggle Run', icon: '🛻', blurb: 'Drive a load in from out of town. Product at cost.', planDays: 1, minCrew: 1, maxCrew: 3, needs: { wheels: 8 }, difficulty: 40, payout: [0, 0], lootKind: 'booze', heat: 8, target: 'none', cost: 1500 },
-  frame:           { label: 'Frame', icon: '🗂️', blurb: 'Plant product and paper on a rival boss or lieutenant and let the cops do the rest. Quiet, if it works.', planDays: 2, minCrew: 1, maxCrew: 2, needs: { brains: 8, tech: 6 }, difficulty: 55, payout: [0, 0], heat: 5, target: 'npc', cost: 500 },
-  hit:             { label: 'Hit', icon: '🎯', blurb: 'Someone stops being a problem. Permanently.', planDays: 2, minCrew: 1, maxCrew: 3, needs: { muscle: 10, wheels: 4 }, difficulty: 55, payout: [0, 0], heat: 25, target: 'npc' },
-  intimidate:      { label: 'Send a Message', icon: '🔨', blurb: 'Bats and broken windows. Fear without a body.', planDays: 0, minCrew: 1, maxCrew: 3, needs: { muscle: 6 }, difficulty: 25, payout: [0, 0], heat: 6, target: 'business' },
-  takeover:        { label: 'Take the Corner', icon: '🏴', blurb: 'Roll up on a street crew and take their block. Lighter than a faction raid.', planDays: 0, minCrew: 1, maxCrew: 3, needs: { muscle: 8 }, difficulty: 35, payout: [300, 1200], heat: 8, target: 'block' },
-  steal_formula:   { label: 'Steal a Formula', icon: '📜', blurb: 'Break into a rival cook, a pharmacy or a print works and leave with something you can use.', planDays: 2, minCrew: 1, maxCrew: 3, needs: { tech: 8, brains: 6 }, difficulty: 50, payout: [0, 0], heat: 10, target: 'none' },
-  raid_rival:      { label: 'Raid Rival Racket', icon: '⚔️', blurb: 'Hit a rival racket, take the cash box, wreck the place.', planDays: 1, minCrew: 2, maxCrew: 5, needs: { muscle: 12, wheels: 4 }, difficulty: 50, payout: [1500, 6000], heat: 12, target: 'business' },
+  heist_bank:      { label: 'Bank Job', icon: '🏦', blurb: 'The big one. Vault, hostages, getaway.', planDays: 5, minCrew: 3, maxCrew: 5, needs: { brains: 14, muscle: 10, wheels: 8, tech: 8 }, difficulty: 80, payout: [40000, 120000], heat: 35, target: 'business', targetTypes: ['bank'], tier: 4, requires: { priorOps: ['heist_jeweller', 'heist_armored'] } },
+  heist_jeweller:  { label: 'Jewel Heist', icon: '💎', blurb: 'Smash and grab, or cut the glass. Loot needs fencing.', planDays: 3, minCrew: 2, maxCrew: 4, needs: { brains: 8, tech: 8, wheels: 6 }, difficulty: 60, payout: [12000, 40000], lootKind: 'hot_goods', heat: 20, target: 'business', targetTypes: ['jeweller'], tier: 3, requires: { safehouseTier: 2 } },
+  heist_armored:   { label: 'Armored Car', icon: '🚚', blurb: 'Hit the truck on its route. Loud.', planDays: 4, minCrew: 3, maxCrew: 5, needs: { muscle: 16, wheels: 10, brains: 6 }, difficulty: 70, payout: [25000, 70000], heat: 30, target: 'business', targetTypes: ['armored_depot'], tier: 3, requires: { safehouseTier: 2 } },
+  heist_warehouse: { label: 'Warehouse Job', icon: '📦', blurb: 'Empty a warehouse overnight. Goods, not cash.', planDays: 2, minCrew: 2, maxCrew: 4, needs: { muscle: 6, wheels: 8, tech: 4 }, difficulty: 45, payout: [6000, 18000], lootKind: 'hot_goods', heat: 12, target: 'business', targetTypes: ['warehouse'], tier: 2, requires: { crewCount: 2, racketKinds: ['protection', 'numbers', 'bookmaking', 'gambling_den', 'loansharking', 'fencing', 'chop_shop', 'dealing', 'laundering', 'smuggling', 'no_show_jobs'] } },
+  robbery:         { label: 'Stick-Up', icon: '🔫', blurb: 'Walk in, take the till. Quick and dumb.', planDays: 0, minCrew: 0, maxCrew: 2, needs: { muscle: 5 }, difficulty: 30, payout: [400, 1800], heat: 8, target: 'business', tier: 0 },
+  insurance_fraud: { label: 'Insurance Fraud', icon: '🔥', blurb: 'Torch your own insured place, collect the policy.', planDays: 2, minCrew: 1, maxCrew: 2, needs: { tech: 5, brains: 4 }, difficulty: 40, payout: [0, 0], heat: 10, target: 'business', ownBusiness: true, tier: 1, requires: { businessOwned: true } },
+  check_kiting:    { label: 'Check Kiting', icon: '🧾', blurb: 'Float bad paper between banks through a front you own.', planDays: 3, minCrew: 1, maxCrew: 2, needs: { brains: 10 }, difficulty: 50, payout: [5000, 15000], heat: 8, target: 'business', ownBusiness: true, tier: 1, requires: { businessOwned: true } },
+  smuggle_run:     { label: 'Smuggle Run', icon: '🛻', blurb: 'Drive a load in from out of town. Product at cost.', planDays: 1, minCrew: 1, maxCrew: 3, needs: { wheels: 8 }, difficulty: 40, payout: [0, 0], lootKind: 'booze', heat: 8, target: 'none', cost: 1500, tier: 1, requires: { crewCount: 1 } },
+  frame:           { label: 'Frame', icon: '🗂️', blurb: 'Plant product and paper on a rival boss or lieutenant and let the cops do the rest. Quiet, if it works.', planDays: 2, minCrew: 1, maxCrew: 2, needs: { brains: 8, tech: 6 }, difficulty: 55, payout: [0, 0], heat: 5, target: 'npc', cost: 500, tier: 1, requires: { crewCount: 1 } },
+  hit:             { label: 'Hit', icon: '🎯', blurb: 'Someone stops being a problem. Permanently.', planDays: 2, minCrew: 1, maxCrew: 3, needs: { muscle: 10, wheels: 4 }, difficulty: 55, payout: [0, 0], heat: 25, target: 'npc', tier: 2, requires: { crewCount: 2, racketKinds: ['protection', 'numbers', 'bookmaking', 'gambling_den', 'loansharking', 'fencing', 'chop_shop', 'dealing', 'laundering', 'smuggling', 'no_show_jobs'] } },
+  intimidate:      { label: 'Send a Message', icon: '🔨', blurb: 'Bats and broken windows. Fear without a body.', planDays: 0, minCrew: 0, maxCrew: 3, needs: { muscle: 6 }, difficulty: 25, payout: [0, 0], heat: 6, target: 'business', tier: 0 },
+  takeover:        { label: 'Take the Corner', icon: '🏴', blurb: 'Roll up on a street crew and take their block. Lighter than a faction raid.', planDays: 0, minCrew: 0, maxCrew: 3, needs: { muscle: 8 }, difficulty: 35, payout: [300, 1200], heat: 8, target: 'block', tier: 0 },
+  steal_formula:   { label: 'Steal a Formula', icon: '📜', blurb: 'Break into a rival cook, a pharmacy or a print works and leave with something you can use.', planDays: 2, minCrew: 1, maxCrew: 3, needs: { tech: 8, brains: 6 }, difficulty: 50, payout: [0, 0], heat: 10, target: 'none', tier: 2, requires: { crewCount: 2, racketKinds: ['protection', 'numbers', 'bookmaking', 'gambling_den', 'loansharking', 'fencing', 'chop_shop', 'dealing', 'laundering', 'smuggling', 'no_show_jobs'] } },
+  scout_block:     { label: 'Scout the Edges', icon: '🔦', blurb: 'Walk the dead streets at the edge of a district and find out what is still standing. You may come back with nothing.', planDays: 1, minCrew: 0, maxCrew: 2, needs: { brains: 5, tech: 3, wheels: 3 }, difficulty: 30, payout: [0, 0], heat: 2, target: 'district', tier: 0 },
+  claim_abandoned: { label: 'Take the Lot', icon: '🏚️', blurb: 'Move into a derelict block: clear whoever is sleeping there, or buy the paperwork. Nobody collects rent on a place that is not on anyone\'s books.', planDays: 1, minCrew: 0, maxCrew: 3, needs: { muscle: 5, brains: 4 }, difficulty: 35, payout: [0, 0], heat: 6, target: 'block', tier: 1, requires: { priorOps: ['scout_block'] } },
+  kidnap:          { label: 'Take Someone', icon: '🕳️', blurb: 'Put somebody in the back of a van and hold them somewhere quiet. You need a safehouse with room, and holding them is its own problem.', planDays: 1, minCrew: 1, maxCrew: 3, needs: { muscle: 8, wheels: 6 }, difficulty: 50, payout: [0, 0], heat: 18, target: 'npc', tier: 2, requires: { crewCount: 1, safehouseTier: 1 } },
+  raid_rival:      { label: 'Raid Rival Racket', icon: '⚔️', blurb: 'Hit a rival racket, take the cash box, wreck the place.', planDays: 1, minCrew: 2, maxCrew: 5, needs: { muscle: 12, wheels: 4 }, difficulty: 50, payout: [1500, 6000], heat: 12, target: 'business', tier: 2, requires: { crewCount: 2, racketKinds: ['protection', 'numbers', 'bookmaking', 'gambling_den', 'loansharking', 'fencing', 'chop_shop', 'dealing', 'laundering', 'smuggling', 'no_show_jobs'] } },
 };
 
 export const SAFEHOUSE_TIERS = [

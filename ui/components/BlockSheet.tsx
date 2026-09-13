@@ -59,6 +59,21 @@ export function BlockSheet({ blockId }: { blockId: Id }) {
           <ul className="small muted" style={{ paddingLeft: 18, margin: 0 }}>{b.memory.slice(-4).reverse().map((m, i) => <li key={i}>Day {m.day}: {m.text}</li>)}</ul>
         </>
       )}
+      {b.abandoned && (
+        <div className="card mt12" style={{ borderColor: b.abandoned.claimedBy === PLAYER ? 'var(--green)' : 'var(--orange)' }}>
+          <div className="row between">
+            <b>🏚️ Derelict</b>
+            <TermChip id={b.abandoned.claimedBy === PLAYER ? 'claimed' : 'abandoned'} tone={b.abandoned.claimedBy === PLAYER ? 'var(--green)' : undefined}>
+              {b.abandoned.claimedBy === PLAYER ? 'Yours' : b.abandoned.claimedBy ? select.factionName(w, b.abandoned.claimedBy) : 'Unclaimed'}
+            </TermChip>
+          </div>
+          <p className="small muted mt8">
+            Nothing trades here and almost nobody is watching. Police {Math.round(b.police)}, about {Math.round(b.population)} people.
+            {' '}Nobody on this block can testify against you, because there is nobody on it.
+            {b.abandoned.claimedBy === PLAYER ? ' A safehouse here costs nothing to take or keep.' : ' Take it with the Take the Lot op.'}
+          </p>
+        </div>
+      )}
       {crew && (
         <div className="card mt12" style={{ borderColor: '#9a7b4f' }}>
           <div className="row between"><b>🏴 The {crew.name}<Info id="streetCrew" /></b><span className="chip">{crew.tribute === PLAYER ? 'On your payroll' : crew.tribute ? `Under ${select.factionName(w, crew.tribute)}` : `Strength ${Math.round(crew.strength)}`}</span></div>
@@ -86,7 +101,7 @@ export function BlockSheet({ blockId }: { blockId: Id }) {
         <div className="section-title">Safehouse</div>
       )}
       <div className="actions mt8">
-        {!sh && <Act action={{ type: 'rent_safehouse', blockId }} label="Rent safehouse here" icon="🏠" kind="primary" />}
+        {!sh && <Act action={{ type: 'rent_safehouse', blockId }} label={b.abandoned?.claimedBy === PLAYER ? 'Move in (free)' : 'Rent safehouse here'} icon="🏠" kind="primary" />}
         <Disclosure label="Sell product here" icon="💊">
           <label className="field">Product (you carry {stashLine(carried)})</label>
           <div className="chips mb8">
@@ -116,6 +131,31 @@ function SafehouseCard({ w, sh }: { w: World; sh: Safehouse }) {
         <dt><Term id="hiddenCash">Hidden cash</Term></dt><dd className="orange">{fmtMoney(sh.cash)}</dd>
         <dt>Rent</dt><dd>{fmtMoney((tier?.rent ?? 0) / 30)}/day · <Term id="beds">beds</Term> {tier?.crewBeds ?? '?'}</dd>
       </dl>
+      {sh.hostageIds.length > 0 && (
+        <>
+          <div className="section-title">Held here ({sh.hostageIds.length})<Info id="hostage" /></div>
+          <div className="list">
+            {select.hostagesOf(w, sh).map(n => {
+              const days = select.daysHeld(w, n);
+              const risk = Math.round(select.holdRisk(w, n) * 100);
+              return (
+                <div key={n.id} className="card" style={{ padding: 10, borderColor: risk >= 15 ? 'var(--red)' : undefined }}>
+                  <div className="row between">
+                    <button type="button" className="chip btn" onClick={() => openSheet({ kind: 'npc', npcId: n.id })}>{n.name} ›</button>
+                    <TermChip id="holdRisk" tone={risk >= 15 ? 'var(--red)' : 'var(--orange)'}>{risk}%/day</TermChip>
+                  </div>
+                  <div className="small muted mt8">{days} day{days === 1 ? '' : 's'} · worth about {fmtMoney(select.ransomValue(w, n))} to whoever wants them back.</div>
+                  <div className="actions mt8">
+                    <Act action={{ type: 'resolve_hostage', npcId: n.id, mode: 'ransom' }} label={`Ransom (${fmtMoney(select.ransomValue(w, n))})`} icon="💰" kind="primary" />
+                    <Act action={{ type: 'resolve_hostage', npcId: n.id, mode: 'leverage' }} label="Squeeze for a favour" icon="🤝" />
+                    <Act action={{ type: 'resolve_hostage', npcId: n.id, mode: 'release' }} label="Let them go" icon="🚪" kind="ghost" confirm={`Release ${n.name} with nothing?`} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
       <div className="section-title">Productions</div>
       <div className="list">
         {sh.productionIds.map(pid => {

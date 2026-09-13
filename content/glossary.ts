@@ -282,6 +282,41 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
     note: 'Parley with the boss to put them on your payroll or fold them in, or take the corner by force.',
   },
 
+  // ---------------------------------------------------------------- derelict ground
+  abandoned: {
+    title: 'Derelict block',
+    body: 'A block the city gave up on. No businesses, almost no police, almost nobody living there. Nothing to shake down, but nothing to go wrong either.',
+    note: 'Nobody here can be a witness, because a witness has to be somebody who saw you. Scout the quiet districts to find them.',
+  },
+  claimed: {
+    title: 'Claimed',
+    body: 'You moved in and nobody argued. A safehouse here costs nothing to rent or keep, because the block is not on anybody\'s books.',
+    note: 'The quietest place in the city to run a production, or to keep somebody nobody is supposed to find.',
+  },
+  hostage: {
+    title: 'Held',
+    body: 'They are alive and in one of your safehouses. Their own life stops: no agenda, no gossip, and nobody can reach them on the street.',
+    note: 'Every day carries a risk that scales with the block\'s police and population, and with how long you have held them. Settle it: ransom, leverage, or let them go.',
+  },
+  holdRisk: {
+    title: 'Risk of holding',
+    body: 'The daily chance this goes wrong: somebody hears, they get loose, or they hurt one of yours. Built from the block\'s police and population and how many days it has been.',
+    note: 'A derelict block has almost no police and almost nobody on it, which is why that is where this is done.',
+  },
+  ransom: {
+    title: 'Ransom',
+    body: 'Sell them back. Their faction pays what it can afford, up to what they are worth. Their people pay and hate you for it.',
+  },
+  leverage: {
+    title: 'Leverage',
+    body: 'Let them go owing you. A charm roll against their nerve, better the longer you have held them. It works and they do what you ask, or it fails and you have made a permanent enemy.',
+  },
+  opLocked: {
+    title: 'Not yet',
+    body: 'Ops open up as your operation does: people who have joined your crew, a safehouse of a certain size, a racket running, a business of your own, or a job of this kind already behind you.',
+    note: 'Locked ops stay on the board so you can see what you are working toward.',
+  },
+
   // ---------------------------------------------------------------- a business
   bizIncome: {
     title: 'Income',

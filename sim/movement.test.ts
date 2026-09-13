@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { PLAYER, can, dispatch, generateWorld, select, type Block, type World } from './index';
 import { FOOTHOLD, legworkFor, route } from './travel';
+import { BUSINESS_DEFS } from '@content/businesses';
 
 const mk = (seed = 5) => generateWorld({ origin: { lat: 51.5, lng: -0.12 }, placeName: 'London', playerName: 'T', background: 'muscle', seed });
 
@@ -79,7 +80,7 @@ describe('walking the block graph', () => {
     let w = mk(); const b = line(w);
     expect(route(w, b[0].id, b[5].id)!.cost).toBe(5);
     // a safehouse on every block does not make the walk cheaper any more: only influence does
-    for (const x of b) { const id = `ts${x.id}`; w.safehouses[id] = { id, blockId: x.id, name: 'S', tier: 1, owner: PLAYER, stash: { booze: 0, green: 0, pills: 0, hot_goods: 0, counterfeit: 0 }, cash: 0, productionIds: [], capacity: 60 }; x.safehouseId = id; w.player.safehouseIds.push(id); }
+    for (const x of b) { const id = `ts${x.id}`; w.safehouses[id] = { id, blockId: x.id, name: 'S', tier: 1, owner: PLAYER, stash: { booze: 0, green: 0, pills: 0, hot_goods: 0, counterfeit: 0 }, cash: 0, productionIds: [], capacity: 60, hostageIds: [] }; x.safehouseId = id; w.player.safehouseIds.push(id); }
     expect(route(w, b[0].id, b[5].id)!.cost).toBe(5);
     // run the blocks and the whole stretch is free to move through
     for (const x of b) own(w, x.id);
@@ -169,8 +170,11 @@ describe('face-to-face actions need you to be there', () => {
   it('a shakedown needs you at the door', () => {
     const w = mk(3);
     const here = select.startBlock(w);
-    const mine = select.businessesIn(w, here.id).find(b => b.ownedBy === 'npc');
-    const other = Object.values(w.businesses).find(b => b.blockId !== here.id && b.ownedBy === 'npc');
+    // a shakedown is refused for "nothing to shake here" before distance is even considered,
+    // so both sides of this test need a place that can actually be leaned on
+    const extortable = (b: { type: string }) => BUSINESS_DEFS[b.type as keyof typeof BUSINESS_DEFS].rackets.includes('protection');
+    const mine = select.businessesIn(w, here.id).find(b => b.ownedBy === 'npc' && extortable(b));
+    const other = Object.values(w.businesses).find(b => b.blockId !== here.id && b.ownedBy === 'npc' && extortable(b));
     expect(other).toBeDefined();
     expect(blockedByDistance(can(w, { type: 'shakedown', businessId: other!.id }))).toBe(true);
     if (mine) expect(blockedByDistance(can(w, { type: 'shakedown', businessId: mine.id }))).toBe(false);

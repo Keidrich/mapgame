@@ -78,6 +78,7 @@ idle nights (up to three) and shows a recap.
 
 Alpha, v2 systems in. Everything in the design doc §3–§7 exists in a playable form,
 plus: player position and legwork (face-to-face actions need you on the block);
+derelict blocks with scouting and claiming; hostages; an op tree with requirements;
 NPC agendas, grudges and gossip; block memory and home turf; street crews;
 lieutenants (delegation with skimming and flipping); production quality, recipes,
 upgrades and events; OSM schools and police stations as rules; an overnight recap
