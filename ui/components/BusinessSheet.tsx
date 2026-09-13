@@ -47,7 +47,7 @@ export function BusinessSheet({ businessId }: { businessId: Id }) {
           <div className="section-title">{yours ? 'Manager' : 'Owner'}</div>
           <button type="button" className="card" style={{ width: '100%', textAlign: 'left', color: 'inherit' }} onClick={() => openSheet({ kind: 'npc', npcId: owner.id })}>
             <div className="row between"><b>{owner.name}</b><span className="chip">{select.relLabel(owner)}</span></div>
-            <div className="chips mt8">{owner.traits.map(t => <span key={t} className="chip">{TRAIT_LABELS[t] ?? t}</span>)}{owner.faction && <span className="chip" style={{ color: select.factionColor(w, owner.faction) }}>{select.factionName(w, owner.faction)}</span>}</div>
+            <div className="chips mt8">{select.isKnown(owner) ? owner.traits.map(t => <span key={t} className="chip">{TRAIT_LABELS[t] ?? t}</span>) : <span className="chip muted">Traits unknown</span>}{owner.grudge && <span className="chip" style={{ color: 'var(--red)' }}>Grudge</span>}{select.agendaLabel(owner) && <span className="chip" style={{ color: 'var(--blue)' }}>{select.agendaLabel(owner)}</span>}{owner.faction && <span className="chip" style={{ color: select.factionColor(w, owner.faction) }}>{select.factionName(w, owner.faction)}</span>}</div>
             <div className="mt8"><RelMeters rel={owner.rel} /></div>
           </button>
         </>

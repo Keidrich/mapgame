@@ -53,7 +53,11 @@ export interface Block {
   influence: Record<FactionId, number>; // 0..100 per faction
   businessIds: Id[];
   safehouseId?: Id;
+  memory: BlockMemory[];        // what people here remember (capped)
+  tags: ('school' | 'police' | 'home')[];
 }
+
+export interface BlockMemory { day: number; kind: string; text: string }
 
 // ---------- businesses ----------
 export type BusinessType =
@@ -136,7 +140,20 @@ export interface Npc {
   alive: boolean;
   crew?: CrewInfo;            // set when in the player's crew
   official?: { kind: OfficialKind; corruption: number; retainerDay?: number; boughtBy?: FactionId };
+  agenda?: Agenda;            // a want that advances daily whether or not you show up
+  grudge?: { since: number; reason: string; spread: number }; // holds it against you and tells people
+  known: boolean;             // traits and nerve revealed (Read action, a scene, or enough trust)
   notes: string[];
+}
+
+export type AgendaKind = 'debt' | 'leave' | 'revenge' | 'ambition' | 'family';
+export interface Agenda {
+  kind: AgendaKind;
+  progress: number;  // 0..100; milestones at 50 and 100
+  rate: number;      // per day
+  target?: Id;       // faction or npc it concerns
+  milestone50?: boolean;
+  done?: boolean;
 }
 
 // ---------- products ----------
@@ -243,6 +260,7 @@ export interface Faction {
   tributeFrom: Record<FactionId, number>; // $/day owed to this faction
   alive: boolean;
   grudges: string[];
+  brokenTruces: number;   // by the player; each one lowers the best standing you can ever reach with them
 }
 
 // ---------- player ----------
@@ -267,6 +285,7 @@ export interface Player {
   jailedDays: number;
   busts: number;
   launderedToday: number;
+  homeBlockId: Id;
 }
 
 // ---------- events ----------

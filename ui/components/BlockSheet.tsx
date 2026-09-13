@@ -21,7 +21,14 @@ export function BlockSheet({ blockId }: { blockId: Id }) {
   const carried = w.player.stash;
 
   return (
-    <Sheet title={b.name} subtitle={`${districtName(w, b)} · ${select.factionName(w, ctrl)}${ctrl ? ' turf' : ''}`} accent={select.factionColor(w, ctrl)}>
+    <Sheet title={b.name} subtitle={`${districtName(w, b)} · ${select.factionName(w, ctrl)}${ctrl ? ' turf' : ''}${b.tags.includes('home') ? ' · 🏠 Home turf' : ''}`} accent={select.factionColor(w, ctrl)}>
+      {(b.tags.includes('home') || b.tags.includes('school') || b.tags.includes('police')) && (
+        <div className="chips mb8">
+          {b.tags.includes('home') && <span className="chip" style={{ color: 'var(--gold)' }}>Home turf: less heat, warmer people</span>}
+          {b.tags.includes('school') && <span className="chip" style={{ color: 'var(--orange)' }}>School nearby: heat ×1.5</span>}
+          {b.tags.includes('police') && <span className="chip" style={{ color: 'var(--red)' }}>Police station: raids come fast</span>}
+        </div>
+      )}
       <div className="col" style={{ gap: 4 }}>
         {rows.length === 0 && <p className="small muted">Nobody holds this block.</p>}
         {rows.map(r => <Meter key={r.faction} label={<span><span className="swatch" style={{ background: r.color }} />{r.name}</span>} value={r.value} color={r.color} />)}
@@ -32,6 +39,12 @@ export function BlockSheet({ blockId }: { blockId: Id }) {
         <Meter label="Heat" value={b.heat} color="var(--red)" />
         <Meter label="People" value={b.population} color="var(--purple)" />
       </div>
+      {b.memory.length > 0 && (
+        <>
+          <div className="section-title">What people remember</div>
+          <ul className="small muted" style={{ paddingLeft: 18, margin: 0 }}>{b.memory.slice(-4).reverse().map((m, i) => <li key={i}>Day {m.day}: {m.text}</li>)}</ul>
+        </>
+      )}
       <div className="section-title">Demand / day</div>
       <div className="chips">
         {PRODUCTS.map(p => <span key={p} className="chip">{PRODUCT_INFO[p].icon} {PRODUCT_INFO[p].label} <span className="muted">{b.demand[p]}</span></span>)}

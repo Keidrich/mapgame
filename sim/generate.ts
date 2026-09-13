@@ -2,11 +2,12 @@ import type { GeoChunk } from '@geo/chunks';
 import { chunkKeyAt, hexChunk } from '@geo/chunks';
 import { distanceM } from '@geo/project';
 import { Rng, hashString } from './rng';
+import { BUSINESS_DEFS } from '@content/businesses';
 import { addBusiness, mkNpc, populateChunk } from './populate';
 import { PLAYER, type LatLng, type Player, type Skills, type World } from './types';
 
 export { controller, stanceFor, STEP_M } from './populate';
-export const WORLD_VERSION = 3;
+export const WORLD_VERSION = 4;
 export const HEX_SIZE_M = 190;
 
 export interface NewGameOptions {
@@ -31,7 +32,7 @@ export function generateWorld(opts: NewGameOptions): World {
     player: {
       name: opts.playerName, background: opts.background, skills: startingSkills(opts.background),
       cash: 2500, dirty: 0, heat: 0, respect: 5, fear: 0, ap: 8, apMax: 8, stash: emptyStash(),
-      crewIds: [], safehouseIds: [], businessIds: [], racketIds: [], opIds: [], lawyer: false, jailedDays: 0, busts: 0, launderedToday: 0,
+      crewIds: [], safehouseIds: [], businessIds: [], racketIds: [], opIds: [], lawyer: false, jailedDays: 0, busts: 0, launderedToday: 0, homeBlockId: '',
     },
     pendingEvents: [], log: [], nextId: 1,
   };
@@ -54,6 +55,14 @@ export function generateWorld(opts: NewGameOptions): World {
   if (!startBlock.businessIds.length) addBusiness(rng, w, nid, startBlock, 'bar', used);
   for (const f of Object.keys(w.factions)) delete startBlock.influence[f];
   startBlock.influence[PLAYER] = 12;
+  w.player.homeBlockId = startBlock.id; startBlock.tags.push('home');
+  // home turf: people here already know your face
+  for (const bid of startBlock.businessIds) for (const id of [w.businesses[bid].ownerId, ...w.businesses[bid].patronIds]) { const n = w.npcs[id]; if (n) { n.rel.trust += 10; n.known = true; } }
+  // a guaranteed first mark: at least one extortable place on your block with an owner who folds
+  const marks = startBlock.businessIds.map(id => w.businesses[id]).filter(b => BUSINESS_DEFS[b.type].rackets.includes('protection'));
+  if (!marks.length) marks.push(addBusiness(rng, w, nid, startBlock, 'corner_store', used));
+  const soft = marks.map(b => w.npcs[b.ownerId]).sort((a, b) => a.nerve - b.nerve)[0];
+  if (soft.nerve > 35) { soft.nerve = rng.int(22, 35); if (!soft.traits.includes('coward')) soft.traits[1] = 'coward'; }
   const friend = startBlock.businessIds.flatMap(id => w.businesses[id].patronIds).map(id => w.npcs[id])[0];
   if (friend) { friend.rel.trust = 45; friend.rel.respect = 30; friend.notes.push('Knew you from before.'); }
   const startOwner = w.npcs[w.businesses[startBlock.businessIds[0]].ownerId];

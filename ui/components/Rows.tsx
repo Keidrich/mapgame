@@ -12,7 +12,7 @@ export function NpcRow({ w, npc, sub, sel }: { w: World; npc: Npc; sub?: string;
       <div className="avatar" style={{ color: npc.faction ? select.factionColor(w, npc.faction) : undefined }}>{initials(npc.name)}</div>
       <div className="grow" style={{ minWidth: 0 }}>
         <div className="title ellipsis">{npc.name}{!npc.alive && <span className="muted"> (dead)</span>}</div>
-        <div className="sub ellipsis">{sub ?? `${roleLabel(npc)} · ${npc.traits.map(t => TRAIT_LABELS[t] ?? t).join(', ')} · ${select.relLabel(npc)}`}</div>
+        <div className="sub ellipsis">{sub ?? `${roleLabel(npc)} · ${select.isKnown(npc) ? npc.traits.map(t => TRAIT_LABELS[t] ?? t).join(', ') : '?'} · ${select.relLabel(npc)}${npc.grudge ? ' · grudge' : ''}`}</div>
       </div>
       {status && <span className={`chip s-${status}`}>{status}</span>}
     </button>

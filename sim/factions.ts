@@ -7,6 +7,7 @@ import type { Rng } from './rng';
 import { PLAYER, type Block, type Faction, type FactionId, type World } from './types';
 import { addHeat, addInfluence, adjustRel, clamp, factionOf, log, money } from './util';
 import { successionOrDeath } from './ops';
+import { addMemory } from './people';
 
 export function runFaction(w: World, f: Faction, rng: Rng) {
   if (!f.alive) return;
@@ -62,6 +63,7 @@ export function runFaction(w: World, f: Faction, rng: Rng) {
     const after = factionOf(w, t.id);
     if (before !== after && after === f.id) {
       log(w, `${f.name} now runs ${t.name}.${before === PLAYER ? ' That was yours.' : ''}`, before === PLAYER ? 'bad' : 'info', { factionId: f.id, blockId: t.id });
+      addMemory(w, t.id, 'takeover', `${f.short} moved in and took over.`);
       if (before === PLAYER) p.respect = clamp(p.respect - 5);
     }
   }
@@ -82,7 +84,7 @@ export function runFaction(w: World, f: Faction, rng: Rng) {
   if (f.stance[PLAYER] === 'alliance') drift += 0.5;
   else if (f.standing[PLAYER] < 0 && !incursions && !playerOnTurf) drift += f.temperament === 'diplomatic' ? 1.2 : 0.6; // grudges fade
   if (f.grudges.length > 6) f.grudges.splice(0, f.grudges.length - 6);
-  f.standing[PLAYER] = clamp(f.standing[PLAYER] + drift, -100, 100);
+  f.standing[PLAYER] = Math.min(clamp(f.standing[PLAYER] + drift, -100, 100), standingCap(f));
   const truce = (f.truceUntil[PLAYER] ?? 0) > w.day;
   const oldStance = f.stance[PLAYER];
   let ns = stanceFor(f.standing[PLAYER]);
@@ -121,6 +123,8 @@ export function runFaction(w: World, f: Faction, rng: Rng) {
 }
 
 function stanceOf(f: Faction) { return f.stance[PLAYER]; }
+/** Break a truce and they never fully trust you again. */
+export function standingCap(f: Faction): number { return 100 - 35 * (f.brokenTruces ?? 0); }
 
 function actAgainstPlayer(w: World, f: Faction, rng: Rng, war: boolean) {
   const p = w.player;

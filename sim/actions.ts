@@ -10,6 +10,7 @@ export type Action =
   // --- people ---
   | { type: 'visit'; npcId: Id; approach?: string }       // 1 AP: a scene; approaches in content/lines.ts
   | { type: 'gift'; npcId: Id; amount: number }           // cash: +trust
+  | { type: 'read'; npcId: Id }                           // 1 AP: size someone up (reveals traits, nerve, agenda)
   | { type: 'threaten'; npcId: Id; approach?: string }    // 1 AP: +fear, -trust, +heat
   | { type: 'recruit'; npcId: Id; approach?: string }     // 1 AP: patron -> crew
   | { type: 'fire'; npcId: Id }

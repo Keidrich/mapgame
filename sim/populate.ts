@@ -7,6 +7,7 @@ import { BUSINESS_NAME_PARTS, FACTION_ARCHETYPES, FIRST_NAMES, LAST_NAMES, NICKN
 import type { GeoChunk } from '@geo/chunks';
 import { distanceM } from '@geo/project';
 import type { Rng } from './rng';
+import { assignAgendas } from './people';
 import {
   PLAYER, type Block, type Business, type BusinessType, type District, type DistrictKind, type Faction, type FactionId,
   type Id, type LatLng, type Npc, type ProductKind, type Trait, type World,
@@ -32,7 +33,7 @@ export function populateChunk(w: World, chunk: GeoChunk, rng: Rng, opts: Populat
     const b: Block = {
       id: gb.id, hex: gb.hex, chunkKey: chunk.key, polygon: gb.polygon, center: gb.center, areaM2: gb.areaM2,
       neighborIds: gb.neighborIds.filter(id => chunk.blocks.some(x => x.id === id)), edgeKeys: gb.edgeKeys ?? [], streetNames: gb.streetNames,
-      name: '', districtId: '', wealth: 50, police: 40, heat: 0, population: 50, demand: demandFor(50, 50, 'market'), influence: {}, businessIds: [],
+      name: '', districtId: '', wealth: 50, police: 40, heat: 0, population: 50, demand: demandFor(50, 50, 'market'), influence: {}, businessIds: [], memory: [], tags: [],
     };
     for (const e of b.edgeKeys) {
       const other = edgeIndex.get(e);
@@ -81,6 +82,9 @@ export function populateChunk(w: World, chunk: GeoChunk, rng: Rng, opts: Populat
     }
   }
 
+  // ---- agendas for the people worth watching ----
+  assignAgendas(w, added.flatMap(b => b.businessIds.flatMap(id => [w.businesses[id].ownerId, ...w.businesses[id].patronIds])).map(id => w.npcs[id]), rng);
+
   // ---- factions: several on the first chunk, sometimes one more in a new area ----
   const want = opts.first ? (opts.factionCount ?? clamp(Math.round(added.length / 40), 2, 4)) : (Object.keys(w.factions).length < MAX_FACTIONS && added.length >= 25 && rng.chance(0.7) ? 1 : 0);
   const usedArch = new Set(Object.values(w.factions).map(f => f.short));
@@ -114,12 +118,13 @@ function spawnFaction(w: World, rng: Rng, nid: (p: string) => string, arch: type
   const f: Faction = {
     id: nid('f'), name: arch.name.replace('{L}', last), short: arch.short.replace('{L}', last), color: arch.color,
     temperament: arch.temperament, homeDistrictId: home.id, bossId: '', lieutenantIds: [],
-    soldiers: rng.int(8, 14), cash: rng.int(15000, 40000), standing: { [PLAYER]: 0 }, stance: { [PLAYER]: 'peace' }, truceUntil: {}, tributeFrom: {}, alive: true, grudges: [],
+    soldiers: rng.int(8, 14), cash: rng.int(15000, 40000), standing: { [PLAYER]: 0 }, stance: { [PLAYER]: 'peace' }, truceUntil: {}, tributeFrom: {}, alive: true, grudges: [], brokenTruces: 0,
   };
   const homeBlock = w.blocks[rng.pick(home.blockIds)];
   f.bossId = mkNpc(rng, w, nid, { role: 'boss', homeBlockId: homeBlock.id, faction: f.id, style: arch.style, strong: true }).id;
   for (let k = 0; k < 2; k++) f.lieutenantIds.push(mkNpc(rng, w, nid, { role: 'lieutenant', homeBlockId: w.blocks[rng.pick(home.blockIds)].id, faction: f.id, style: arch.style, strong: true }).id);
   w.factions[f.id] = f;
+  assignAgendas(w, f.lieutenantIds.map(id => w.npcs[id]), rng);
   // starting turf: home block and neighbours strong, next ring weak
   const ring = new Map<string, number>([[homeBlock.id, 0]]);
   let frontier = [homeBlock.id];
@@ -261,7 +266,7 @@ export function mkNpc(rng: Rng, w: World, nid: (p: string) => string, o: NpcOpts
   const n: Npc = {
     id: nid('n'), name: `${first}${nick} ${last}`, role: o.role, traits,
     skills: { muscle: sk(4 + strong), brains: sk(4 + strong / 2), charm: sk(4), wheels: sk(3), tech: sk(2) },
-    homeBlockId: o.homeBlockId, faction: o.faction, favouriteBusinessIds: [], rel: { trust: 0, fear: 0, respect: 0 }, nerve, alive: true, notes: [],
+    homeBlockId: o.homeBlockId, faction: o.faction, favouriteBusinessIds: [], rel: { trust: 0, fear: 0, respect: 0 }, nerve, alive: true, known: false, notes: [],
   };
   w.npcs[n.id] = n; return n;
 }

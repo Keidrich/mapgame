@@ -22,8 +22,11 @@ export function NpcSheet({ npcId }: { npcId: Id }) {
   return (
     <Sheet title={n.name} subtitle={`${roleLabel(n)}${faction ? ` · ${faction.name}` : ''}${!n.alive ? ' · deceased' : ''}`} icon={<span className="avatar" style={{ color: faction?.color }}>{initials(n.name)}</span>} accent={faction?.color}>
       <div className="chips">
-        {n.traits.map(t => <span key={t} className="chip">{TRAIT_LABELS[t] ?? t}</span>)}
+        {select.isKnown(n) ? n.traits.map(t => <span key={t} className="chip">{TRAIT_LABELS[t] ?? t}</span>) : <span className="chip muted">Traits unknown</span>}
         <span className="chip">{select.relLabel(n)}</span>
+        {n.grudge && <span className="chip" style={{ color: 'var(--red)' }}>Holds a grudge</span>}
+        {n.homeBlockId === w.player.homeBlockId && <span className="chip" style={{ color: 'var(--gold)' }}>Home turf</span>}
+        {select.agendaLabel(n) && <span className="chip" style={{ color: 'var(--blue)' }}>{select.agendaLabel(n)}</span>}
         {n.official && <span className="chip">Corruption {n.official.corruption}</span>}
         {n.official?.boughtBy && <span className="chip" style={{ color: select.factionColor(w, n.official.boughtBy) }}>Bought by {select.factionName(w, n.official.boughtBy)}</span>}
       </div>
@@ -33,7 +36,7 @@ export function NpcSheet({ npcId }: { npcId: Id }) {
         <dt>Find at</dt>
         <dd>{where ? <button type="button" className="chip btn" onClick={() => openSheet({ kind: 'business', businessId: where.id })}>{where.name}</button> : home ? <button type="button" className="chip btn" onClick={() => openSheet({ kind: 'block', blockId: home.id })}>{home.name}</button> : '—'}</dd>
         {faction && <><dt>Faction</dt><dd style={{ color: faction.color }}>{faction.name} ({cap(select.stanceWithPlayer(w, faction.id))})</dd></>}
-        <dt>Nerve</dt><dd>{n.nerve}</dd>
+        <dt>Nerve</dt><dd>{select.isKnown(n) ? n.nerve : '?'}</dd>
       </dl>
       {n.notes.length > 0 && <ul className="small muted mt8" style={{ paddingLeft: 18, margin: 0 }}>{n.notes.map((x, i) => <li key={i}>{x}</li>)}</ul>}
 
@@ -41,6 +44,7 @@ export function NpcSheet({ npcId }: { npcId: Id }) {
 
       <div className="section-title">Actions</div>
       <div className="actions">
+        {!select.isKnown(n) && n.alive && <Act action={{ type: 'read', npcId }} label="Size them up" icon="🧐" />}
         <SceneAct scene={{ kind: 'visit', npcId }} label="Visit" icon="🤝" />
         <SceneAct scene={{ kind: 'threaten', npcId }} label="Threaten" icon="😠" kind="danger" />
         <Disclosure label="Gift" icon="🎁">

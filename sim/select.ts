@@ -77,6 +77,12 @@ export function npcLocation(w: World, n: Npc): Business | undefined {
   if (n.role === 'owner') return Object.values(w.businesses).find(b => b.ownerId === n.id);
   return undefined;
 }
+export function agendaLabel(n: Npc): string | undefined {
+  if (!n.agenda || n.agenda.done || !(n.known || n.rel.trust >= 20)) return undefined;
+  const L: Record<string, string> = { debt: 'Owes money to the wrong people', leave: 'Wants out of this life', revenge: 'Wants to get even', ambition: 'Wants to be somebody', family: 'Protecting their family' };
+  return `${L[n.agenda.kind]} (${Math.round(n.agenda.progress)}%)`;
+}
+export function isKnown(n: Npc): boolean { return n.known || n.rel.trust >= 20; }
 export function relLabel(n: Npc): string {
   const { trust, fear } = n.rel;
   if (trust >= 60) return 'Friend'; if (trust >= 25) return 'Warm'; if (fear >= 60) return 'Terrified';

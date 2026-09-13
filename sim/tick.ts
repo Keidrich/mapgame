@@ -2,6 +2,7 @@
 import { PRODUCTION_DEFS, PRODUCT_INFO, RACKET_DEFS, SAFEHOUSE_TIERS } from '@content/rackets';
 import { launderCapacity, productionOutput, racketIncome, streetPrice } from './economy';
 import { drawEvents } from './events';
+import { addMemory, tickAgendas, tickGossip } from './people';
 import { runFaction } from './factions';
 import { resolveOp } from './ops';
 import { closeRacket, stashTotal } from './reducer';
@@ -112,6 +113,9 @@ export function endDay(w: World): World {
   p.heat = clamp(p.heat - (4 + captainHelp + p.heat * 0.03)); // old news cools fastest
   for (const b of Object.values(w.blocks)) b.heat = clamp(b.heat - 3);
 
+  // ---- people's own business ----
+  tickAgendas(w, rng); tickGossip(w, rng);
+
   // ---- relationship drift & influence decay ----
   for (const n of Object.values(w.npcs)) {
     if (!n.alive) continue;
@@ -156,12 +160,14 @@ function raid(w: World, rng: import('./rng').Rng) {
     r.disrupted = rng.int(3, 6); const fine = Math.round(500 + r.lastIncome * 4); spend(w, fine);
     if (r.runnerId) { const n = w.npcs[r.runnerId]; if (n.crew) { n.crew.status = 'jailed'; n.crew.statusDays = jailDays(w, 12); n.crew.assignment = undefined; r.runnerId = undefined; } }
     log(w, `RAID: police hit the ${RACKET_DEFS[r.kind].label.toLowerCase()} at ${b.name}. ${money(fine)} in fines and lawyers; shut ${r.disrupted} days.`, 'bad', { businessId: b.id, racketId: r.id });
+    addMemory(w, b.blockId, 'raid', `The cops raided ${b.name}.`);
   } else {
     const s = w.safehouses[t.id];
     const lost = Math.round(stashTotal(s.stash) * (p.lawyer ? 0.3 : 0.6));
     for (const k of Object.keys(s.stash) as (keyof typeof s.stash)[]) s.stash[k] = Math.round(s.stash[k] * (1 - lost / Math.max(1, stashTotal(s.stash) || 1)));
     for (const pid of s.productionIds) w.productions[pid].disrupted = 4;
     log(w, `RAID: police tossed ${s.name}. Lost ${lost} units of product; productions down 4 days.`, 'bad', { blockId: s.blockId });
+    addMemory(w, s.blockId, 'raid', `Police tossed a safehouse on this block.`);
   }
   p.heat = clamp(p.heat - 15);
 }
@@ -175,6 +181,7 @@ function bust(w: World, rng: import('./rng').Rng) {
   for (const id of p.racketIds) { const r = w.rackets[id]; if (r) { r.disrupted = 5; r.runnerId = undefined; } }
   for (const id of p.racketIds.slice()) if (w.rackets[id]?.kind === 'gambling_den' && rng.chance(0.5)) closeRacket(w, id);
   p.heat = 40; p.respect = clamp(p.respect - 10);
+  if (w.blocks[p.homeBlockId]) addMemory(w, p.homeBlockId, 'bust', 'The task force took you away in front of everybody.');
   log(w, `BUSTED. The task force came through everything at once. ${money(lostDirty)} dirty cash and all product seized, ${jailed} of your people jailed, every racket dark for 5 days. Heat resets to 40.`, 'bad');
   for (const f of Object.values(w.factions)) if (f.alive) f.standing[PLAYER] = clamp(f.standing[PLAYER] - 5, -100, 100);
   void factionOf;

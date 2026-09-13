@@ -20,7 +20,13 @@ function openingLine(w: World, kind: SceneKind, n: Npc): string {
   const table = OPENING[kind];
   const key = n.rel.trust >= 40 && table.friend ? 'friend' : n.rel.fear >= 50 && table.scared ? 'scared' : n.traits.find(t => table[t]) ?? 'default';
   const lines = table[key as keyof typeof table] ?? table.default ?? ['...'];
-  return lines[(w.day + n.id.length) % lines.length];
+  let line = lines[(w.day + n.id.length) % lines.length];
+  if (n.grudge && kind !== 'visit') line += ` "And I haven't forgotten last time."`;
+  else if (n.grudge) line += ` They are cool with you; the whole block heard about last time.`;
+  const mem = w.blocks[n.homeBlockId]?.memory.slice(-1)[0];
+  if (mem && w.day - mem.day <= 15 && kind === 'visit') line += ` Everybody is still talking about it: ${mem.text}`;
+  if (n.homeBlockId === w.player.homeBlockId && kind === 'visit') line += ` (Home turf.)`;
+  return line;
 }
 
 function disabledReason(w: World, kind: SceneKind, id: string, n: Npc): string | undefined {
@@ -52,6 +58,8 @@ export function approachChance(w: World, kind: SceneKind, id: string, n: Npc, bi
     case 'recruit:lean': v = 10 + s.muscle * 3 + fear * 0.8 + p.fear * 0.3 + (has('coward') ? 30 : -10); break;
   }
   if (biz && biz.protection && biz.protection.factionId !== 'player' && kind === 'shakedown') v -= 20;
+  if (n.grudge && (kind === 'shakedown' || kind === 'threaten' || kind === 'recruit')) v -= 10; // they have their guard up
+  if (n.homeBlockId === w.player.homeBlockId) v += 5; // home turf
   return Math.max(3, Math.min(97, Math.round(v)));
 }
 

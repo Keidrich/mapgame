@@ -4,6 +4,7 @@ import { opChance } from './select';
 import { PLAYER, type Op, type World } from './types';
 import { addHeat, addInfluence, adjustRel, clamp, jailDays, log, money, spreadRep } from './util';
 import { freeOpCrew } from './reducer';
+import { addMemory } from './people';
 
 /** Resolve one launched op. Called from the tick. */
 export function resolveOp(w: World, o: Op, rng: Rng) {
@@ -60,6 +61,7 @@ export function resolveOp(w: World, o: Op, rng: Rng) {
         }
         if (n.role === 'owner') { for (const b of Object.values(w.businesses)) if (b.ownerId === n.id) { b.flags.push('owner_dead'); b.condition = clamp(b.condition - 20); } }
         p.fear = clamp(p.fear + 10); spreadRep(w, n.homeBlockId, { fear: 12, trust: -5 }, 2);
+        addMemory(w, n.homeBlockId, 'hit', `${n.name} was killed. Everybody knows who ordered it.`);
         break;
       }
       case 'intimidate': {

@@ -7,6 +7,8 @@ import { populateChunk } from './populate';
 import { launderCapacity, streetPrice } from './economy';
 import { resolveEventOption } from './events';
 import { approachChance, resultLine } from './scenes';
+import { AGENDA_LABEL, addGrudge, addMemory } from './people';
+import { standingCap } from './factions';
 import { endDay } from './tick';
 import { PLAYER, type Business, type Id, type Npc, type Op, type Racket, type Safehouse, type World } from './types';
 import { activeCrewCount, officialTrust, addHeat, addInfluence, adjustRel, clamp, factionOf, log, money, nid, rngOf, spreadRep, takeCash } from './util';
@@ -27,6 +29,7 @@ export function can(w: World, a: Action): Affordance {
   switch (a.type) {
     case 'visit': { const n = npc(a.npcId); if (!n?.alive) return no('They are gone.'); const r = ap(1); if (r) return no(r); if (a.approach === 'drinks' && p.cash < 50) return no('Needs $50.'); return yes({ ap: 1, cash: a.approach === 'drinks' ? 50 : 0 }); }
     case 'gift': { const n = npc(a.npcId); if (!n?.alive) return no('They are gone.'); if (a.amount < 50) return no('That is an insult, not a gift.'); const r = cash(a.amount); return r ? no(r) : yes({ cash: a.amount }); }
+    case 'read': { const n = npc(a.npcId); if (!n?.alive) return no('They are gone.'); if (n.known) return no('You already have their number.'); const r = ap(1); return r ? no(r) : yes({ ap: 1 }); }
     case 'threaten': { const n = npc(a.npcId); if (!n?.alive) return no('They are gone.'); if (n.official) return no('Threatening an official is a bad idea. Bribe them.'); if (n.role === 'boss') return no('You do not threaten a boss. You go to war with him.'); const r = ap(1); if (r) return no(r); if (a.approach === 'crew' && activeCrewCount(w) === 0) return no('No crew to bring.'); return yes({ ap: 1 }); }
     case 'recruit': {
       const n = npc(a.npcId); if (!n?.alive) return no('They are gone.');
@@ -194,7 +197,7 @@ export function dispatch(prev: World, a: Action): World {
 
   switch (a.type) {
     case 'visit': {
-      const n = npc(a.npcId); const ap_ = a.approach ?? 'listen';
+      const n = npc(a.npcId); const ap_ = a.approach ?? 'listen'; n.known = true;
       if (a.approach === 'drinks') takeCash(w, 50);
       const chance = approachChance(w, 'visit', ap_, n); const ok = rng.int(1, 100) <= chance;
       const biz = n.favouriteBusinessIds[0] ? w.businesses[n.favouriteBusinessIds[0]] : undefined;
@@ -203,9 +206,17 @@ export function dispatch(prev: World, a: Action): World {
       else if (ap_ === 'business') { respect = ok ? 6 : 3; gain = 2; if (ok) { const tip = patronTip(w, n, rng); if (tip) extra = ` ${tip}`; } }
       else { gain = ok ? 5 + Math.round(p.skills.charm / 3) : 2; if (ok && n.role === 'patron' && rng.chance(0.5)) { const tip = patronTip(w, n, rng); if (tip) extra = ` ${tip}`; } }
       if (n.traits.includes('quiet')) gain = Math.max(1, gain - 1);
+      if (n.homeBlockId === p.homeBlockId) gain += 1; // home turf
       adjustRel(n, { trust: gain, respect });
       if (n.official && n.rel.trust >= 20) extra = ' They mention, unofficially, that a donation would be remembered.';
       log(w, `${resultLine('visit', ap_, ok, rng)} ${n.name}${biz ? ` at ${biz.name}` : ''}: +${gain} trust${respect ? `, +${respect} respect` : ''}.${extra}`, ok ? 'good' : 'info', { npcId: n.id, businessId: biz?.id });
+      break;
+    }
+    case 'read': {
+      const n = npc(a.npcId);
+      const chance = 40 + p.skills.charm * 5 + p.skills.tech * 2 + (n.traits.includes('quiet') ? -15 : 0);
+      if (rng.int(1, 100) <= chance) { n.known = true; log(w, `You size up ${n.name}: ${n.traits.join(', ')}. Nerve ${n.nerve}.${n.agenda ? ` They ${agendaText(n)}.` : ''}`, 'good', { npcId: n.id }); }
+      else { adjustRel(n, { trust: -2 }); log(w, `${n.name} notices you watching and clams up.`, 'info', { npcId: n.id }); }
       break;
     }
     case 'gift': {
@@ -217,7 +228,7 @@ export function dispatch(prev: World, a: Action): World {
       break;
     }
     case 'threaten': {
-      const n = npc(a.npcId); const ap_ = a.approach ?? 'stare';
+      const n = npc(a.npcId); const ap_ = a.approach ?? 'stare'; n.known = true;
       const chance = approachChance(w, 'threaten', ap_, n); const ok = rng.int(1, 100) <= chance;
       if (ok) {
         const fear = (ap_ === 'crew' ? 18 : ap_ === 'family' ? 16 : 12) + Math.round(p.skills.muscle / 2) + (n.traits.includes('coward') ? 12 : 0);
@@ -229,12 +240,13 @@ export function dispatch(prev: World, a: Action): World {
         adjustRel(n, { trust: -10, respect: -3, fear: 3 }); addHeat(w, ap_ === 'crew' ? 4 : 2, n.homeBlockId);
         if (ap_ === 'family' && (n.traits.includes('honest') || n.rel.trust < -30)) { addHeat(w, 6); log(w, `${n.name} went straight to the precinct. (+6 heat)`, 'bad', { npcId: n.id }); }
         else log(w, `${resultLine('threaten', ap_, false, rng)} ${n.name} is not impressed. ${n.traits.includes('hothead') ? 'They are looking for a fight now.' : 'Word gets around.'}`, 'bad', { npcId: n.id });
+        if (n.traits.includes('hothead') || n.traits.includes('connected')) addGrudge(w, n, `${n.name} stared you down and you blinked.`);
         if (n.faction && w.factions[n.faction]) w.factions[n.faction].standing[PLAYER] -= 5;
       }
       break;
     }
     case 'recruit': {
-      const n = npc(a.npcId); const ap_ = a.approach ?? 'promise';
+      const n = npc(a.npcId); const ap_ = a.approach ?? 'promise'; n.known = true;
       const chance = approachChance(w, 'recruit', ap_, n); const ok = rng.int(1, 100) <= chance;
       if (!ok) {
         if (ap_ === 'lean') { adjustRel(n, { trust: -15, fear: 5 }); log(w, `${resultLine('recruit', ap_, false, rng)} ${n.name} wants nothing to do with you for a while.`, 'bad', { npcId: n.id }); }
@@ -286,10 +298,10 @@ export function dispatch(prev: World, a: Action): World {
     }
 
     case 'shakedown': {
-      const b = w.businesses[a.businessId]; const owner = npc(b.ownerId); const ap_ = a.approach ?? 'lean';
+      const b = w.businesses[a.businessId]; const owner = npc(b.ownerId); const ap_ = a.approach ?? 'lean'; owner.known = true;
       b.lastShakedownDay = w.day;
       const chance = approachChance(w, 'shakedown', ap_, owner, b); const ok = rng.int(1, 100) <= chance;
-      if (ap_ === 'wreck') { b.condition = clamp(b.condition - 15); addHeat(w, 4, b.blockId); spreadRep(w, b.blockId, { fear: 4 }); adjustRel(owner, { fear: 10, trust: -15 }); }
+      if (ap_ === 'wreck') { b.condition = clamp(b.condition - 15); addHeat(w, 4, b.blockId); spreadRep(w, b.blockId, { fear: 4 }); adjustRel(owner, { fear: 10, trust: -15 }); addMemory(w, b.blockId, 'wreck', `Somebody smashed up ${b.name} in broad daylight.`); }
       const rival = b.protection && b.protection.factionId !== PLAYER ? w.factions[b.protection.factionId] : undefined;
       if (ok) {
         const mult = ap_ === 'wreck' ? 1.6 : ap_ === 'reason' ? 0.9 : 1.2;
@@ -305,6 +317,7 @@ export function dispatch(prev: World, a: Action): World {
         log(w, `${resultLine('shakedown', ap_, false, rng)} ${rival ? `"I pay ${rival.short}. Take it up with them."` : owner.traits.includes('honest') ? 'They threaten to call the cops.' : ''}`, 'bad', { businessId: b.id, npcId: owner.id });
         if (rival) rival.standing[PLAYER] -= 6;
         if (owner.traits.includes('honest') || owner.rel.trust < -30) addHeat(w, 4);
+        if (ap_ !== 'reason' || owner.traits.includes('connected')) addGrudge(w, owner, `${owner.name} threw you out of ${b.name} and is telling everyone.`);
       }
       break;
     }
@@ -419,6 +432,7 @@ export function dispatch(prev: World, a: Action): World {
     }
     case 'declare': {
       const f = w.factions[a.factionId];
+      if ((f.truceUntil[PLAYER] ?? 0) > w.day) { f.brokenTruces = (f.brokenTruces ?? 0) + 1; f.truceUntil[PLAYER] = 0; log(w, `You broke a truce with ${f.name}. They will never fully trust you again.`, 'warn', { factionId: f.id }); }
       f.stance[PLAYER] = a.stance; f.standing[PLAYER] = Math.min(f.standing[PLAYER], a.stance === 'war' ? -80 : -50);
       p.respect = clamp(p.respect + (a.stance === 'war' ? 5 : 2)); addHeat(w, a.stance === 'war' ? 6 : 2);
       log(w, a.stance === 'war' ? `You declare war on ${f.name}. Their soldiers will be hunting your people.` : `You start a beef with ${f.name}. Expect trouble at your rackets.`, 'warn', { factionId: f.id });
@@ -509,7 +523,7 @@ function sitDown(w: World, fid: string, offer: SitDownOffer, rng: import('./rng'
   const roll = rng.int(0, 30);
   const accept = (threshold: number) => charm + standing * 0.5 + temper + roll > threshold;
   const lt = w.npcs[f.lieutenantIds[0]];
-  const setStance = (s: number) => { f.standing[PLAYER] = clamp(s, -100, 100); f.stance[PLAYER] = stanceFor(f.standing[PLAYER]); };
+  const setStance = (s: number) => { f.standing[PLAYER] = Math.min(clamp(s, -100, 100), standingCap(f)); f.stance[PLAYER] = stanceFor(f.standing[PLAYER]); };
   switch (offer.kind) {
     case 'truce': {
       if (accept(f.stance[PLAYER] === 'war' ? 30 : 10)) { f.truceUntil[PLAYER] = w.day + offer.days; setStance(Math.max(standing, -14)); log(w, `${lt.name} agrees to a ${offer.days}-day truce on behalf of ${f.name}. Nobody touches anybody.`, 'good', { factionId: f.id }); }
@@ -550,3 +564,5 @@ function sitDown(w: World, fid: string, offer: SitDownOffer, rng: import('./rng'
     }
   }
 }
+
+function agendaText(n: import('./types').Npc): string { return n.agenda ? AGENDA_LABEL[n.agenda.kind] : ''; }

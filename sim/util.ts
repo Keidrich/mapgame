@@ -28,8 +28,12 @@ export function adjustRel(n: Npc, d: { trust?: number; fear?: number; respect?: 
 }
 
 export function addHeat(w: World, amount: number, blockId?: Id) {
+  if (amount > 0 && blockId && blockId === w.player.homeBlockId) amount *= 0.8; // home turf: people look the other way
+  if (amount > 0 && blockId && w.blocks[blockId]?.tags.includes('school')) amount *= 1.5; // near a school everybody calls it in
+  const before = w.player.heat;
   w.player.heat = clamp(w.player.heat + amount);
   if (blockId && w.blocks[blockId]) w.blocks[blockId].heat = clamp(w.blocks[blockId].heat + amount * 2);
+  for (const t of [45, 60, 80]) if (before < t && w.player.heat >= t) log(w, t === 45 ? 'Heat 45: cops are starting to notice. Raids begin above 60.' : t === 60 ? 'Heat 60: raids can hit your rackets and safehouses tonight. Lay low, bribe the captain, or pay a sergeant.' : 'Heat 80: one more loud night and the task force comes through everything. Bust at 100.', 'warn');
 }
 
 export function addInfluence(w: World, blockId: Id, f: FactionId, amount: number) {
