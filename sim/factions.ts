@@ -1,5 +1,6 @@
 /** Faction AI: runs once per faction per day. Factions play the same game the player does. */
 import { BUSINESS_DEFS } from '@content/businesses';
+import { coverFor } from './lieutenants';
 import { stanceFor } from './generate';
 import { distanceM } from '@geo/project';
 import { STEP_M } from './populate';
@@ -144,6 +145,8 @@ function actAgainstPlayer(w: World, f: Faction, rng: Rng, war: boolean) {
       if (!near(biz.blockId) && !war) continue;
       const guarded = p.crewIds.some(id => { const c = w.npcs[id].crew; return c?.assignment?.kind === 'guard' && c.assignment.blockId === biz.blockId; });
       if (guarded && rng.chance(0.6)) { log(w, `${f.short} muscle showed up at ${biz.name}. Your guard ran them off.`, 'good', { businessId: biz.id, factionId: f.id }); continue; }
+      const lt = coverFor(w, biz);
+      if (lt && rng.chance(0.25 + lt.skills.muscle * 0.04)) { log(w, `${f.short} muscle showed up at ${biz.name}. ${lt.name} and a couple of the local kids sent them home.`, 'good', { businessId: biz.id, factionId: f.id, npcId: lt.id }); continue; }
       r.disrupted = rng.int(2, 5); biz.condition = clamp(biz.condition - 15); const stolen = Math.round(r.lastIncome * 2); p.dirty = Math.max(0, p.dirty - stolen);
       log(w, `${f.short} hit your ${r.kind.replace('_', ' ')} at ${biz.name}. Wrecked for ${r.disrupted} days${stolen ? `, ${money(stolen)} taken` : ''}.`, 'bad', { businessId: biz.id, factionId: f.id });
     } else if (roll < 0.7 && p.businessIds.length) {

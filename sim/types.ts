@@ -115,6 +115,8 @@ export interface CrewInfo {
   statusDays: number;  // days remaining injured/jailed
   assignment?: Assignment;
   joinedDay: number;
+  baseCut?: number;    // wage before a lieutenant's raise, restored on demotion
+  skim?: number;       // cash a lieutenant has quietly taken and you have not found yet
 }
 
 export type Assignment =
@@ -122,7 +124,8 @@ export type Assignment =
   | { kind: 'production'; productionId: Id }
   | { kind: 'op'; opId: Id }
   | { kind: 'guard'; blockId: Id }
-  | { kind: 'collect' };
+  | { kind: 'collect' }
+  | { kind: 'lieutenant'; districtId: Id };  // runs a district for you
 
 export type OfficialKind = 'captain' | 'councillor' | 'judge';
 

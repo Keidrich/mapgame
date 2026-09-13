@@ -15,7 +15,8 @@ export type Action =
   | { type: 'recruit'; npcId: Id; approach?: string }     // 1 AP: patron -> crew
   | { type: 'parley'; npcId: Id; approach?: string }      // 1 AP: deal with a street crew's boss
   | { type: 'fire'; npcId: Id }
-  | { type: 'assign'; npcId: Id; assignment?: Assignment }
+  | { type: 'assign'; npcId: Id; assignment?: Assignment }   // a 'lieutenant' assignment promotes them to run a district (1 AP)
+  | { type: 'audit'; npcId: Id }                          // 1 AP: go over a lieutenant's books
   | { type: 'bribe_official'; npcId: Id; amount: number } // cash
   // --- businesses ---
   | { type: 'shakedown'; businessId: Id; approach?: string } // 1 AP: demand protection money now

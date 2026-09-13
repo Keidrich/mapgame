@@ -83,6 +83,24 @@ export const SAFEHOUSE_TIERS = [
 ];
 
 export const RACKET_UPGRADE_COST = [0, 1500, 5000];
+
+/** Delegation: what it takes to hand a crew member a district, and what they do with it. */
+export const LIEUTENANT = {
+  ap: 1,
+  minLoyalty: 50,
+  minDays: 5,          // days in the crew before you would trust them with a book
+  minSkills: 9,        // muscle + brains + charm
+  cutMult: 1.5,        // lieutenants cost more
+  influencePerDay: 1,  // on district blocks where you already have a foothold
+  coverFloor: 0.5,     // runner factor for an unmanned racket they cover: floor + skill/12
+  coverCap: 1.15,
+  riskMult: 0.85,      // incident risk on unmanned rackets they cover (unmanned is 1.2, a runner 0.7)
+  skimMin: 0.08, skimMax: 0.2,
+  skimEventAt: 400,    // undiscovered skim before "the books feel light" can come up
+  flipChance: 0.05,    // per day, per lieutenant, when a hostile faction has a foothold in the district
+  flipResist: 45,      // loyalty (with trait adjustments) needed to bring the offer to you instead of taking it
+  flipInfluence: 15,   // player influence lost per district block when they go over
+};
 export const TRAIT_LABELS: Record<string, string> = {
   greedy: 'Greedy', loyal: 'Loyal', coward: 'Coward', hothead: 'Hothead', connected: 'Connected',
   honest: 'Honest', ambitious: 'Ambitious', junkie: 'Junkie', gambler: 'Gambler', quiet: 'Quiet',

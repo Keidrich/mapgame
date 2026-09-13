@@ -80,7 +80,11 @@ function CrewSection({ npcId }: { npcId: Id }) {
   for (const sh of playerSafehouses(w)) for (const pid of sh.productionIds) { const p = w.productions[pid]; if (p && (!p.workerId || p.workerId === npcId)) options.push({ label: `${PRODUCTION_DEFS[p.kind].icon} ${PRODUCTION_DEFS[p.kind].label} at ${sh.name}`, a: { kind: 'production', productionId: pid } }); }
   for (const b of select.playerBlocks(w)) options.push({ label: `🛡️ Guard ${b.name}`, a: { kind: 'guard', blockId: b.id } });
   options.push({ label: '💰 Collect', a: { kind: 'collect' } });
+  for (const d of select.districtsRunnable(w)) { const cur = select.lieutenantOf(w, d.id); if (!cur || cur.id === npcId) options.push({ label: `⭐ Run ${d.name}`, a: { kind: 'lieutenant', districtId: d.id } }); }
   const [pick, setPick] = useState(0);
+  const picked = options[pick]?.a;
+  const lt = c.assignment?.kind === 'lieutenant' ? w.districts[c.assignment.districtId] : undefined;
+  const ltIncome = lt ? select.districtIncome(w, lt) : 0;
   return (
     <>
       <div className="section-title">Crew</div>
@@ -91,12 +95,20 @@ function CrewSection({ npcId }: { npcId: Id }) {
         </div>
         <div className="mt8"><Meter label="Loyalty" value={c.loyalty} color="var(--gold)" /></div>
         <p className="small mt8">{assignmentLabel(w, c.assignment)}</p>
+        {lt && (
+          <div className="card mt8">
+            <div className="row between"><b>⭐ Lieutenant, {lt.name}</b><span className="small muted">{fmtMoney(ltIncome)}/day from rackets there</span></div>
+            <p className="small muted mt8">Covers rackets with no runner, runs off rival muscle, firms up your blocks. Costs more. The book is theirs to keep, honestly or not.</p>
+            <div className="mt8"><Act action={{ type: 'audit', npcId }} label="Go over the books" icon="📒" block /></div>
+          </div>
+        )}
         {c.status !== 'dead' && (
           <div className="mt8">
             <label className="field">Assignment</label>
             <select className="select" value={pick} onChange={e => setPick(Number(e.target.value))}>
               {options.map((o, i) => <option key={i} value={i}>{o.label}</option>)}
             </select>
+            {picked?.kind === 'lieutenant' && <p className="small muted mt8">Needs loyalty 50, five days in the crew, and some muscle, brains and charm between them. Their cut goes up by half.</p>}
             <div className="row mt8">
               <div className="grow"><Act action={{ type: 'assign', npcId, assignment: options[pick]?.a }} label="Assign" kind="primary" block /></div>
               {c.assignment && <Act action={{ type: 'assign', npcId }} label="Unassign" kind="ghost" />}

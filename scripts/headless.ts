@@ -11,6 +11,8 @@ const nearBiz = () => Object.values(w.blocks).filter(b => select.distanceFromSta
 
 for (let d = 0; d < days; d++) {
   while (w.pendingEvents.length) { const e = w.pendingEvents[0]; const opts = e.options.filter(o => can(w, { type: 'resolve_event', eventId: e.id, optionId: o.id }).ok); const o = opts.length ? rng.pick(opts) : e.options[e.options.length - 1]; w = dispatch(w, { type: 'resolve_event', eventId: e.id, optionId: o.id }); }
+  // promote the best-qualified idle crew member to run a district that has nobody
+  for (const d of select.districtsRunnable(w)) { if (select.lieutenantOf(w, d.id)) continue; const pool = select.crew(w).filter(n => n.crew?.status === 'idle' || n.crew?.assignment?.kind === 'racket'); const pick = pool.find(n => !select.promoteReason(w, n, d.id)); if (pick) tryAct({ type: 'assign', npcId: pick.id, assignment: { kind: 'lieutenant', districtId: d.id } }); }
   let guard = 0;
   while (w.player.ap > 0 && guard++ < 30) {
     const p = w.player; const biz = nearBiz();

@@ -125,6 +125,13 @@ you at 35+ opens the door; if it fails they are burned).
 - **Crew**: recruited NPCs. Each has skills, loyalty, cut, status (idle, assigned,
   injured, jailed, dead). Daily assignment: run a racket, work a production, join an
   op, guard a block, collect.
+- **Lieutenants** (delegation): a crew member with loyalty 50+, five days in, and
+  some muscle/brains/charm can be assigned to *run a district*. Rackets there earn
+  without a runner (at the lieutenant's skill, capped below a real runner), rival
+  hits get run off, and your influence on district blocks firms up. Their cut goes
+  up by half. Low-loyalty or greedy lieutenants skim (hidden until you audit the
+  books or the "book feels light" event fires); a hostile faction with a foothold
+  in the district tries to flip them, and loyal ones bring the offer to you first.
 - **Safehouses**: rented/bought in a block. Store product and cash beyond police
   reach (partially), host production, house crew. Capacity by tier.
 - **Product**: `booze`, `green`, `pills`, `hot goods` (loot), `counterfeit`.

@@ -3,6 +3,8 @@ import { PRODUCT_INFO, RACKET_DEFS } from '@content/rackets';
 import type { Rng } from './rng';
 import { PLAYER, type GameEvent, type World } from './types';
 import { addHeat, addInfluence, adjustRel, clamp, factionOf, log, money, nid, spreadRep } from './util';
+import { LIEUTENANT } from '@content/rackets';
+import { flipLieutenant, lieutenants } from './lieutenants';
 
 type Candidate = { w: number; make: () => GameEvent | undefined };
 
@@ -17,7 +19,14 @@ export function drawEvents(w: World, rng: Rng) {
   const friendlyPatrons = Object.values(w.npcs).filter(n => n.alive && n.role === 'patron' && n.rel.trust >= 35);
 
   const runners = myRackets.filter(r => r.runnerId && w.npcs[r.runnerId]?.crew);
+  const skimmers = lieutenants(w).filter(n => (n.crew?.skim ?? 0) >= LIEUTENANT.skimEventAt);
   const cands: Candidate[] = [
+    { w: skimmers.length ? 3 : 0, make: () => { const n = rng.pick(skimmers); const a = n.crew!.assignment as { kind: 'lieutenant'; districtId: string }; const d = w.districts[a.districtId]; return ev('lt_skim', `The ${d?.name ?? 'district'} book feels light`, `${n.name} runs ${d?.name ?? 'the district'} for you and the numbers have been soft for a while. Could be a slow month. Could be ${n.name}.`, [
+      { id: 'audit', label: 'Go over the books', detail: 'Brains check. Find it and you get some back.' },
+      { id: 'confront', label: 'Ask them straight', detail: 'Muscle check. They cough it all up, or they run with it.' },
+      { id: 'slide', label: 'Let it slide', detail: 'Money gone; they feel looked after' },
+      { id: 'demote', label: 'Take the district back', detail: 'They keep what they took. −loyalty' },
+    ], { npcId: n.id, blockId: d?.blockIds[0] }); } },
     { w: runners.some(r => (w.npcs[r.runnerId!].crew?.loyalty ?? 100) < 50) ? 3 : 0, make: () => { const r = runners.find(r => (w.npcs[r.runnerId!].crew?.loyalty ?? 100) < 50)!; const n = w.npcs[r.runnerId!]; const b = w.businesses[r.businessId]; const skim = Math.max(80, Math.round(r.lastIncome * 0.3)); return ev('skimming', `${n.name} is skimming`, `The ${RACKET_DEFS[r.kind].label.toLowerCase()} at ${b.name} is light again. ${n.name} runs it. About ${money(skim)} a day is walking out the door.`, [
       { id: 'confront', label: 'Confront them', detail: 'Muscle check. They stop, or they run with the cash.' },
       { id: 'slide', label: 'Let it slide', detail: 'Costs you money; they feel looked after' },
@@ -108,6 +117,8 @@ export function resolveEventOption(w: World, e: GameEvent, opt: string, rng: Rng
   const f = e.refs.factionId ? w.factions[e.refs.factionId] : undefined;
   const muscleCheck = () => p.skills.muscle * 5 + p.crewIds.length * 5 + p.fear * 0.3 + rng.int(0, 30) > 45;
   const charmCheck = () => p.skills.charm * 5 + p.respect * 0.3 + rng.int(0, 30) > 40;
+  const brainsCheck = () => p.skills.brains * 8 + rng.int(0, 40) > 35;
+  const demote = (m: import('./types').Npc) => { const c = m.crew; if (!c) return; if (c.baseCut !== undefined) { c.cut = c.baseCut; c.baseCut = undefined; } c.assignment = undefined; c.status = 'idle'; };
   const key = `${e.kind}:${opt}`;
   switch (key) {
     case 'owner_favour:help': if (n && biz) { adjustRel(n, { trust: 15, respect: 10 }); spreadRep(w, biz.blockId, { respect: 4, trust: 2 }); addInfluence(w, biz.blockId, PLAYER, 5); log(w, `You sort out ${n.name}'s problem. The block notices.`, 'good', e.refs); } break;
@@ -156,6 +167,13 @@ export function resolveEventOption(w: World, e: GameEvent, opt: string, rng: Rng
     case 'whale:refuse': log(w, 'He leaves, cursing. The regulars nod: this is a serious house.', 'info', e.refs); break;
     case 'crew_beef:a': case 'crew_beef:b': { const pair = crewPair(w, e); if (!pair) break; const [win, lose] = opt === 'a' ? pair : [pair[1], pair[0]]; if (win.crew) win.crew.loyalty = clamp(win.crew.loyalty + 12); if (lose.crew) lose.crew.loyalty = clamp(lose.crew.loyalty - 12); log(w, `${win.name} walks taller. ${lose.name} does not forget.`, 'info', e.refs); break; }
     case 'crew_beef:heads': { const pair = crewPair(w, e); if (!pair) break; const ok = muscleCheck(); for (const c of pair) if (c.crew) c.crew.loyalty = clamp(c.crew.loyalty + (ok ? 8 : -8)); log(w, ok ? 'Two bruised egos and a quiet crew. (+8 loyalty both)' : 'They both think you picked the other side. (−8 loyalty both)', ok ? 'good' : 'bad', e.refs); break; }
+    case 'lt_skim:audit': if (n?.crew) { const skim = n.crew.skim ?? 0; if (brainsCheck()) { const back = Math.round(skim * 0.6); p.dirty += back; n.crew.skim = 0; n.crew.loyalty = clamp(n.crew.loyalty - 10); log(w, `It is ${n.name}. About ${money(skim)} over the last while. You get ${money(back)} back and they know you are watching. (−10 loyalty)`, 'bad', e.refs); } else { n.crew.loyalty = clamp(n.crew.loyalty - 3); log(w, `You cannot make the numbers say anything. ${n.name} watches you try.`, 'info', e.refs); } } break;
+    case 'lt_skim:confront': if (n?.crew) { const skim = n.crew.skim ?? 0; if (muscleCheck()) { p.dirty += skim; n.crew.skim = 0; n.crew.loyalty = clamp(n.crew.loyalty - 20); log(w, `${n.name} goes white and brings back ${money(skim)} in a shoebox. (−20 loyalty)`, 'good', e.refs); } else { p.crewIds = p.crewIds.filter(id => id !== n.id); n.crew = undefined; n.role = 'patron'; n.rel.trust = -60; n.grudge = { since: w.day, reason: 'you accused them', spread: 0 }; log(w, `${n.name} laughs, and is gone by morning with ${money(skim)} and the district's book.`, 'bad', e.refs); } } break;
+    case 'lt_skim:slide': if (n?.crew) { n.crew.skim = 0; n.crew.loyalty = clamp(n.crew.loyalty + 10); log(w, `You say nothing. ${n.name} starts bringing the full count. (+10 loyalty)`, 'info', e.refs); } break;
+    case 'lt_skim:demote': if (n?.crew) { n.crew.skim = 0; demote(n); n.crew.loyalty = clamp(n.crew.loyalty - 15); log(w, `${n.name} hands the book back without a word. (−15 loyalty)`, 'warn', e.refs); } break;
+    case 'lt_offer:raise': if (n?.crew) { n.crew.cut = Math.round(n.crew.cut * 1.4); n.crew.baseCut = n.crew.baseCut !== undefined ? Math.round(n.crew.baseCut * 1.4) : n.crew.baseCut; n.crew.loyalty = clamp(n.crew.loyalty + 20); if (f) f.standing[PLAYER] = clamp(f.standing[PLAYER] - 5, -100, 100); log(w, `${n.name} stays, at ${money(n.crew.cut)}/day. ${f?.short ?? 'They'} know they were turned down. (+20 loyalty)`, 'money', e.refs); } break;
+    case 'lt_offer:lean': if (n?.crew) { if (muscleCheck()) { n.crew.loyalty = clamp(n.crew.loyalty - 10); adjustRel(n, { fear: 25 }); log(w, `${n.name} gets the message and stays. They will not forget how you said it. (−10 loyalty, +fear)`, 'warn', e.refs); } else if (f) { flipLieutenant(w, n, f); } } break;
+    case 'lt_offer:letgo': if (n?.crew && f) { flipLieutenant(w, n, f, true); } break;
     default: break;
   }
   void PRODUCT_INFO; void factionOf;

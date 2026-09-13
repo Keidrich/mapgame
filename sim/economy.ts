@@ -1,12 +1,14 @@
 /** Income formulas for rackets and productions. Shared by the tick and by estimates. */
-import { PRODUCTION_DEFS, PRODUCT_INFO, RACKET_DEFS } from '@content/rackets';
+import { LIEUTENANT, PRODUCTION_DEFS, PRODUCT_INFO, RACKET_DEFS } from '@content/rackets';
+import { coverFor } from './lieutenants';
 import type { Npc, Production, Racket, World } from './types';
 
-export function runnerFactor(w: World, runnerId: string | undefined, skill: keyof Npc['skills']): number {
-  if (!runnerId) return 0.5;
-  const n = w.npcs[runnerId];
-  if (!n || !n.crew || n.crew.status !== 'assigned') return 0.5;
-  return 0.6 + n.skills[skill] / 10; // 0.7 .. 1.6
+/** How well a racket or production is run. A runner is best; a lieutenant covering the district is a decent second; nobody is half. */
+export function runnerFactor(w: World, runnerId: string | undefined, skill: keyof Npc['skills'], cover?: Npc): number {
+  const n = runnerId ? w.npcs[runnerId] : undefined;
+  if (n && n.crew && n.crew.status === 'assigned') return 0.6 + n.skills[skill] / 10; // 0.7 .. 1.6
+  if (cover) return Math.min(LIEUTENANT.coverCap, LIEUTENANT.coverFloor + cover.skills[skill] / 12);
+  return 0.5;
 }
 
 /** Expected daily gross for a racket, before incidents. Product-scaled rackets return 0 here. */
@@ -15,7 +17,7 @@ export function racketIncome(w: World, r: Racket): number {
   const biz = w.businesses[r.businessId];
   const block = w.blocks[biz.blockId];
   const lvl = 1 + (r.level - 1) * 0.6;
-  const rf = runnerFactor(w, r.runnerId, def.skill);
+  const rf = runnerFactor(w, r.runnerId, def.skill, coverFor(w, biz));
   const cond = 0.5 + biz.condition / 200;
   switch (def.scale) {
     case 'business': {
@@ -36,7 +38,7 @@ export function racketIncome(w: World, r: Racket): number {
 export function launderCapacity(w: World, r: Racket): number {
   const def = RACKET_DEFS[r.kind]; if (!def.launderCap) return 0;
   const biz = w.businesses[r.businessId];
-  return def.launderCap * (1 + (r.level - 1) * 0.8) * runnerFactor(w, r.runnerId, def.skill) * (0.5 + biz.baseIncome / 400);
+  return def.launderCap * (1 + (r.level - 1) * 0.8) * runnerFactor(w, r.runnerId, def.skill, coverFor(w, biz)) * (0.5 + biz.baseIncome / 400);
 }
 
 export function productionOutput(w: World, p: Production): number {

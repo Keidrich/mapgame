@@ -12,6 +12,8 @@ import { standingCap } from './factions';
 import { crewAt, crewOfBoss, parley } from './crews';
 import { endDay } from './tick';
 import { PLAYER, type Business, type Id, type Npc, type Op, type Racket, type Safehouse, type World } from './types';
+import { onDemote, promote, promoteReason } from './lieutenants';
+import { LIEUTENANT } from '@content/rackets';
 import { activeCrewCount, officialTrust, addHeat, addInfluence, adjustRel, clamp, factionOf, log, money, nid, rngOf, spreadRep, takeCash } from './util';
 
 const no = (reason: string): Affordance => ({ ok: false, reason });
@@ -52,8 +54,10 @@ export function can(w: World, a: Action): Affordance {
       if (a.assignment.kind === 'racket') { const r = w.rackets[a.assignment.racketId]; if (!r || r.owner !== PLAYER) return no('Not your racket.'); if (r.runnerId && r.runnerId !== n.id) return no('Someone already runs it.'); }
       if (a.assignment.kind === 'production') { const pr = w.productions[a.assignment.productionId]; if (!pr) return no('No such production.'); if (pr.workerId && pr.workerId !== n.id) return no('Someone already works it.'); }
       if (a.assignment.kind === 'op') { const o = w.ops[a.assignment.opId]; if (!o || o.status !== 'planning') return no('That op is not being planned.'); }
+      if (a.assignment.kind === 'lieutenant') { const why = promoteReason(w, n, a.assignment.districtId); if (why) return no(why); const r = ap(LIEUTENANT.ap); return r ? no(r) : yes({ ap: LIEUTENANT.ap }); }
       return yes();
     }
+    case 'audit': { const n = npc(a.npcId); if (!n?.crew) return no('Not your crew.'); if (n.crew.assignment?.kind !== 'lieutenant') return no('Only lieutenants keep a book.'); const r = ap(1); return r ? no(r) : yes({ ap: 1 }); }
     case 'bribe_official': { const n = npc(a.npcId); if (!n?.official) return no('Not an official.'); if (a.amount < 500) return no('Officials do not get out of bed for less than $500.'); const r = cash(a.amount); return r ? no(r) : yes({ cash: a.amount }); }
 
     case 'shakedown': {
@@ -284,7 +288,18 @@ export function dispatch(prev: World, a: Action): World {
         if (a.assignment.kind === 'racket') w.rackets[a.assignment.racketId].runnerId = n.id;
         if (a.assignment.kind === 'production') w.productions[a.assignment.productionId].workerId = n.id;
         if (a.assignment.kind === 'op') { const o = w.ops[a.assignment.opId]; if (!o.crewIds.includes(n.id)) o.crewIds.push(n.id); }
+        if (a.assignment.kind === 'lieutenant') promote(w, n, a.assignment.districtId);
       }
+      break;
+    }
+    case 'audit': {
+      const n = npc(a.npcId); const c = n.crew!; const d = c.assignment?.kind === 'lieutenant' ? w.districts[c.assignment.districtId] : undefined;
+      const sharp = p.skills.brains * 8 + rng.int(0, 40) > 35;
+      if (!sharp) { log(w, `You go over ${n.name}'s numbers for ${d?.name ?? 'the district'}. They look fine. Maybe they are.`, 'info', { npcId: n.id }); break; }
+      if (c.skim && c.skim > 0) {
+        const back = Math.round(c.skim * 0.6); p.dirty += back; c.skim = 0; c.loyalty = clamp(c.loyalty - 10);
+        log(w, `The book does not add up. ${n.name} has been skimming ${d?.name ?? 'the district'}. You get ${money(back)} of it back and they know you are watching now. (−10 loyalty)`, 'bad', { npcId: n.id });
+      } else { c.loyalty = clamp(c.loyalty - 2); log(w, `${n.name}'s book for ${d?.name ?? 'the district'} is clean. They noticed you checking.`, 'good', { npcId: n.id }); }
       break;
     }
     case 'bribe_official': {
@@ -503,6 +518,7 @@ export function clearAssignment(w: World, n: Npc) {
   if (asg?.kind === 'racket' && w.rackets[asg.racketId]?.runnerId === n.id) w.rackets[asg.racketId].runnerId = undefined;
   if (asg?.kind === 'production' && w.productions[asg.productionId]?.workerId === n.id) w.productions[asg.productionId].workerId = undefined;
   if (asg?.kind === 'op' && w.ops[asg.opId]) w.ops[asg.opId].crewIds = w.ops[asg.opId].crewIds.filter(id => id !== n.id);
+  if (asg?.kind === 'lieutenant') onDemote(n);
   n.crew.assignment = undefined; if (n.crew.status === 'assigned') n.crew.status = 'idle';
 }
 

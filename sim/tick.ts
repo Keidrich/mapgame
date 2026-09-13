@@ -10,6 +10,8 @@ import { closeRacket, stashTotal } from './reducer';
 import { controlShare } from './select';
 import { PLAYER, type World } from './types';
 import { addHeat, addInfluence, adjustRel, clamp, collectors, factionOf, jailDays, log, money, rngOf } from './util';
+import { LIEUTENANT } from '@content/rackets';
+import { coverFor, tickLieutenants } from './lieutenants';
 
 export function endDay(w: World): World {
   const { rng, done } = rngOf(w);
@@ -39,9 +41,11 @@ export function endDay(w: World): World {
   }
 
   // ---- rackets ----
+  const districtTake: Record<string, number> = {};
   for (const id of p.racketIds.slice()) {
     const r = w.rackets[id]; if (!r) continue;
     const def = RACKET_DEFS[r.kind]; const b = w.businesses[r.businessId]; const owner = w.npcs[b.ownerId];
+    const lt = coverFor(w, b);
     if (r.disrupted > 0) { r.disrupted--; r.lastIncome = 0; continue; }
     let income = 0;
     switch (r.kind) {
@@ -53,7 +57,7 @@ export function endDay(w: World): World {
       case 'fencing': { const have = p.stash.hot_goods; if (have > 0) { const sold = Math.min(have, 6 + r.level * 4); p.stash.hot_goods -= sold; income = Math.round(sold * PRODUCT_INFO.hot_goods.price * 0.6 * (1 + (r.level - 1) * 0.15)); } break; }
       case 'laundering': { const cap = Math.max(0, launderCapacity(w, r) - p.launderedToday); const amt = Math.min(p.dirty, cap); if (amt > 0) { p.dirty -= amt; const clean = Math.round(amt * 0.85); p.cash += clean; income = clean; summary.clean += clean; p.launderedToday += amt; } break; }
       case 'protection': {
-        income = Math.round(racketIncome(w, r) * (1 + Math.min(0.3, collectors(w) * 0.1))); // collectors make sure it all arrives
+        income = Math.round(racketIncome(w, r) * (1 + Math.min(0.3, collectors(w) * 0.1) + (lt ? 0.1 : 0))); // collectors (and a lieutenant) make sure it all arrives
         // owners under protection drift: fair rates build trust, high rates build resentment
         if ((b.protection?.rate ?? 0.15) <= 0.15) { if (rng.chance(0.2)) adjustRel(owner, { trust: 1 }); } else if (rng.chance(0.3)) adjustRel(owner, { trust: -1 });
         if (owner.rel.trust < -40 && owner.rel.fear < 30 && rng.chance(0.1)) { addHeat(w, 6, b.blockId); log(w, `${owner.name} at ${b.name} talked to the police. (+6 heat)`, 'bad', { businessId: b.id, npcId: owner.id }); }
@@ -62,11 +66,11 @@ export function endDay(w: World): World {
       default: income = Math.round(racketIncome(w, r));
     }
     if (r.kind === 'loansharking' && r.float && rng.chance(0.05)) { const loss = Math.round(r.float * 0.1); r.float -= loss; log(w, `A borrower skipped town. Float down ${money(loss)}.`, 'bad', { racketId: r.id }); }
-    r.lastIncome = income;
+    r.lastIncome = income; districtTake[w.blocks[b.blockId].districtId] = (districtTake[w.blocks[b.blockId].districtId] ?? 0) + income;
     if (def.dirty) { p.dirty += income; summary.dirty += income; } else if (r.kind !== 'laundering') { p.cash += income; summary.clean += income; }
     addHeat(w, def.heat * 0.25 * r.level, b.blockId);
     // incidents
-    const risk = def.risk * (1 + (r.level - 1) * 0.5) * (w.blocks[b.blockId].police / 50) * (r.runnerId ? 0.7 : 1.2);
+    const risk = def.risk * (1 + (r.level - 1) * 0.5) * (w.blocks[b.blockId].police / 50) * (r.runnerId ? 0.7 : lt ? LIEUTENANT.riskMult : 1.2);
     if (rng.chance(risk)) {
       if (rng.chance(0.5)) { r.disrupted = rng.int(1, 3); addHeat(w, 4, b.blockId); log(w, `Cops rolled through ${b.name}. ${def.label} shut for ${r.disrupted} day${r.disrupted > 1 ? 's' : ''}.`, 'bad', { businessId: b.id, racketId: r.id }); }
       else if (r.runnerId && rng.chance(0.4)) { const n = w.npcs[r.runnerId]; if (n.crew) { n.crew.status = 'jailed'; n.crew.statusDays = jailDays(w, 10); n.crew.assignment = undefined; r.runnerId = undefined; log(w, `${n.name} got picked up running the ${def.label.toLowerCase()} at ${b.name}. ${p.lawyer ? 'Your lawyer is on it.' : 'No lawyer, so it will be a while.'}`, 'bad', { npcId: n.id, businessId: b.id }); } }
@@ -106,6 +110,7 @@ export function endDay(w: World): World {
   // ---- factions ----
   for (const f of Object.values(w.factions)) runFaction(w, f, rng);
   tickCrews(w, rng);
+  tickLieutenants(w, rng, districtTake);
 
   // ---- police ----
   const captain = Object.values(w.npcs).find(n => n.official?.kind === 'captain');
