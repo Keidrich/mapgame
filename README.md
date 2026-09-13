@@ -30,8 +30,8 @@ it conflicts). `public/_headers` keeps the service worker fresh. Node 22 is pinn
 
 | Dir | What | Rules |
 |---|---|---|
-| `sim/` | The whole game: world generation and streaming (`populate.ts`), actions, end-of-day tick, faction AI, ops, events, people (`people.ts`: agendas, grudges, gossip), street crews (`crews.ts`), lieutenants (`lieutenants.ts`), production depth (`production.ts`), politics (`politics.ts`: succession, brokering), cold cases (`cases.ts`), the Commission (`commission.ts`) | Pure TypeScript. Seeded RNG only. No React, no fetch. `(world, action) → world`. |
-| `content/` | Data tables: business types, districts, names, rackets, productions, ops | Data only. |
+| `sim/` | The whole game: world generation and streaming (`populate.ts`), where a new game starts (`start.ts`), actions, end-of-day tick, faction AI, ops, events, people (`people.ts`: agendas, grudges, gossip), the family/friend web (`connections.ts`), street crews (`crews.ts`), lieutenants (`lieutenants.ts`), production depth (`production.ts`), politics (`politics.ts`: succession, brokering), cold cases (`cases.ts`), the Commission (`commission.ts`) | Pure TypeScript. Seeded RNG only. No React, no fetch. `(world, action) → world`. |
+| `content/` | Data tables: business types, districts, names (grouped by culture), backgrounds, the random-city pool, rackets, productions, ops | Data only. |
 | `ui/` | React + MapLibre phone UI | Reads `World`, calls `select.*`, dispatches `Action`s. Never computes game logic. `ui/net` is the only network code (Overpass, tiles, IndexedDB). |
 | `scripts/` | Headless soak bot (`headless.ts`) and a real-OSM pipeline check (`real-osm.ts`) | |
 | `geo/` | Street geometry: Overpass parsing, planar-face polygonisation, chunking | Pure. |
@@ -48,7 +48,9 @@ idle nights (up to three) and shows a recap.
 
 ## First five minutes (how to play)
 
-1. Pick a name and a background, then start where you are, search a city, or tap the map.
+1. Pick a name and a background — one of five, or build your own with point-buy and a
+   starting trait — then start where you are, search a city, or tap the map. A city pick
+   drops you in one corner of that city, and 🎲 rolls a different corner.
 2. Tap the bright hex in the middle: that is your block. Open a business, read the owner's
    traits. Cowards and low-nerve owners fold fast; hotheads and honest owners fight back.
 3. **Threaten** an owner until their fear is up, then **Shakedown** for cash today or
@@ -70,7 +72,10 @@ idle nights (up to three) and shows a recap.
    district; rackets there run without a runner. Audit their books now and then.
 10. Street crews hold corners between the factions: **parley** with the boss (payroll,
     join, or run them off) or **take the corner**. Ignore them and they grow.
-11. After day 15 the bosses form the **Commission**. Blocks, respect or an ally get you
+11. People have their own people. Family and old friends tie NPCs to each other, thickest
+    in close-knit districts: they make somebody harder to scare, slower to trust you, and
+    they carry gossip across the neighbourhood.
+12. After day 15 the bosses form the **Commission**. Blocks, respect or an ally get you
     a chair; votes move standing. A hit or a big job opens a **cold case**: scare or
     pay the witness, bribe the captain, keep a lawyer.
 
@@ -83,4 +88,7 @@ NPC agendas, grudges and gossip; block memory and home turf; street crews;
 lieutenants (delegation with skimming and flipping); production quality, recipes,
 upgrades and events; OSM schools and police stations as rules; an overnight recap
 and idle days; succession crises with player backing, boss churn, the Frame op and
-brokering; cold cases; the Commission. See §11 of the design doc for open questions.
+brokering; cold cases; the Commission; grouped name pools with district flavour, a
+family/friend web between NPCs, five backgrounds plus point-buy character creation, and a
+start that lands in a different corner of a city each time. See §11 of the design doc for
+open questions.

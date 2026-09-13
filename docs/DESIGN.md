@@ -60,6 +60,16 @@ Where there are no streets (open country, no network) a hex grid stands in.
   Strip, Projects) inferred from what is actually there: banks and hotels say
   downtown, clubs and bars say strip, warehouses and industrial land say docks.
 
+A district also carries two properties that are deliberately kept apart:
+
+- `nameGroups` — which naming pools are common here, as weights (see §3.4). **Cosmetic
+  and naming only.** It is what makes one district read as Little Italy and the next as a
+  Chinatown-flavoured block. Nothing in `sim/` may read it when working out a number.
+- `closeness` 0–1 — how networked the people who live here are. Old Quarter and the
+  Projects lean high, Downtown and the Heights lean low. It is a property of the *place*,
+  never derived from `nameGroups` and never a stand-in for who lives there. It drives one
+  thing: how dense and how far-reaching the family/friend web is (§3.6).
+
 ### 3.3 Businesses
 Real points of interest from OpenStreetMap become businesses with their real names
 (bars, pubs, restaurants, cafés, clubs, banks, jewellers, pawn shops, garages, gyms,
@@ -96,6 +106,19 @@ official (police captain, councillor, judge), fixer. Every NPC has:
 - **relationship to the player**: `trust` −100..100, `fear` 0..100, `respect` 0..100
 - `nerve` 0..100: how much pressure it takes
 - `faction` affiliation and `home` block
+- `connections`: their own family and old friends among the other NPCs (§3.6)
+
+**Names.** `content/names.ts` holds eight groups — Italian, Slavic, Black American, East
+Asian, Latino, Irish, Middle Eastern, Anglo — each a pool of first and last names that
+belong together. `mkNpc` picks a group first, weighted by the district's `nameGroups`,
+then draws both halves of the name from that one group, so a street has a character and
+nobody is called Tony Byrne. Big per-group pools (thirty to fifty first names each) are
+what stops a city repeating itself; the faction archetypes keep their own surname list
+(`STYLE_LAST`) layered on top, so the Marconi family are Marconis wherever they live.
+
+A name group is a naming pool and **nothing else**. There is no ethnicity field on an NPC,
+and no skill, trait, nerve or trust anywhere in the codebase reads a group.
+`sim/no-ethnicity-mechanics.test.ts` enforces both, by behaviour and by scanning the source.
 
 ### 3.5 Scenes: how you deal with people
 Face-to-face actions (Visit, Threaten, Shakedown, Recruit) are **scenes**. The person
@@ -114,6 +137,28 @@ UI and the simulation share, so what you see is what the dice use.
 Ops have approaches too: **go in loud** (muscle, +25% take, heat ×1.6), **quiet job**
 (brains and tech, heat ×0.5, harder), **inside man** (someone at the target who trusts
 you at 35+ opens the door; if it fails they are burned).
+
+### 3.6 The family and friend web
+
+People are not islands. At generation time NPCs are linked to each other as **family** or
+**friends** — mutual, stored on `Npc.connections`, and nothing to do with the player. How
+many ties there are, and how far they reach, comes from the district's `closeness`: a tight
+district webs the whole neighbourhood together, a district of strangers gets a handful of
+block-local ties. Nobody carries more than four.
+
+What the web does today:
+
+- **Backup.** Living ties inside your own district make you a little harder to frighten and
+  a little slower to trust a stranger (+4 nerve and −2 starting trust each, up to three).
+  Identical for everybody: it reads the connection count and nothing else.
+- **The family agenda** is only ever handed to somebody who actually has family, and names
+  them: "went to the police to keep Rosa Esposito, their cousin, out of it."
+- **Gossip** travels along real ties as well as the same-block, same-bar circle, so a
+  humiliation reaches somebody's sister across the district instead of stopping at the bar.
+- The NPC sheet lists who somebody has, and every name opens their own sheet.
+
+Phase 2, not built: leverage plays on top of the graph (threatening a named relative,
+friend-referral recruiting, turning a rival's brother into an inside man).
 
 ## 4. Player systems
 
@@ -207,6 +252,26 @@ op visible, locked ones included: edges are drawn from `priorOps` and the other 
 are badges. A locked node explains exactly what is missing through the same explainer
 component the glossary uses. The street tier (stick-up, send a message, take the corner,
 scout, take the lot) has `minCrew: 0` and is genuinely solo.
+
+### 4.5 Who you are, and where you start
+
+**Five backgrounds**, one per skill. Muscle, Brains and Charm open loud, patient and
+social; **Wheels** gets two extra legwork a day on top of the skill (nine hops where most
+people get three); **Tech** starts already knowing one still or grow-op recipe, worth days
+of play. Definitions and numbers live in `content/backgrounds.ts`.
+
+**Or build your own**: point-buy, nineteen points over the five skills, one to seven each,
+plus one starting trait (connected, earner, local, feared). The budget is below every
+preset's total and the ceiling below their spike of 8, so a hand-built character is broader
+and brings an edge while a preset is sharper and comes with a perk. `legalCustomSkills()`
+clamps whatever the UI sends, so the rule holds even if the screen is bypassed.
+
+**Where you start.** A city is one coordinate, so picking a city twice used to mean the
+same kerb twice. `sim/start.ts` moves a *city-level* pick 1–4 km into one eighth of the
+compass first (area-weighted, so most starts land out in the neighbourhoods), and "Try a
+different corner" rolls again without giving back the corner you are in. Whether a pick is
+city-level comes from the geocoder; an address somebody typed, a pin tapped on the map and
+the device's own position are exact and are never moved.
 
 ## 5. Rackets, production, ops
 

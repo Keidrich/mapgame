@@ -22,6 +22,7 @@ export function BlockSheet({ blockId }: { blockId: Id }) {
   const [product, setProduct] = useState<ProductKind>('booze');
   const [amount, setAmount] = useState(5);
   const carried = w.player.stash;
+  const closeness = w.districts[b.districtId]?.closeness;
 
   return (
     <Sheet title={b.name} subtitle={`${districtName(w, b)} · ${select.factionName(w, ctrl)}${ctrl ? ' turf' : ''}${b.tags.includes('home') ? ' · 🏠 Home turf' : ''}`} accent={select.factionColor(w, ctrl)}>
@@ -52,6 +53,7 @@ export function BlockSheet({ blockId }: { blockId: Id }) {
         <Meter label={<Term id="police">Police</Term>} value={b.police} color="var(--blue)" />
         <Meter label={<Term id="blockHeat">Heat</Term>} value={b.heat} color="var(--red)" />
         <Meter label={<Term id="population">People</Term>} value={b.population} color="var(--purple)" />
+        {closeness !== undefined && <Meter label={<Term id="closeness">Close-knit</Term>} value={Math.round(closeness * 100)} color="var(--gold)" />}
       </div>
       {b.memory.length > 0 && (
         <>
