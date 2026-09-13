@@ -82,6 +82,10 @@ export function buildChunk(input: ChunkInput): GeoChunk {
     .filter(f => f.area <= maxArea)
     .filter(f => { const c = centroid(xyOf(f.ring)); return inside(c) && !inWater(c); })
     .map(f => ({ ring: f.ring, area: f.area, edges: ringEdges(f.ring) }));
+  if (work.length > maxBlocks * 3) { // far too many faces: raise the bar so that roughly 2×maxBlocks survive it, then merge
+    const areas = work.map(f => f.area).sort((a, b) => a - b);
+    minArea = Math.max(minArea, areas[Math.max(0, areas.length - maxBlocks * 2)]);
+  }
   for (let round = 0; round < 12; round++) { work = mergeSmall(work, g, minArea); if (work.length <= maxBlocks) break; minArea *= 1.5; }
   if (work.length > maxBlocks) { work.sort((a, b) => b.area - a.area); work = work.slice(0, maxBlocks); }
 
@@ -131,22 +135,36 @@ function hexEdgeKeys(origin: LatLng, h: { q: number; r: number }, size: number):
   return cs.map((c, i) => ekey(c, cs[(i + 1) % cs.length]));
 }
 
+/**
+ * Merge faces smaller than `minArea` into the neighbour they share the most boundary
+ * with. Uses an edge→face index so each merge costs O(edges of the two faces), not O(n²).
+ */
 function mergeSmall(work: Work[], g: ReturnType<typeof buildGraph>, minArea: number): Work[] {
   const xyOf = (ring: string[]) => ring.map(n => g.pos.get(n)!);
-  let list = work.slice();
-  for (let iter = 0; iter < 3000; iter++) {
-    list.sort((a, b) => a.area - b.area);
-    const small = list.find(f => f.area < minArea); if (!small) break;
-    let best: Work | undefined; let bestShared = 0;
-    for (const o of list) { if (o === small) continue; let shared = 0; for (const e of small.edges) if (o.edges.has(e)) shared++; if (shared > bestShared) { bestShared = shared; best = o; } }
-    if (!best) { list = list.filter(f => f !== small); continue; }
-    const merged = union(small.ring, best.ring);
-    if (!merged) { list = list.filter(f => f !== small); continue; }
-    const area = Math.abs(signedArea(xyOf(merged)));
-    list = list.filter(f => f !== small && f !== best);
-    list.push({ ring: merged, area, edges: ringEdges(merged) });
+  const faces = new Map<number, Work>(); let nextId = 0;
+  const owners = new Map<string, Set<number>>();
+  const add = (f: Work) => { const id = nextId++; faces.set(id, f); for (const e of f.edges) { if (!owners.has(e)) owners.set(e, new Set()); owners.get(e)!.add(id); } return id; };
+  const remove = (id: number) => { const f = faces.get(id)!; for (const e of f.edges) owners.get(e)?.delete(id); faces.delete(id); };
+  for (const f of work) add(f);
+  // smallest first; a merged face re-enters the queue if it is still too small
+  const queue: number[] = [...faces.keys()].filter(id => faces.get(id)!.area < minArea).sort((a, b) => faces.get(b)!.area - faces.get(a)!.area);
+  let guard = 0;
+  while (queue.length && guard++ < 20000) {
+    const id = queue.pop()!; const small = faces.get(id); if (!small || small.area >= minArea) continue;
+    const shared = new Map<number, number>();
+    for (const e of small.edges) for (const o of owners.get(e) ?? []) if (o !== id) shared.set(o, (shared.get(o) ?? 0) + 1);
+    let best = -1, bestShared = 0;
+    for (const [o, n] of shared) if (n > bestShared) { bestShared = n; best = o; }
+    if (best < 0) { remove(id); continue; } // isolated sliver: drop it
+    const other = faces.get(best)!;
+    const merged = union(small.ring, other.ring);
+    if (!merged) { remove(id); continue; }
+    remove(id); remove(best);
+    const nf: Work = { ring: merged, area: Math.abs(signedArea(xyOf(merged))), edges: ringEdges(merged) };
+    const nid = add(nf);
+    if (nf.area < minArea) queue.push(nid);
   }
-  return list;
+  return [...faces.values()];
 }
 
 export function union(a: string[], b: string[]): string[] | undefined {

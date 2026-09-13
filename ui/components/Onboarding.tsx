@@ -53,18 +53,25 @@ export function Onboarding() {
   };
   const random = () => { const c = BIG_CITIES[Math.floor(Math.random() * BIG_CITIES.length)]; setPlace({ ...c }); setStatus(''); };
   const [building, setBuilding] = useState<string | null>(null);
+  const skipRef = useRef(false);
+  const [buildStart, setBuildStart] = useState(0);
+  const [, tick] = useState(0);
+  useEffect(() => { if (!building) return; setBuildStart(s => s || Date.now()); const iv = setInterval(() => tick(t => t + 1), 1000); return () => clearInterval(iv); }, [building]);
+  useEffect(() => { if (!building) setBuildStart(0); }, [building]);
   const start = async () => {
     if (!place || building) return;
     const origin: LatLng = { lat: place.lat, lng: place.lng };
     setBuilding('Contacting the map server…');
+    skipRef.current = false;
     let city: GeoChunk | undefined; let note = '';
     try {
-      city = await loadChunk(chunkKeyAt(origin), s => setBuilding(s));
+      const skip = new Promise<never>((_, reject) => { const iv = setInterval(() => { if (skipRef.current) { clearInterval(iv); reject(new Error('skipped')); } }, 200); });
+      city = await Promise.race([loadChunk(chunkKeyAt(origin), s => setBuilding(s)), skip]);
       if (city.source === 'hex') throw new Error('no street data');
     } catch (e) {
-      note = `Could not map the real streets here (${(e as Error).message}). Using a grid instead.`;
+      note = (e as Error).message === 'skipped' ? 'Using a simple grid for now. Real streets load as you explore.' : `Could not map the real streets here (${(e as Error).message}). Using a grid instead.`;
       setBuilding(note);
-      await new Promise(r => setTimeout(r, 1200));
+      await new Promise(r => setTimeout(r, 900));
     }
     setBuilding('Populating the city…');
     await new Promise(r => setTimeout(r, 30));
@@ -127,7 +134,10 @@ export function Onboarding() {
           <div className="spinner" />
           <b>Mapping {place?.name}</b>
           <p className="small muted">{building}</p>
-          <p className="small muted">Real streets, real blocks, real businesses from OpenStreetMap. Ten to twenty seconds.</p>
+          <p className="small muted">Real streets, real blocks, real businesses from OpenStreetMap. Usually ten to twenty seconds{buildStart ? ` · ${Math.round((Date.now() - buildStart) / 1000)}s` : ''}.</p>
+          {buildStart > 0 && Date.now() - buildStart > 8000 && !skipRef.current && (
+            <button type="button" className="btn btn-ghost mt8" onClick={() => { skipRef.current = true; setBuilding('Skipping…'); }}>Taking too long? Start on a grid</button>
+          )}
         </div>
       )}
     </div>

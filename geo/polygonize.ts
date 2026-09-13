@@ -27,11 +27,13 @@ export function buildGraph(lines: Polyline[], pos: Map<string, XY>): Graph {
     const k = ekey(a, b); if (!edgeName.has(k) || (name && !edgeName.get(k))) edgeName.set(k, name);
   };
   for (const l of lines) for (let i = 0; i + 1 < l.nodes.length; i++) add(l.nodes[i], l.nodes[i + 1], l.name);
-  // prune dangling ends (dead-end streets never bound a face)
-  let changed = true;
-  while (changed) {
-    changed = false;
-    for (const [n, s] of adj) if (s.size <= 1) { for (const o of s) adj.get(o)?.delete(n); adj.delete(n); changed = true; }
+  // prune dangling ends (dead-end streets never bound a face): queue-based, linear time
+  const queue: string[] = [];
+  for (const [n, s] of adj) if (s.size <= 1) queue.push(n);
+  while (queue.length) {
+    const n = queue.pop()!; const s = adj.get(n); if (!s || s.size > 1) continue;
+    for (const o of s) { const os = adj.get(o); if (os) { os.delete(n); if (os.size <= 1) queue.push(o); } }
+    adj.delete(n);
   }
   const sorted = new Map<string, string[]>();
   for (const [n, s] of adj) {
