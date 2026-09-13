@@ -73,6 +73,7 @@ export const OP_DEFS: Record<OpKind, OpDef> = {
   hit:             { label: 'Hit', icon: '🎯', blurb: 'Someone stops being a problem. Permanently.', planDays: 2, minCrew: 1, maxCrew: 3, needs: { muscle: 10, wheels: 4 }, difficulty: 55, payout: [0, 0], heat: 25, target: 'npc' },
   intimidate:      { label: 'Send a Message', icon: '🔨', blurb: 'Bats and broken windows. Fear without a body.', planDays: 0, minCrew: 1, maxCrew: 3, needs: { muscle: 6 }, difficulty: 25, payout: [0, 0], heat: 6, target: 'business' },
   takeover:        { label: 'Take the Corner', icon: '🏴', blurb: 'Roll up on a street crew and take their block. Lighter than a faction raid.', planDays: 0, minCrew: 1, maxCrew: 3, needs: { muscle: 8 }, difficulty: 35, payout: [300, 1200], heat: 8, target: 'block' },
+  steal_formula:   { label: 'Steal a Formula', icon: '📜', blurb: 'Break into a rival cook, a pharmacy or a print works and leave with something you can use.', planDays: 2, minCrew: 1, maxCrew: 3, needs: { tech: 8, brains: 6 }, difficulty: 50, payout: [0, 0], heat: 10, target: 'none' },
   raid_rival:      { label: 'Raid Rival Racket', icon: '⚔️', blurb: 'Hit a rival racket, take the cash box, wreck the place.', planDays: 1, minCrew: 2, maxCrew: 5, needs: { muscle: 12, wheels: 4 }, difficulty: 50, payout: [1500, 6000], heat: 12, target: 'business' },
 };
 
@@ -83,6 +84,24 @@ export const SAFEHOUSE_TIERS = [
 ];
 
 export const RACKET_UPGRADE_COST = [0, 1500, 5000];
+/** Production upgrade cost as a multiple of the production's setup cost, by current level. */
+export const PRODUCTION_UPGRADE_MULT = [0, 1.2, 2.5];
+export const PRODUCTION_LEVEL = { output: 0.7, quality: 8, heat: 0.4 }; // per level above 1
+
+export interface RecipeDef { label: string; kind: ProductionKind; blurb: string; quality: number; output: number; heat: number; risk: number }
+/** Recipes change what a production makes. Unlocked by the Steal a Formula op or by recruiting a specialist who knows one. */
+export const RECIPES: Record<string, RecipeDef> = {
+  aged:        { label: 'Barrel-aged', kind: 'still', blurb: 'Slower, but people ask for it by name.', quality: 25, output: 0.8, heat: 1, risk: 1 },
+  sugar_shine: { label: 'Sugar shine', kind: 'still', blurb: 'Volume over taste.', quality: -10, output: 1.4, heat: 1, risk: 1.1 },
+  hydro:       { label: 'Hydroponics', kind: 'grow_op', blurb: 'More lamps, more yield, more on the power bill.', quality: 5, output: 1.3, heat: 1.25, risk: 1 },
+  import_cut:  { label: 'Import cut', kind: 'grow_op', blurb: 'A strain nobody else in town has.', quality: 25, output: 0.9, heat: 1, risk: 1 },
+  clean_synth: { label: 'Clean synthesis', kind: 'lab', blurb: 'Fewer fumes, fewer fires, a better product.', quality: 20, output: 1, heat: 0.8, risk: 0.7 },
+  bulk_press:  { label: 'Bulk press', kind: 'lab', blurb: 'Press them fast and cut them hard.', quality: -10, output: 1.5, heat: 1.3, risk: 1.2 },
+  intaglio:    { label: 'Intaglio plates', kind: 'print_shop', blurb: 'Real plates. Passes at a bank.', quality: 30, output: 0.85, heat: 1, risk: 1 },
+  bleach_wash: { label: 'Bleached bills', kind: 'print_shop', blurb: 'Wash ones, print hundreds. Fast and ugly.', quality: -15, output: 1.4, heat: 1.2, risk: 1.1 },
+};
+/** What a unit of product sells for relative to average quality (50). */
+export const qualityMult = (q: number) => 0.7 + q / 200;
 
 /** Delegation: what it takes to hand a crew member a district, and what they do with it. */
 export const LIEUTENANT = {

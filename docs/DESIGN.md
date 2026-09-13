@@ -136,6 +136,16 @@ you at 35+ opens the door; if it fails they are burned).
   reach (partially), host production, house crew. Capacity by tier.
 - **Product**: `booze`, `green`, `pills`, `hot goods` (loot), `counterfeit`.
   Produced at safehouse productions, sold via dealing rackets (demand per block).
+- **Quality**: every batch gets a quality (worker skill and traits, production level,
+  recipe). Stashes keep a running average per product and it follows the units
+  when moved; street price scales 0.7×..1.2× with it. Productions upgrade to
+  level 3 (more output, better quality, more heat and risk). **Recipes** change a
+  production's profile (barrel-aged, hydroponics, clean synthesis, intaglio plates,
+  and their fast-and-ugly counterparts); unlocked by the *Steal a Formula* op or by
+  recruiting a specialist who knows one (Read reveals it). Production events: bad
+  batch, worker skimming product, a jailed worker talking, sabotage by a hostile
+  faction, a supplier shortage (restock ×2 for a week), and a flooded street
+  (prices −30%).
 
 ## 5. Rackets, production, ops
 

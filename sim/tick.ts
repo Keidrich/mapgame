@@ -12,6 +12,8 @@ import { PLAYER, type World } from './types';
 import { addHeat, addInfluence, adjustRel, clamp, collectors, factionOf, jailDays, log, money, rngOf } from './util';
 import { LIEUTENANT } from '@content/rackets';
 import { coverFor, tickLieutenants } from './lieutenants';
+import { addProduct, productionQuality, recipeFor, sellMult } from './production';
+import { PRODUCTION_LEVEL } from '@content/rackets';
 
 export function endDay(w: World): World {
   const { rng, done } = rngOf(w);
@@ -51,7 +53,7 @@ export function endDay(w: World): World {
     switch (r.kind) {
       case 'dealing': {
         const prod = r.product ?? 'green'; const have = p.stash[prod];
-        if (have > 0) { const demand = w.blocks[b.blockId].demand[prod] * (1 + (r.level - 1) * 0.5) * (0.6 + b.patronIds.length * 0.15); const sold = Math.min(have, Math.max(0, Math.round(demand))); p.stash[prod] -= sold; income = Math.round(sold * streetPrice(w, b.blockId, prod)); addHeat(w, sold * PRODUCT_INFO[prod].heat * 0.3, b.blockId); }
+        if (have > 0) { const demand = w.blocks[b.blockId].demand[prod] * (1 + (r.level - 1) * 0.5) * (0.6 + b.patronIds.length * 0.15); const sold = Math.min(have, Math.max(0, Math.round(demand))); p.stash[prod] -= sold; income = Math.round(sold * streetPrice(w, b.blockId, prod) * sellMult(w, prod)); addHeat(w, sold * PRODUCT_INFO[prod].heat * 0.3, b.blockId); }
         break;
       }
       case 'fencing': { const have = p.stash.hot_goods; if (have > 0) { const sold = Math.min(have, 6 + r.level * 4); p.stash.hot_goods -= sold; income = Math.round(sold * PRODUCT_INFO.hot_goods.price * 0.6 * (1 + (r.level - 1) * 0.15)); } break; }
@@ -87,13 +89,21 @@ export function endDay(w: World): World {
       if (pr.disrupted > 0) { pr.disrupted--; pr.lastOutput = 0; continue; }
       if (pr.stock <= 0) { pr.lastOutput = 0; continue; }
       pr.stock--;
-      const out = Math.round(productionOutput(w, pr));
+      const recipe = recipeFor(pr);
+      let out = Math.round(productionOutput(w, pr));
+      const worker = pr.workerId ? w.npcs[pr.workerId] : undefined;
+      if (worker?.crew && worker.notes.includes('skims product')) out = Math.max(0, out - Math.ceil(out * 0.12)); // the ones you let get away with it
       const room = Math.max(0, s.capacity - stashTotal(s.stash));
       const made = Math.min(out, room);
-      s.stash[def.product] += made; pr.lastOutput = made;
+      pr.quality = productionQuality(w, pr);
+      addProduct(s, def.product, made, pr.quality); pr.lastOutput = made;
       if (made < out) log(w, `${s.name} is full. ${out - made} ${PRODUCT_INFO[def.product].label.toLowerCase()} wasted.`, 'warn', { blockId: s.blockId });
-      addHeat(w, def.heat * 0.25, s.blockId);
-      if (rng.chance(def.risk * (w.blocks[s.blockId].police / 60))) { pr.disrupted = rng.int(2, 4); addHeat(w, 5, s.blockId); log(w, `${pr.kind === 'still' ? 'The still blew a seal' : pr.kind === 'lab' ? 'Chemical fire at the lab' : 'Neighbours complained about the smell'} at ${s.name}. Down ${pr.disrupted} days.`, 'bad', { blockId: s.blockId }); }
+      addHeat(w, def.heat * 0.25 * (1 + (pr.level - 1) * PRODUCTION_LEVEL.heat) * (recipe?.heat ?? 1), s.blockId);
+      if (rng.chance(def.risk * (recipe?.risk ?? 1) * (1 + (pr.level - 1) * 0.25) * (w.blocks[s.blockId].police / 60))) {
+        pr.disrupted = rng.int(2, 4); addHeat(w, 5, s.blockId);
+        log(w, `${pr.kind === 'still' ? 'The still blew a seal' : pr.kind === 'lab' ? 'Chemical fire at the lab' : 'Neighbours complained about the smell'} at ${s.name}. Down ${pr.disrupted} days.`, 'bad', { blockId: s.blockId });
+        if (worker?.crew && rng.chance(0.3)) { worker.crew.status = 'jailed'; worker.crew.statusDays = jailDays(w, 12); worker.crew.assignment = undefined; pr.workerId = undefined; log(w, `The cops came with the fire department. ${worker.name} was inside.`, 'bad', { npcId: worker.id, blockId: s.blockId }); }
+      }
     }
     const rent = Math.round(SAFEHOUSE_TIERS[s.tier - 1].rent / 30); // daily rent
     if (p.cash + p.dirty >= rent) spend(w, rent); else { addInfluence(w, s.blockId, PLAYER, -4); if (w.day % 5 === 0) log(w, `You are behind on rent at ${s.name}.`, 'warn', { blockId: s.blockId }); }

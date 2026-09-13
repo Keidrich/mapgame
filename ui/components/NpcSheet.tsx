@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { select } from '@sim/index';
 import type { Assignment, Id } from '@sim/types';
-import { PRODUCTION_DEFS, RACKET_DEFS, TRAIT_LABELS } from '@content/rackets';
+import { PRODUCTION_DEFS, RACKET_DEFS, RECIPES, TRAIT_LABELS } from '@content/rackets';
 import { assignmentLabel, cap, fmtMoney, initials, playerRackets, playerSafehouses, roleLabel } from '@ui/derive';
 import { openSheet, useWorld } from '@ui/store';
 import { Sheet } from './Sheet';
@@ -27,6 +27,7 @@ export function NpcSheet({ npcId }: { npcId: Id }) {
         {n.grudge && <span className="chip" style={{ color: 'var(--red)' }}>Holds a grudge</span>}
         {n.homeBlockId === w.player.homeBlockId && <span className="chip" style={{ color: 'var(--gold)' }}>Home turf</span>}
         {select.agendaLabel(n) && <span className="chip" style={{ color: 'var(--blue)' }}>{select.agendaLabel(n)}</span>}
+        {n.recipe && select.isKnown(n) && RECIPES[n.recipe] && <span className="chip" style={{ color: 'var(--gold)' }}>{n.crew ? `Knows ${RECIPES[n.recipe].label}` : `Knows a recipe: ${RECIPES[n.recipe].label}`}</span>}
         {n.official && <span className="chip">Corruption {n.official.corruption}</span>}
         {n.official?.boughtBy && <span className="chip" style={{ color: select.factionColor(w, n.official.boughtBy) }}>Bought by {select.factionName(w, n.official.boughtBy)}</span>}
       </div>

@@ -2,6 +2,7 @@
  * Fill a freshly loaded chunk with districts, businesses, people and (sometimes)
  * a new faction. Deterministic given the world's RNG state and the chunk data.
  */
+import { RECIPES } from '@content/rackets';
 import { BUSINESS_DEFS, DISTRICT_DEFS, type DistrictDef } from '@content/businesses';
 import { BUSINESS_NAME_PARTS, FACTION_ARCHETYPES, FIRST_NAMES, LAST_NAMES, NICKNAMES, STYLE_LAST } from '@content/names';
 import type { GeoChunk } from '@geo/chunks';
@@ -270,6 +271,8 @@ export function mkNpc(rng: Rng, w: World, nid: (p: string) => string, o: NpcOpts
     skills: { muscle: sk(4 + strong), brains: sk(4 + strong / 2), charm: sk(4), wheels: sk(3), tech: sk(2) },
     homeBlockId: o.homeBlockId, faction: o.faction, favouriteBusinessIds: [], rel: { trust: 0, fear: 0, respect: 0 }, nerve, alive: true, known: false, notes: [],
   };
+  // a few people know a trade: recruiting them unlocks a recipe
+  if ((o.role === 'patron' || o.role === 'owner') && (n.skills.tech >= 5 || n.skills.brains >= 7) && rng.chance(0.25)) n.recipe = rng.pick(Object.keys(RECIPES));
   w.npcs[n.id] = n; return n;
 }
 function bizName(rng: Rng, type: BusinessType, owner: Npc, used: Set<string>): string {

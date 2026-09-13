@@ -5,6 +5,7 @@ import { PLAYER, type GameEvent, type World } from './types';
 import { addHeat, addInfluence, adjustRel, clamp, factionOf, log, money, nid, spreadRep } from './util';
 import { LIEUTENANT } from '@content/rackets';
 import { flipLieutenant, lieutenants } from './lieutenants';
+import { productionCandidates, resolveProductionEvent } from './production';
 
 type Candidate = { w: number; make: () => GameEvent | undefined };
 
@@ -101,6 +102,7 @@ export function drawEvents(w: World, rng: Rng) {
       { id: 'pass', label: 'Pass' },
     ], { npcId: biz.ownerId, businessId: biz.id, blockId: b.id }); } },
   ];
+  cands.push(...productionCandidates(w, rng, ev));
   const n = rng.chance(0.75) ? (rng.chance(0.3) ? 2 : 1) : 0;
   const pool = cands.filter(c => c.w > 0);
   for (let i = 0; i < n && pool.length; i++) {
@@ -120,6 +122,7 @@ export function resolveEventOption(w: World, e: GameEvent, opt: string, rng: Rng
   const brainsCheck = () => p.skills.brains * 8 + rng.int(0, 40) > 35;
   const demote = (m: import('./types').Npc) => { const c = m.crew; if (!c) return; if (c.baseCut !== undefined) { c.cut = c.baseCut; c.baseCut = undefined; } c.assignment = undefined; c.status = 'idle'; };
   const key = `${e.kind}:${opt}`;
+  if (resolveProductionEvent(w, e, opt, rng)) return;
   switch (key) {
     case 'owner_favour:help': if (n && biz) { adjustRel(n, { trust: 15, respect: 10 }); spreadRep(w, biz.blockId, { respect: 4, trust: 2 }); addInfluence(w, biz.blockId, PLAYER, 5); log(w, `You sort out ${n.name}'s problem. The block notices.`, 'good', e.refs); } break;
     case 'owner_favour:ignore': if (n && biz) { adjustRel(n, { trust: -20 }); spreadRep(w, biz.blockId, { respect: -3 }); log(w, `${n.name} stops paying with a smile.`, 'bad', e.refs); } break;

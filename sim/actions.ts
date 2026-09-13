@@ -36,6 +36,8 @@ export type Action =
   | { type: 'start_production'; safehouseId: Id; kind: ProductionKind }
   | { type: 'restock_production'; productionId: Id; days: number }
   | { type: 'close_production'; productionId: Id }
+  | { type: 'upgrade_production'; productionId: Id }              // cash: level 1→3, more output and quality, more heat
+  | { type: 'set_recipe'; productionId: Id; recipe?: string }     // switch a production to a recipe you know
   | { type: 'move_stash'; from: 'player' | Id; to: 'player' | Id; product: ProductKind; amount: number }
   | { type: 'sell_product'; product: ProductKind; amount: number; blockId: Id } // 1 AP street sale
   | { type: 'launder'; amount: number } // via laundering rackets capacity (auto at tick too)

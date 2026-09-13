@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { select } from '@sim/index';
 import { PLAYER, type Id, type ProductKind, type Safehouse, type World } from '@sim/types';
-import { PRODUCTION_DEFS, PRODUCT_INFO, SAFEHOUSE_TIERS } from '@content/rackets';
+import { PRODUCTION_DEFS, PRODUCTION_UPGRADE_MULT, PRODUCT_INFO, RECIPES, SAFEHOUSE_TIERS } from '@content/rackets';
 import { PRODUCTS, crewName, districtName, fmtMoney, influenceRows, safehouseAt, stashLine } from '@ui/derive';
 import { openSheet, useWorld } from '@ui/store';
 import { Sheet } from './Sheet';
@@ -99,7 +99,7 @@ function SafehouseCard({ w, sh }: { w: World; sh: Safehouse }) {
     <div className="card gold mt12">
       <div className="row between"><b>🏠 {sh.name}</b><span className="chip">{tier?.label ?? 'Safehouse'} · T{sh.tier}</span></div>
       <dl className="kv mt8">
-        <dt>Stash</dt><dd>{stashLine(sh.stash)} <span className="muted">({Math.round(used)}/{sh.capacity})</span></dd>
+        <dt>Stash</dt><dd>{stashLine(sh.stash)} <span className="muted">({Math.round(used)}/{sh.capacity})</span>{PRODUCTS.filter(p => sh.stash[p] > 0 && p !== 'hot_goods').map(p => <span key={p} className="chip" style={{ marginLeft: 4 }}>{PRODUCT_INFO[p].icon} q{select.qualityOf(sh, p)}</span>)}</dd>
         <dt>Hidden cash</dt><dd className="orange">{fmtMoney(sh.cash)}</dd>
         <dt>Rent</dt><dd>{fmtMoney((tier?.rent ?? 0) / 30)}/day · beds {tier?.crewBeds ?? '?'}</dd>
       </dl>
@@ -115,11 +115,22 @@ function SafehouseCard({ w, sh }: { w: World; sh: Safehouse }) {
                 <span className="small muted">→ {PRODUCT_INFO[def.product].icon} {pr.lastOutput}/day</span>
               </div>
               <div className="small muted">Stock {pr.stock}d · worker {crewName(w, pr.workerId)}{pr.disrupted > 0 && <span className="red"> · disrupted {pr.disrupted}d</span>}</div>
+              <div className="chips mt8">
+                <span className="chip" title="Quality of the next batch">Quality {select.productionQuality(w, pr)}</span>
+                {pr.recipe && RECIPES[pr.recipe] && <span className="chip gold">{RECIPES[pr.recipe].label}</span>}
+                {select.shortageActive(w, pr.kind) && <span className="chip red">Shortage: restock ×2</span>}
+                {select.saturationActive(w, def.product) && <span className="chip red">Street flooded: −30%</span>}
+              </div>
               <div className="row wrap mt8" style={{ gap: 6 }}>
                 <div className="chips">{[3, 7, 14].map(d => <button type="button" key={d} className={`chip btn${restock === d ? ' sel' : ''}`} onClick={() => setRestock(d)}>{d}d</button>)}</div>
-                <Act action={{ type: 'restock_production', productionId: pid, days: restock }} label={`Restock ${restock}d`} small />
+                <Act action={{ type: 'restock_production', productionId: pid, days: restock }} label={`Restock ${restock}d (${fmtMoney(select.restockCost(w, pr, restock))})`} small />
                 <Act action={{ type: 'close_production', productionId: pid }} label="Close" kind="danger" small confirm="Close this production?" />
               </div>
+              <div className="row wrap mt8" style={{ gap: 6 }}>
+                <Act action={{ type: 'upgrade_production', productionId: pid }} label={pr.level >= 3 ? 'Max level' : `Upgrade to L${pr.level + 1} (${fmtMoney(Math.round(def.setupCost * PRODUCTION_UPGRADE_MULT[pr.level]))})`} icon="⬆️" small />
+                {select.recipesForKind(w, pr.kind).map(id => <Act key={id} action={{ type: 'set_recipe', productionId: pid, recipe: pr.recipe === id ? undefined : id }} label={pr.recipe === id ? `Drop ${RECIPES[id].label}` : `Use ${RECIPES[id].label}`} small kind={pr.recipe === id ? 'ghost' : undefined} />)}
+              </div>
+              {select.recipesForKind(w, pr.kind).length === 0 && <p className="small muted mt8">No recipes known for this. Steal a formula (Ops) or recruit someone who knows one.</p>}
               {!pr.workerId && idle.length > 0 && (
                 <div className="mt8">
                   <label className="field">Assign worker</label>

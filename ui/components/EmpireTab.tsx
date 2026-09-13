@@ -36,7 +36,7 @@ export function EmpireTab() {
       <div className="section-title">Stash · {stashLine(totals)}</div>
       <div className="card">
         <dl className="kv">
-          <dt>On you</dt><dd>{stashLine(w.player.stash)}</dd>
+          <dt>On you</dt><dd>{stashLine(w.player.stash)}{PRODUCTS.filter(p => w.player.stash[p] > 0 && p !== 'hot_goods').map(p => <span key={p} className="chip" style={{ marginLeft: 4 }}>{PRODUCT_INFO[p].icon} q{select.qualityOf(w.player, p)}</span>)}</dd>
           {safes.map(s => <SafeLine key={s.id} id={s.id} />)}
         </dl>
         <div className="actions mt8">

@@ -1,3 +1,5 @@
+import { RECIPES } from '@content/rackets';
+import { addProduct, knownRecipes, unlockRecipe } from './production';
 import { OP_APPROACHES, OP_DEFS } from '@content/rackets';
 import type { Rng } from './rng';
 import { opChance } from './select';
@@ -50,7 +52,16 @@ export function resolveOp(w: World, o: Op, rng: Rng) {
         res.text = `${target?.name} burns. The insurer pays ${money(payout)}. Nobody asks questions. Yet.`;
         break;
       }
-      case 'smuggle_run': { const units = 25 + rng.int(0, 15); p.stash.booze += units; res.loot = { booze: units }; res.text = `The truck makes it in. ${units} cases of booze at cost.`; break; }
+      case 'smuggle_run': { const units = 25 + rng.int(0, 15); addProduct(p, 'booze', units, 45); res.loot = { booze: units }; res.text = `The truck makes it in. ${units} cases of booze at cost.`; break; }
+      case 'steal_formula': {
+        const mine = new Set(p.safehouseIds.flatMap(id => w.safehouses[id]?.productionIds ?? []).map(id => w.productions[id]?.kind));
+        const unknown = Object.keys(RECIPES).filter(id => !knownRecipes(w).includes(id));
+        const pool = unknown.filter(id => mine.has(RECIPES[id].kind));
+        const pick = pool.length ? rng.pick(pool) : unknown.length ? rng.pick(unknown) : undefined;
+        if (pick) { unlockRecipe(w, pick, 'The crew comes back with a notebook and a sample.'); res.text = `${RECIPES[pick].label}: yours now.`; }
+        else { const v = 1500 + rng.int(0, 1500); p.dirty += v; res.cash = v; res.text = `Nothing you did not already know, so they sold the notebook on. ${money(v)}.`; }
+        break;
+      }
       case 'hit': {
         const n = w.npcs[o.targetNpcId!]; n.alive = false;
         res.text = `${n.name} is found in the river. `;

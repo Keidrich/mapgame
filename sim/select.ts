@@ -5,6 +5,7 @@ import { controller, stanceFor } from './generate';
 import { CREW_COLOR, crewAt } from './crews';
 export { crewAt };
 export { lieutenants, lieutenantOf, districtsRunnable, districtIncome, promoteReason, playerAssetsIn } from './lieutenants';
+export { knownRecipes, recipesForKind, restockCost, qualityOf, sellMult, shortageActive, saturationActive, productionQuality } from './production';
 import { distanceM } from '@geo/project';
 import { STEP_M } from './populate';
 import { PLAYER, type Block, type Business, type FactionId, type Id, type Npc, type OpKind, type RacketKind, type Stance, type World } from './types';

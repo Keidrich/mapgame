@@ -146,6 +146,7 @@ export interface Npc {
   agenda?: Agenda;            // a want that advances daily whether or not you show up
   grudge?: { since: number; reason: string; spread: number }; // holds it against you and tells people
   known: boolean;             // traits and nerve revealed (Read action, a scene, or enough trust)
+  recipe?: string;            // a specialist: recruiting them unlocks this RECIPES id
   notes: string[];
 }
 
@@ -189,11 +190,13 @@ export interface Production {
   id: Id;
   kind: ProductionKind;
   safehouseId: Id;
-  level: number;
+  level: number;         // 1..3 upgrades
   workerId?: Id;
   stock: number;         // ingredients on hand (days)
   lastOutput: number;
   disrupted: number;
+  quality?: number;      // 0..100, last batch (worker skill, level, recipe, traits)
+  recipe?: string;       // a RECIPES id the player has unlocked
 }
 
 export interface Safehouse {
@@ -203,6 +206,7 @@ export interface Safehouse {
   tier: number;          // 1..3
   owner: FactionId;
   stash: Stash;
+  quality?: Partial<Record<ProductKind, number>>; // running average quality of what is in the stash
   cash: number;          // hidden dirty cash
   productionIds: Id[];
   capacity: number;      // product units
@@ -212,7 +216,7 @@ export interface Safehouse {
 export type OpKind =
   | 'heist_bank' | 'heist_jeweller' | 'heist_armored' | 'heist_warehouse'
   | 'robbery' | 'insurance_fraud' | 'check_kiting' | 'smuggle_run'
-  | 'hit' | 'intimidate' | 'raid_rival' | 'takeover';
+  | 'hit' | 'intimidate' | 'raid_rival' | 'takeover' | 'steal_formula';
 
 export type OpStatus = 'planning' | 'ready' | 'done' | 'failed' | 'aborted';
 
@@ -292,6 +296,8 @@ export interface Player {
   ap: number;
   apMax: number;
   stash: Stash;       // product carried / at the front
+  quality?: Partial<Record<ProductKind, number>>; // running average quality of the carried stash
+  recipes?: string[]; // RECIPES ids unlocked (stolen formulas, specialists)
   crewIds: Id[];
   safehouseIds: Id[];
   businessIds: Id[];
@@ -353,6 +359,7 @@ export interface World {
   crews: Record<Id, StreetCrew>;
   factions: Record<FactionId, Faction>;
   player: Player;
+  market?: { shortage: Partial<Record<ProductionKind, number>>; saturation: Partial<Record<ProductKind, number>> }; // 'until day' markers
   pendingEvents: GameEvent[]; // must be resolved before End Day
   log: LogEntry[];
   gameOver?: { reason: string; text: string };

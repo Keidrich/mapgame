@@ -13,6 +13,8 @@ import { crewAt, crewOfBoss, parley } from './crews';
 import { endDay } from './tick';
 import { PLAYER, type Business, type Id, type Npc, type Op, type Racket, type Safehouse, type World } from './types';
 import { onDemote, promote, promoteReason } from './lieutenants';
+import { moveProduct, onJoin, recipesForKind, restockCost, sellMult } from './production';
+import { PRODUCTION_UPGRADE_MULT, RECIPES } from '@content/rackets';
 import { LIEUTENANT } from '@content/rackets';
 import { activeCrewCount, officialTrust, addHeat, addInfluence, adjustRel, clamp, factionOf, log, money, nid, rngOf, spreadRep, takeCash } from './util';
 
@@ -126,7 +128,9 @@ export function can(w: World, a: Action): Affordance {
       if (s.productionIds.some(id => w.productions[id].kind === a.kind)) return no('Already set up here.');
       const c = PRODUCTION_DEFS[a.kind].setupCost; const r = cash(c); return r ? no(r) : yes({ cash: c });
     }
-    case 'restock_production': { const pr = w.productions[a.productionId]; if (!pr) return no('No such production.'); if (a.days < 1) return no('Days?'); const c = PRODUCTION_DEFS[pr.kind].ingredientCost * a.days; if (p.cash + p.dirty < c) return no(`Needs ${money(c)}.`); return yes({ cash: c }); }
+    case 'restock_production': { const pr = w.productions[a.productionId]; if (!pr) return no('No such production.'); if (a.days < 1) return no('Days?'); const c = restockCost(w, pr, a.days); if (p.cash + p.dirty < c) return no(`Needs ${money(c)}.`); return yes({ cash: c }); }
+    case 'upgrade_production': { const pr = w.productions[a.productionId]; if (!pr) return no('No such production.'); if (pr.level >= 3) return no('Maxed out.'); const c = Math.round(PRODUCTION_DEFS[pr.kind].setupCost * PRODUCTION_UPGRADE_MULT[pr.level]); const r = cash(c); return r ? no(r) : yes({ cash: c }); }
+    case 'set_recipe': { const pr = w.productions[a.productionId]; if (!pr) return no('No such production.'); if (a.recipe && !recipesForKind(w, pr.kind).includes(a.recipe)) return no('You do not know that recipe.'); if ((pr.recipe ?? undefined) === (a.recipe ?? undefined)) return no('Already running that.'); return yes(); }
     case 'close_production': { const pr = w.productions[a.productionId]; return pr ? yes() : no('No such production.'); }
     case 'move_stash': {
       if (a.amount <= 0) return no('Amount?');
@@ -222,7 +226,7 @@ export function dispatch(prev: World, a: Action): World {
     case 'read': {
       const n = npc(a.npcId);
       const chance = 40 + p.skills.charm * 5 + p.skills.tech * 2 + (n.traits.includes('quiet') ? -15 : 0);
-      if (rng.int(1, 100) <= chance) { n.known = true; log(w, `You size up ${n.name}: ${n.traits.join(', ')}. Nerve ${n.nerve}.${n.agenda ? ` They ${agendaText(n)}.` : ''}`, 'good', { npcId: n.id }); }
+      if (rng.int(1, 100) <= chance) { n.known = true; log(w, `You size up ${n.name}: ${n.traits.join(', ')}. Nerve ${n.nerve}.${n.agenda ? ` They ${agendaText(n)}.` : ''}${n.recipe && RECIPES[n.recipe] ? ` They know ${RECIPES[n.recipe].label}; worth having in the crew.` : ''}`, 'good', { npcId: n.id }); }
       else { adjustRel(n, { trust: -2 }); log(w, `${n.name} notices you watching and clams up.`, 'info', { npcId: n.id }); }
       break;
     }
@@ -268,6 +272,7 @@ export function dispatch(prev: World, a: Action): World {
       n.role = 'crew'; p.crewIds.push(n.id);
       for (const bid of n.favouriteBusinessIds) { const b = w.businesses[bid]; b.patronIds = b.patronIds.filter(id => id !== n.id); }
       log(w, `${resultLine('recruit', ap_, true, rng)} ${n.name} joins your crew at ${money(cut)}/day (loyalty ${Math.round(loyalty)}).`, 'good', { npcId: n.id });
+      onJoin(w, n);
       break;
     }
     case 'fire': {
@@ -399,7 +404,9 @@ export function dispatch(prev: World, a: Action): World {
       log(w, `${PRODUCTION_DEFS[a.kind].label} built at ${s.name}. Stock it and put someone on it.`, 'good', { blockId: s.blockId });
       break;
     }
-    case 'restock_production': { const pr = w.productions[a.productionId]; spend(w, PRODUCTION_DEFS[pr.kind].ingredientCost * a.days); pr.stock += a.days; log(w, `Stocked the ${PRODUCTION_DEFS[pr.kind].label.toLowerCase()} for ${a.days} more days.`, 'money'); break; }
+    case 'restock_production': { const pr = w.productions[a.productionId]; const c = restockCost(w, pr, a.days); spend(w, c); pr.stock += a.days; log(w, `Stocked the ${PRODUCTION_DEFS[pr.kind].label.toLowerCase()} for ${a.days} more days (${money(c)}).`, 'money'); break; }
+    case 'upgrade_production': { const pr = w.productions[a.productionId]; const def = PRODUCTION_DEFS[pr.kind]; takeCash(w, Math.round(def.setupCost * PRODUCTION_UPGRADE_MULT[pr.level])); pr.level++; log(w, `${def.label} at ${w.safehouses[pr.safehouseId].name} is level ${pr.level}: more ${PRODUCT_INFO[def.product].label.toLowerCase()}, better ${PRODUCT_INFO[def.product].label.toLowerCase()}, and a bit more noise.`, 'good', { blockId: w.safehouses[pr.safehouseId].blockId }); break; }
+    case 'set_recipe': { const pr = w.productions[a.productionId]; pr.recipe = a.recipe; log(w, a.recipe ? `${PRODUCTION_DEFS[pr.kind].label} switched to ${RECIPES[a.recipe].label}.` : `${PRODUCTION_DEFS[pr.kind].label} back to the house recipe.`, 'info'); break; }
     case 'close_production': {
       const pr = w.productions[a.productionId]; const s = w.safehouses[pr.safehouseId];
       if (pr.workerId) { const n = npc(pr.workerId); if (n.crew) { n.crew.assignment = undefined; n.crew.status = 'idle'; } }
@@ -407,15 +414,15 @@ export function dispatch(prev: World, a: Action): World {
       log(w, `Tore down the ${PRODUCTION_DEFS[pr.kind].label.toLowerCase()}.`, 'info'); break;
     }
     case 'move_stash': {
-      const from = a.from === 'player' ? p.stash : w.safehouses[a.from].stash; const to = a.to === 'player' ? p.stash : w.safehouses[a.to].stash;
-      from[a.product] -= a.amount; to[a.product] += a.amount; break;
+      const from = a.from === 'player' ? p : w.safehouses[a.from]; const to = a.to === 'player' ? p : w.safehouses[a.to];
+      moveProduct(from, to, a.product, a.amount); break;
     }
     case 'sell_product': {
       const b = w.blocks[a.blockId];
       const price = streetPrice(w, b.id, a.product);
       const demand = b.demand[a.product] * 3; // a street session can move ~3 days of demand
       const sold = Math.min(a.amount, Math.max(1, Math.round(demand)));
-      const take = Math.round(sold * price * (0.8 + p.skills.charm / 40));
+      const take = Math.round(sold * price * (0.8 + p.skills.charm / 40) * sellMult(w, a.product));
       p.stash[a.product] -= sold; p.dirty += take;
       addHeat(w, PRODUCT_INFO[a.product].heat, b.id); addInfluence(w, b.id, PLAYER, 2);
       log(w, `Moved ${sold} ${PRODUCT_INFO[a.product].label.toLowerCase()} on ${b.name} for ${money(take)}.${sold < a.amount ? ' The block could not take more today.' : ''}`, 'money', { blockId: b.id });

@@ -1,5 +1,5 @@
 /** Income formulas for rackets and productions. Shared by the tick and by estimates. */
-import { LIEUTENANT, PRODUCTION_DEFS, PRODUCT_INFO, RACKET_DEFS } from '@content/rackets';
+import { LIEUTENANT, PRODUCTION_DEFS, PRODUCTION_LEVEL, PRODUCT_INFO, RACKET_DEFS, RECIPES } from '@content/rackets';
 import { coverFor } from './lieutenants';
 import type { Npc, Production, Racket, World } from './types';
 
@@ -43,7 +43,8 @@ export function launderCapacity(w: World, r: Racket): number {
 
 export function productionOutput(w: World, p: Production): number {
   const def = PRODUCTION_DEFS[p.kind];
-  return def.outputBase * (1 + (p.level - 1) * 0.7) * runnerFactor(w, p.workerId, def.skill);
+  const recipe = p.recipe ? RECIPES[p.recipe] : undefined;
+  return def.outputBase * (1 + (p.level - 1) * PRODUCTION_LEVEL.output) * (recipe?.output ?? 1) * runnerFactor(w, p.workerId, def.skill);
 }
 
 export function streetPrice(w: World, blockId: string, product: keyof typeof PRODUCT_INFO): number {

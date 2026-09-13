@@ -3,6 +3,7 @@
  * big factions. Talk them onto your payroll, fold them into your outfit, run them off, or take
  * the corner by force. Ignore them and they grow, or a nearby faction swallows them.
  */
+import { onJoin } from './production';
 import type { Rng } from './rng';
 import { mkNpc } from './populate';
 import { PLAYER, type Block, type District, type FactionId, type Id, type Npc, type StreetCrew, type World } from './types';
@@ -89,7 +90,7 @@ export function parley(w: World, c: StreetCrew, boss: Npc, approach: string, ok:
       const cut = 40 + Math.round((boss.skills.muscle + boss.skills.brains + boss.skills.charm) * 4);
       boss.crew = { loyalty: 55, cut, status: 'idle', statusDays: 0, joinedDay: w.day }; boss.role = 'crew'; w.player.crewIds.push(boss.id);
       for (const bid of boss.favouriteBusinessIds) { const z = w.businesses[bid]; if (z) z.patronIds = z.patronIds.filter(id => id !== boss.id); }
-      const name = c.name; dissolveCrew(w, c, 'joined');
+      const name = c.name; dissolveCrew(w, c, 'joined'); onJoin(w, boss);
       log(w, `${boss.name} and the ${name} come over. ${boss.name} joins your crew at ${money(cut)}/day; their people are yours to recruit.`, 'good', { blockId: b.id, npcId: boss.id });
       return 'good';
     }

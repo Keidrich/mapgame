@@ -36,6 +36,20 @@ for (let d = 0; d < days; d++) {
   }
   if (!w.player.safehouseIds.length) tryAct({ type: 'rent_safehouse', blockId: start.id });
   for (const n of select.idleCrew(w)) { const r = w.player.racketIds.map(id => w.rackets[id]).find(r => !r.runnerId); if (r) tryAct({ type: 'assign', npcId: n.id, assignment: { kind: 'racket', racketId: r.id } }); }
+  // production: a still in the first safehouse, a worker on it, and a dealing racket to move the booze
+  for (const sid of w.player.safehouseIds) {
+    const sh = w.safehouses[sid];
+    if (!sh.productionIds.length && w.player.cash > 5000) tryAct({ type: 'start_production', safehouseId: sid, kind: 'still' });
+    for (const pid of sh.productionIds) {
+      const pr = w.productions[pid];
+      if (pr.stock < 2) tryAct({ type: 'restock_production', productionId: pid, days: 7 });
+      if (!pr.workerId) { const free = select.idleCrew(w)[0]; if (free) tryAct({ type: 'assign', npcId: free.id, assignment: { kind: 'production', productionId: pid } }); }
+      if (pr.level < 3 && w.player.cash > 15000) tryAct({ type: 'upgrade_production', productionId: pid });
+      const known = select.recipesForKind(w, pr.kind); if (known.length && !pr.recipe) tryAct({ type: 'set_recipe', productionId: pid, recipe: known[0] });
+    }
+    if (sh.stash.booze > 0) tryAct({ type: 'move_stash', from: sid, to: 'player', product: 'booze', amount: sh.stash.booze });
+  }
+  if (w.player.stash.booze > 10 && !w.player.racketIds.some(id => w.rackets[id]?.kind === 'dealing')) { const spot = nearBiz().find(b => b.protection?.factionId === PLAYER && can(w, { type: 'start_racket', businessId: b.id, kind: 'dealing', product: 'booze' }).ok); if (spot) tryAct({ type: 'start_racket', businessId: spot.id, kind: 'dealing', product: 'booze' }); }
   if (w.player.dirty > 500) tryAct({ type: 'launder', amount: w.player.dirty });
   if (w.player.cash > 8000 && !w.player.lawyer) tryAct({ type: 'hire_lawyer' });
   w = dispatch(w, { type: 'end_day' });
@@ -46,6 +60,7 @@ for (let d = 0; d < days; d++) {
 }
 const p = w.player;
 console.log(`Day ${w.day} | cash ${Math.round(p.cash)} dirty ${Math.round(p.dirty)} heat ${Math.round(p.heat)} respect ${p.respect} fear ${p.fear}`);
+console.log(`productions ${Object.values(w.productions).map(pr => `${pr.kind} L${pr.level} q${pr.quality ?? '-'}${pr.recipe ? ` (${pr.recipe})` : ''} ${pr.lastOutput}/day`).join(', ') || 'none'} | recipes ${(p.recipes ?? []).join(',') || 'none'} | booze q${select.qualityOf(p, 'booze')} x${Math.round(p.stash.booze)}`);
 console.log(`crew ${p.crewIds.length} (${select.crew(w).map(n => n.crew?.status).join(',')}) | businesses ${p.businessIds.length} | rackets ${p.racketIds.length} (${p.racketIds.map(id => w.rackets[id].kind).join(',')}) | safehouses ${p.safehouseIds.length} | control ${(select.controlShare(w) * 100).toFixed(1)}%`);
 for (const f of Object.values(w.factions)) console.log(`${f.name.padEnd(24)} ${f.temperament.padEnd(11)} soldiers ${String(f.soldiers).padStart(2)} cash ${String(Math.round(f.cash)).padStart(7)} blocks ${String(select.blocksOf(w, f.id).length).padStart(3)} stance→player ${f.stance[PLAYER]} (${Math.round(f.standing[PLAYER])})`);
 for (const l of w.log.filter(l => l.text.startsWith('Day ') && l.day % 5 === 0)) console.log(`[${l.day}] ${l.text}`);
