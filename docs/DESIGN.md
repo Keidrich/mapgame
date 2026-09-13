@@ -147,6 +147,16 @@ you at 35+ opens the door; if it fails they are burned).
   faction, a supplier shortage (restock ×2 for a week), and a flooded street
   (prices −30%).
 
+### 4.1 Making the numbers legible
+
+Every stat, chip and piece of jargon in the UI carries an explainer: a dotted-underlined
+label, or a chip with a small `?`. Tap on a phone, hover on a desktop. The text lives in
+`content/glossary.ts` and describes the real mechanics, including the thresholds that
+change what the player should do (heat 45/60/100, loyalty 50/30/15, trust 20/35,
+protection at 15%). It is a rule of the project that a balance change in `sim/` updates
+the matching glossary entry. Onboarding also spells out what each background actually
+changes rather than only its flavour.
+
 ## 5. Rackets, production, ops
 
 **Rackets** (persistent, on a business): protection, numbers, bookmaking, gambling

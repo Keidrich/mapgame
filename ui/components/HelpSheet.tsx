@@ -6,6 +6,7 @@ export function HelpSheet() {
   return (
     <Sheet title="How to play" subtitle="The first five minutes" icon="❓" onClose={closeHelp}>
       <div className="help">
+        <p className="small" style={{ margin: '0 0 10px', color: 'var(--gold)' }}>Anything with a dotted underline, or a ? in a chip, explains itself. Tap it (or hover on a computer) to find out what the number does.</p>
         <ol>
           <li>Tap the bright hex in the middle: that is your block. Open a business and read the owner's traits. Cowards and low-nerve owners fold fast; hotheads and honest owners fight back.</li>
           <li><b>Threaten</b> an owner until their fear is up, then <b>Shakedown</b> for cash today or <b>Protect</b> for a daily cut. Fair rates (10 to 15%) keep owners loyal.</li>

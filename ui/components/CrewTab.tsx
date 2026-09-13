@@ -6,6 +6,7 @@ import { Act } from './Act';
 import { NpcRow } from './Rows';
 import { TRAIT_LABELS } from '@content/rackets';
 import { openSheet } from '@ui/store';
+import { Info, Term, TermChip } from './Info';
 
 export function CrewTab() {
   const w = useWorld();
@@ -28,24 +29,24 @@ export function CrewTab() {
         <div className="row between"><b style={{ fontSize: 17 }}>{p.name}</b><span className="chip">{cap(p.background)}</span></div>
         <div className="mt8"><SkillBars skills={p.skills} /></div>
         <div className="row wrap mt8 small muted" style={{ gap: 10 }}>
-          <span>Respect <b className="gold">{Math.round(p.respect)}</b></span>
-          <span>Fear <b className="red">{Math.round(p.fear)}</b></span>
-          <span>Busts <b>{p.busts}</b></span>
-          <span>Lawyer <b>{p.lawyer ? 'on retainer' : 'none'}</b></span>
+          <span><Term id="respect">Respect</Term> <b className="gold">{Math.round(p.respect)}</b></span>
+          <span><Term id="fear">Fear</Term> <b className="red">{Math.round(p.fear)}</b></span>
+          <span><Term id="busts">Busts</Term> <b>{p.busts}</b></span>
+          <span><Term id="lawyer">Lawyer</Term> <b>{p.lawyer ? 'on retainer' : 'none'}</b></span>
         </div>
         {!p.lawyer && <div className="mt8"><Act action={{ type: 'hire_lawyer' }} label="Hire lawyer" icon="⚖️" block /></div>}
       </div>
 
-      <div className="section-title">Your people ({crew.length})</div>
+      <div className="section-title">Your people ({crew.length})<Info id="loyalty" /></div>
       {crew.length > 0 && (
         <div className="chips mb8">
-          {(['idle', 'assigned', 'injured', 'jailed', 'dead'] as const).filter(s => counts[s]).map(s => <span key={s} className={`chip s-${s}`}>{counts[s]} {s}</span>)}
-          <span className="chip">Wages {fmtMoney(crew.reduce((a, n) => a + (n.crew?.status === 'dead' ? 0 : n.crew?.cut ?? 0), 0))}/day</span>
+          {(['idle', 'assigned', 'injured', 'jailed', 'dead'] as const).filter(s => counts[s]).map(s => <TermChip key={s} id="crewStatus" className={`s-${s}`}>{counts[s]} {s}</TermChip>)}
+          <TermChip id="cut">Wages {fmtMoney(crew.reduce((a, n) => a + (n.crew?.status === 'dead' ? 0 : n.crew?.cut ?? 0), 0))}/day</TermChip>
         </div>
       )}
       {(lts.length > 0 || runnable.length > 0) && (
         <>
-          <div className="section-title">Lieutenants</div>
+          <div className="section-title">Lieutenants<Info id="lieutenant" /></div>
           {lts.map(n => { const a = n.crew!.assignment as { kind: 'lieutenant'; districtId: string }; const d = w.districts[a.districtId]; const take = d ? select.districtIncome(w, d) : 0; return (
             <button type="button" key={n.id} className="card" style={{ display: 'block', width: '100%', textAlign: 'left', color: 'inherit', font: 'inherit' }} onClick={() => openSheet({ kind: 'npc', npcId: n.id })}>
               <div className="row between"><b>⭐ {n.name}</b><span className="small muted">{d?.name ?? '?'}</span></div>

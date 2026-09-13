@@ -7,6 +7,7 @@ import { openSheet, useWorld } from '@ui/store';
 import { Sheet } from './Sheet';
 import { Meter, RelMeters, SkillBars } from './Meter';
 import { Act, AmountPicker, Disclosure, SceneAct } from './Act';
+import { Info, Term, TermChip } from './Info';
 
 export function NpcSheet({ npcId }: { npcId: Id }) {
   const w = useWorld();
@@ -22,29 +23,35 @@ export function NpcSheet({ npcId }: { npcId: Id }) {
   return (
     <Sheet title={n.name} subtitle={`${roleLabel(n)}${faction ? ` · ${faction.name}` : ''}${!n.alive ? ' · deceased' : ''}`} icon={<span className="avatar" style={{ color: faction?.color }}>{initials(n.name)}</span>} accent={faction?.color}>
       <div className="chips">
-        {select.isKnown(n) ? n.traits.map(t => <span key={t} className="chip">{TRAIT_LABELS[t] ?? t}</span>) : <span className="chip muted">Traits unknown</span>}
-        <span className="chip">{select.relLabel(n)}</span>
-        {n.grudge && <span className="chip" style={{ color: 'var(--red)' }}>Holds a grudge</span>}
-        {n.homeBlockId === w.player.homeBlockId && <span className="chip" style={{ color: 'var(--gold)' }}>Home turf</span>}
-        {select.agendaLabel(n) && <span className="chip" style={{ color: 'var(--blue)' }}>{select.agendaLabel(n)}</span>}
-        {select.caseWitnessOf(w, n.id) && <span className="chip" style={{ color: 'var(--red)' }}>Witness: {select.caseWitnessOf(w, n.id)!.title}</span>}
-        {n.recipe && select.isKnown(n) && RECIPES[n.recipe] && <span className="chip" style={{ color: 'var(--gold)' }}>{n.crew ? `Knows ${RECIPES[n.recipe].label}` : `Knows a recipe: ${RECIPES[n.recipe].label}`}</span>}
-        {n.official && <span className="chip">Corruption {n.official.corruption}</span>}
-        {n.official?.boughtBy && <span className="chip" style={{ color: select.factionColor(w, n.official.boughtBy) }}>Bought by {select.factionName(w, n.official.boughtBy)}</span>}
+        {select.isKnown(n)
+          ? n.traits.map(t => <TermChip key={t} id={`trait:${t}`}>{TRAIT_LABELS[t] ?? t}</TermChip>)
+          : <TermChip id="known"><span className="muted">Traits unknown</span></TermChip>}
+        <TermChip id="relLabel" title="How they see you" body={relBlurb(n)}>{select.relLabel(n)}</TermChip>
+        {n.grudge && <TermChip id="grudge" tone="var(--red)">Holds a grudge</TermChip>}
+        {n.homeBlockId === w.player.homeBlockId && <TermChip id="homeTurf" tone="var(--gold)">Home turf</TermChip>}
+        {select.agendaLabel(n) && <TermChip id="agenda" tone="var(--blue)">{select.agendaLabel(n)}</TermChip>}
+        {select.caseWitnessOf(w, n.id) && <TermChip id="witness" tone="var(--red)">Witness: {select.caseWitnessOf(w, n.id)!.title}</TermChip>}
+        {n.recipe && select.isKnown(n) && RECIPES[n.recipe] && (
+          <TermChip id="recipeKnown" tone="var(--gold)" note={`${RECIPES[n.recipe].label}: ${RECIPES[n.recipe].blurb}`}>
+            {n.crew ? `Knows ${RECIPES[n.recipe].label}` : `Knows a recipe: ${RECIPES[n.recipe].label}`}
+          </TermChip>
+        )}
+        {n.official && <TermChip id="corruption">Corruption {n.official.corruption}</TermChip>}
+        {n.official?.boughtBy && <TermChip id="boughtBy" tone={select.factionColor(w, n.official.boughtBy)}>Bought by {select.factionName(w, n.official.boughtBy)}</TermChip>}
       </div>
       <div className="mt12"><SkillBars skills={n.skills} /></div>
       <div className="mt12"><RelMeters rel={n.rel} /></div>
       <dl className="kv mt12">
-        <dt>Find at</dt>
+        <dt><Term id="findAt">Find at</Term></dt>
         <dd>{where ? <button type="button" className="chip btn" onClick={() => openSheet({ kind: 'business', businessId: where.id })}>{where.name}</button> : home ? <button type="button" className="chip btn" onClick={() => openSheet({ kind: 'block', blockId: home.id })}>{home.name}</button> : '—'}</dd>
-        {faction && <><dt>Faction</dt><dd style={{ color: faction.color }}>{faction.name} ({cap(select.stanceWithPlayer(w, faction.id))})</dd></>}
-        <dt>Nerve</dt><dd>{select.isKnown(n) ? n.nerve : '?'}</dd>
+        {faction && <><dt><Term id="stance">Faction</Term></dt><dd style={{ color: faction.color }}>{faction.name} ({cap(select.stanceWithPlayer(w, faction.id))})</dd></>}
+        <dt><Term id="nerve">Nerve</Term></dt><dd>{select.isKnown(n) ? n.nerve : '?'}</dd>
       </dl>
       {n.notes.length > 0 && <ul className="small muted mt8" style={{ paddingLeft: 18, margin: 0 }}>{n.notes.map((x, i) => <li key={i}>{x}</li>)}</ul>}
 
       {n.crew && <CrewSection npcId={npcId} />}
 
-      <div className="section-title">Actions</div>
+      <div className="section-title">Actions<Info id="odds" /></div>
       <div className="actions">
         {!select.isKnown(n) && n.alive && <Act action={{ type: 'read', npcId }} label="Size them up" icon="🧐" />}
         <SceneAct scene={{ kind: 'visit', npcId }} label="Visit" icon="🤝" />
@@ -64,6 +71,12 @@ export function NpcSheet({ npcId }: { npcId: Id }) {
       </div>
     </Sheet>
   );
+}
+
+/** The one-word relationship label means different things at different trust and fear. */
+function relBlurb(n: { rel: { trust: number; fear: number; respect: number } }): string {
+  const { trust, fear } = n.rel;
+  return `Trust ${trust}, fear ${fear}, respect ${n.rel.respect}. Warm people do favours and join your crew; frightened people pay but look for a way out. Both together is the strongest hold there is.`;
 }
 
 const OFFICIAL_BLURB: Record<string, string> = {
@@ -92,21 +105,21 @@ function CrewSection({ npcId }: { npcId: Id }) {
       <div className="section-title">Crew</div>
       <div className="card gold">
         <div className="row between">
-          <span className={`chip s-${c.status}`}>{c.status}{c.statusDays > 0 && ` (${c.statusDays}d)`}</span>
-          <span className="small muted">Cut {fmtMoney(c.cut)}/day · since day {c.joinedDay}</span>
+          <TermChip id="crewStatus" className={`s-${c.status}`}>{c.status}{c.statusDays > 0 && ` (${c.statusDays}d)`}</TermChip>
+          <span className="small muted"><Term id="cut">Cut</Term> {fmtMoney(c.cut)}/day · since day {c.joinedDay}</span>
         </div>
-        <div className="mt8"><Meter label="Loyalty" value={c.loyalty} color="var(--gold)" /></div>
-        <p className="small mt8">{assignmentLabel(w, c.assignment)}</p>
+        <div className="mt8"><Meter label={<Term id="loyalty">Loyalty</Term>} value={c.loyalty} color="var(--gold)" /></div>
+        <p className="small mt8"><Term id="assignment">{assignmentLabel(w, c.assignment)}</Term></p>
         {lt && (
           <div className="card mt8">
-            <div className="row between"><b>⭐ Lieutenant, {lt.name}</b><span className="small muted">{fmtMoney(ltIncome)}/day from rackets there</span></div>
+            <div className="row between"><b>⭐ <Term id="lieutenant">Lieutenant</Term>, {lt.name}</b><span className="small muted">{fmtMoney(ltIncome)}/day from rackets there</span></div>
             <p className="small muted mt8">Covers rackets with no runner, runs off rival muscle, firms up your blocks. Costs more. The book is theirs to keep, honestly or not.</p>
-            <div className="mt8"><Act action={{ type: 'audit', npcId }} label="Go over the books" icon="📒" block /></div>
+            <div className="mt8"><Act action={{ type: 'audit', npcId }} label="Go over the books" icon="📒" block /><Info id="audit" /></div>
           </div>
         )}
         {c.status !== 'dead' && (
           <div className="mt8">
-            <label className="field">Assignment</label>
+            <label className="field"><Term id="assignment">Assignment</Term></label>
             <select className="select" value={pick} onChange={e => setPick(Number(e.target.value))}>
               {options.map((o, i) => <option key={i} value={i}>{o.label}</option>)}
             </select>

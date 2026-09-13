@@ -7,6 +7,7 @@ import { useWorld } from '@ui/store';
 import { Meter } from './Meter';
 import { Act, AmountPicker, Disclosure, SceneAct } from './Act';
 import { NpcRow } from './Rows';
+import { Info, Term, TermChip } from './Info';
 
 export function FactionsTab() {
   const w = useWorld();
@@ -16,7 +17,7 @@ export function FactionsTab() {
       <h2>Factions</h2>
       <CommissionCard />
       <div className="list">{factions.map(f => <FactionCard key={f.id} f={f} />)}</div>
-      <div className="section-title">City Hall</div>
+      <div className="section-title">City Hall<Info title="City Hall" body="Three officials you can buy. The police captain cools your heat and buries case files. The councillor makes purchases cheaper. The judge gets your people out of the cells sooner." note="A rival can buy them too. Trust decides whose side they are really on." /></div>
       <div className="list">
         {select.officials(w).map(o => <OfficialRow key={o.id} npcId={o.id} />)}
       </div>
@@ -31,7 +32,7 @@ function CommissionCard() {
   const ms = select.commissionMembers(w);
   return (
     <div className="card gold mb8">
-      <div className="row between"><b>🏛️ The Commission</b><span className="chip">{c.seat ? 'You have a chair' : 'No chair'}</span></div>
+      <div className="row between"><b>🏛️ The Commission<Info id="commission" /></b><span className="chip">{c.seat ? 'You have a chair' : 'No chair'}</span></div>
       <div className="small muted mt8">Since day {c.formedDay} · {ms.map(f => f.short).join(', ')}{c.seat ? `, ${w.player.name}` : ''} · next meeting day {c.nextMeeting}{c.pending ? ' (on the table now)' : ''}</div>
       {c.rulings.length > 0 && <div className="mt8">{c.rulings.slice(-3).reverse().map((r, i) => <div key={i} className="small"><span className="muted">D{r.day}</span> {r.text}</div>)}</div>}
       {!c.seat && <div className="mt8"><Act action={{ type: 'petition_seat' }} label="Petition for a chair" icon="🪑" block /></div>}
@@ -71,21 +72,21 @@ function FactionCard({ f }: { f: Faction }) {
     <div className="card" style={{ borderColor: f.alive ? f.color : undefined, opacity: f.alive ? 1 : 0.5 }}>
       <div className="row between">
         <b style={{ fontSize: 16 }}><span className="swatch" style={{ background: f.color, width: 14, height: 14 }} />{f.name}</b>
-        <span className={`chip stance-${stance}`}>{cap(stance)}</span>
+        <TermChip id="stance" className={`stance-${stance}`}>{cap(stance)}</TermChip>
       </div>
-      <div className="small muted mt8">{cap(f.temperament)} · {w.districts[f.homeDistrictId]?.name} · {f.soldiers} soldiers · {blocks.length} blocks{!f.alive && ' · wiped out'}</div>
+      <div className="small muted mt8"><Term id="temperament">{cap(f.temperament)}</Term> · {w.districts[f.homeDistrictId]?.name} · <Term id="soldiers">{f.soldiers} soldiers</Term> · {blocks.length} blocks{!f.alive && ' · wiped out'}</div>
       <div className="row wrap mt8" style={{ gap: 4 }}>
         {STANCES.map(s => <span key={s} className={`chip tiny stance-${s}`} style={{ opacity: s === stance ? 1 : 0.35, padding: '1px 7px' }}>{s}</span>)}
       </div>
-      <div className="mt8"><Meter label="Standing" value={standing} bipolar color={standing >= 0 ? 'var(--green)' : 'var(--red)'} /></div>
+      <div className="mt8"><Meter label={<Term id="standing">Standing</Term>} value={standing} bipolar color={standing >= 0 ? 'var(--green)' : 'var(--red)'} /></div>
       <div className="small muted mt8">
-        {truce && truce > w.day && <span>Truce until day {truce} · </span>}
-        {tribute ? <span>You pay {fmtMoney(tribute)}/day · </span> : null}
-        {f.grudges.length > 0 && <span className="red">Grudges: {f.grudges.slice(-2).join('; ')}</span>}
+        {truce && truce > w.day && <span><Term id="truce">Truce</Term> until day {truce} · </span>}
+        {tribute ? <span>You pay <Term id="tribute">tribute</Term> {fmtMoney(tribute)}/day · </span> : null}
+        {f.grudges.length > 0 && <span className="red"><Term id="grudges">Grudges</Term>: {f.grudges.slice(-2).join('; ')}</span>}
       </div>
       {f.crisis && f.alive && (
         <div className="card mt8" style={{ borderColor: 'var(--orange)' }}>
-          <b>⚖️ Succession crisis</b> <span className="small muted">settles day {f.crisis.resolvesDay}{f.crisis.backing ? ` · you back ${w.npcs[f.crisis.backing]?.name.split(' ')[0]} (${fmtMoney(f.crisis.backedWith)})` : ''}</span>
+          <b>⚖️ <Term id="crisis">Succession crisis</Term></b> <span className="small muted">settles day {f.crisis.resolvesDay}{f.crisis.backing ? ` · you back ${w.npcs[f.crisis.backing]?.name.split(' ')[0]} (${fmtMoney(f.crisis.backedWith)})` : ''}</span>
           <p className="small muted mt8">Money and your name tip it. Back the winner and the new boss owes you; back the loser and they never forget.</p>
           <div className="mb8"><AmountPicker presets={[500, 1500, 3000, 6000]} value={backAmt} onChange={setBackAmt} min={500} /></div>
           <div className="list">{f.crisis.candidateIds.map(id => w.npcs[id]).filter(n => n?.alive).map(n => (
@@ -98,7 +99,7 @@ function FactionCard({ f }: { f: Faction }) {
       {boss && !f.crisis && <div className="mt8"><NpcRow w={w} npc={boss} sub={`Boss · ${select.relLabel(boss)}${f.owed ? ` · owes you ${f.owed}` : ''} · lieutenants: ${f.lieutenantIds.map(id => w.npcs[id]?.name.split(' ')[0]).join(', ')}`} /></div>}
       {f.alive && voice && fights.length > 0 && (
         <div className="mt8">
-          <div className="small muted mb8">At {fights.map(o => `${f.stance[o.id]} with ${o.short}`).join(', ')}. A truce brokered by you earns standing on both sides and a fee.</div>
+          <div className="small muted mb8">At {fights.map(o => `${f.stance[o.id]} with ${o.short}`).join(', ')}. <Term id="broker">A truce brokered by you</Term> earns standing on both sides and a fee.</div>
           <div className="actions">{fights.map(o => <SceneAct key={o.id} scene={{ kind: 'broker', npcId: voice.id, otherFactionId: o.id }} label={`Broker peace with ${o.short}`} icon="🕊️" />)}</div>
         </div>
       )}
@@ -106,7 +107,7 @@ function FactionCard({ f }: { f: Faction }) {
       {f.alive && (
         <div className="actions mt8">
           <Disclosure label="Sit-down" icon="🪑" kind="primary">
-            <label className="field">Your offer</label>
+            <label className="field"><Term id="sitDown">Your offer</Term></label>
             <select className="select mb8" value={offerKind} onChange={e => setOfferKind(e.target.value as SitDownOffer['kind'])}>
               <option value="truce">Truce</option><option value="tribute">Pay tribute</option><option value="cede_block">Cede a block</option>
               <option value="joint_racket">Joint racket</option><option value="alliance">Alliance</option><option value="demand_block">Demand a block</option>

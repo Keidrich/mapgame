@@ -8,6 +8,7 @@ import { Sheet } from './Sheet';
 import { Meter } from './Meter';
 import { Act, AmountPicker, Disclosure, SceneAct } from './Act';
 import { BizRow } from './Rows';
+import { Info, Term, TermChip } from './Info';
 
 export function BlockSheet({ blockId }: { blockId: Id }) {
   const w = useWorld();
@@ -25,31 +26,32 @@ export function BlockSheet({ blockId }: { blockId: Id }) {
     <Sheet title={b.name} subtitle={`${districtName(w, b)} · ${select.factionName(w, ctrl)}${ctrl ? ' turf' : ''}${b.tags.includes('home') ? ' · 🏠 Home turf' : ''}`} accent={select.factionColor(w, ctrl)}>
       {(b.tags.includes('home') || b.tags.includes('school') || b.tags.includes('police') || select.nearPolice(w, b.id)) && (
         <div className="chips mb8">
-          {b.tags.includes('home') && <span className="chip" style={{ color: 'var(--gold)' }}>Home turf: less heat, warmer people</span>}
-          {b.tags.includes('school') && <span className="chip" style={{ color: 'var(--orange)' }}>School nearby: heat ×1.5</span>}
-          {b.tags.includes('police') && <span className="chip" style={{ color: 'var(--red)' }}>Police station: raids come fast</span>}
-          {!b.tags.includes('police') && select.nearPolice(w, b.id) && <span className="chip" style={{ color: 'var(--orange)' }}>Station next door: raids hit here first</span>}
+          {b.tags.includes('home') && <TermChip id="homeTurf" tone="var(--gold)">Home turf</TermChip>}
+          {b.tags.includes('school') && <TermChip id="schoolTag" tone="var(--orange)">School nearby: heat ×1.5</TermChip>}
+          {b.tags.includes('police') && <TermChip id="policeTag" tone="var(--red)">Police station: raids come fast</TermChip>}
+          {!b.tags.includes('police') && select.nearPolice(w, b.id) && <TermChip id="policeTag" tone="var(--orange)">Station next door: raids hit here first</TermChip>}
         </div>
       )}
+      <div className="row between mb8"><span className="small muted"><Term id="influence">Influence</Term></span></div>
       <div className="col" style={{ gap: 4 }}>
         {rows.length === 0 && <p className="small muted">Nobody holds this block.</p>}
         {rows.map(r => <Meter key={r.faction} label={<span><span className="swatch" style={{ background: r.color }} />{r.name}</span>} value={r.value} color={r.color} />)}
       </div>
       <div className="grid2 mt12">
-        <Meter label="Wealth" value={b.wealth} color="var(--green)" />
-        <Meter label="Police" value={b.police} color="var(--blue)" />
-        <Meter label="Heat" value={b.heat} color="var(--red)" />
-        <Meter label="People" value={b.population} color="var(--purple)" />
+        <Meter label={<Term id="wealth">Wealth</Term>} value={b.wealth} color="var(--green)" />
+        <Meter label={<Term id="police">Police</Term>} value={b.police} color="var(--blue)" />
+        <Meter label={<Term id="blockHeat">Heat</Term>} value={b.heat} color="var(--red)" />
+        <Meter label={<Term id="population">People</Term>} value={b.population} color="var(--purple)" />
       </div>
       {b.memory.length > 0 && (
         <>
-          <div className="section-title">What people remember</div>
+          <div className="section-title">What people remember<Info id="memory" /></div>
           <ul className="small muted" style={{ paddingLeft: 18, margin: 0 }}>{b.memory.slice(-4).reverse().map((m, i) => <li key={i}>Day {m.day}: {m.text}</li>)}</ul>
         </>
       )}
       {crew && (
         <div className="card mt12" style={{ borderColor: '#9a7b4f' }}>
-          <div className="row between"><b>🏴 The {crew.name}</b><span className="chip">{crew.tribute === PLAYER ? 'On your payroll' : crew.tribute ? `Under ${select.factionName(w, crew.tribute)}` : `Strength ${Math.round(crew.strength)}`}</span></div>
+          <div className="row between"><b>🏴 The {crew.name}<Info id="streetCrew" /></b><span className="chip">{crew.tribute === PLAYER ? 'On your payroll' : crew.tribute ? `Under ${select.factionName(w, crew.tribute)}` : `Strength ${Math.round(crew.strength)}`}</span></div>
           <p className="small muted" style={{ margin: '6px 0' }}>{w.npcs[crew.bossId]?.name} and {crew.soldierIds.length} soldiers hold this corner.{!crew.tribute ? ' Your rackets here pay them a street tax until you deal with them. Left alone, they grow.' : ''}</p>
           <button type="button" className="chip btn mb8" onClick={() => openSheet({ kind: 'npc', npcId: crew.bossId })}>{w.npcs[crew.bossId]?.name}</button>
           {!crew.tribute && (
@@ -60,7 +62,7 @@ export function BlockSheet({ blockId }: { blockId: Id }) {
           )}
         </div>
       )}
-      <div className="section-title">Demand / day</div>
+      <div className="section-title">Demand / day<Info id="demand" /></div>
       <div className="chips">
         {PRODUCTS.map(p => <span key={p} className="chip">{PRODUCT_INFO[p].icon} {PRODUCT_INFO[p].label} <span className="muted">{b.demand[p]}</span></span>)}
       </div>
@@ -100,9 +102,9 @@ function SafehouseCard({ w, sh }: { w: World; sh: Safehouse }) {
     <div className="card gold mt12">
       <div className="row between"><b>🏠 {sh.name}</b><span className="chip">{tier?.label ?? 'Safehouse'} · T{sh.tier}</span></div>
       <dl className="kv mt8">
-        <dt>Stash</dt><dd>{stashLine(sh.stash)} <span className="muted">({Math.round(used)}/{sh.capacity})</span>{PRODUCTS.filter(p => sh.stash[p] > 0 && p !== 'hot_goods').map(p => <span key={p} className="chip" style={{ marginLeft: 4 }}>{PRODUCT_INFO[p].icon} q{select.qualityOf(sh, p)}</span>)}</dd>
-        <dt>Hidden cash</dt><dd className="orange">{fmtMoney(sh.cash)}</dd>
-        <dt>Rent</dt><dd>{fmtMoney((tier?.rent ?? 0) / 30)}/day · beds {tier?.crewBeds ?? '?'}</dd>
+        <dt><Term id="stash">Stash</Term></dt><dd>{stashLine(sh.stash)} <span className="muted">({Math.round(used)}/{sh.capacity})</span>{PRODUCTS.filter(p => sh.stash[p] > 0 && p !== 'hot_goods').map(p => <TermChip key={p} id="quality" style={{ marginLeft: 4 }}>{PRODUCT_INFO[p].icon} q{select.qualityOf(sh, p)}</TermChip>)}</dd>
+        <dt><Term id="hiddenCash">Hidden cash</Term></dt><dd className="orange">{fmtMoney(sh.cash)}</dd>
+        <dt>Rent</dt><dd>{fmtMoney((tier?.rent ?? 0) / 30)}/day · <Term id="beds">beds</Term> {tier?.crewBeds ?? '?'}</dd>
       </dl>
       <div className="section-title">Productions</div>
       <div className="list">
@@ -112,15 +114,15 @@ function SafehouseCard({ w, sh }: { w: World; sh: Safehouse }) {
           return (
             <div key={pid} className="card" style={{ padding: 10 }}>
               <div className="row between">
-                <b>{def.icon} {def.label} <span className="muted small">L{pr.level}</span></b>
+                <b>{def.icon} {def.label} <Term id="prodLevel" className="muted small">L{pr.level}</Term></b>
                 <span className="small muted">→ {PRODUCT_INFO[def.product].icon} {pr.lastOutput}/day</span>
               </div>
-              <div className="small muted">Stock {pr.stock}d · worker {crewName(w, pr.workerId)}{pr.disrupted > 0 && <span className="red"> · disrupted {pr.disrupted}d</span>}</div>
+              <div className="small muted"><Term id="stock">Stock</Term> {pr.stock}d · worker {crewName(w, pr.workerId)}{pr.disrupted > 0 && <span className="red"> · <Term id="disrupted">disrupted</Term> {pr.disrupted}d</span>}</div>
               <div className="chips mt8">
-                <span className="chip" title="Quality of the next batch">Quality {select.productionQuality(w, pr)}</span>
-                {pr.recipe && RECIPES[pr.recipe] && <span className="chip gold">{RECIPES[pr.recipe].label}</span>}
-                {select.shortageActive(w, pr.kind) && <span className="chip red">Shortage: restock ×2</span>}
-                {select.saturationActive(w, def.product) && <span className="chip red">Street flooded: −30%</span>}
+                <TermChip id="quality">Quality {select.productionQuality(w, pr)}</TermChip>
+                {pr.recipe && RECIPES[pr.recipe] && <TermChip id="recipe" className="gold" note={`${RECIPES[pr.recipe].label}: ${RECIPES[pr.recipe].blurb}`}>{RECIPES[pr.recipe].label}</TermChip>}
+                {select.shortageActive(w, pr.kind) && <TermChip id="shortage" className="red">Shortage: restock ×2</TermChip>}
+                {select.saturationActive(w, def.product) && <TermChip id="saturation" className="red">Street flooded: −30%</TermChip>}
               </div>
               <div className="row wrap mt8" style={{ gap: 6 }}>
                 <div className="chips">{[3, 7, 14].map(d => <button type="button" key={d} className={`chip btn${restock === d ? ' sel' : ''}`} onClick={() => setRestock(d)}>{d}d</button>)}</div>

@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { Term } from './Info';
 
 /** Horizontal meter. `bipolar` renders −max..max around a centre line. */
 export function Meter({ label, value, max = 100, color = 'var(--blue)', bipolar, suffix, format }: {
@@ -18,26 +19,29 @@ export function Meter({ label, value, max = 100, color = 'var(--blue)', bipolar,
   );
 }
 
-export function SkillBars({ skills }: { skills: { muscle: number; brains: number; charm: number; wheels: number; tech: number } }) {
-  const keys = ['muscle', 'brains', 'charm', 'wheels', 'tech'] as const;
+const SKILLS = ['muscle', 'brains', 'charm', 'wheels', 'tech'] as const;
+
+export function SkillBars({ skills, plain }: { skills: { muscle: number; brains: number; charm: number; wheels: number; tech: number }; plain?: boolean }) {
   return (
     <div className="skills">
-      {keys.map(k => (
+      {SKILLS.map(k => (
         <div className="skill" key={k}>
           <div className="bar"><div style={{ height: `${(skills[k] / 10) * 100}%` }} /></div>
-          <b>{skills[k]}</b>{k}
+          <b>{skills[k]}</b>{plain ? k : <Term id={k}>{k}</Term>}
         </div>
       ))}
     </div>
   );
 }
 
-export function RelMeters({ rel }: { rel: { trust: number; fear: number; respect: number } }) {
+/** How an NPC feels about the player. `plain` drops the explainers, for use inside a button. */
+export function RelMeters({ rel, plain }: { rel: { trust: number; fear: number; respect: number }; plain?: boolean }) {
+  const lbl = (id: string, text: string) => (plain ? text : <Term id={id}>{text}</Term>);
   return (
     <div className="col" style={{ gap: 4 }}>
-      <Meter label="Trust" value={rel.trust} bipolar color={rel.trust >= 0 ? 'var(--green)' : 'var(--red)'} />
-      <Meter label="Fear" value={rel.fear} color="var(--red)" />
-      <Meter label="Respect" value={rel.respect} color="var(--gold)" />
+      <Meter label={lbl('trust', 'Trust')} value={rel.trust} bipolar color={rel.trust >= 0 ? 'var(--green)' : 'var(--red)'} />
+      <Meter label={lbl('npcfear', 'Fear')} value={rel.fear} color="var(--red)" />
+      <Meter label={lbl('npcrespect', 'Respect')} value={rel.respect} color="var(--gold)" />
     </div>
   );
 }

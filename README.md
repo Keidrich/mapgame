@@ -36,6 +36,10 @@ it conflicts). `public/_headers` keeps the service worker fresh. Node 22 is pinn
 | `scripts/` | Headless soak bot (`headless.ts`) and a real-OSM pipeline check (`real-osm.ts`) | |
 | `geo/` | Street geometry: Overpass parsing, planar-face polygonisation, chunking | Pure. |
 
+Every stat and piece of jargon in the UI explains itself: `content/glossary.ts` holds
+the text and `ui/components/Info.tsx` shows it on tap (phone) or hover (desktop). When
+a formula in `sim/` changes, change the matching glossary entry with it.
+
 The sim contract is `sim/types.ts` (state) and `sim/actions.ts` (every player
 action). `can(world, action)` says whether an action is allowed and why not;
 `dispatch(world, action)` applies it and returns a new world. `end_day` runs the

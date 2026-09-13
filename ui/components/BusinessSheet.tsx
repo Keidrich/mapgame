@@ -9,6 +9,7 @@ import { Sheet } from './Sheet';
 import { Meter, RelMeters } from './Meter';
 import { Act, AmountPicker, Disclosure, SceneAct } from './Act';
 import { NpcRow } from './Rows';
+import { Info, Term, TermChip } from './Info';
 
 export function BusinessSheet({ businessId }: { businessId: Id }) {
   const w = useWorld();
@@ -31,29 +32,39 @@ export function BusinessSheet({ businessId }: { businessId: Id }) {
     <Sheet title={biz.name} subtitle={`${bizTypeLabel(biz)} · ${block?.name ?? ''}`} icon={bizIcon(biz)} accent={yours ? '#f2c94c' : biz.protection ? select.factionColor(w, biz.protection.factionId) : undefined}>
       <div className="row wrap" style={{ gap: 6 }}>
         <span className="chip" style={yours ? { color: 'var(--gold)' } : undefined}>{yours ? 'Yours' : `Owner: ${ownerLabel(w, biz)}`}</span>
-        {prot && <span className="chip" style={{ color: select.factionColor(w, biz.protection!.factionId) }}>🛡️ {prot}</span>}
-        {biz.insured && <span className="chip">Insured</span>}
+        {prot && <TermChip id="protection" tone={select.factionColor(w, biz.protection!.factionId)}>🛡️ {prot}</TermChip>}
+        {biz.insured && <TermChip id="insured">Insured</TermChip>}
         {biz.flags.map(f => <span key={f} className="chip red">{f}</span>)}
       </div>
       <dl className="kv mt8">
-        <dt>Income</dt><dd className="green">{fmtMoney(biz.baseIncome)}/day</dd>
-        <dt>Value</dt><dd>{fmtMoney(biz.value)}</dd>
+        <dt><Term id="bizIncome">Income</Term></dt><dd className="green">{fmtMoney(biz.baseIncome)}/day</dd>
+        <dt><Term id="bizValue">Value</Term></dt><dd>{fmtMoney(biz.value)}</dd>
         <dt>Block</dt><dd><button type="button" className="chip btn" onClick={() => openSheet({ kind: 'block', blockId: biz.blockId })}>{block?.name}</button></dd>
       </dl>
-      <div className="mt8"><Meter label="Condition" value={biz.condition} color={conditionTone(biz.condition)} /></div>
+      <div className="mt8"><Meter label={<Term id="condition">Condition</Term>} value={biz.condition} color={conditionTone(biz.condition)} /></div>
 
       {owner && (
         <>
           <div className="section-title">{yours ? 'Manager' : 'Owner'}</div>
-          <button type="button" className="card" style={{ width: '100%', textAlign: 'left', color: 'inherit' }} onClick={() => openSheet({ kind: 'npc', npcId: owner.id })}>
-            <div className="row between"><b>{owner.name}</b><span className="chip">{select.relLabel(owner)}</span></div>
-            <div className="chips mt8">{select.isKnown(owner) ? owner.traits.map(t => <span key={t} className="chip">{TRAIT_LABELS[t] ?? t}</span>) : <span className="chip muted">Traits unknown</span>}{owner.grudge && <span className="chip" style={{ color: 'var(--red)' }}>Grudge</span>}{select.agendaLabel(owner) && <span className="chip" style={{ color: 'var(--blue)' }}>{select.agendaLabel(owner)}</span>}{owner.faction && <span className="chip" style={{ color: select.factionColor(w, owner.faction) }}>{select.factionName(w, owner.faction)}</span>}</div>
+          <div className="card">
+            <div className="row between">
+              <button type="button" className="chip btn" onClick={() => openSheet({ kind: 'npc', npcId: owner.id })}>{owner.name} ›</button>
+              <span className="chip">{select.relLabel(owner)}</span>
+            </div>
+            <div className="chips mt8">
+              {select.isKnown(owner)
+                ? owner.traits.map(t => <TermChip key={t} id={`trait:${t}`}>{TRAIT_LABELS[t] ?? t}</TermChip>)
+                : <TermChip id="known"><span className="muted">Traits unknown</span></TermChip>}
+              {owner.grudge && <TermChip id="grudge" tone="var(--red)">Grudge</TermChip>}
+              {select.agendaLabel(owner) && <TermChip id="agenda" tone="var(--blue)">{select.agendaLabel(owner)}</TermChip>}
+              {owner.faction && <TermChip id="stance" tone={select.factionColor(w, owner.faction)}>{select.factionName(w, owner.faction)}</TermChip>}
+            </div>
             <div className="mt8"><RelMeters rel={owner.rel} /></div>
-          </button>
+          </div>
         </>
       )}
 
-      <div className="section-title">Actions</div>
+      <div className="section-title">Actions<Info id="odds" /></div>
       <div className="actions">
         {owner && <SceneAct scene={{ kind: 'visit', npcId: owner.id, businessId }} label="Visit" icon="🤝" />}
         {owner && <SceneAct scene={{ kind: 'threaten', npcId: owner.id, businessId }} label="Threaten" icon="😠" kind="danger" />}
@@ -84,7 +95,7 @@ export function BusinessSheet({ businessId }: { businessId: Id }) {
         {yours && biz.condition < 100 && <Act action={{ type: 'repair', businessId }} label="Repair" icon="🔨" />}
       </div>
 
-      <div className="section-title">Rackets ({rackets.length})</div>
+      <div className="section-title">Rackets ({rackets.length})<Info id="dirtyRacket" /></div>
       <div className="list">
         {rackets.map(r => <RacketCard key={r.id} w={w} r={r} />)}
         {rackets.length === 0 && <p className="small muted">No rackets running here.</p>}
@@ -125,14 +136,14 @@ export function RacketCard({ w, r, showBiz }: { w: World; r: Racket; showBiz?: b
   return (
     <div className="card" style={{ padding: 10, borderColor: yours ? 'rgba(242,201,76,0.4)' : undefined }}>
       <div className="row between">
-        <b>{d.icon} {d.label} <span className="muted small">L{r.level}</span>{r.product && <span className="small"> · {PRODUCT_INFO[r.product].icon}</span>}</b>
-        <span className={`small ${d.dirty ? 'orange' : 'green'}`}>{fmtMoney(r.lastIncome)}/day</span>
+        <b>{d.icon} {d.label} <Term id="racketLevel" className="muted small">L{r.level}</Term>{r.product && <span className="small"> · {PRODUCT_INFO[r.product].icon}</span>}</b>
+        <Term id="dirtyRacket" className={`small ${d.dirty ? 'orange' : 'green'}`}>{fmtMoney(r.lastIncome)}/day</Term>
       </div>
       <div className="small muted">
-        {yours ? `Runner: ${crewName(w, r.runnerId)}` : `Run by ${select.factionName(w, r.owner)}`}
+        {yours ? <><Term id="runner">Runner</Term>{`: ${crewName(w, r.runnerId)}`}</> : `Run by ${select.factionName(w, r.owner)}`}
         {showBiz && ` · ${w.businesses[r.businessId]?.name ?? '?'}`}
-        {r.float !== undefined && ` · float ${fmtMoney(r.float)}`}
-        {r.disrupted > 0 && <span className="red"> · disrupted {r.disrupted}d</span>}
+        {r.float !== undefined && <> · <Term id="float">float</Term> {fmtMoney(r.float)}</>}
+        {r.disrupted > 0 && <span className="red"> · <Term id="disrupted">disrupted</Term> {r.disrupted}d</span>}
       </div>
       {yours && (
         <div className="row wrap mt8" style={{ gap: 6 }}>
@@ -143,14 +154,14 @@ export function RacketCard({ w, r, showBiz }: { w: World; r: Racket; showBiz?: b
       )}
       {yours && r.kind === 'loansharking' && (
         <div className="mt8">
-          <label className="field">Fund the float</label>
+          <label className="field"><Term id="float">Fund the float</Term></label>
           <div className="row"><div className="grow"><AmountPicker presets={[500, 1000, 5000]} value={fund} onChange={setFund} min={1} /></div></div>
           <div className="mt8"><Act action={{ type: 'fund_racket', racketId: r.id, amount: fund }} label={`Fund ${fmtMoney(fund)}`} small /></div>
         </div>
       )}
       {yours && !r.runnerId && (
         <div className="mt8">
-          <label className="field">Assign a runner ({d.skill})</label>
+          <label className="field"><Term id="runner">Assign a runner</Term> (<Term id={d.skill}>{d.skill}</Term>)</label>
           {idle.length === 0 && <span className="small muted">No idle crew.</span>}
           <div className="chips">{idle.map(n => <Act key={n.id} action={{ type: 'assign', npcId: n.id, assignment: { kind: 'racket', racketId: r.id } }} label={`${n.name} (${d.skill} ${n.skills[d.skill]})`} small />)}</div>
         </div>

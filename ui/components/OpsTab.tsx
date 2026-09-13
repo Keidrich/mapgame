@@ -5,6 +5,7 @@ import { OP_APPROACHES, OP_DEFS, type OpApproach } from '@content/rackets';
 import { SKILL_KEYS, activeOps, cap, finishedOps, fmtMoney, opTargetLabel } from '@ui/derive';
 import { act, check, openSheet, useWorld } from '@ui/store';
 import { Act } from './Act';
+import { Info, Term, TermChip } from './Info';
 
 const KINDS = Object.keys(OP_DEFS) as OpKind[];
 
@@ -20,7 +21,7 @@ export function OpsTab() {
         {active.map(o => <OpCard key={o.id} o={o} />)}
         {active.length === 0 && <p className="small muted">Nothing in the works.</p>}
       </div>
-      <div className="section-title">Plan an op</div>
+      <div className="section-title">Plan an op<Info id="opChance" /></div>
       <Planner />
       {done.length > 0 && (
         <>
@@ -46,7 +47,7 @@ function OpCard({ o }: { o: Op }) {
       <div className="small muted">Target: {opTargetLabel(w, o)} · crew: {o.crewIds.map(id => w.npcs[id]?.name ?? '?').join(', ') || 'none'}</div>
       {(o.status === 'planning' || o.status === 'ready') && (
         <div className="row wrap mt8">
-          <span className="chip">Chance {chance}%</span>
+          <TermChip id="opChance">Chance {chance}%</TermChip>
           <Act action={{ type: 'launch_op', opId: o.id }} label="Launch" kind="primary" small />
           <Act action={{ type: 'abort_op', opId: o.id }} label="Abort" kind="danger" small confirm="Abort this op?" />
         </div>
@@ -101,7 +102,7 @@ function Planner() {
             <b>{def.icon} {def.label}</b>
             <button type="button" className="chip btn" onClick={reset}>Change</button>
           </div>
-          <p className="small muted mt8">{def.blurb} Needs: {Object.entries(def.needs).map(([k, v]) => `${k} ${v}`).join(', ')}. Difficulty {def.difficulty}, heat +{def.heat}.</p>
+          <p className="small muted mt8">{def.blurb} Needs: {Object.entries(def.needs).map(([k, v]) => `${k} ${v}`).join(', ')}. Difficulty {def.difficulty}, heat +{def.heat}. {def.planDays > 0 && <><Term id="planDays">{def.planDays} days to plan</Term>.</>}</p>
           {needsTarget && (
             <>
               <div className="section-title">Target</div>
@@ -133,7 +134,7 @@ function Planner() {
           )}
           {step === 2 && (
             <>
-              <div className="section-title">Approach</div>
+              <div className="section-title">Approach<Info id="opApproach" /></div>
               <div className="col">
                 {(Object.keys(OP_APPROACHES) as OpApproach[]).map(k => { const a = OP_APPROACHES[k]; const on = approach === k; const insideOff = k === 'inside' && (def.target !== 'business' || !insiders.length);
                   return (
@@ -159,7 +160,7 @@ function Planner() {
                 <div className="grow">
                   <div className="chips">{Object.entries(def.needs).map(([k, need]) => <span key={k} className="chip" style={{ color: sums[k] >= (need ?? 0) ? 'var(--green)' : 'var(--orange)' }}>{k} {sums[k]}/{need}</span>)}</div>
                 </div>
-                <div style={{ textAlign: 'right' }}><div className="chance">{chance}%</div><div className="tiny muted">chance</div></div>
+                <div style={{ textAlign: 'right' }}><div className="chance">{chance}%</div><div className="tiny muted"><Term id="opChance">chance</Term></div></div>
               </div>
               {action && (
                 <div className="mt12">

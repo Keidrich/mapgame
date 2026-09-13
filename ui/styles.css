@@ -47,7 +47,7 @@ p { margin: 0 0 8px; }
 .col { display: flex; flex-direction: column; gap: 8px; }
 .grow { flex: 1; min-width: 0; }
 .ellipsis { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.mt8 { margin-top: 8px; } .mt12 { margin-top: 12px; } .mt16 { margin-top: 16px; } .mb8 { margin-bottom: 8px; }
+.mt4 { margin-top: 4px; } .mt8 { margin-top: 8px; } .mt12 { margin-top: 12px; } .mt16 { margin-top: 16px; } .mb8 { margin-bottom: 8px; }
 .stack > * + * { margin-top: 10px; }
 
 /* ---------- shell ---------- */
@@ -161,6 +161,44 @@ p { margin: 0 0 8px; }
 .skill .bar > div { width: 100%; background: var(--blue); }
 .skill b { color: var(--text); font-size: 12px; display: block; }
 
+/* ---------- explainers (Term / Info / TermChip) ---------- */
+.term {
+  display: inline; margin: 0; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: inherit;
+  border-bottom: 1px dotted color-mix(in srgb, currentColor 45%, transparent); cursor: help; position: relative; touch-action: manipulation;
+}
+/* a bigger touch target than the text, without changing the layout */
+.term::after { content: ''; position: absolute; inset: -10px -6px; }
+.term.on { color: var(--gold); border-bottom-color: var(--gold); }
+.term:disabled { cursor: default; }
+.infodot {
+  display: inline-flex; align-items: center; justify-content: center; flex: none;
+  width: 17px; height: 17px; margin-left: 5px; padding: 0; border-radius: 50%;
+  border: 1px solid var(--line); background: var(--bg-4); color: var(--muted);
+  font-size: 11px; font-weight: 800; line-height: 1; vertical-align: middle; position: relative; touch-action: manipulation;
+}
+.infodot::after { content: ''; position: absolute; inset: -13px; }
+.infodot.on { border-color: var(--gold); color: var(--gold); }
+.chip-term { cursor: help; position: relative; }
+.chip-term::before {
+  content: '?'; font-size: 9px; font-weight: 800; opacity: 0.4;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 11px; height: 11px; border-radius: 50%; border: 1px solid currentColor; margin-right: 1px;
+}
+.chip-term.on { border-color: var(--gold); }
+.chip-term.on::before { opacity: 1; }
+.section-title .infodot { margin-left: 6px; }
+
+.pop {
+  position: fixed; z-index: 90; width: max-content; max-width: min(300px, calc(100vw - 16px));
+  background: var(--bg-3); border: 1px solid var(--line); border-left: 3px solid var(--gold);
+  border-radius: 12px; padding: 10px 12px; box-shadow: 0 10px 34px rgba(0,0,0,0.65);
+  animation: pop-in 0.12s ease-out; pointer-events: none;
+}
+@keyframes pop-in { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: none; } }
+.pop-title { display: block; font-size: 13px; color: var(--gold); margin-bottom: 4px; }
+.pop-body { margin: 0; font-size: 12.5px; line-height: 1.45; color: var(--text); }
+.pop-note { margin: 6px 0 0; font-size: 11.5px; line-height: 1.4; color: var(--muted); }
+
 /* ---------- buttons & inputs ---------- */
 .btn { min-height: 44px; padding: 8px 14px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg-3); color: var(--text); font-weight: 700; font-size: 14px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
 .btn:active { background: var(--bg-4); }
@@ -250,6 +288,7 @@ label.field { display: block; font-size: 12px; color: var(--muted); margin-botto
 .bg-opt.on { border-color: var(--gold); background: rgba(242,201,76,0.08); }
 .bg-opt b { display: block; }
 .bg-opt span { font-size: 12px; color: var(--muted); }
+.bg-opt .bg-detail { display: block; margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--line); color: var(--gold); opacity: 0.85; line-height: 1.4; }
 .pickmap { height: min(300px, 40dvh); border-radius: 12px; overflow: hidden; border: 1px solid var(--line); margin-top: 8px; }
 .result { width: 100%; text-align: left; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg-3); color: var(--text); min-height: 44px; font-size: 13px; }
 .result.on { border-color: var(--gold); }

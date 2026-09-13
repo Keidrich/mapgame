@@ -7,10 +7,10 @@ import { newGame } from '@ui/store';
 import { gridChunk, loadChunk, reason } from '@ui/net/chunks';
 import { chunkBounds, chunkKeyAt, chunkNeighbors, type GeoChunk } from '@geo/chunks';
 
-const BACKGROUNDS: { id: Player['background']; label: string; blurb: string; ico: string }[] = [
-  { id: 'muscle', label: 'Muscle', blurb: 'You came up on the door. People pay when you ask.', ico: '💪' },
-  { id: 'brains', label: 'Brains', blurb: 'Numbers, paper, plans. You see the angles.', ico: '🧠' },
-  { id: 'charm', label: 'Charm', blurb: 'Everybody likes you. That is the whole trick.', ico: '🎩' },
+const BACKGROUNDS: { id: Player['background']; label: string; blurb: string; ico: string; detail: string }[] = [
+  { id: 'muscle', label: 'Muscle', blurb: 'You came up on the door. People pay when you ask.', ico: '💪', detail: 'Muscle 8. Threats, strongarm shakedowns and loud ops land far more often. The fast, noisy opening: take a block by frightening it.' },
+  { id: 'brains', label: 'Brains', blurb: 'Numbers, paper, plans. You see the angles.', ico: '🧠', detail: 'Brains 8, tech 4. Numbers, bookmaking and laundering earn more, quiet ops go cleaner, and you spot a lieutenant skimming. The patient opening: build a machine.' },
+  { id: 'charm', label: 'Charm', blurb: 'Everybody likes you. That is the whole trick.', ico: '🎩', detail: 'Charm 8. Visits, recruiting, sit-downs and brokering all go your way, and product sells for more. The social opening: own people before you own blocks.' },
 ];
 export const BIG_CITIES: { name: string; lat: number; lng: number }[] = [
   { name: 'New York', lat: 40.7128, lng: -74.006 }, { name: 'London', lat: 51.5074, lng: -0.1278 }, { name: 'Chicago', lat: 41.8781, lng: -87.6298 },
@@ -104,6 +104,7 @@ export function Onboarding() {
         {BACKGROUNDS.map(b => (
           <button type="button" key={b.id} className={`bg-opt${bg === b.id ? ' on' : ''}`} onClick={() => setBg(b.id)}>
             <b>{b.ico} {b.label}</b><span>{b.blurb}</span>
+            {bg === b.id && <span className="bg-detail">{b.detail}</span>}
           </button>
         ))}
       </div>

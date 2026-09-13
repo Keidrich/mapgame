@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { fmtMoneyShort } from '@ui/derive';
 import { openHelp, useWorld } from '@ui/store';
+import { Term } from './Info';
 
 export function Hud() {
   const w = useWorld();
@@ -21,10 +22,10 @@ export function Hud() {
           <div className="hud-day">DAY {w.day}</div>
           <div className="hud-place ellipsis" title={w.placeName}>{w.placeName}</div>
         </div>
-        <div className="stat stat-cash grow"><span className="lbl">Cash</span>{fmtMoneyShort(p.cash)}</div>
-        <div className="stat stat-dirty grow"><span className="lbl">Dirty</span>{fmtMoneyShort(p.dirty)}</div>
+        <div className="stat stat-cash grow"><span className="lbl"><Term id="cash">Cash</Term></span>{fmtMoneyShort(p.cash)}</div>
+        <div className="stat stat-dirty grow"><span className="lbl"><Term id="dirty">Dirty</Term></span>{fmtMoneyShort(p.dirty)}</div>
         <div className="heat">
-          <div className="lbl"><span>Heat</span><span className="n">{Math.round(p.heat)}</span></div>
+          <div className="lbl"><Term id="heat">Heat</Term><span className="n">{Math.round(p.heat)}</span></div>
           <div className="heatbar"><div style={{ width: `${Math.max(0, Math.min(100, p.heat))}%` }} /></div>
         </div>
         <button type="button" className="hud-help" onClick={openHelp} aria-label="How to play">?</button>
@@ -32,13 +33,13 @@ export function Hud() {
       <div className="hud-row">
         <div className="pips" aria-label={`${p.ap} of ${p.apMax} action points`}>
           {Array.from({ length: Math.max(p.apMax, p.ap) }, (_, i) => <span key={i} className={`pip${i < p.ap ? ' on' : ''}`} />)}
-          <span className="small muted" style={{ marginLeft: 4, whiteSpace: 'nowrap' }}>{p.ap}/{p.apMax} AP</span>
+          <span className="small muted" style={{ marginLeft: 4, whiteSpace: 'nowrap' }}>{p.ap}/{p.apMax} <Term id="ap">AP</Term></span>
         </div>
         <div className="grow" />
         <div className="rep">
-          <span>Respect <b>{Math.round(p.respect)}</b></span>
-          <span>Fear <b>{Math.round(p.fear)}</b></span>
-          {p.lawyer && <span title="Lawyer on retainer">⚖️</span>}
+          <span><Term id="respect">Respect</Term> <b>{Math.round(p.respect)}</b></span>
+          <span><Term id="fear">Fear</Term> <b>{Math.round(p.fear)}</b></span>
+          {p.lawyer && <Term id="lawyer">⚖️</Term>}
           {p.jailedDays > 0 && <span className="red">Jailed {p.jailedDays}d</span>}
         </div>
       </div>

@@ -4,6 +4,7 @@ import type { Action } from '@sim/actions';
 import { TRAIT_LABELS } from '@content/rackets';
 import { act, closeScene, useStore, useWorld } from '@ui/store';
 import { fmtMoney, initials } from '@ui/derive';
+import { Info, Term, TermChip } from './Info';
 
 /** A face-to-face scene: what they say, the approaches on offer with odds, then what happened. */
 export function SceneSheet() {
@@ -38,13 +39,15 @@ export function SceneSheet() {
           <div className="avatar big">{initials(n.name)}</div>
           <div className="grow">
             <h2 id="scene-title">{n.name}</h2>
-            <div className="small muted">{n.role === 'owner' && biz ? `Runs ${biz.name}` : n.role} · {n.traits.map(t => TRAIT_LABELS[t] ?? t).join(', ')}</div>
-            <div className="small muted">Trust {n.rel.trust} · Fear {n.rel.fear} · Nerve {n.nerve}</div>
+            <div className="small muted">{n.role === 'owner' && biz ? `Runs ${biz.name}` : n.role}</div>
+            <div className="chips mt4">{n.traits.map(t => <TermChip key={t} id={`trait:${t}`}>{TRAIT_LABELS[t] ?? t}</TermChip>)}</div>
+            <div className="small muted mt4"><Term id="trust">Trust</Term> {n.rel.trust} · <Term id="npcfear">Fear</Term> {n.rel.fear} · <Term id="nerve">Nerve</Term> {n.nerve}</div>
           </div>
         </div>
         {!result ? (
           <>
             <p className="scene-line">{scene.line}</p>
+            <div className="row between mb8"><span className="tiny muted">Pick an approach<Info id="odds" /></span></div>
             <div className="col">
               {scene.options.map(o => (
                 <button type="button" key={o.id} className="opt scene-opt" disabled={!!o.disabled} onClick={() => choose(o)}>

@@ -8,6 +8,7 @@ import { Act, AmountPicker, Disclosure } from './Act';
 import { BizRow } from './Rows';
 import { RacketCard } from './BusinessSheet';
 import { Meter } from './Meter';
+import { Info, Term, TermChip } from './Info';
 
 export function EmpireTab() {
   const w = useWorld();
@@ -22,21 +23,21 @@ export function EmpireTab() {
     <div className="panel-inner">
       <h2>Empire</h2>
       <div className="card gold">
-        <div className="row between"><b>Daily estimate</b><b className={net >= 0 ? 'green' : 'red'}>{fmtMoney(net)}/day</b></div>
+        <div className="row between"><b>Daily estimate<Info title="Daily estimate" body="What tonight should bring in and pay out, before events, raids and incidents. Rackets that need product or a runner can come in under it." /></b><b className={net >= 0 ? 'green' : 'red'}>{fmtMoney(net)}/day</b></div>
         <dl className="kv mt8">
-          <dt>Clean income</dt><dd className="green">{fmtMoney(est.clean)}</dd>
-          <dt>Dirty income</dt><dd className="orange">{fmtMoney(est.dirty)}</dd>
-          <dt>Wages</dt><dd className="red">-{fmtMoney(est.wages)}</dd>
+          <dt><Term id="cash">Clean income</Term></dt><dd className="green">{fmtMoney(est.clean)}</dd>
+          <dt><Term id="dirty">Dirty income</Term></dt><dd className="orange">{fmtMoney(est.dirty)}</dd>
+          <dt><Term id="cut">Wages</Term></dt><dd className="red">-{fmtMoney(est.wages)}</dd>
           <dt>Rent</dt><dd className="red">-{fmtMoney(est.rent)}</dd>
         </dl>
-        <div className="mt8"><Meter label="City control" value={share * 100} color="var(--gold)" format={v => `${Math.round(v)}%`} /></div>
+        <div className="mt8"><Meter label={<Term id="control">City control</Term>} value={share * 100} color="var(--gold)" format={v => `${Math.round(v)}%`} /></div>
         <div className="small muted mt8">{select.playerBlocks(w).length} of {Object.keys(w.blocks).length} blocks · own 60% to take the city.</div>
       </div>
 
-      <div className="section-title">Stash · {stashLine(totals)}</div>
+      <div className="section-title"><Term id="stash">Stash</Term> · {stashLine(totals)}</div>
       <div className="card">
         <dl className="kv">
-          <dt>On you</dt><dd>{stashLine(w.player.stash)}{PRODUCTS.filter(p => w.player.stash[p] > 0 && p !== 'hot_goods').map(p => <span key={p} className="chip" style={{ marginLeft: 4 }}>{PRODUCT_INFO[p].icon} q{select.qualityOf(w.player, p)}</span>)}</dd>
+          <dt>On you</dt><dd>{stashLine(w.player.stash)}{PRODUCTS.filter(p => w.player.stash[p] > 0 && p !== 'hot_goods').map(p => <TermChip key={p} id="quality" style={{ marginLeft: 4 }}>{PRODUCT_INFO[p].icon} q{select.qualityOf(w.player, p)}</TermChip>)}</dd>
           {safes.map(s => <SafeLine key={s.id} id={s.id} />)}
         </dl>
         <div className="actions mt8">
@@ -79,12 +80,12 @@ function Cases() {
   if (!all.length) return null;
   return (
     <>
-      <div className="section-title">Cold cases ({select.openCases(w).length} open)</div>
+      <div className="section-title">Cold cases ({select.openCases(w).length} open)<Info id="coldCase" /></div>
       <div className="list">
         {all.map(c => { const wit = c.witnessId ? w.npcs[c.witnessId] : undefined; return (
           <div key={c.id} className="card" style={{ padding: 10, opacity: c.status === 'open' ? 1 : 0.6 }}>
             <div className="row between"><b>🗂️ {c.title}</b><span className={`chip ${c.status === 'charged' ? 'red' : ''}`}>{c.status === 'open' ? `day ${c.day}` : c.status}</span></div>
-            <div className="mt8"><Meter label="Evidence" value={c.evidence} color={c.evidence >= 60 ? 'var(--red)' : 'var(--orange)'} /></div>
+            <div className="mt8"><Meter label={<Term id="evidence">Evidence</Term>} value={c.evidence} color={c.evidence >= 60 ? 'var(--red)' : 'var(--orange)'} /></div>
             <div className="small muted mt8">
               {c.status === 'open' && (wit ? <>Witness: <button type="button" className="chip btn" onClick={() => openSheet({ kind: 'npc', npcId: wit.id })}>{wit.name}</button> · scare them (fear 40+), pay them, or make them go away. </> : 'No witness talking. ')}
               {c.status === 'open' && 'The captain buries paper; a lawyer slows it. Charges at 100.'}
@@ -128,7 +129,7 @@ function Launder() {
   const [amount, setAmount] = useState(1000);
   return (
     <Disclosure label="Launder" icon="🧼">
-      <p className="small muted">Dirty {fmtMoney(w.player.dirty)} on hand · laundered today {fmtMoney(w.player.launderedToday)}. Needs a laundering racket.</p>
+      <p className="small muted"><Term id="dirty">Dirty</Term> {fmtMoney(w.player.dirty)} on hand · laundered today {fmtMoney(w.player.launderedToday)}. Needs a laundering racket, which converts at 85 cents on the dollar up to a daily cap.</p>
       <AmountPicker presets={[500, 1000, 5000, Math.max(1, Math.floor(w.player.dirty))]} value={amount} onChange={setAmount} min={1} />
       <div className="mt8"><Act action={{ type: 'launder', amount }} label={`Launder ${fmtMoney(amount)}`} kind="primary" block /></div>
     </Disclosure>
