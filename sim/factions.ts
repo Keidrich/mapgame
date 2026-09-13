@@ -6,13 +6,18 @@ import { distanceM } from '@geo/project';
 import { STEP_M } from './populate';
 import type { Rng } from './rng';
 import { PLAYER, type Block, type Faction, type FactionId, type World } from './types';
-import { addHeat, addInfluence, adjustRel, clamp, factionOf, log, money } from './util';
-import { successionOrDeath } from './ops';
+import { addHeat, addInfluence, adjustRel, clamp, factionOf, log, money, standingCap } from './util';
+import { bossChurn, successionOrDeath, tickCrisis } from './politics';
+export { standingCap };
 import { addMemory } from './people';
 
 export function runFaction(w: World, f: Faction, rng: Rng) {
   if (!f.alive) return;
   const p = w.player;
+  bossChurn(w, f, rng);
+  if (f.crisis) tickCrisis(w, f, rng);
+  if (!f.alive) return;
+  const headless = !!f.crisis;
   const controlled = Object.values(w.blocks).filter(b => factionOf(w, b.id) === f.id);
 
   // 1. collect
@@ -44,7 +49,7 @@ export function runFaction(w: World, f: Faction, rng: Rng) {
   const aggressive = f.temperament === 'aggressive';
   if (f.cash > 6000 && f.soldiers < 22 && rng.chance(aggressive ? 0.35 : 0.2)) { f.cash -= 2500; f.soldiers++; }
   const pushCost = 1500 + controlled.length * 200;
-  const pushes = f.cash > pushCost ? (aggressive && rng.chance(0.5) ? 2 : rng.chance(0.7) ? 1 : 0) : 0;
+  const pushes = headless ? 0 : f.cash > pushCost ? (aggressive && rng.chance(0.5) ? 2 : rng.chance(0.7) ? 1 : 0) : 0;
   for (let i = 0; i < pushes; i++) {
     const cands: { b: Block; score: number }[] = [];
     const seenCand = new Set<string>();
@@ -110,7 +115,7 @@ export function runFaction(w: World, f: Faction, rng: Rng) {
   }
 
   // 5. act on stance
-  if (!truce && (ns === 'beef' || ns === 'war')) actAgainstPlayer(w, f, rng, ns === 'war');
+  if (!truce && !headless && (ns === 'beef' || ns === 'war')) actAgainstPlayer(w, f, rng, ns === 'war');
 
   // 6. faction vs faction: occasional flare-ups shift standing and influence
   for (const other of Object.values(w.factions)) {
@@ -130,8 +135,6 @@ export function runFaction(w: World, f: Faction, rng: Rng) {
 }
 
 function stanceOf(f: Faction) { return f.stance[PLAYER]; }
-/** Break a truce and they never fully trust you again. */
-export function standingCap(f: Faction): number { return 100 - 35 * (f.brokenTruces ?? 0); }
 
 function actAgainstPlayer(w: World, f: Faction, rng: Rng, war: boolean) {
   const p = w.player;

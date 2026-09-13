@@ -6,6 +6,7 @@ import { addHeat, addInfluence, adjustRel, clamp, factionOf, log, money, nid, sp
 import { LIEUTENANT } from '@content/rackets';
 import { flipLieutenant, lieutenants } from './lieutenants';
 import { productionCandidates, resolveProductionEvent } from './production';
+import { backCandidate } from './politics';
 
 type Candidate = { w: number; make: () => GameEvent | undefined };
 
@@ -176,6 +177,8 @@ export function resolveEventOption(w: World, e: GameEvent, opt: string, rng: Rng
     case 'lt_skim:demote': if (n?.crew) { n.crew.skim = 0; demote(n); n.crew.loyalty = clamp(n.crew.loyalty - 15); log(w, `${n.name} hands the book back without a word. (−15 loyalty)`, 'warn', e.refs); } break;
     case 'lt_offer:raise': if (n?.crew) { n.crew.cut = Math.round(n.crew.cut * 1.4); n.crew.baseCut = n.crew.baseCut !== undefined ? Math.round(n.crew.baseCut * 1.4) : n.crew.baseCut; n.crew.loyalty = clamp(n.crew.loyalty + 20); if (f) f.standing[PLAYER] = clamp(f.standing[PLAYER] - 5, -100, 100); log(w, `${n.name} stays, at ${money(n.crew.cut)}/day. ${f?.short ?? 'They'} know they were turned down. (+20 loyalty)`, 'money', e.refs); } break;
     case 'lt_offer:lean': if (n?.crew) { if (muscleCheck()) { n.crew.loyalty = clamp(n.crew.loyalty - 10); adjustRel(n, { fear: 25 }); log(w, `${n.name} gets the message and stays. They will not forget how you said it. (−10 loyalty, +fear)`, 'warn', e.refs); } else if (f) { flipLieutenant(w, n, f); } } break;
+    case 'succession:a': case 'succession:b': { if (f?.crisis) { const id = f.crisis.candidateIds[opt === 'a' ? 0 : 1]; if (id) backCandidate(w, f, id, 1500); } break; }
+    case 'succession:out': log(w, 'You keep your money and your name out of it.', 'info', e.refs); break;
     case 'lt_offer:letgo': if (n?.crew && f) { flipLieutenant(w, n, f, true); } break;
     default: break;
   }

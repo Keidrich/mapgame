@@ -67,6 +67,9 @@ export function crewOf(w: World): Npc[] { return w.player.crewIds.map(id => w.np
 
 export function activeCrewCount(w: World): number { return crewOf(w).filter(n => n.crew && n.crew.status !== 'dead' && n.crew.status !== 'jailed').length; }
 
+/** Break a truce and they never fully trust you again. */
+export function standingCap(f: import('./types').Faction): number { return 100 - 35 * (f.brokenTruces ?? 0); }
+
 export function money(n: number): string { return `$${Math.round(n).toLocaleString('en-US')}`; }
 
 export function blocksNear(w: World, blockId: Id, radius: number): Block[] {

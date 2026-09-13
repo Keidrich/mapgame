@@ -5,7 +5,7 @@ import type { SitDownOffer } from '@sim/actions';
 import { STANCES, cap, fmtMoney, playerBusinesses } from '@ui/derive';
 import { useWorld } from '@ui/store';
 import { Meter } from './Meter';
-import { Act, AmountPicker, Disclosure } from './Act';
+import { Act, AmountPicker, Disclosure, SceneAct } from './Act';
 import { NpcRow } from './Rows';
 
 export function FactionsTab() {
@@ -39,6 +39,9 @@ function FactionCard({ f }: { f: Faction }) {
   const [bizPick, setBizPick] = useState<Id>('');
   const mine = select.playerBlocks(w);
   const myBiz = playerBusinesses(w);
+  const [backAmt, setBackAmt] = useState(1500);
+  const voice = f.lieutenantIds.map(id => w.npcs[id]).find(n => n?.alive) ?? boss;
+  const fights = Object.values(w.factions).filter(o => o.alive && o.id !== f.id && (f.stance[o.id] === 'beef' || f.stance[o.id] === 'war'));
   const offer: SitDownOffer | null =
     offerKind === 'truce' ? { kind: 'truce', days: truceDays }
     : offerKind === 'tribute' ? { kind: 'tribute', amountPerDay: perDay }
@@ -63,7 +66,25 @@ function FactionCard({ f }: { f: Faction }) {
         {tribute ? <span>You pay {fmtMoney(tribute)}/day · </span> : null}
         {f.grudges.length > 0 && <span className="red">Grudges: {f.grudges.slice(-2).join('; ')}</span>}
       </div>
-      {boss && <div className="mt8"><NpcRow w={w} npc={boss} sub={`Boss · ${select.relLabel(boss)} · lieutenants: ${f.lieutenantIds.map(id => w.npcs[id]?.name.split(' ')[0]).join(', ')}`} /></div>}
+      {f.crisis && f.alive && (
+        <div className="card mt8" style={{ borderColor: 'var(--orange)' }}>
+          <b>⚖️ Succession crisis</b> <span className="small muted">settles day {f.crisis.resolvesDay}{f.crisis.backing ? ` · you back ${w.npcs[f.crisis.backing]?.name.split(' ')[0]} (${fmtMoney(f.crisis.backedWith)})` : ''}</span>
+          <p className="small muted mt8">Money and your name tip it. Back the winner and the new boss owes you; back the loser and they never forget.</p>
+          <div className="mb8"><AmountPicker presets={[500, 1500, 3000, 6000]} value={backAmt} onChange={setBackAmt} min={500} /></div>
+          <div className="list">{f.crisis.candidateIds.map(id => w.npcs[id]).filter(n => n?.alive).map(n => (
+            <div key={n.id} className="row between" style={{ gap: 8 }}>
+              <div className="grow"><NpcRow w={w} npc={n} sub={`${n.traits.join(', ') || 'unreadable'} · muscle ${n.skills.muscle} charm ${n.skills.charm}`} /></div>
+              <Act action={{ type: 'back_candidate', factionId: f.id, npcId: n.id, amount: backAmt }} label="Back" small />
+            </div>))}</div>
+        </div>
+      )}
+      {boss && !f.crisis && <div className="mt8"><NpcRow w={w} npc={boss} sub={`Boss · ${select.relLabel(boss)}${f.owed ? ` · owes you ${f.owed}` : ''} · lieutenants: ${f.lieutenantIds.map(id => w.npcs[id]?.name.split(' ')[0]).join(', ')}`} /></div>}
+      {f.alive && voice && fights.length > 0 && (
+        <div className="mt8">
+          <div className="small muted mb8">At {fights.map(o => `${f.stance[o.id]} with ${o.short}`).join(', ')}. A truce brokered by you earns standing on both sides and a fee.</div>
+          <div className="actions">{fights.map(o => <SceneAct key={o.id} scene={{ kind: 'broker', npcId: voice.id, otherFactionId: o.id }} label={`Broker peace with ${o.short}`} icon="🕊️" />)}</div>
+        </div>
+      )}
 
       {f.alive && (
         <div className="actions mt8">

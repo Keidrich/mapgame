@@ -1,4 +1,5 @@
 import { RECIPES } from '@content/rackets';
+import { successionOrDeath } from './politics';
 import { addProduct, knownRecipes, unlockRecipe } from './production';
 import { OP_APPROACHES, OP_DEFS } from '@content/rackets';
 import type { Rng } from './rng';
@@ -76,6 +77,23 @@ export function resolveOp(w: World, o: Op, rng: Rng) {
         addMemory(w, n.homeBlockId, 'hit', `${n.name} was killed. Everybody knows who ordered it.`);
         break;
       }
+      case 'frame': {
+        const n = w.npcs[o.targetNpcId!]; const f = n.faction ? w.factions[n.faction] : undefined;
+        n.alive = false; n.notes.push('Doing time on a case that was not theirs.');
+        const years = 6 + rng.int(0, 9);
+        res.text = `The cops kick in ${n.name}'s door and find exactly what your people left there. ${years} years. `;
+        if (f) {
+          const suspects = rng.chance(0.35 + Math.max(0, 5 - p.skills.brains) * 0.05);
+          if (n.role === 'boss') { res.text += `${f.name} is headless. `; f.soldiers = Math.max(1, f.soldiers - 2); successionOrDeath(w, f); }
+          else { f.lieutenantIds = f.lieutenantIds.filter(id => id !== n.id); f.soldiers = Math.max(1, f.soldiers - 2); }
+          if (suspects) { f.standing[PLAYER] -= 25; f.grudges.push(`framed:${n.name.split(' ')[0]}`); res.text += `${f.short} do not believe in coincidences.`; }
+          else res.text += `${f.short} blame bad luck and a talkative cousin.`;
+        }
+        const captain = Object.values(w.npcs).find(x => x.official?.kind === 'captain'); if (captain) adjustRel(captain, { trust: 5 });
+        p.heat = clamp(p.heat - 3); res.heat = Math.max(0, res.heat - 3);
+        addMemory(w, n.homeBlockId, 'frame', `${n.name} went away on a case nobody around here believes.`);
+        break;
+      }
       case 'takeover': {
         const c = o.targetBlockId ? crewAt(w, o.targetBlockId) : undefined;
         if (c) {
@@ -112,6 +130,7 @@ export function resolveOp(w: World, o: Op, rng: Rng) {
     }
     res.text = `${def.label}${target ? ` at ${target.name}` : ''} goes wrong. ${fate} ${bad ? 'Sirens everywhere.' : 'You get out with nothing.'}`;
     if (o.kind === 'takeover' && o.targetBlockId) { const c = crewAt(w, o.targetBlockId); if (c) { c.strength = Math.min(10, c.strength + 1); c.mood -= 30; res.text += ` The ${c.name} are stronger for it.`; } }
+    if (o.kind === 'frame' && o.targetNpcId) { const n = w.npcs[o.targetNpcId]; adjustRel(n, { trust: -50 }); if (n.faction && w.factions[n.faction]) { const f = w.factions[n.faction]; f.standing[PLAYER] -= 30; f.grudges.push(`frame:${n.name.split(' ')[0]}`); res.text += ` ${f.short} found the plant and know whose it was.`; } }
     if (o.kind === 'hit' && o.targetNpcId) { const n = w.npcs[o.targetNpcId]; adjustRel(n, { fear: 15, trust: -60 }); if (n.faction && w.factions[n.faction]) { w.factions[n.faction].standing[PLAYER] -= 30; w.factions[n.faction].grudges.push(`attempt:${n.id}`); } }
     if (o.kind === 'insurance_fraud' && target) { target.condition = clamp(target.condition - 40); target.insured = false; target.flags.push('arson_suspect'); res.heat += 10; res.text += ' The fire marshal is asking about you.'; }
     for (const n of crew) if (n.crew) n.crew.loyalty = clamp(n.crew.loyalty - 8);
@@ -123,8 +142,4 @@ export function resolveOp(w: World, o: Op, rng: Rng) {
   log(w, res.text + (res.heat ? ` (+${res.heat} heat)` : ''), success ? 'good' : 'bad', { opId: o.id, businessId: target?.id, blockId });
 }
 
-export function successionOrDeath(w: World, f: import('./types').Faction) {
-  const lt = f.lieutenantIds.map(id => w.npcs[id]).find(n => n.alive);
-  if (lt) { f.bossId = lt.id; lt.role = 'boss'; f.lieutenantIds = f.lieutenantIds.filter(id => id !== lt.id); log(w, `${lt.name} takes over ${f.name}.`, 'warn', { factionId: f.id }); }
-  else { f.alive = false; log(w, `${f.name} is finished. Their blocks are up for grabs.`, 'warn', { factionId: f.id }); for (const b of Object.values(w.blocks)) delete b.influence[f.id]; for (const b of Object.values(w.businesses)) if (b.protection?.factionId === f.id) b.protection = undefined; }
-}
+export { successionOrDeath } from './politics';

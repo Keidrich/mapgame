@@ -3,6 +3,7 @@
  * the approaches on offer with their odds. The reducer resolves the chosen approach
  * with the same odds, so what the player sees is what they get.
  */
+import { PLAYER } from './types';
 import { APPROACHES, OPENING, RESULT, type SceneKind } from '@content/lines';
 import type { Rng } from './rng';
 import { activeCrewCount } from './util';
@@ -12,9 +13,9 @@ import type { Business, Id, Npc, World } from './types';
 export interface SceneOption { id: string; label: string; icon: string; blurb: string; good: string; bad: string; chance: number; costAp: number; costCash: number; disabled?: string }
 export interface Scene { kind: SceneKind; npcId: Id; businessId?: Id; line: string; options: SceneOption[] }
 
-export function sceneFor(w: World, kind: SceneKind, npcId: Id, businessId?: Id): Scene {
+export function sceneFor(w: World, kind: SceneKind, npcId: Id, businessId?: Id, otherFactionId?: Id): Scene {
   const n = w.npcs[npcId];
-  return { kind, npcId, businessId, line: openingLine(w, kind, n), options: APPROACHES[kind].map(a => ({ ...a, chance: approachChance(w, kind, a.id, n, businessId ? w.businesses[businessId] : undefined), costAp: kind === 'visit' && a.id === 'listen' ? 1 : 1, costCash: kind === 'visit' && a.id === 'drinks' ? 50 : 0, disabled: disabledReason(w, kind, a.id, n) })) };
+  return { kind, npcId, businessId, line: openingLine(w, kind, n), options: APPROACHES[kind].map(a => ({ ...a, chance: approachChance(w, kind, a.id, n, businessId ? w.businesses[businessId] : undefined, otherFactionId), costAp: kind === 'broker' ? 2 : 1, costCash: kind === 'visit' && a.id === 'drinks' ? 50 : kind === 'broker' && a.id === 'split' ? 4000 : 0, disabled: disabledReason(w, kind, a.id, n, otherFactionId) })) };
 }
 
 function openingLine(w: World, kind: SceneKind, n: Npc): string {
@@ -30,7 +31,9 @@ function openingLine(w: World, kind: SceneKind, n: Npc): string {
   return line;
 }
 
-function disabledReason(w: World, kind: SceneKind, id: string, n: Npc): string | undefined {
+function disabledReason(w: World, kind: SceneKind, id: string, n: Npc, otherFactionId?: Id): string | undefined {
+  if (kind === 'broker' && id === 'split' && w.player.cash < 4000) return 'Needs $4,000 clean.';
+  if (kind === 'broker' && id === 'favour') { const f = n.faction ? w.factions[n.faction] : undefined; const o = otherFactionId ? w.factions[otherFactionId] : undefined; if (!f || !o) return 'No faction.'; if (!(f.owed ?? 0) && f.standing[PLAYER] < 30 && o.standing[PLAYER] < 30) return 'Nobody here owes you anything yet (standing 30+, or a favour owed).'; }
   if (kind === 'threaten' && id === 'crew' && activeCrewCount(w) === 0) return 'No crew to bring.';
   if (kind === 'visit' && id === 'drinks' && w.player.cash < 50) return 'Needs $50.';
   if (kind === 'recruit' && id === 'cut' && w.player.cash < 200) return 'Needs $200 up front.';
@@ -40,8 +43,10 @@ function disabledReason(w: World, kind: SceneKind, id: string, n: Npc): string |
 }
 
 /** 3..97 % — the number the player sees and the number the dice use. */
-export function approachChance(w: World, kind: SceneKind, id: string, n: Npc, biz?: Business): number {
+export function approachChance(w: World, kind: SceneKind, id: string, n: Npc, biz?: Business, otherFactionId?: Id): number {
   const p = w.player; const s = p.skills; const crew = activeCrewCount(w);
+  const fa = n.faction ? w.factions[n.faction] : undefined; const fb = otherFactionId ? w.factions[otherFactionId] : undefined;
+  const temperBonus = (f?: import('./types').Faction) => !f ? 0 : f.temperament === 'diplomatic' ? 12 : f.temperament === 'aggressive' ? -10 : f.temperament === 'paranoid' ? -6 : 0;
   const fear = n.rel.fear, trust = n.rel.trust;
   const has = (t: string) => n.traits.includes(t as Npc['traits'][number]);
   let v = 50;
@@ -58,6 +63,9 @@ export function approachChance(w: World, kind: SceneKind, id: string, n: Npc, bi
     case 'parley:tribute': v = 20 + s.charm * 4 + p.respect * 0.6 + p.fear * 0.4 + crew * 4 - (crewOfBoss(w, n.id)?.strength ?? 3) * 4 + (has('greedy') ? 10 : 0) - (has('hothead') ? 10 : 0); break;
     case 'parley:join': v = 10 + s.charm * 4 + trust * 0.8 + p.respect * 0.7 - (crewOfBoss(w, n.id)?.strength ?? 3) * 3 + (has('ambitious') ? 20 : 0) - (has('loyal') ? 10 : 0); break;
     case 'parley:warn': v = 25 + s.muscle * 5 + crew * 8 + p.fear * 0.5 - (crewOfBoss(w, n.id)?.strength ?? 3) * 6 + (has('coward') ? 20 : 0) - (has('hothead') ? 10 : 0); break;
+    case 'broker:split': v = 25 + s.charm * 4 + p.respect * 0.4 + temperBonus(fa) + temperBonus(fb) + ((fa?.standing[PLAYER] ?? 0) + (fb?.standing[PLAYER] ?? 0)) * 0.15; break;
+    case 'broker:lean': v = 15 + s.muscle * 3 + p.fear * 0.5 + crew * 4 - ((fa?.soldiers ?? 0) + (fb?.soldiers ?? 0)) * 0.6 + temperBonus(fa) * 0.5 + temperBonus(fb) * 0.5; break;
+    case 'broker:favour': v = 30 + Math.max(fa?.standing[PLAYER] ?? 0, fb?.standing[PLAYER] ?? 0) * 0.6 + ((fa?.owed ?? 0) ? 20 : 0) + s.charm * 2 + temperBonus(fb); break;
     case 'recruit:cut': v = 50 + trust * 0.6 + (has('greedy') || has('ambitious') ? 20 : 0) - (has('loyal') ? 15 : 0); break;
     case 'recruit:promise': v = 25 + s.charm * 5 + trust * 0.6 + p.respect * 0.5 + (has('ambitious') ? 15 : 0) - (has('loyal') ? 10 : 0); break;
     case 'recruit:lean': v = 10 + s.muscle * 3 + fear * 0.8 + p.fear * 0.3 + (has('coward') ? 30 : -10); break;

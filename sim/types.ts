@@ -216,7 +216,7 @@ export interface Safehouse {
 export type OpKind =
   | 'heist_bank' | 'heist_jeweller' | 'heist_armored' | 'heist_warehouse'
   | 'robbery' | 'insurance_fraud' | 'check_kiting' | 'smuggle_run'
-  | 'hit' | 'intimidate' | 'raid_rival' | 'takeover' | 'steal_formula';
+  | 'hit' | 'intimidate' | 'raid_rival' | 'takeover' | 'steal_formula' | 'frame';
 
 export type OpStatus = 'planning' | 'ready' | 'done' | 'failed' | 'aborted';
 
@@ -268,7 +268,11 @@ export interface Faction {
   alive: boolean;
   grudges: string[];
   brokenTruces: number;   // by the player; each one lowers the best standing you can ever reach with them
+  crisis?: SuccessionCrisis; // the boss is gone and two lieutenants want the chair
+  owed?: number;          // favours the current boss owes the player (backing them in a crisis); spent at sit-downs
 }
+
+export interface SuccessionCrisis { since: number; resolvesDay: number; candidateIds: Id[]; backing?: Id; backedWith: number }
 
 // ---------- street crews: small independent gangs holding one block ----------
 export interface StreetCrew {

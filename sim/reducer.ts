@@ -13,6 +13,7 @@ import { crewAt, crewOfBoss, parley } from './crews';
 import { endDay } from './tick';
 import { PLAYER, type Business, type Id, type Npc, type Op, type Racket, type Safehouse, type World } from './types';
 import { onDemote, promote, promoteReason } from './lieutenants';
+import { backCandidate, broker, brokerReason } from './politics';
 import { moveProduct, onJoin, recipesForKind, restockCost, sellMult } from './production';
 import { PRODUCTION_UPGRADE_MULT, RECIPES } from '@content/rackets';
 import { LIEUTENANT } from '@content/rackets';
@@ -37,6 +38,8 @@ export function can(w: World, a: Action): Affordance {
     case 'read': { const n = npc(a.npcId); if (!n?.alive) return no('They are gone.'); if (n.known) return no('You already have their number.'); const r = ap(1); return r ? no(r) : yes({ ap: 1 }); }
     case 'threaten': { const n = npc(a.npcId); if (!n?.alive) return no('They are gone.'); if (n.official) return no('Threatening an official is a bad idea. Bribe them.'); if (n.role === 'boss') return no('You do not threaten a boss. You go to war with him.'); const r = ap(1); if (r) return no(r); if (a.approach === 'crew' && activeCrewCount(w) === 0) return no('No crew to bring.'); return yes({ ap: 1 }); }
     case 'parley': { const n = npc(a.npcId); if (!n?.alive) return no('They are gone.'); if (!crewOfBoss(w, n.id)) return no('They do not run a crew.'); const r = ap(1); if (r) return no(r); if (a.approach === 'join' && bedsLeft(w) <= 0) return no('No room in your safehouses for their boss.'); return yes({ ap: 1 }); }
+    case 'broker': { const n = npc(a.npcId); if (!n?.alive) return no('They are gone.'); const why = brokerReason(w, n, a.otherFactionId); if (why) return no(why); const r = ap(2); if (r) return no(r); if (a.approach === 'split') { const c = cash(4000); if (c) return no(c); } return yes({ ap: 2, cash: a.approach === 'split' ? 4000 : 0 }); }
+    case 'back_candidate': { const f = w.factions[a.factionId]; if (!f?.alive || !f.crisis) return no('No crisis there.'); if (!f.crisis.candidateIds.includes(a.npcId)) return no('They are not in the running.'); if (a.amount < 500) return no('Under $500 is an insult.'); const c = cash(a.amount); return c ? no(c) : yes({ cash: a.amount }); }
     case 'recruit': {
       const n = npc(a.npcId); if (!n?.alive) return no('They are gone.');
       if (n.crew) return no('Already in your crew.');
@@ -162,7 +165,7 @@ export function can(w: World, a: Action): Affordance {
       }
       if (def.target === 'npc' && !a.targetNpcId) return no('Pick a target.');
       if (a.kind === 'takeover') { if (!a.targetBlockId) return no('Pick a block with a street crew.'); if (!crewAt(w, a.targetBlockId)) return no('No street crew holds that block.'); }
-      if (def.target === 'npc') { const n = npc(a.targetNpcId!); if (!n?.alive) return no('Already dead.'); if (n.official) return no('Killing an official ends careers. Not available.'); }
+      if (def.target === 'npc') { const n = npc(a.targetNpcId!); if (!n?.alive) return no('Already gone.'); if (n.official) return no('Going after an official ends careers. Not available.'); if (a.kind === 'frame' && !(n.faction && w.factions[n.faction] && (n.role === 'boss' || n.role === 'lieutenant'))) return no('A frame only sticks on a faction boss or lieutenant.'); }
       if (a.approach === 'inside' && !insidersFor(w, a.targetBusinessId).length) return no('Nobody at the target trusts you enough (trust 35+).');
       if (a.approach === 'inside' && def.target !== 'business') return no('An inside man needs a place to be inside of.');
       const r = ap(1); if (r) return no(r);
@@ -455,6 +458,14 @@ export function dispatch(prev: World, a: Action): World {
       break;
     }
     case 'sit_down': sitDown(w, a.factionId, a.offer, rng); break;
+    case 'broker': {
+      const n = npc(a.npcId); const ap_ = a.approach ?? 'split'; n.known = true;
+      const chance = approachChance(w, 'broker', ap_, n, undefined, a.otherFactionId); const ok = rng.int(1, 100) <= chance;
+      const tone = broker(w, n, a.otherFactionId, ap_, ok, rng);
+      log(w, resultLine('broker', ap_, ok, rng), tone, { npcId: n.id, factionId: n.faction });
+      break;
+    }
+    case 'back_candidate': { const f = w.factions[a.factionId]; takeCash(w, a.amount); backCandidate(w, f, a.npcId, a.amount); break; }
     case 'pay_tribute': {
       const f = w.factions[a.factionId]; spend(w, a.amount); f.cash += a.amount;
       const gain = Math.round(Math.min(25, Math.sqrt(a.amount) / 4) * (f.temperament === 'greedy' ? 1.5 : 1));
@@ -554,7 +565,8 @@ function sitDown(w: World, fid: string, offer: SitDownOffer, rng: import('./rng'
   const charm = p.skills.charm * 3 + p.respect * 0.5;
   const temper = f.temperament === 'diplomatic' ? 15 : f.temperament === 'greedy' ? 5 : f.temperament === 'paranoid' ? -10 : -5;
   const roll = rng.int(0, 30);
-  const accept = (threshold: number) => charm + standing * 0.5 + temper + roll > threshold;
+  const owed = f.owed ?? 0;
+  const accept = (threshold: number) => { const ok = charm + standing * 0.5 + temper + roll + (owed ? 20 : 0) > threshold; if (ok && owed) { f.owed = owed - 1; log(w, `${f.short} remember what they owe you.`, 'info', { factionId: f.id }); } return ok; };
   const lt = w.npcs[f.lieutenantIds[0]];
   const setStance = (s: number) => { f.standing[PLAYER] = Math.min(clamp(s, -100, 100), standingCap(f)); f.stance[PLAYER] = stanceFor(f.standing[PLAYER]); };
   switch (offer.kind) {

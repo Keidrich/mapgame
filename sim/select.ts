@@ -6,6 +6,7 @@ import { CREW_COLOR, crewAt } from './crews';
 export { crewAt };
 export { lieutenants, lieutenantOf, districtsRunnable, districtIncome, promoteReason, playerAssetsIn } from './lieutenants';
 export { nearPolice } from './tick';
+export { brokerReason } from './politics';
 export { knownRecipes, recipesForKind, restockCost, qualityOf, sellMult, shortageActive, saturationActive, productionQuality } from './production';
 import { distanceM } from '@geo/project';
 import { STEP_M } from './populate';

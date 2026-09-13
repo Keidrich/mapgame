@@ -15,7 +15,7 @@ export type Sheet =
   | { kind: 'business'; businessId: Id }
   | { kind: 'npc'; npcId: Id };
 export interface Selection { blockId?: Id; businessId?: Id; npcId?: Id }
-export interface SceneRequest { kind: 'shakedown' | 'threaten' | 'visit' | 'recruit' | 'parley'; npcId: Id; businessId?: Id }
+export interface SceneRequest { kind: 'shakedown' | 'threaten' | 'visit' | 'recruit' | 'parley' | 'broker'; npcId: Id; businessId?: Id; otherFactionId?: Id }
 export interface Toast { id: number; text: string; tone: LogEntry['tone']; until: number }
 /** What happened overnight (or while the app was closed): the UI captures the before-state and reads the log slice. */
 export interface Recap { fromDay: number; toDay: number; idle: boolean; cashBefore: number; dirtyBefore: number; heatBefore: number; logStart: number }

@@ -33,7 +33,8 @@ describe('production quality and recipes', () => {
     pr.level = 3; expect(productionQuality(w, pr)).toBeGreaterThan(withWorker); pr.level = 1;
     w.player.recipes = ['aged']; pr.recipe = 'aged'; expect(productionQuality(w, pr)).toBe(Math.min(100, withWorker + RECIPES.aged.quality));
     // a day of output lands in the safehouse at that quality, and moving it carries the number along
-    const w2 = dispatch(w, { type: 'end_day' });
+    let w2 = dispatch(w, { type: 'end_day' });
+    for (const e of w2.pendingEvents) w2 = dispatch(w2, { type: 'resolve_event', eventId: e.id, optionId: e.options.at(-1)!.id });
     const sh = w2.safehouses[shId];
     expect(sh.stash.booze).toBeGreaterThan(0);
     expect(qualityOf(sh, 'booze')).toBe(w2.productions[prodId].quality);

@@ -12,7 +12,7 @@ export function SceneSheet() {
   const [result, setResult] = useState<{ lines: string[]; tone: string } | null>(null);
   if (!req) return null;
   const n = w.npcs[req.npcId]; if (!n) return null;
-  const scene: Scene = sceneFor(w, req.kind, req.npcId, req.businessId);
+  const scene: Scene = sceneFor(w, req.kind, req.npcId, req.businessId, req.otherFactionId);
   const biz = req.businessId ? w.businesses[req.businessId] : undefined;
 
   const choose = (o: SceneOption) => {
@@ -22,6 +22,7 @@ export function SceneSheet() {
       : req.kind === 'threaten' ? { type: 'threaten', npcId: req.npcId, approach: o.id }
       : req.kind === 'recruit' ? { type: 'recruit', npcId: req.npcId, approach: o.id }
       : req.kind === 'parley' ? { type: 'parley', npcId: req.npcId, approach: o.id }
+      : req.kind === 'broker' ? { type: 'broker', npcId: req.npcId, otherFactionId: req.otherFactionId!, approach: o.id }
       : { type: 'visit', npcId: req.npcId, approach: o.id };
     const ok = act(action);
     if (!ok) return;

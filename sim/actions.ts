@@ -14,6 +14,8 @@ export type Action =
   | { type: 'threaten'; npcId: Id; approach?: string }    // 1 AP: +fear, -trust, +heat
   | { type: 'recruit'; npcId: Id; approach?: string }     // 1 AP: patron -> crew
   | { type: 'parley'; npcId: Id; approach?: string }      // 1 AP: deal with a street crew's boss
+  | { type: 'broker'; npcId: Id; otherFactionId: FactionId; approach?: string } // 2 AP: mediate between this NPC's faction and another at beef/war
+  | { type: 'back_candidate'; factionId: FactionId; npcId: Id; amount: number } // cash: back a lieutenant in a succession crisis
   | { type: 'fire'; npcId: Id }
   | { type: 'assign'; npcId: Id; assignment?: Assignment }   // a 'lieutenant' assignment promotes them to run a district (1 AP)
   | { type: 'audit'; npcId: Id }                          // 1 AP: go over a lieutenant's books

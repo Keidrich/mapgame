@@ -1,7 +1,7 @@
 /** What people say when you walk in. Picked by the most telling trait; `default` when nothing fits. */
 import type { Trait } from '@sim/types';
 
-export type SceneKind = 'shakedown' | 'threaten' | 'visit' | 'recruit' | 'parley';
+export type SceneKind = 'shakedown' | 'threaten' | 'visit' | 'recruit' | 'parley' | 'broker';
 type Lines = Partial<Record<Trait | 'default' | 'scared' | 'friend', string[]>>;
 
 export const OPENING: Record<SceneKind, Lines> = {
@@ -34,6 +34,12 @@ export const OPENING: Record<SceneKind, Lines> = {
     honest: ['"Nice to see somebody polite for once."'],
     friend: ['"There he is! Sit, sit. What\'s new?"'],
     default: ['"Haven\'t seen you around. New to the block?"', '"What\'ll it be?"'],
+  },
+  broker: {
+    default: ['"You want to play peacemaker? Fine. Talk. We\'re listening, which is more than they get."', 'A back room, two chairs, one for each side. Yours is by the door.'],
+    hothead: ['"Peace? With them? Say what you came to say and then get out."'],
+    ambitious: ['"A sit-down that stops the bleeding would make a lot of people look at you differently. Including me."'],
+    friend: ['"If anyone can make them listen, it\'s you. Go on."'],
   },
   parley: {
     hothead: ['"This is our corner. You lost?"', 'Three of them get up off the stoop at once.'],
@@ -72,6 +78,11 @@ export const APPROACHES: Record<SceneKind, { id: string; label: string; icon: st
     { id: 'business', label: 'Talk business', icon: '💼', blurb: 'Brains. Who runs what, who owes whom.', good: '+respect and a useful tip', bad: '+respect, no tip' },
     { id: 'listen', label: 'Just listen', icon: '👂', blurb: 'Let them talk. Cheap and slow.', good: '+trust, maybe a rumour', bad: '+trust, a little' },
   ],
+  broker: [
+    { id: 'split', label: 'Sweeten it', icon: '💰', blurb: 'Charm and cash. $2,000 to each side to make sitting down worth their while.', good: 'Truce between them; both owe you', bad: 'They take the money and keep shooting' },
+    { id: 'lean', label: 'Bang heads', icon: '😤', blurb: 'Fear and crew. Tell both sides the shooting stops because you say so.', good: 'Truce; everybody remembers who ended it', bad: 'Both sides decide you are the problem' },
+    { id: 'favour', label: 'Call in a favour', icon: '🤝', blurb: 'Standing. Ask the side that likes you to give a little first.', good: 'Truce; costs you nothing', bad: 'They feel used; standing drops' },
+  ],
   parley: [
     { id: 'tribute', label: 'Put them on the payroll', icon: '💸', blurb: 'Charm and respect. They keep the corner, pay you weekly, and the block is yours.', good: 'Block turns yours; weekly cash', bad: 'Laughed off; they dig in' },
     { id: 'join', label: 'Bring them in', icon: '🤝', blurb: 'Trust. Their boss joins your crew; their people become yours to recruit.', good: 'A made crew member and recruits', bad: 'They want to see more first' },
@@ -100,6 +111,9 @@ export const RESULT: Record<string, string[]> = {
   'parley:tribute:ok': ['"Fine. Every Friday. Don\'t make us regret it."'], 'parley:tribute:fail': ['"Pay YOU? Get off our corner."'],
   'parley:join:ok': ['"About time somebody real showed up. We\'re in."'], 'parley:join:fail': ['"We\'ll think about it." They won\'t.'],
   'parley:warn:ok': ['They fold. The stoop is empty by the time you reach the corner.'], 'parley:warn:fail': ['Bottles. You leave before the second one lands.'],
+  'broker:split:ok': ['Envelopes change hands. Hands get shaken. Nobody means it, but it holds.'], 'broker:split:fail': ['They pocket the money and shoot each other on the way out.'],
+  'broker:lean:ok': ['Silence. Then a nod from each side. It stops tonight.'], 'broker:lean:fail': ['"Who the hell are you to tell us anything?"'],
+  'broker:favour:ok': ['"For you. Once." The other side takes the offer before it can be withdrawn.'], 'broker:favour:fail': ['"You are spending a lot of goodwill on people who would not do the same for you."'],
   'recruit:cut:ok': ['"When do I start?"'], 'recruit:cut:fail': ['"Money\'s good. I still don\'t know you."'],
   'recruit:promise:ok': ['"A name on the block. Yeah. I\'m in."'], 'recruit:promise:fail': ['"Nice speech."'],
   'recruit:lean:ok': ['They nod without a word. They will not forget how this started.'], 'recruit:lean:fail': ['They walk out and do not come back for a while.'],
