@@ -8,7 +8,7 @@ import { hashString } from '@sim/rng';
 import type { LatLng } from '@sim/types';
 import { buildGraph, faces } from './polygonize';
 import type { Polyline } from './polygonize';
-import { centroid, pointInRing, signedArea, simplifyRing, toLatLng, toXY, type XY } from './project';
+import { centroid, labelPoint, pointInRing, signedArea, simplifyRing, toLatLng, toXY, type XY } from './project';
 import type { GeoBlock, GeoPlace, GeoPoi } from './types';
 import { hexCorners, hexCenter, hexKey, latLngToHex, neighbors, spiral, hexToMeters, metersToLatLng } from '@sim/hex';
 
@@ -93,7 +93,7 @@ export function buildChunk(input: ChunkInput): GeoChunk {
   const blocks: GeoBlock[] = work.map(f => {
     const id = `b${hashString(f.ring.slice().sort().join(',')).toString(36)}`;
     for (const e of f.edges) { if (!edgeOwners.has(e)) edgeOwners.set(e, []); edgeOwners.get(e)!.push(id); }
-    const xy = xyOf(f.ring); const c = centroid(xy);
+    const xy = xyOf(f.ring); const c = labelPoint(xy);
     return { id, polygon: simplifyRing(xy).map(p => toLatLng(origin, p)), center: toLatLng(origin, c), areaM2: Math.abs(signedArea(xy)), neighborIds: [], streetNames: streetNames(f.ring, g), edgeKeys: [...f.edges] };
   });
   // de-duplicate ids (two faces with identical node sets cannot happen; two hashes colliding is astronomically rare, but keep it safe)

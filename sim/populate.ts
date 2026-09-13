@@ -82,7 +82,7 @@ export function populateChunk(w: World, chunk: GeoChunk, rng: Rng, opts: Populat
   }
 
   // ---- factions: several on the first chunk, sometimes one more in a new area ----
-  const want = opts.first ? (opts.factionCount ?? clamp(Math.round(added.length / 45), 1, 4)) : (Object.keys(w.factions).length < MAX_FACTIONS && added.length >= 30 && rng.chance(0.55) ? 1 : 0);
+  const want = opts.first ? (opts.factionCount ?? clamp(Math.round(added.length / 40), 2, 4)) : (Object.keys(w.factions).length < MAX_FACTIONS && added.length >= 25 && rng.chance(0.7) ? 1 : 0);
   const usedArch = new Set(Object.values(w.factions).map(f => f.short));
   const homes = rng.shuffle(seeds.filter(s => s.def.kind !== 'downtown' && s.district.blockIds.length >= 3));
   for (let i = 0; i < want; i++) {

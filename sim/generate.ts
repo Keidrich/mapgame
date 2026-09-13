@@ -16,6 +16,7 @@ export interface NewGameOptions {
   playerName: string;
   background: Player['background'];
   chunk?: GeoChunk; // the start area, fetched by the UI; defaults to a hex chunk
+  extraChunks?: GeoChunk[]; // neighbouring areas to populate at once (when the start sits near a chunk edge)
 }
 
 export const emptyStash = () => ({ booze: 0, green: 0, pills: 0, hot_goods: 0, counterfeit: 0 });
@@ -35,6 +36,7 @@ export function generateWorld(opts: NewGameOptions): World {
     pendingEvents: [], log: [], nextId: 1,
   };
   populateChunk(w, chunk, rng, { first: true, startAt: opts.origin });
+  for (const extra of opts.extraChunks ?? []) populateChunk(w, extra, rng, { startAt: opts.origin });
   const nid = (p: string) => `${p}${w.nextId++}`;
   const blocks = Object.values(w.blocks);
   const startBlock = blocks.slice().sort((a, b) => distanceM(a.center, opts.origin) - distanceM(b.center, opts.origin))[0];

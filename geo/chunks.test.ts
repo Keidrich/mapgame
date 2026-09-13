@@ -51,6 +51,18 @@ describe('buildChunk', () => {
   });
 });
 
+describe('labelPoint', () => {
+  it('lands inside an L-shaped block whose centroid falls outside', async () => {
+    const { labelPoint, pointInRing, centroid } = await import('./project');
+    const L = [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 20 }, { x: 20, y: 20 }, { x: 20, y: 100 }, { x: 0, y: 100 }];
+    const lp = labelPoint(L); void centroid;
+    const thin = [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 5 }, { x: 5, y: 5 }, { x: 5, y: 100 }, { x: 0, y: 100 }];
+    expect(pointInRing(centroid(thin), thin)).toBe(false);
+    expect(pointInRing(labelPoint(thin), thin)).toBe(true);
+    expect(pointInRing(lp, L)).toBe(true);
+  });
+});
+
 describe('union', () => {
   it('joins two squares sharing an edge into one ring', () => {
     const u = union(['1', '2', '3', '4'], ['2', '5', '6', '3'])!;

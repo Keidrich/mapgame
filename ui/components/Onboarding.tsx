@@ -5,7 +5,7 @@ import { generateWorld } from '@sim/index';
 import type { LatLng, Player } from '@sim/types';
 import { newGame } from '@ui/store';
 import { loadChunk } from '@ui/net/chunks';
-import { chunkKeyAt, type GeoChunk } from '@geo/chunks';
+import { chunkBounds, chunkKeyAt, chunkNeighbors, type GeoChunk } from '@geo/chunks';
 
 const BACKGROUNDS: { id: Player['background']; label: string; blurb: string; ico: string }[] = [
   { id: 'muscle', label: 'Muscle', blurb: 'You came up on the door. People pay when you ask.', ico: '💪' },
@@ -63,11 +63,15 @@ export function Onboarding() {
     const origin: LatLng = { lat: place.lat, lng: place.lng };
     setBuilding('Contacting the map server…');
     skipRef.current = false;
-    let city: GeoChunk | undefined; let note = '';
+    let city: GeoChunk | undefined; let extra: GeoChunk[] = []; let note = '';
     try {
       const skip = new Promise<never>((_, reject) => { const iv = setInterval(() => { if (skipRef.current) { clearInterval(iv); reject(new Error('skipped')); } }, 200); });
-      city = await Promise.race([loadChunk(chunkKeyAt(origin), s => setBuilding(s)), skip]);
+      const startKey = chunkKeyAt(origin);
+      city = await Promise.race([loadChunk(startKey, s => setBuilding(s)), skip]);
       if (city.source === 'hex') throw new Error('no street data');
+      // a start near a chunk edge would otherwise sit at the edge of the known world: pull in the neighbours that are close
+      const near = chunkNeighbors(startKey).filter(k => { const b = chunkBounds(k); const dLat = Math.max(b.south - origin.lat, 0, origin.lat - b.north) * 111320; const dLng = Math.max(b.west - origin.lng, 0, origin.lng - b.east) * 111320 * Math.cos((origin.lat * Math.PI) / 180); return Math.hypot(dLat, dLng) < 450; });
+      if (near.length) { setBuilding(`Mapping the streets next door… (${near.length})`); extra = (await Promise.race([Promise.all(near.map(k => loadChunk(k))), skip])).filter(c => c.source === 'osm'); }
     } catch (e) {
       note = (e as Error).message === 'skipped' ? 'Using a simple grid for now. Real streets load as you explore.' : `Could not map the real streets here (${(e as Error).message}). Using a grid instead.`;
       setBuilding(note);
@@ -75,7 +79,7 @@ export function Onboarding() {
     }
     setBuilding('Populating the city…');
     await new Promise(r => setTimeout(r, 30));
-    const w = generateWorld({ origin, placeName: place.name, playerName: name.trim() || 'Nobody', background: bg, chunk: city });
+    const w = generateWorld({ origin, placeName: place.name, playerName: name.trim() || 'Nobody', background: bg, chunk: city, extraChunks: extra });
     if (note) w.log.push({ day: 1, text: note, tone: 'warn' });
     setBuilding(null);
     newGame(w);
@@ -158,7 +162,8 @@ function PickMap({ value, onPick }: { value: Place | null; onPick: (lat: number,
     m.on('error', () => { /* non-fatal */ });
     m.on('click', (e: maplibregl.MapMouseEvent) => cb.current(e.lngLat.lat, e.lngLat.lng));
     map.current = m;
-    return () => { disposed = true; m.remove(); map.current = null; pin.current = null; };
+    const ro = new ResizeObserver(() => m.resize()); ro.observe(el.current);
+    return () => { ro.disconnect(); disposed = true; m.remove(); map.current = null; pin.current = null; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   useEffect(() => {

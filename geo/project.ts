@@ -47,3 +47,27 @@ export function simplifyRing(ring: XY[], toleranceM = 1.5): XY[] {
   }
   return out.length >= 3 ? out : ring;
 }
+
+/**
+ * A point guaranteed to lie inside the ring: the centroid when it does (convex-ish blocks),
+ * otherwise the midpoint of the longest interior span along a few horizontal scan lines.
+ * Real blocks are often L- or U-shaped, and their centroid falls outside.
+ */
+export function labelPoint(ring: XY[]): XY {
+  const c = centroid(ring);
+  if (pointInRing(c, ring)) return c;
+  let minY = Infinity, maxY = -Infinity;
+  for (const p of ring) { if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y; }
+  let best: XY = ring[0]; let bestLen = -1;
+  for (let k = 1; k < 12; k++) {
+    const y = minY + ((maxY - minY) * k) / 12;
+    const xs: number[] = [];
+    for (let i = 0; i < ring.length; i++) {
+      const a = ring[i], b = ring[(i + 1) % ring.length];
+      if ((a.y > y) !== (b.y > y)) xs.push(a.x + ((y - a.y) * (b.x - a.x)) / (b.y - a.y));
+    }
+    xs.sort((p, q) => p - q);
+    for (let i = 0; i + 1 < xs.length; i += 2) { const len = xs[i + 1] - xs[i]; if (len > bestLen) { bestLen = len; best = { x: (xs[i] + xs[i + 1]) / 2, y }; } }
+  }
+  return best;
+}

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import * as maplibregl from 'maplibre-gl';
+import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import type { GeoJSONSource, Map as MLMap, StyleSpecification } from 'maplibre-gl';
 import type { Feature as GJFeature, FeatureCollection, Polygon } from 'geojson';
 import { select } from '@sim/index';
@@ -9,6 +10,10 @@ import { chunksInBox, type GeoChunk } from '@geo/chunks';
 import { topInfluence } from '@ui/derive';
 import { bumpChunks, openSheet, populateAndOpen, useStore } from '@ui/store';
 import { allCachedChunks, loadChunk } from '@ui/net/chunks';
+
+// MapLibre 6 spawns its worker from a file next to its own module, which a bundled build never ships.
+// Point it at the copy Vite bundles for us instead, or every source silently fails to load in production.
+maplibregl.setWorkerUrl(maplibreWorkerUrl);
 
 /** Basemaps in order of preference. Vector styles need no API key; the last entry is a raster fallback MapLibre renders itself. */
 export const BASEMAP_STYLES: (string | StyleSpecification)[] = [
@@ -47,7 +52,7 @@ function blockFeature(w: World, blockId: Id, selected: boolean): Feature {
   const ctrl = select.blockController(w, blockId);
   const top = topInfluence(b);
   const color = select.factionColor(w, ctrl);
-  const fillOpacity = ctrl ? 0.12 + (Math.min(100, top.value) / 100) * 0.4 : 0.05;
+  const fillOpacity = ctrl ? 0.12 + (Math.min(100, top.value) / 100) * 0.4 : 0.08;
   const hot = b.heat > 50;
   return {
     type: 'Feature',
@@ -55,9 +60,9 @@ function blockFeature(w: World, blockId: Id, selected: boolean): Feature {
       id: b.id, chunkKey: b.chunkKey,
       color: ctrl === PLAYER ? '#f2c94c' : ctrl ? color : '#8a9099',
       fillOpacity: hot ? Math.max(fillOpacity, 0.22) : fillOpacity,
-      line: selected ? '#ffffff' : hot ? '#e5484d' : ctrl ? color : '#4a515c',
+      line: selected ? '#ffffff' : hot ? '#e5484d' : ctrl ? color : '#5a6270',
       lineWidth: selected ? 3 : hot ? 2 : ctrl ? 1.4 : 0.8,
-      lineOpacity: selected ? 1 : ctrl ? 0.9 : 0.6,
+      lineOpacity: selected ? 1 : ctrl ? 0.9 : 0.75,
       unpopulated: 0, selected: selected ? 1 : 0,
     },
     geometry: { type: 'Polygon', coordinates: ring(b.polygon) },
@@ -83,11 +88,6 @@ function blocksAreBig(m: MLMap, w: World): boolean {
   const avgSide = Math.sqrt(blocks.reduce((s, b) => s + b.areaM2, 0) / blocks.length);
   const metresPerPx = (156543.03 * Math.cos((m.getCenter().lat * Math.PI) / 180)) / Math.pow(2, m.getZoom());
   return avgSide / metresPerPx >= MARKER_BLOCK_PX;
-}
-function bounds(w: World): [[number, number], [number, number]] | undefined {
-  let minLat = Infinity, minLng = Infinity, maxLat = -Infinity, maxLng = -Infinity;
-  for (const b of Object.values(w.blocks)) for (const c of b.polygon) { if (c.lat < minLat) minLat = c.lat; if (c.lat > maxLat) maxLat = c.lat; if (c.lng < minLng) minLng = c.lng; if (c.lng > maxLng) maxLng = c.lng; }
-  return Number.isFinite(minLat) ? [[minLng, minLat], [maxLng, maxLat]] : undefined;
 }
 
 interface Want { html: string; lng: number; lat: number; cls: string; click?: () => void }
@@ -117,7 +117,7 @@ export function MapView() {
     const m = new maplibregl.Map({ container: el.current, style: EMPTY_STYLE, center, zoom: 14.5, minZoom: 3, maxZoom: 18.5, attributionControl: { compact: true }, pitchWithRotate: false, dragRotate: false, touchPitch: false });
     m.touchZoomRotate.disableRotation();
     map.current = m;
-    if (import.meta.env.DEV) (window as unknown as { __map?: MLMap }).__map = m;
+    (window as unknown as { __map?: MLMap }).__map = m; // handy for debugging on device: window.__map
     let disposed = false;
     void resolveBasemap().then(style => { if (!disposed && map.current === m) { ready.current = false; m.setStyle(style); } });
     const addLayers = () => {
@@ -139,7 +139,10 @@ export function MapView() {
     m.on('mouseleave', 'blocks-fill', () => { m.getCanvas().style.cursor = ''; });
     m.on('moveend', () => { syncMarkers(); loadVisibleChunks(); });
     m.on('zoomend', syncMarkers);
-    return () => { disposed = true; for (const k of markers.current.values()) k.mk.remove(); markers.current.clear(); m.remove(); map.current = null; ready.current = false; seedRef.current = null; };
+    // the HUD measures itself after mount and moves the map's top edge; keep MapLibre's transform in step with the container
+    const ro = new ResizeObserver(() => { m.resize(); syncMarkers(); });
+    ro.observe(el.current);
+    return () => { ro.disconnect(); disposed = true; for (const k of markers.current.values()) k.mk.remove(); markers.current.clear(); m.remove(); map.current = null; ready.current = false; seedRef.current = null; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -149,7 +152,8 @@ export function MapView() {
     const m = map.current; if (!m) return;
     if (world && seedRef.current !== world.seed) {
       seedRef.current = world.seed;
-      const b = bounds(world); if (b) m.fitBounds(b, { padding: 24, duration: 0, maxZoom: 15.5 });
+      // centre on where the player starts, close enough to read the blocks around them
+      m.jumpTo({ center: [world.origin.lng, world.origin.lat], zoom: 15.2 });
     }
     const src = m.getSource('blocks') as GeoJSONSource | undefined;
     if (src) src.setData(buildGeoJSON(world, blockId));
@@ -198,8 +202,10 @@ export function MapView() {
     for (const [key, d] of want) {
       const sig = `${d.cls}|${d.html}`;
       const kept = markers.current.get(key);
-      if (kept) { if (kept.sig !== sig) { kept.mk.getElement().className = d.cls; kept.mk.getElement().textContent = d.html; kept.sig = sig; } kept.mk.setLngLat([d.lng, d.lat]); continue; }
-      const node = document.createElement('div'); node.className = d.cls; node.textContent = d.html;
+      // MapLibre positions the marker element with its own transform, so all styling lives on an inner node.
+      if (kept) { if (kept.sig !== sig) { const inner = kept.mk.getElement().firstElementChild as HTMLElement; inner.className = d.cls; inner.textContent = d.html; kept.sig = sig; } kept.mk.setLngLat([d.lng, d.lat]); continue; }
+      const node = document.createElement('div'); node.className = 'mk'; if (!d.click) node.style.pointerEvents = 'none';
+      const inner = document.createElement('div'); inner.className = d.cls; inner.textContent = d.html; node.appendChild(inner);
       if (d.click) { const fn = d.click; node.addEventListener('click', ev => { ev.stopPropagation(); fn(); }); }
       const mk = new maplibregl.Marker({ element: node, anchor: 'center' }).setLngLat([d.lng, d.lat]).addTo(m);
       markers.current.set(key, { mk, sig });
