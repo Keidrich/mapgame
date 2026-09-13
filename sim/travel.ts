@@ -2,30 +2,47 @@
  * Where the player physically is, and what it costs to get somewhere else.
  *
  * The city is a graph: `Block.neighborIds` links blocks that share a street edge, across
- * loaded chunks too. Walking a hop costs 1 legwork. A hop between two blocks that both
- * carry one of your safehouses costs half, so a chain of safehouses is a corridor you can
- * move down cheaply. Totals are rounded up, so a single cheap hop still costs 1.
+ * loaded chunks too. What a hop costs depends on whose ground it is, which comes from
+ * influence, not from owning property: full price on a stranger's block, half where you
+ * have a foothold, free between two blocks you run. Totals are rounded up, so a single
+ * half-price hop still costs 1, but a walk entirely across your own turf costs nothing.
  *
  * Pure and deterministic: no RNG, no time, same answer for the same world.
  */
+import { controller } from './populate';
 import { PLAYER, type Block, type Id, type Npc, type World } from './types';
 
-/** Walking one hop. Half that between two of your own safehouses. */
+/**
+ * Walking a hop costs 1 on ground that is not yours, half where you have a real foothold,
+ * and nothing at all between two blocks you run. Territory is the reward: once a stretch
+ * of the city is yours, you move through it freely.
+ */
 export const HOP = 1;
-export const ANCHOR_HOP = 0.5;
+export const FOOTHOLD_HOP = 0.5;
+export const TURF_HOP = 0;
+/** Influence where your people are on the block, short of the 30 it takes to run it. */
+export const FOOTHOLD = 15;
 
 /** Legwork a day, from wheels. 3 at wheels 0, 8 at wheels 10. */
 export function legworkFor(wheels: number): number { return 3 + Math.floor(wheels / 2); }
 
-/** Blocks carrying one of the player's safehouses. They anchor cheap travel. */
-export function anchorBlocks(w: World): Set<Id> {
+/** Blocks you run: the most influence on them, and enough of it to count. */
+export function yourTurf(w: World): Set<Id> {
   const out = new Set<Id>();
-  for (const id of w.player.safehouseIds) { const s = w.safehouses[id]; if (s && s.owner === PLAYER) out.add(s.blockId); }
+  for (const b of Object.values(w.blocks)) if (controller(b) === PLAYER) out.add(b.id);
   return out;
 }
-
-function edgeCost(a: Id, b: Id, anchors: Set<Id>): number {
-  return anchors.has(a) && anchors.has(b) ? ANCHOR_HOP : HOP;
+/** Blocks where you have people and interests, whether or not you run them. */
+export function footholdBlocks(w: World): Set<Id> {
+  const out = new Set<Id>();
+  for (const b of Object.values(w.blocks)) if ((b.influence[PLAYER] ?? 0) >= FOOTHOLD) out.add(b.id);
+  return out;
+}
+/** Free, half or full price, by how much of the two blocks is yours. */
+function edgeCost(a: Id, b: Id, turf: Set<Id>, foot: Set<Id>): number {
+  if (turf.has(a) && turf.has(b)) return TURF_HOP;
+  if (foot.has(a) && foot.has(b)) return FOOTHOLD_HOP;
+  return HOP;
 }
 
 export interface Route { hops: Id[]; cost: number }
@@ -37,8 +54,8 @@ export interface Route { hops: Id[]; cost: number }
 export function route(w: World, from: Id, to: Id): Route | undefined {
   if (!w.blocks[from] || !w.blocks[to]) return undefined;
   if (from === to) return { hops: [], cost: 0 };
-  const anchors = anchorBlocks(w);
-  // Dijkstra: edges are 1 or 0.5, so a longer path through safehouses can genuinely be cheaper.
+  const turf = yourTurf(w); const foot = footholdBlocks(w);
+  // Dijkstra: edges are 1, 0.5 or free, so a longer way round through your own turf can be cheaper.
   const dist = new Map<Id, number>([[from, 0]]);
   const prev = new Map<Id, Id>();
   const seen = new Set<Id>();
@@ -53,7 +70,7 @@ export function route(w: World, from: Id, to: Id): Route | undefined {
     const d = dist.get(cur) ?? Infinity;
     for (const nb of w.blocks[cur]?.neighborIds ?? []) {
       if (!w.blocks[nb] || seen.has(nb)) continue;
-      const nd = d + edgeCost(cur, nb, anchors);
+      const nd = d + edgeCost(cur, nb, turf, foot);
       if (nd < (dist.get(nb) ?? Infinity)) { dist.set(nb, nd); prev.set(nb, cur); queue.push(nb); }
     }
   }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { PLAYER, can, dispatch, generateWorld, select, type Block, type World } from './index';
-import { legworkFor, route } from './travel';
+import { FOOTHOLD, legworkFor, route } from './travel';
 
 const mk = (seed = 5) => generateWorld({ origin: { lat: 51.5, lng: -0.12 }, placeName: 'London', playerName: 'T', background: 'muscle', seed });
 
@@ -29,13 +29,10 @@ function line(w: World, n = 6): Block[] {
   return blocks;
 }
 
-/** Put a player-owned safehouse on a block, so it becomes a travel anchor. */
-function anchor(w: World, blockId: string) {
-  const id = `ts${blockId}`;
-  w.safehouses[id] = { id, blockId, name: `Safehouse ${blockId}`, tier: 1, owner: PLAYER, stash: { booze: 0, green: 0, pills: 0, hot_goods: 0, counterfeit: 0 }, cash: 0, productionIds: [], capacity: 60 };
-  w.blocks[blockId].safehouseId = id;
-  w.player.safehouseIds.push(id);
-}
+/** Give the player enough influence on a block to run it. */
+function own(w: World, blockId: string) { w.blocks[blockId].influence = { [PLAYER]: 60 }; }
+/** Give the player a presence short of running it. */
+function foothold(w: World, blockId: string) { w.blocks[blockId].influence = { [PLAYER]: FOOTHOLD, rival: 50 }; }
 
 describe('walking the block graph', () => {
   it('costs one legwork a hop, and the path is the shortest one', () => {
@@ -78,26 +75,54 @@ describe('walking the block graph', () => {
     expect(w.player.currentBlockId).toBe(b[2].id); // you stay where you slept
   });
 
-  it('a chain of your own safehouses halves the walk', () => {
+  it('is free across blocks you run, and a safehouse alone buys nothing', () => {
+    let w = mk(); const b = line(w);
+    expect(route(w, b[0].id, b[5].id)!.cost).toBe(5);
+    // a safehouse on every block does not make the walk cheaper any more: only influence does
+    for (const x of b) { const id = `ts${x.id}`; w.safehouses[id] = { id, blockId: x.id, name: 'S', tier: 1, owner: PLAYER, stash: { booze: 0, green: 0, pills: 0, hot_goods: 0, counterfeit: 0 }, cash: 0, productionIds: [], capacity: 60 }; x.safehouseId = id; w.player.safehouseIds.push(id); }
+    expect(route(w, b[0].id, b[5].id)!.cost).toBe(5);
+    // run the blocks and the whole stretch is free to move through
+    for (const x of b) own(w, x.id);
+    expect(route(w, b[0].id, b[5].id)!.cost).toBe(0);
+    expect(route(w, b[0].id, b[1].id)!.cost).toBe(0);
+    // and walking it costs nothing even with an empty pool
+    w.player.legwork = 0;
+    expect(can(w, { type: 'move', toBlockId: b[5].id }).ok).toBe(true);
+    w = dispatch(w, { type: 'move', toBlockId: b[5].id });
+    expect(w.player.currentBlockId).toBe(b[5].id);
+    expect(w.player.legwork).toBe(0);
+  });
+
+  it('charges half where you have a foothold but do not run the block', () => {
     const w = mk(); const b = line(w);
-    expect(route(w, b[0].id, b[4].id)!.cost).toBe(4);
-    for (const x of b) anchor(w, x.id);
+    for (const x of b) foothold(w, x.id);
     expect(route(w, b[0].id, b[4].id)!.cost).toBe(2);   // four half-price hops
     expect(route(w, b[0].id, b[1].id)!.cost).toBe(1);   // a single hop still rounds up to 1
     expect(route(w, b[0].id, b[3].id)!.cost).toBe(2);   // 1.5 rounds up
+    // just under the bar is full price
+    for (const x of b) x.influence = { [PLAYER]: FOOTHOLD - 1, rival: 50 };
+    expect(route(w, b[0].id, b[4].id)!.cost).toBe(4);
   });
 
-  it('prefers a longer route through safehouses when it is cheaper', () => {
+  it('prefers a longer way round through your own turf', () => {
     const w = mk(); const b = line(w, 4);
     // a detour A → X → Y → D alongside the direct A → B → C → D
-    for (const id of ['x', 'y']) w.blocks[id] = { ...b[0], id, name: id.toUpperCase(), neighborIds: [], safehouseId: undefined };
+    for (const id of ['x', 'y']) w.blocks[id] = { ...b[0], id, name: id.toUpperCase(), neighborIds: [], influence: {} };
     w.blocks.x.neighborIds = [b[0].id, 'y']; w.blocks.y.neighborIds = ['x', b[3].id];
     b[0].neighborIds.push('x'); b[3].neighborIds.push('y');
     expect(route(w, b[0].id, b[3].id)!.cost).toBe(3);
-    anchor(w, b[0].id); anchor(w, 'x'); anchor(w, 'y'); anchor(w, b[3].id);
+    for (const id of [b[0].id, 'x', 'y', b[3].id]) own(w, id);
     const r = route(w, b[0].id, b[3].id)!;
-    expect(r.cost).toBe(2);                    // three half-price hops, rounded up
+    expect(r.cost).toBe(0);                    // all yours, so the long way round is free
     expect(r.hops).toEqual(['x', 'y', b[3].id]);
+  });
+
+  it('leaving your turf still costs, one hop at a time', () => {
+    const w = mk(); const b = line(w);
+    own(w, b[0].id); own(w, b[1].id);          // you run A and B, nothing else
+    expect(route(w, b[0].id, b[1].id)!.cost).toBe(0);
+    expect(route(w, b[0].id, b[2].id)!.cost).toBe(1);   // free to B, then one hop out
+    expect(route(w, b[0].id, b[4].id)!.cost).toBe(3);
   });
 
   it('legwork comes from wheels', () => {

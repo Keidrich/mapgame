@@ -38,7 +38,12 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
   legwork: {
     title: 'Legwork',
     body: 'How far you can walk today, in blocks. Separate from AP: walking never costs an action and actions never cost legwork. It comes from your wheels skill and refills every day.',
-    note: 'A hop between two blocks that both have one of your safehouses costs half, so a chain of safehouses is a cheap corridor across your turf.',
+    note: 'A hop costs 1 on a stranger\'s block, half where you have a foothold, and nothing between two blocks you run. Take ground and the city gets smaller.',
+  },
+  turf: {
+    title: 'Your turf',
+    body: 'A block where you hold more influence than anyone else, and at least 30 of it. Rackets, protected businesses and a safehouse all build influence; nothing on its own hands you the block.',
+    note: 'Moving between two blocks you run is free. Half price between blocks where you have a foothold (influence 15+). Full price everywhere else.',
   },
   presence: {
     title: 'You have to be there',
@@ -235,8 +240,8 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
   // ---------------------------------------------------------------- a block
   influence: {
     title: 'Influence',
-    body: 'Who holds this block, 0 to 100 each. Whoever is highest controls it. Rackets, protected businesses and a safehouse build yours.',
-    note: 'Yours decays by 2 a day on any block where you have nothing running.',
+    body: 'Who holds this block, 0 to 100 each. Whoever is highest, with at least 30, runs it. Rackets, protected businesses and a safehouse all build yours.',
+    note: 'It also sets what walking costs: free between blocks you run, half at 15 or more, full price where you have nothing. Yours decays by 2 a day on a block where you have nothing running.',
   },
   wealth: {
     title: 'Wealth',

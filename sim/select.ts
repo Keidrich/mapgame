@@ -7,7 +7,7 @@ export { crewAt };
 export { lieutenants, lieutenantOf, districtsRunnable, districtIncome, promoteReason, playerAssetsIn } from './lieutenants';
 export { nearPolice } from './tick';
 export { brokerReason } from './politics';
-export { route, travelCost, isHere, npcIsHere, npcBlockIds, npcReachBlock, currentBlock, anchorBlocks, legworkFor } from './travel';
+export { route, travelCost, isHere, npcIsHere, npcBlockIds, npcReachBlock, currentBlock, yourTurf, footholdBlocks, legworkFor, FOOTHOLD } from './travel';
 export { openCases, caseWitnessOf } from './cases';
 export { seatReason, members as commissionMembers } from './commission';
 export { knownRecipes, recipesForKind, restockCost, qualityOf, sellMult, shortageActive, saturationActive, productionQuality } from './production';

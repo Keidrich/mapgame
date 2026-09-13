@@ -35,8 +35,14 @@ export function BlockSheet({ blockId }: { blockId: Id }) {
       )}
       <div className="row between mb8"><span className="small muted"><Term id="influence">Influence</Term></span></div>
       {select.isHere(w, b.id)
-        ? <div className="chips mb8"><span className="chip" style={{ color: 'var(--gold)' }}>🚶 You are here</span></div>
-        : <div className="mb8"><WalkHere blockId={b.id} /></div>}
+        ? <div className="chips mb8">
+            <span className="chip" style={{ color: 'var(--gold)' }}>🚶 You are here</span>
+            {ctrl === PLAYER && <TermChip id="turf" tone="var(--green)">Your turf: free to move through</TermChip>}
+          </div>
+        : <div className="mb8">
+            {ctrl === PLAYER && <div className="chips mb8"><TermChip id="turf" tone="var(--green)">Your turf</TermChip></div>}
+            <WalkHere blockId={b.id} />
+          </div>}
       <div className="col" style={{ gap: 4 }}>
         {rows.length === 0 && <p className="small muted">Nobody holds this block.</p>}
         {rows.map(r => <Meter key={r.faction} label={<span><span className="swatch" style={{ background: r.color }} />{r.name}</span>} value={r.value} color={r.color} />)}

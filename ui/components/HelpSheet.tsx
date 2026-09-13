@@ -10,7 +10,7 @@ export function HelpSheet() {
         <ol>
           <li>Tap the bright hex in the middle: that is your block. Open a business and read the owner's traits. Cowards and low-nerve owners fold fast; hotheads and honest owners fight back.</li>
           <li><b>Threaten</b> an owner until their fear is up, then <b>Shakedown</b> for cash today or <b>Protect</b> for a daily cut. Fair rates (10 to 15%) keep owners loyal.</li>
-          <li>You stand on one block at a time, marked 🚶 on the map. Anything face to face needs you there: tap a place or a person and <b>Walk over</b> first. Walking spends <b>legwork</b>, not AP, and legwork comes back every day.</li>
+          <li>You stand on one block at a time, marked 🚶 on the map. Anything face to face needs you there: tap a place or a person and <b>Walk over</b> first. Walking spends <b>legwork</b>, not AP, and legwork comes back every day. Blocks you run are free to walk through, so taking ground makes the city smaller.</li>
           <li>Talk to patrons (<b>Visit</b>). At trust 20 you can <b>Recruit</b> them; assign crew to run rackets so they earn full income and get busted less. Once someone has loyalty 50 and a few days in, make them a <b>lieutenant</b> over a district: rackets there run themselves, but watch the books.</li>
           <li>Add a <b>Numbers</b> racket to a place you protect, rent a <b>safehouse</b> on your block, build a <b>still</b>, stock it, and sell booze on the street or through a <b>Dealing</b> racket.</li>
           <li><b>End Day</b> each turn. Read the event cards. Watch heat: past 60 you get raided, at 100 you get busted. Bribe the captain or pay the sergeant to cool off.</li>

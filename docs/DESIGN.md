@@ -136,9 +136,13 @@ you at 35+ opens the door; if it fails they are burned).
   Everything face to face (visit, read, threaten, shakedown, recruit, parley) requires you
   to be on that person's block; paperwork (assign, fire, audit, bribe, buy) does not.
   Walking spends **legwork**, a second daily pool separate from AP, sized by wheels
-  (3 + wheels/2) and refilled at End Day. Routing is a shortest path over `Block.neighborIds`
-  at 1 per hop, with hops between two of your own safehouses costing half, so a chain of
-  safehouses is a cheap corridor across your turf. Totals round up.
+  (3 + wheels/2) and refilled at End Day. Routing is a cheapest path over `Block.neighborIds`
+  where the price of a hop is set by territory, not by property: **free** between two blocks
+  you run (influence highest and at least 30), **half** between two where you have a foothold
+  (influence 15+), **full** otherwise. Totals round up, so one half-price hop still costs 1,
+  but a walk entirely inside your own turf costs nothing. Taking ground is therefore its own
+  reward: the city shrinks as you own more of it, and a safehouse helps only by building the
+  influence that earns the block.
 - **Safehouses**: rented/bought in a block. Store product and cash beyond police
   reach (partially), host production, house crew. Capacity by tier.
 - **Product**: `booze`, `green`, `pills`, `hot goods` (loot), `counterfeit`.

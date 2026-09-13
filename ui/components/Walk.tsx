@@ -17,15 +17,17 @@ export function WalkHere({ blockId, what, block = true }: { blockId?: Id; what?:
     <div className="actwrap">
       <button type="button" className={`btn btn-primary${block ? ' btn-block' : ''}`} disabled={!canAfford} onClick={() => act({ type: 'move', toBlockId: blockId })}>
         <span>🚶 Walk to {name}</span>
-        <span className="cost">{cost === undefined ? '—' : `${cost} legwork`}</span>
+        <span className="cost">{cost === undefined ? '—' : cost === 0 ? 'free' : `${cost} legwork`}</span>
       </button>
       {cost === undefined
         ? <span className="btn-caption">No way through from here yet.</span>
         : !canAfford
           ? <span className="btn-caption">{cost} legwork, you have {w.player.legwork} left today.</span>
-          : what
-            ? <span className="btn-caption" style={{ color: 'var(--muted)' }}>{what} is over there.</span>
-            : null}
+          : cost === 0
+            ? <span className="btn-caption" style={{ color: 'var(--green)' }}>Your own turf all the way. No legwork.</span>
+            : what
+              ? <span className="btn-caption" style={{ color: 'var(--muted)' }}>{what} is over there.</span>
+              : null}
     </div>
   );
 }

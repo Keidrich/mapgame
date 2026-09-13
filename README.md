@@ -64,7 +64,8 @@ idle nights (up to three) and shows a recap.
 
 8. You stand on one block, marked 🚶 on the map. Anything face to face needs you there:
    open a place or a person and **Walk over** first. Walking costs **legwork**, a separate
-   daily pool from AP that comes from your wheels skill.
+   daily pool from AP that comes from your wheels skill. Blocks you run cost nothing to
+   cross, so territory pays for itself.
 9. When someone has loyalty 50 and a few days in, make them a **lieutenant** over a
    district; rackets there run without a runner. Audit their books now and then.
 10. Street crews hold corners between the factions: **parley** with the boss (payroll,
