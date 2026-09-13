@@ -34,6 +34,7 @@ export function Hud() {
         <div className="pips" aria-label={`${p.ap} of ${p.apMax} action points`}>
           {Array.from({ length: Math.max(p.apMax, p.ap) }, (_, i) => <span key={i} className={`pip${i < p.ap ? ' on' : ''}`} />)}
           <span className="small muted" style={{ marginLeft: 4, whiteSpace: 'nowrap' }}>{p.ap}/{p.apMax} <Term id="ap">AP</Term></span>
+          <span className="small muted" style={{ marginLeft: 8, whiteSpace: 'nowrap' }}>🚶 {p.legwork}/{p.legworkMax} <Term id="legwork">legwork</Term></span>
         </div>
         <div className="grow" />
         <div className="rep">

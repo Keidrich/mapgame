@@ -325,6 +325,9 @@ export interface Player {
   fear: number;       // 0..100
   ap: number;
   apMax: number;
+  legwork: number;      // hops left today; spent by walking, never by actions
+  legworkMax: number;   // from wheels, refilled at End Day
+  currentBlockId: Id;   // where you are standing; face-to-face actions need you here
   stash: Stash;       // product carried / at the front
   quality?: Partial<Record<ProductKind, number>>; // running average quality of the carried stash
   recipes?: string[]; // RECIPES ids unlocked (stolen formulas, specialists)

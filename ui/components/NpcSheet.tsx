@@ -8,6 +8,7 @@ import { Sheet } from './Sheet';
 import { Meter, RelMeters, SkillBars } from './Meter';
 import { Act, AmountPicker, Disclosure, SceneAct } from './Act';
 import { Info, Term, TermChip } from './Info';
+import { AwayNotice } from './Walk';
 
 export function NpcSheet({ npcId }: { npcId: Id }) {
   const w = useWorld();
@@ -51,6 +52,7 @@ export function NpcSheet({ npcId }: { npcId: Id }) {
 
       {n.crew && <CrewSection npcId={npcId} />}
 
+      <AwayNotice blockId={select.npcReachBlock(w, n)} what={n.name} />
       <div className="section-title">Actions<Info id="odds" /></div>
       <div className="actions">
         {!select.isKnown(n) && n.alive && <Act action={{ type: 'read', npcId }} label="Size them up" icon="🧐" />}

@@ -8,6 +8,10 @@ const rng = new Rng(seed * 7 + 1);
 const tryAct = (a: Action) => { const c = can(w, a); if (c.ok) { w = dispatch(w, a); return true; } return false; };
 const start = select.startBlock(w);
 const nearBiz = () => Object.values(w.blocks).filter(b => select.distanceFromStart(w, b.id) <= 2).flatMap(b => select.businessesIn(w, b.id));
+/** Face-to-face work needs the player on the block: walk there, or give up on this target. */
+const at = (blockId?: string) => !!blockId && w.player.currentBlockId === blockId;
+const goTo = (blockId?: string) => !!blockId && (at(blockId) || tryAct({ type: 'move', toBlockId: blockId }));
+const npcBlock = (id: string) => w.npcs[id]?.homeBlockId;
 
 for (let d = 0; d < days; d++) {
   while (w.pendingEvents.length) { const e = w.pendingEvents[0]; const opts = e.options.filter(o => can(w, { type: 'resolve_event', eventId: e.id, optionId: o.id }).ok); const o = opts.length ? rng.pick(opts) : e.options[e.options.length - 1]; w = dispatch(w, { type: 'resolve_event', eventId: e.id, optionId: o.id }); }
@@ -19,20 +23,21 @@ for (let d = 0; d < days; d++) {
     const mine = biz.filter(b => b.protection?.factionId === PLAYER || b.ownedBy === 'player');
     const soft = biz.filter(b => !b.protection && b.ownedBy === 'npc');
     // 1. recruit anyone willing
-    const willing = biz.flatMap(b => b.patronIds).find(id => can(w, { type: 'recruit', npcId: id }).ok);
-    if (willing && select.crew(w).length < 6) { tryAct({ type: 'recruit', npcId: willing }); continue; }
+    const willing = biz.flatMap(b => b.patronIds).find(id => { const r = can(w, { type: 'recruit', npcId: id }); return r.ok || (!r.ok && /Walk over first/.test(r.reason)); });
+    if (willing && select.crew(w).length < 6 && goTo(npcBlock(willing))) { tryAct({ type: 'recruit', npcId: willing }); continue; }
     // 2. lay low if hot
-    if (p.heat > 45) { const captain = select.officials(w).find(o => o.official!.kind === 'captain')!; if (p.cash > 2500 && !tryAct({ type: 'bribe_official', npcId: captain.id, amount: 1000 })) {} const n = rng.pick(biz.flatMap(b => [b.ownerId, ...b.patronIds])); tryAct({ type: 'visit', npcId: n }); continue; }
+    if (p.heat > 45) { const captain = select.officials(w).find(o => o.official!.kind === 'captain')!; if (p.cash > 2500 && !tryAct({ type: 'bribe_official', npcId: captain.id, amount: 1000 })) {} const n = rng.pick(biz.flatMap(b => [b.ownerId, ...b.patronIds])); if (goTo(npcBlock(n))) tryAct({ type: 'visit', npcId: n }); continue; }
     // 3. add rackets to places we hold
     const spot = mine.find(b => select.availableRackets(w, b).some(k => ['numbers', 'bookmaking', 'laundering'].includes(k)));
     if (spot && p.cash > 1500) { const k = select.availableRackets(w, spot).find(k => ['numbers', 'bookmaking', 'laundering'].includes(k))!; if (tryAct({ type: 'start_racket', businessId: spot.id, kind: k })) continue; }
     // 4. expand protection
     const t = soft.sort((a, b) => (w.npcs[a.ownerId].nerve - w.npcs[a.ownerId].rel.fear) - (w.npcs[b.ownerId].nerve - w.npcs[b.ownerId].rel.fear))[0];
-    if (t) { if (tryAct({ type: 'protect', businessId: t.id, rate: 0.15 })) continue; if (tryAct({ type: 'shakedown', businessId: t.id })) continue; if (tryAct({ type: 'threaten', npcId: t.ownerId })) continue; }
+    if (t) { if (tryAct({ type: 'protect', businessId: t.id, rate: 0.15 })) continue; if (goTo(t.blockId)) { if (tryAct({ type: 'shakedown', businessId: t.id })) continue; if (tryAct({ type: 'threaten', npcId: t.ownerId })) continue; } }
     // 5. buy a business if rich
     const buy = biz.find(b => b.ownedBy === 'npc' && can(w, { type: 'buy_business', businessId: b.id, offer: Math.round(b.value * 0.9) }).ok);
     if (buy && p.cash > buy.value * 1.5) { tryAct({ type: 'buy_business', businessId: buy.id, offer: Math.round(buy.value * 0.9) }); continue; }
-    const n = rng.pick(biz.flatMap(b => [b.ownerId, ...b.patronIds])); tryAct({ type: 'visit', npcId: n });
+    const n = rng.pick(biz.flatMap(b => [b.ownerId, ...b.patronIds]));
+    if (goTo(npcBlock(n))) tryAct({ type: 'visit', npcId: n }); else break; // out of legwork and nothing to do here
   }
   if (!w.player.safehouseIds.length) tryAct({ type: 'rent_safehouse', blockId: start.id });
   for (const n of select.idleCrew(w)) { const r = w.player.racketIds.map(id => w.rackets[id]).find(r => !r.runnerId); if (r) tryAct({ type: 'assign', npcId: n.id, assignment: { kind: 'racket', racketId: r.id } }); }
@@ -61,6 +66,7 @@ for (let d = 0; d < days; d++) {
 const p = w.player;
 console.log(`Day ${w.day} | cash ${Math.round(p.cash)} dirty ${Math.round(p.dirty)} heat ${Math.round(p.heat)} respect ${p.respect} fear ${p.fear}`);
 console.log(`productions ${Object.values(w.productions).map(pr => `${pr.kind} L${pr.level} q${pr.quality ?? '-'}${pr.recipe ? ` (${pr.recipe})` : ''} ${pr.lastOutput}/day`).join(', ') || 'none'} | recipes ${(p.recipes ?? []).join(',') || 'none'} | booze q${select.qualityOf(p, 'booze')} x${Math.round(p.stash.booze)}`);
+console.log(`standing on ${w.blocks[p.currentBlockId]?.name ?? '?'} | legwork ${p.legwork}/${p.legworkMax}`);
 console.log(`crew ${p.crewIds.length} (${select.crew(w).map(n => n.crew?.status).join(',')}) | businesses ${p.businessIds.length} | rackets ${p.racketIds.length} (${p.racketIds.map(id => w.rackets[id].kind).join(',')}) | safehouses ${p.safehouseIds.length} | control ${(select.controlShare(w) * 100).toFixed(1)}%`);
 for (const f of Object.values(w.factions)) console.log(`${f.name.padEnd(24)} ${f.temperament.padEnd(11)} soldiers ${String(f.soldiers).padStart(2)} cash ${String(Math.round(f.cash)).padStart(7)} blocks ${String(select.blocksOf(w, f.id).length).padStart(3)} stance→player ${f.stance[PLAYER]} (${Math.round(f.standing[PLAYER])})`);
 for (const l of w.log.filter(l => l.text.startsWith('Day ') && l.day % 5 === 0)) console.log(`[${l.day}] ${l.text}`);

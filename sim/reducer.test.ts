@@ -90,6 +90,7 @@ describe('street crews', () => {
   });
   it('parley can put a crew on the payroll, which flips the block', () => {
     let w = world(); const c = Object.values(w.crews)[0]; const boss = w.npcs[c.bossId];
+    w.player.currentBlockId = c.blockId; // you have to be on the corner to talk to them
     w.player.skills.charm = 10; w.player.respect = 90; w.player.fear = 60; boss.traits = ['greedy', 'coward']; c.strength = 1;
     expect(approachChance(w, 'parley', 'tribute', boss)).toBeGreaterThan(80);
     let tries = 0;
@@ -101,6 +102,7 @@ describe('street crews', () => {
     let w = world(); const c = Object.values(w.crews)[0];
     // give the player a strong crew member
     const patron = Object.values(w.npcs).find(n => n.role === 'patron')!; patron.rel.trust = 80; patron.skills.muscle = 10;
+    w.player.currentBlockId = patron.homeBlockId;
     let tries = 0;
     while (!w.npcs[patron.id].crew && tries++ < 6) { w = dispatch(w, { type: 'recruit', npcId: patron.id, approach: 'cut' }); w.player.ap = 8; }
     expect(w.npcs[patron.id].crew).toBeDefined();

@@ -62,18 +62,22 @@ idle nights (up to three) and shows a recap.
 7. Check **Factions** before pushing into coloured hexes. Tension means a warning, beef
    means sabotage, war means bodies. Sit-downs, tribute, and ceding a block buy peace.
 
-8. When someone has loyalty 50 and a few days in, make them a **lieutenant** over a
+8. You stand on one block, marked 🚶 on the map. Anything face to face needs you there:
+   open a place or a person and **Walk over** first. Walking costs **legwork**, a separate
+   daily pool from AP that comes from your wheels skill.
+9. When someone has loyalty 50 and a few days in, make them a **lieutenant** over a
    district; rackets there run without a runner. Audit their books now and then.
-9. Street crews hold corners between the factions: **parley** with the boss (payroll,
-   join, or run them off) or **take the corner**. Ignore them and they grow.
-10. After day 15 the bosses form the **Commission**. Blocks, respect or an ally get you
+10. Street crews hold corners between the factions: **parley** with the boss (payroll,
+    join, or run them off) or **take the corner**. Ignore them and they grow.
+11. After day 15 the bosses form the **Commission**. Blocks, respect or an ally get you
     a chair; votes move standing. A hit or a big job opens a **cold case**: scare or
     pay the witness, bribe the captain, keep a lawyer.
 
 ## Status
 
 Alpha, v2 systems in. Everything in the design doc §3–§7 exists in a playable form,
-plus: NPC agendas, grudges and gossip; block memory and home turf; street crews;
+plus: player position and legwork (face-to-face actions need you on the block);
+NPC agendas, grudges and gossip; block memory and home turf; street crews;
 lieutenants (delegation with skimming and flipping); production quality, recipes,
 upgrades and events; OSM schools and police stations as rules; an overnight recap
 and idle days; succession crises with player backing, boss churn, the Frame op and

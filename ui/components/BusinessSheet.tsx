@@ -10,6 +10,7 @@ import { Meter, RelMeters } from './Meter';
 import { Act, AmountPicker, Disclosure, SceneAct } from './Act';
 import { NpcRow } from './Rows';
 import { Info, Term, TermChip } from './Info';
+import { AwayNotice } from './Walk';
 
 export function BusinessSheet({ businessId }: { businessId: Id }) {
   const w = useWorld();
@@ -64,6 +65,7 @@ export function BusinessSheet({ businessId }: { businessId: Id }) {
         </>
       )}
 
+      <AwayNotice blockId={biz.blockId} what={biz.name} />
       <div className="section-title">Actions<Info id="odds" /></div>
       <div className="actions">
         {owner && <SceneAct scene={{ kind: 'visit', npcId: owner.id, businessId }} label="Visit" icon="🤝" />}

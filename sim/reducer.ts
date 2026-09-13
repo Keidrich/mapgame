@@ -15,6 +15,7 @@ import { PLAYER, type Business, type Id, type Npc, type Op, type Racket, type Sa
 import { onDemote, promote, promoteReason } from './lieutenants';
 import { backCandidate, broker, brokerReason } from './politics';
 import { buryEvidence, caseWitnessOf, silenceWitness } from './cases';
+import { blockName as blockNameOf, isHere, npcBlockIds, npcIsHere, route, travelCost } from './travel';
 import { petition, seatReason } from './commission';
 import { moveProduct, onJoin, recipesForKind, restockCost, sellMult } from './production';
 import { PRODUCTION_UPGRADE_MULT, RECIPES } from '@content/rackets';
@@ -33,13 +34,29 @@ export function can(w: World, a: Action): Affordance {
   const cash = (n: number) => (p.cash >= n ? null : `Needs ${money(n)} clean cash.`);
   const npc = (id: Id) => w.npcs[id];
   const biz = (id: Id) => w.businesses[id];
+  /** Face to face: you have to be standing where they are. */
+  const hereNpc = (n: Npc) => {
+    if (npcIsHere(w, n)) return null;
+    const where = npcBlockIds(w, n)[0];
+    const c = where ? travelCost(w, where) : undefined;
+    return `${n.name} is on ${blockNameOf(w, where)}. Walk over first${c !== undefined ? ` (${c} legwork)` : ''}.`;
+  };
+  const hereBiz = (b: Business) => isHere(w, b.blockId) ? null : `${b.name} is on ${blockNameOf(w, b.blockId)}. Walk over first${travelCost(w, b.blockId) !== undefined ? ` (${travelCost(w, b.blockId)} legwork)` : ''}.`;
 
   switch (a.type) {
-    case 'visit': { const n = npc(a.npcId); if (!n?.alive) return no('They are gone.'); const r = ap(1); if (r) return no(r); if (a.approach === 'drinks' && p.cash < 50) return no('Needs $50.'); return yes({ ap: 1, cash: a.approach === 'drinks' ? 50 : 0 }); }
+    case 'move': {
+      const to = w.blocks[a.toBlockId]; if (!to) return no('No such block.');
+      if (a.toBlockId === p.currentBlockId) return no('You are already there.');
+      const r = route(w, p.currentBlockId, a.toBlockId);
+      if (!r) return no('No way through from here. The streets in between are not mapped yet.');
+      if (r.cost > p.legwork) return no(`${to.name} is ${r.cost} legwork away and you have ${p.legwork} left today.`);
+      return yes();
+    }
+    case 'visit': { const n = npc(a.npcId); if (!n?.alive) return no('They are gone.'); const h = hereNpc(n); if (h) return no(h); const r = ap(1); if (r) return no(r); if (a.approach === 'drinks' && p.cash < 50) return no('Needs $50.'); return yes({ ap: 1, cash: a.approach === 'drinks' ? 50 : 0 }); }
     case 'gift': { const n = npc(a.npcId); if (!n?.alive) return no('They are gone.'); if (a.amount < 50) return no('That is an insult, not a gift.'); const r = cash(a.amount); return r ? no(r) : yes({ cash: a.amount }); }
-    case 'read': { const n = npc(a.npcId); if (!n?.alive) return no('They are gone.'); if (n.known) return no('You already have their number.'); const r = ap(1); return r ? no(r) : yes({ ap: 1 }); }
-    case 'threaten': { const n = npc(a.npcId); if (!n?.alive) return no('They are gone.'); if (n.official) return no('Threatening an official is a bad idea. Bribe them.'); if (n.role === 'boss') return no('You do not threaten a boss. You go to war with him.'); const r = ap(1); if (r) return no(r); if (a.approach === 'crew' && activeCrewCount(w) === 0) return no('No crew to bring.'); return yes({ ap: 1 }); }
-    case 'parley': { const n = npc(a.npcId); if (!n?.alive) return no('They are gone.'); if (!crewOfBoss(w, n.id)) return no('They do not run a crew.'); const r = ap(1); if (r) return no(r); if (a.approach === 'join' && bedsLeft(w) <= 0) return no('No room in your safehouses for their boss.'); return yes({ ap: 1 }); }
+    case 'read': { const n = npc(a.npcId); if (!n?.alive) return no('They are gone.'); if (n.known) return no('You already have their number.'); const h = hereNpc(n); if (h) return no(h); const r = ap(1); return r ? no(r) : yes({ ap: 1 }); }
+    case 'threaten': { const n = npc(a.npcId); if (!n?.alive) return no('They are gone.'); if (n.official) return no('Threatening an official is a bad idea. Bribe them.'); if (n.role === 'boss') return no('You do not threaten a boss. You go to war with him.'); const h = hereNpc(n); if (h) return no(h); const r = ap(1); if (r) return no(r); if (a.approach === 'crew' && activeCrewCount(w) === 0) return no('No crew to bring.'); return yes({ ap: 1 }); }
+    case 'parley': { const n = npc(a.npcId); if (!n?.alive) return no('They are gone.'); const c0 = crewOfBoss(w, n.id); if (!c0) return no('They do not run a crew.'); if (!isHere(w, c0.blockId)) return no(`The ${c0.name} hold ${blockNameOf(w, c0.blockId)}. Walk over first${travelCost(w, c0.blockId) !== undefined ? ` (${travelCost(w, c0.blockId)} legwork)` : ''}.`); const r = ap(1); if (r) return no(r); if (a.approach === 'join' && bedsLeft(w) <= 0) return no('No room in your safehouses for their boss.'); return yes({ ap: 1 }); }
     case 'broker': { const n = npc(a.npcId); if (!n?.alive) return no('They are gone.'); const why = brokerReason(w, n, a.otherFactionId); if (why) return no(why); const r = ap(2); if (r) return no(r); if (a.approach === 'split') { const c = cash(4000); if (c) return no(c); } return yes({ ap: 2, cash: a.approach === 'split' ? 4000 : 0 }); }
     case 'petition_seat': { const why = seatReason(w); if (why) return no(why); const r = ap(2); return r ? no(r) : yes({ ap: 2 }); }
     case 'back_candidate': { const f = w.factions[a.factionId]; if (!f?.alive || !f.crisis) return no('No crisis there.'); if (!f.crisis.candidateIds.includes(a.npcId)) return no('They are not in the running.'); if (a.amount < 500) return no('Under $500 is an insult.'); const c = cash(a.amount); return c ? no(c) : yes({ cash: a.amount }); }
@@ -48,6 +65,7 @@ export function can(w: World, a: Action): Affordance {
       if (n.crew) return no('Already in your crew.');
       if (!['patron', 'owner', 'soldier', 'fixer'].includes(n.role)) return no('Not the recruiting type.');
       if (n.faction && n.role === 'soldier') return no('They belong to someone else.');
+      const h = hereNpc(n); if (h) return no(h);
       const r = ap(1); if (r) return no(r);
       if (bedsLeft(w) <= 0) return no('No room. Rent or upgrade a safehouse.');
       if (a.approach === 'cut' && p.cash < 200) return no('Needs $200 up front.');
@@ -72,6 +90,7 @@ export function can(w: World, a: Action): Affordance {
       const b = biz(a.businessId); if (!b) return no('No such place.');
       if (b.ownedBy === 'player') return no('You own it. Shake yourself down?');
       if (!BUSINESS_DEFS[b.type].rackets.includes('protection')) return no('Nothing to shake here.');
+      const h = hereBiz(b); if (h) return no(h);
       if (b.lastShakedownDay !== undefined && w.day - b.lastShakedownDay < 3) return no('You were just here. Give it a few days.');
       if (a.approach === 'wreck' && activeCrewCount(w) === 0) return no('Needs crew to wreck the place.');
       const r = ap(1); return r ? no(r) : yes({ ap: 1 });
@@ -460,6 +479,15 @@ export function dispatch(prev: World, a: Action): World {
       const chance = approachChance(w, 'parley', ap_, n); const ok = rng.int(1, 100) <= chance;
       const tone = parley(w, c, n, ap_, ok, rng);
       log(w, resultLine('parley', ap_, ok, rng), tone, { npcId: n.id, blockId: c.blockId });
+      break;
+    }
+    case 'move': {
+      const r = route(w, p.currentBlockId, a.toBlockId)!;
+      const from = w.blocks[p.currentBlockId]; const to = w.blocks[a.toBlockId];
+      p.legwork = Math.max(0, p.legwork - r.cost);
+      p.currentBlockId = a.toBlockId;
+      const far = r.hops.length;
+      log(w, `You walk from ${from?.name ?? 'where you were'} to ${to.name}${far > 1 ? ` (${far} blocks)` : ''}. ${r.cost} legwork, ${p.legwork} left.`, 'info', { blockId: to.id });
       break;
     }
     case 'sit_down': sitDown(w, a.factionId, a.offer, rng); break;

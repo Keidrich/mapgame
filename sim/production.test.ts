@@ -78,6 +78,7 @@ describe('production quality and recipes', () => {
     // specialist
     const w2 = mk(5); w2.player.cash = 5000;
     const n = Object.values(w2.npcs).find(x => x.role === 'patron' && x.alive)!; n.recipe = 'hydro'; n.rel.trust = 90; n.traits = ['greedy'];
+    w2.player.currentBlockId = n.homeBlockId;
     let w3 = w2; let tries = 0;
     while (!w3.npcs[n.id].crew && tries++ < 8) { w3 = dispatch(w3, { type: 'recruit', npcId: n.id, approach: 'cut' }); w3.player.ap = 8; }
     expect(w3.player.recipes).toContain('hydro');

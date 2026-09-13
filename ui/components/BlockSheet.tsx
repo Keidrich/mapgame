@@ -9,6 +9,7 @@ import { Meter } from './Meter';
 import { Act, AmountPicker, Disclosure, SceneAct } from './Act';
 import { BizRow } from './Rows';
 import { Info, Term, TermChip } from './Info';
+import { WalkHere } from './Walk';
 
 export function BlockSheet({ blockId }: { blockId: Id }) {
   const w = useWorld();
@@ -33,6 +34,9 @@ export function BlockSheet({ blockId }: { blockId: Id }) {
         </div>
       )}
       <div className="row between mb8"><span className="small muted"><Term id="influence">Influence</Term></span></div>
+      {select.isHere(w, b.id)
+        ? <div className="chips mb8"><span className="chip" style={{ color: 'var(--gold)' }}>🚶 You are here</span></div>
+        : <div className="mb8"><WalkHere blockId={b.id} /></div>}
       <div className="col" style={{ gap: 4 }}>
         {rows.length === 0 && <p className="small muted">Nobody holds this block.</p>}
         {rows.map(r => <Meter key={r.faction} label={<span><span className="swatch" style={{ background: r.color }} />{r.name}</span>} value={r.value} color={r.color} />)}

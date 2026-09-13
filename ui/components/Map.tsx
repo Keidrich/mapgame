@@ -180,7 +180,9 @@ export function MapView() {
     const want = new Map<string, Want>();
     const sb = select.startBlock(w);
     want.set('start', { html: '★', cls: 'start-marker', lng: sb.center.lng, lat: sb.center.lat });
+    const you = w.blocks[w.player.currentBlockId];
     const offset = (b: World['blocks'][string], dx: number, dy: number) => ({ lng: b.center.lng + dx / (111320 * Math.cos((b.center.lat * Math.PI) / 180)), lat: b.center.lat + dy / 111320 });
+    if (you) want.set('you', { html: '🚶', cls: 'you-marker', ...offset(you, 0, hi ? Math.sqrt(you.areaM2) * 0.22 : 26), click: () => openSheet({ kind: 'block', blockId: you.id }) });
     for (const b of Object.values(w.blocks)) {
       if (!inView(b.center.lat, b.center.lng)) continue;
       if (b.heat > 50) want.set(`fire:${b.id}`, { html: '🔥', cls: 'hex-fire', ...offset(b, 0, hi ? Math.sqrt(b.areaM2) * 0.3 : 0) });

@@ -53,6 +53,8 @@ export type Action =
   | { type: 'pay_tribute'; factionId: FactionId; amount: number }
   | { type: 'declare'; factionId: FactionId; stance: 'beef' | 'war' | 'peace' }
   | { type: 'hire_lawyer' }
+  // --- movement ---
+  | { type: 'move'; toBlockId: Id }                        // legwork: walk the block graph to another block
   // --- turn ---
   | { type: 'resolve_event'; eventId: Id; optionId: string }
   | { type: 'end_day' }

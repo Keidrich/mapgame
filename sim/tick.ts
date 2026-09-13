@@ -1,4 +1,5 @@
 /** End of day. Everything that happens while the player sleeps. */
+import { legworkFor } from './travel';
 import { PRODUCTION_DEFS, PRODUCT_INFO, RACKET_DEFS, SAFEHOUSE_TIERS } from '@content/rackets';
 import { launderCapacity, productionOutput, racketIncome, streetPrice } from './economy';
 import { drawEvents } from './events';
@@ -154,7 +155,7 @@ export function endDay(w: World): World {
   if (w.day % 3 === 0) { p.fear = clamp(p.fear - 1); }
 
   // ---- events, day summary, endgame ----
-  p.ap = p.apMax; p.launderedToday = 0; w.day++;
+  p.ap = p.apMax; p.legworkMax = legworkFor(p.skills.wheels); p.legwork = p.legworkMax; p.launderedToday = 0; w.day++;
   const share = controlShare(w);
   if (!w.victory && share >= 0.6) { w.victory = true; log(w, `You run ${Math.round(share * 100)}% of ${w.placeName}. This is your city now.`, 'good'); }
   if (p.cash + p.dirty < -2000 && !p.businessIds.length && !p.racketIds.length && !p.crewIds.some(id => w.npcs[id].crew?.status !== 'dead')) {

@@ -1,3 +1,4 @@
+import { legworkFor } from './travel';
 import type { GeoChunk } from '@geo/chunks';
 import { chunkKeyAt, hexChunk } from '@geo/chunks';
 import { distanceM } from '@geo/project';
@@ -7,7 +8,7 @@ import { addBusiness, mkNpc, populateChunk } from './populate';
 import { PLAYER, type LatLng, type Player, type Skills, type World } from './types';
 
 export { controller, stanceFor, STEP_M } from './populate';
-export const WORLD_VERSION = 5;
+export const WORLD_VERSION = 6; // 6: the player stands somewhere (currentBlockId, legwork)
 export const HEX_SIZE_M = 190;
 
 export interface NewGameOptions {
@@ -32,6 +33,7 @@ export function generateWorld(opts: NewGameOptions): World {
     player: {
       name: opts.playerName, background: opts.background, skills: startingSkills(opts.background),
       cash: 2500, dirty: 0, heat: 0, respect: 5, fear: 0, ap: 8, apMax: 8, stash: emptyStash(),
+      legwork: 0, legworkMax: 0, currentBlockId: '',
       crewIds: [], safehouseIds: [], businessIds: [], racketIds: [], opIds: [], lawyer: false, jailedDays: 0, busts: 0, launderedToday: 0, homeBlockId: '',
     },
     pendingEvents: [], log: [], nextId: 1,
@@ -56,6 +58,8 @@ export function generateWorld(opts: NewGameOptions): World {
   for (const f of Object.keys(w.factions)) delete startBlock.influence[f];
   startBlock.influence[PLAYER] = 12;
   w.player.homeBlockId = startBlock.id; startBlock.tags.push('home');
+  w.player.currentBlockId = startBlock.id;
+  w.player.legworkMax = legworkFor(w.player.skills.wheels); w.player.legwork = w.player.legworkMax;
   // home turf: people here already know your face
   for (const bid of startBlock.businessIds) for (const id of [w.businesses[bid].ownerId, ...w.businesses[bid].patronIds]) { const n = w.npcs[id]; if (n) { n.rel.trust += 10; n.known = true; } }
   // a guaranteed first mark: at least one extortable place on your block with an owner who folds

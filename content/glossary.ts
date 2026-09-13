@@ -35,6 +35,16 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
     body: 'What you can do today. Eight a day. Visits, threats, shakedowns and scenes cost one; a sit-down or brokering peace costs two.',
     note: 'End Day gives them all back. Unspent points do not carry over.',
   },
+  legwork: {
+    title: 'Legwork',
+    body: 'How far you can walk today, in blocks. Separate from AP: walking never costs an action and actions never cost legwork. It comes from your wheels skill and refills every day.',
+    note: 'A hop between two blocks that both have one of your safehouses costs half, so a chain of safehouses is a cheap corridor across your turf.',
+  },
+  presence: {
+    title: 'You have to be there',
+    body: 'Visits, threats, shakedowns, recruiting, reading someone and parleys are face to face: you have to be standing on the block. Walk over first.',
+    note: 'Paperwork is not: assigning and firing crew, auditing a lieutenant, bribing an official and buying a business all work from anywhere.',
+  },
   respect: {
     title: 'Respect',
     body: 'What the street thinks you are worth. Earned by wins, generosity, favours and brokering peace. Raises the odds on every charm approach, sit-downs, and your chances of a chair at the Commission.',
@@ -133,7 +143,7 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
   },
   wheels: {
     title: 'Wheels',
-    body: 'Driving and moving things. Runs chop shops and smuggling, gets a crew out of a loud job, and pushes product into the next district.',
+    body: 'Driving and moving things. Sets your daily legwork, so a driver covers more of the city in a day. Runs chop shops and smuggling, gets a crew out of a loud job, and pushes product into the next district.',
   },
   tech: {
     title: 'Tech',

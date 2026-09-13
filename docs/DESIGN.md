@@ -132,6 +132,13 @@ you at 35+ opens the door; if it fails they are burned).
   up by half. Low-loyalty or greedy lieutenants skim (hidden until you audit the
   books or the "book feels light" event fires); a hostile faction with a foothold
   in the district tries to flip them, and loyal ones bring the offer to you first.
+- **Position and legwork**: you stand on exactly one block (`Player.currentBlockId`).
+  Everything face to face (visit, read, threaten, shakedown, recruit, parley) requires you
+  to be on that person's block; paperwork (assign, fire, audit, bribe, buy) does not.
+  Walking spends **legwork**, a second daily pool separate from AP, sized by wheels
+  (3 + wheels/2) and refilled at End Day. Routing is a shortest path over `Block.neighborIds`
+  at 1 per hop, with hops between two of your own safehouses costing half, so a chain of
+  safehouses is a cheap corridor across your turf. Totals round up.
 - **Safehouses**: rented/bought in a block. Store product and cash beyond police
   reach (partially), host production, house crew. Capacity by tier.
 - **Product**: `booze`, `green`, `pills`, `hot goods` (loot), `counterfeit`.
