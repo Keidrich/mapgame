@@ -1,5 +1,6 @@
 import { RECIPES } from '@content/rackets';
 import { successionOrDeath } from './politics';
+import { caseWitnessOf, openCase, silenceWitness } from './cases';
 import { addProduct, knownRecipes, unlockRecipe } from './production';
 import { OP_APPROACHES, OP_DEFS } from '@content/rackets';
 import type { Rng } from './rng';
@@ -39,18 +40,21 @@ export function resolveOp(w: World, o: Op, rng: Rng) {
           addInfluence(w, target.blockId, PLAYER, 12); p.fear = clamp(p.fear + 4); p.respect = clamp(p.respect + 3);
         }
         if (o.kind === 'check_kiting' && target) target.flags.push('paper');
+        if ((o.kind === 'heist_bank' || o.kind === 'heist_armored') && target) openCase(w, 'heist', `${target.name} job`, { businessId: target.id, blockId: target.blockId, opId: o.id }, o.crewIds, rng, margin > 30 ? 10 : 25);
         if (o.kind === 'robbery' && target) { adjustRel(w.npcs[target.ownerId], { fear: 20, trust: -30 }); target.condition = clamp(target.condition - 10); }
         break;
       }
       case 'heist_jeweller': case 'heist_warehouse': {
         const units = Math.max(5, Math.round(value / 100)); p.stash.hot_goods += units; res.loot = { hot_goods: units };
         res.text = `${def.label} at ${target?.name}: in and out. ${units} crates of hot goods (~${money(value)}). Fence them.`;
+        if (o.kind === 'heist_jeweller' && target && margin < 30) openCase(w, 'heist', `${target.name} robbery`, { businessId: target.id, blockId: target.blockId, opId: o.id }, o.crewIds, rng, 15);
         break;
       }
       case 'insurance_fraud': {
         const payout = Math.round((target?.value ?? 0) * 1.1); p.cash += payout; res.cash = payout;
         if (target) { target.condition = 5; target.insured = false; target.flags.push('torched'); }
         res.text = `${target?.name} burns. The insurer pays ${money(payout)}. Nobody asks questions. Yet.`;
+        if (target && margin < 40) openCase(w, 'arson', `${target.name} fire`, { businessId: target.id, blockId: target.blockId, opId: o.id }, o.crewIds, rng, 15);
         break;
       }
       case 'smuggle_run': { const units = 25 + rng.int(0, 15); addProduct(p, 'booze', units, 45); res.loot = { booze: units }; res.text = `The truck makes it in. ${units} cases of booze at cost.`; break; }
@@ -75,6 +79,8 @@ export function resolveOp(w: World, o: Op, rng: Rng) {
         if (n.role === 'owner') { for (const b of Object.values(w.businesses)) if (b.ownerId === n.id) { b.flags.push('owner_dead'); b.condition = clamp(b.condition - 20); } }
         p.fear = clamp(p.fear + 10); spreadRep(w, n.homeBlockId, { fear: 12, trust: -5 }, 2);
         addMemory(w, n.homeBlockId, 'hit', `${n.name} was killed. Everybody knows who ordered it.`);
+        if (caseWitnessOf(w, n.id)) silenceWitness(w, n.id, 'gone');
+        openCase(w, 'hit', `${n.name.split(' ').slice(-1)[0]} killing`, { npcId: n.id, blockId: n.homeBlockId, opId: o.id }, o.crewIds, rng, o.approach === 'quiet' ? 10 : 25);
         break;
       }
       case 'frame': {
@@ -86,7 +92,7 @@ export function resolveOp(w: World, o: Op, rng: Rng) {
           const suspects = rng.chance(0.35 + Math.max(0, 5 - p.skills.brains) * 0.05);
           if (n.role === 'boss') { res.text += `${f.name} is headless. `; f.soldiers = Math.max(1, f.soldiers - 2); successionOrDeath(w, f); }
           else { f.lieutenantIds = f.lieutenantIds.filter(id => id !== n.id); f.soldiers = Math.max(1, f.soldiers - 2); }
-          if (suspects) { f.standing[PLAYER] -= 25; f.grudges.push(`framed:${n.name.split(' ')[0]}`); res.text += `${f.short} do not believe in coincidences.`; }
+          if (suspects) { f.standing[PLAYER] -= 25; f.grudges.push(`framed:${n.name.split(' ')[0]}`); res.text += `${f.short} do not believe in coincidences.`; openCase(w, 'frame', `${n.name.split(' ').slice(-1)[0]} plant`, { npcId: n.id, blockId: n.homeBlockId, opId: o.id }, o.crewIds, rng, 10); }
           else res.text += `${f.short} blame bad luck and a talkative cousin.`;
         }
         const captain = Object.values(w.npcs).find(x => x.official?.kind === 'captain'); if (captain) adjustRel(captain, { trust: 5 });

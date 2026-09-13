@@ -7,6 +7,7 @@ import { LIEUTENANT } from '@content/rackets';
 import { flipLieutenant, lieutenants } from './lieutenants';
 import { productionCandidates, resolveProductionEvent } from './production';
 import { backCandidate } from './politics';
+import { resolveMeeting } from './commission';
 
 type Candidate = { w: number; make: () => GameEvent | undefined };
 
@@ -124,6 +125,7 @@ export function resolveEventOption(w: World, e: GameEvent, opt: string, rng: Rng
   const demote = (m: import('./types').Npc) => { const c = m.crew; if (!c) return; if (c.baseCut !== undefined) { c.cut = c.baseCut; c.baseCut = undefined; } c.assignment = undefined; c.status = 'idle'; };
   const key = `${e.kind}:${opt}`;
   if (resolveProductionEvent(w, e, opt, rng)) return;
+  if (e.kind === 'commission') { resolveMeeting(w, opt, rng); return; }
   switch (key) {
     case 'owner_favour:help': if (n && biz) { adjustRel(n, { trust: 15, respect: 10 }); spreadRep(w, biz.blockId, { respect: 4, trust: 2 }); addInfluence(w, biz.blockId, PLAYER, 5); log(w, `You sort out ${n.name}'s problem. The block notices.`, 'good', e.refs); } break;
     case 'owner_favour:ignore': if (n && biz) { adjustRel(n, { trust: -20 }); spreadRep(w, biz.blockId, { respect: -3 }); log(w, `${n.name} stops paying with a smile.`, 'bad', e.refs); } break;

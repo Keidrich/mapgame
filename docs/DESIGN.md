@@ -184,6 +184,32 @@ Every day each faction AI:
    tribute, cede a block, joint racket, truce, alliance.
 6. Faction-vs-faction: they also feud with each other; wars create openings.
 
+**Succession crises**: a boss who dies or goes away with two lieutenants left
+starts a three-day contest. The faction neither expands nor attacks meanwhile,
+soldiers drift, and the player can back a candidate with cash and their name.
+Backing the winner earns standing, a truce and a favour the new boss repays at
+sit-downs; backing the loser costs standing and a grudge. Bosses occasionally go
+down on their own. The **Frame** op puts a boss or lieutenant away on a planted
+case (and can trigger a crisis); **brokering** through a lieutenant ends a beef
+or war between two factions for a truce, standing on both sides and a fee.
+
+**The Commission**: once three factions share the city (day 15+), the bosses
+form a table that meets every 10 days on a proposal: the peace (all beefs pause),
+the pot (a tax to the biggest holder), a sanction (cut off whoever is at war with
+too many), a claim (recognise a district), or a chair for the player. Factions
+vote by temperament and self-interest. Without a chair the player can lean on an
+ally for half a vote; with one (petition, or the table votes you in) their vote
+counts, the pot can pay them, and members drift back toward peace with them.
+Voting with a member warms them; against, cools them.
+
+**Cold cases**: a hit, a bank or armored job, a sloppy jewel heist, an arson or a
+suspected frame opens a police file with, usually, a witness from the block.
+Evidence builds with heat and a talking witness, slower with the captain bought
+and a lawyer retained. Scare the witness (fear 40+), pay them, or make them go
+away; bribe the captain to bury paper. At 100 evidence somebody is charged: a
+crew member from the job takes the fall, or the player is indicted (bail, seized
+cash, rackets dark). Files go cold after 25 days under 60 evidence.
+
 **City Hall**: police captain (bribe → heat decay, raid warnings), councillor
 (donate → permits: cheaper business purchases, blocked rival development), judge
 (retainer → crew released from jail faster). Each is an NPC with the same

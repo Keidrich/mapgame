@@ -62,12 +62,36 @@ export function EmpireTab() {
         {safes.length === 0 && <p className="small muted">Rent one from any block sheet.</p>}
       </div>
 
+      <Cases />
+
       <div className="section-title">Log</div>
       <Log />
 
       <div className="section-title">Save</div>
       <SaveCard />
     </div>
+  );
+}
+
+function Cases() {
+  const w = useWorld();
+  const all = (w.cases ?? []).slice().reverse().slice(0, 8);
+  if (!all.length) return null;
+  return (
+    <>
+      <div className="section-title">Cold cases ({select.openCases(w).length} open)</div>
+      <div className="list">
+        {all.map(c => { const wit = c.witnessId ? w.npcs[c.witnessId] : undefined; return (
+          <div key={c.id} className="card" style={{ padding: 10, opacity: c.status === 'open' ? 1 : 0.6 }}>
+            <div className="row between"><b>🗂️ {c.title}</b><span className={`chip ${c.status === 'charged' ? 'red' : ''}`}>{c.status === 'open' ? `day ${c.day}` : c.status}</span></div>
+            <div className="mt8"><Meter label="Evidence" value={c.evidence} color={c.evidence >= 60 ? 'var(--red)' : 'var(--orange)'} /></div>
+            <div className="small muted mt8">
+              {c.status === 'open' && (wit ? <>Witness: <button type="button" className="chip btn" onClick={() => openSheet({ kind: 'npc', npcId: wit.id })}>{wit.name}</button> · scare them (fear 40+), pay them, or make them go away. </> : 'No witness talking. ')}
+              {c.status === 'open' && 'The captain buries paper; a lawyer slows it. Charges at 100.'}
+            </div>
+          </div>); })}
+      </div>
+    </>
   );
 }
 

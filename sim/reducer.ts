@@ -14,6 +14,8 @@ import { endDay } from './tick';
 import { PLAYER, type Business, type Id, type Npc, type Op, type Racket, type Safehouse, type World } from './types';
 import { onDemote, promote, promoteReason } from './lieutenants';
 import { backCandidate, broker, brokerReason } from './politics';
+import { buryEvidence, caseWitnessOf, silenceWitness } from './cases';
+import { petition, seatReason } from './commission';
 import { moveProduct, onJoin, recipesForKind, restockCost, sellMult } from './production';
 import { PRODUCTION_UPGRADE_MULT, RECIPES } from '@content/rackets';
 import { LIEUTENANT } from '@content/rackets';
@@ -39,6 +41,7 @@ export function can(w: World, a: Action): Affordance {
     case 'threaten': { const n = npc(a.npcId); if (!n?.alive) return no('They are gone.'); if (n.official) return no('Threatening an official is a bad idea. Bribe them.'); if (n.role === 'boss') return no('You do not threaten a boss. You go to war with him.'); const r = ap(1); if (r) return no(r); if (a.approach === 'crew' && activeCrewCount(w) === 0) return no('No crew to bring.'); return yes({ ap: 1 }); }
     case 'parley': { const n = npc(a.npcId); if (!n?.alive) return no('They are gone.'); if (!crewOfBoss(w, n.id)) return no('They do not run a crew.'); const r = ap(1); if (r) return no(r); if (a.approach === 'join' && bedsLeft(w) <= 0) return no('No room in your safehouses for their boss.'); return yes({ ap: 1 }); }
     case 'broker': { const n = npc(a.npcId); if (!n?.alive) return no('They are gone.'); const why = brokerReason(w, n, a.otherFactionId); if (why) return no(why); const r = ap(2); if (r) return no(r); if (a.approach === 'split') { const c = cash(4000); if (c) return no(c); } return yes({ ap: 2, cash: a.approach === 'split' ? 4000 : 0 }); }
+    case 'petition_seat': { const why = seatReason(w); if (why) return no(why); const r = ap(2); return r ? no(r) : yes({ ap: 2 }); }
     case 'back_candidate': { const f = w.factions[a.factionId]; if (!f?.alive || !f.crisis) return no('No crisis there.'); if (!f.crisis.candidateIds.includes(a.npcId)) return no('They are not in the running.'); if (a.amount < 500) return no('Under $500 is an insult.'); const c = cash(a.amount); return c ? no(c) : yes({ cash: a.amount }); }
     case 'recruit': {
       const n = npc(a.npcId); if (!n?.alive) return no('They are gone.');
@@ -239,6 +242,7 @@ export function dispatch(prev: World, a: Action): World {
       const gain = Math.round(Math.min(30, Math.sqrt(a.amount) / 2) * greedy);
       adjustRel(n, { trust: gain, respect: Math.round(gain / 3) });
       log(w, `${n.name} takes your ${money(a.amount)}. (+${gain} trust)`, 'money', { npcId: n.id });
+      if (a.amount >= 500 && caseWitnessOf(w, n.id) && (n.rel.trust >= 30 || n.traits.includes('greedy'))) silenceWitness(w, n.id, 'paid');
       break;
     }
     case 'threaten': {
@@ -250,6 +254,7 @@ export function dispatch(prev: World, a: Action): World {
         addHeat(w, ap_ === 'crew' ? 2 : 1, n.homeBlockId);
         if (ap_ === 'crew') spreadRep(w, n.homeBlockId, { fear: 3 });
         log(w, `${resultLine('threaten', ap_, true, rng)} ${n.name}: +${fear} fear.`, 'info', { npcId: n.id });
+        if (n.rel.fear >= 40 && caseWitnessOf(w, n.id)) silenceWitness(w, n.id, 'scared');
       } else {
         adjustRel(n, { trust: -10, respect: -3, fear: 3 }); addHeat(w, ap_ === 'crew' ? 4 : 2, n.homeBlockId);
         if (ap_ === 'family' && (n.traits.includes('honest') || n.rel.trust < -30)) { addHeat(w, 6); log(w, `${n.name} went straight to the precinct. (+6 heat)`, 'bad', { npcId: n.id }); }
@@ -316,7 +321,7 @@ export function dispatch(prev: World, a: Action): World {
       const gain = Math.round(Math.min(35, Math.sqrt(a.amount) / 3) * (0.5 + o.corruption / 100));
       adjustRel(n, { trust: gain });
       o.retainerDay = w.day; o.boughtBy = n.rel.trust >= 40 ? PLAYER : o.boughtBy;
-      if (o.kind === 'captain') { const cut = Math.round(a.amount / 250); p.heat = clamp(p.heat - cut); log(w, `${n.name} pockets ${money(a.amount)}. Some files get lost. (-${cut} heat)`, 'money', { npcId: n.id }); }
+      if (o.kind === 'captain') { const cut = Math.round(a.amount / 250); p.heat = clamp(p.heat - cut); buryEvidence(w, a.amount); log(w, `${n.name} pockets ${money(a.amount)}. Some files get lost. (-${cut} heat${(w.cases ?? []).some(c => c.status === 'open') ? ', open cases slip' : ''})`, 'money', { npcId: n.id }); }
       else if (o.kind === 'judge') log(w, `${n.name} accepts your "campaign contribution". Your people will see lighter sentences.`, 'money', { npcId: n.id });
       else log(w, `${n.name} takes ${money(a.amount)} and remembers your name. Permits will be easier.`, 'money', { npcId: n.id });
       if (n.rel.trust < 40 && rng.chance(0.15)) { addHeat(w, 6); log(w, `${n.name} took the money and also told a reporter. (+6 heat)`, 'bad'); }
@@ -466,6 +471,7 @@ export function dispatch(prev: World, a: Action): World {
       break;
     }
     case 'back_candidate': { const f = w.factions[a.factionId]; takeCash(w, a.amount); backCandidate(w, f, a.npcId, a.amount); break; }
+    case 'petition_seat': petition(w, rng); break;
     case 'pay_tribute': {
       const f = w.factions[a.factionId]; spend(w, a.amount); f.cash += a.amount;
       const gain = Math.round(Math.min(25, Math.sqrt(a.amount) / 4) * (f.temperament === 'greedy' ? 1.5 : 1));

@@ -14,11 +14,28 @@ export function FactionsTab() {
   return (
     <div className="panel-inner">
       <h2>Factions</h2>
+      <CommissionCard />
       <div className="list">{factions.map(f => <FactionCard key={f.id} f={f} />)}</div>
       <div className="section-title">City Hall</div>
       <div className="list">
         {select.officials(w).map(o => <OfficialRow key={o.id} npcId={o.id} />)}
       </div>
+    </div>
+  );
+}
+
+function CommissionCard() {
+  const w = useWorld();
+  const c = w.commission;
+  if (!c) return <div className="card mb8"><b>🏛️ No Commission yet</b><p className="small muted mt8">Once three factions share the city, the bosses form a table that rules on peace, taxes and turf. Blocks and respect get you a chair.</p></div>;
+  const ms = select.commissionMembers(w);
+  return (
+    <div className="card gold mb8">
+      <div className="row between"><b>🏛️ The Commission</b><span className="chip">{c.seat ? 'You have a chair' : 'No chair'}</span></div>
+      <div className="small muted mt8">Since day {c.formedDay} · {ms.map(f => f.short).join(', ')}{c.seat ? `, ${w.player.name}` : ''} · next meeting day {c.nextMeeting}{c.pending ? ' (on the table now)' : ''}</div>
+      {c.rulings.length > 0 && <div className="mt8">{c.rulings.slice(-3).reverse().map((r, i) => <div key={i} className="small"><span className="muted">D{r.day}</span> {r.text}</div>)}</div>}
+      {!c.seat && <div className="mt8"><Act action={{ type: 'petition_seat' }} label="Petition for a chair" icon="🪑" block /></div>}
+      {c.seat && <p className="small muted mt8">Your vote counts, the pot can pay you, and members drift back toward peace with you.</p>}
     </div>
   );
 }

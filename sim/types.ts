@@ -287,6 +287,32 @@ export interface StreetCrew {
   since: number;
 }
 
+// ---------- cold cases: the police remember the big ones ----------
+export interface CaseFile {
+  id: Id;
+  day: number;
+  kind: 'hit' | 'heist' | 'arson' | 'frame';
+  title: string;
+  evidence: number;        // 0..100; charges at 100
+  status: 'open' | 'cold' | 'charged';
+  witnessId?: Id;          // somebody who saw something and has not been persuaded otherwise
+  suspectIds: Id[];        // crew who were on it; one of them may take the fall
+  refs: { blockId?: Id; businessId?: Id; npcId?: Id; opId?: Id };
+  closedDay?: number;
+}
+
+// ---------- the Commission ----------
+export type ProposalKind = 'peace' | 'tax' | 'sanction' | 'carve' | 'seat';
+export interface Proposal { kind: ProposalKind; targetId?: Id; districtId?: Id; amount?: number; text: string }
+export interface Commission {
+  formedDay: number;
+  memberIds: FactionId[];  // factions with a chair; 'player' once seated
+  seat: boolean;           // the player has a chair
+  nextMeeting: number;     // day
+  rulings: { day: number; text: string; passed: boolean }[];
+  pending?: Proposal;      // on the table until the meeting event is resolved
+}
+
 // ---------- player ----------
 export interface Player {
   name: string;
@@ -363,6 +389,8 @@ export interface World {
   crews: Record<Id, StreetCrew>;
   factions: Record<FactionId, Faction>;
   player: Player;
+  cases?: CaseFile[];      // open police investigations into things you did
+  commission?: Commission; // the bosses' table, once the city is big enough to need one
   market?: { shortage: Partial<Record<ProductionKind, number>>; saturation: Partial<Record<ProductKind, number>> }; // 'until day' markers
   pendingEvents: GameEvent[]; // must be resolved before End Day
   log: LogEntry[];

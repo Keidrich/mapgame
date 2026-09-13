@@ -13,6 +13,8 @@ import { addHeat, addInfluence, adjustRel, clamp, collectors, factionOf, jailDay
 import { LIEUTENANT } from '@content/rackets';
 import { coverFor, tickLieutenants } from './lieutenants';
 import { addProduct, productionQuality, recipeFor, sellMult } from './production';
+import { tickCases } from './cases';
+import { tickCommission } from './commission';
 import { PRODUCTION_LEVEL } from '@content/rackets';
 
 export function endDay(w: World): World {
@@ -132,6 +134,7 @@ export function endDay(w: World): World {
 
   // ---- people's own business ----
   tickAgendas(w, rng); tickGossip(w, rng);
+  tickCases(w, rng); tickCommission(w, rng);
 
   // ---- relationship drift & influence decay ----
   for (const n of Object.values(w.npcs)) {

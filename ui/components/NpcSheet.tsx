@@ -27,6 +27,7 @@ export function NpcSheet({ npcId }: { npcId: Id }) {
         {n.grudge && <span className="chip" style={{ color: 'var(--red)' }}>Holds a grudge</span>}
         {n.homeBlockId === w.player.homeBlockId && <span className="chip" style={{ color: 'var(--gold)' }}>Home turf</span>}
         {select.agendaLabel(n) && <span className="chip" style={{ color: 'var(--blue)' }}>{select.agendaLabel(n)}</span>}
+        {select.caseWitnessOf(w, n.id) && <span className="chip" style={{ color: 'var(--red)' }}>Witness: {select.caseWitnessOf(w, n.id)!.title}</span>}
         {n.recipe && select.isKnown(n) && RECIPES[n.recipe] && <span className="chip" style={{ color: 'var(--gold)' }}>{n.crew ? `Knows ${RECIPES[n.recipe].label}` : `Knows a recipe: ${RECIPES[n.recipe].label}`}</span>}
         {n.official && <span className="chip">Corruption {n.official.corruption}</span>}
         {n.official?.boughtBy && <span className="chip" style={{ color: select.factionColor(w, n.official.boughtBy) }}>Bought by {select.factionName(w, n.official.boughtBy)}</span>}

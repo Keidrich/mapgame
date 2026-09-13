@@ -94,6 +94,7 @@ export function runFaction(w: World, f: Faction, rng: Rng) {
   const temperK = f.temperament === 'paranoid' ? 1.5 : f.temperament === 'diplomatic' ? 0.6 : 1;
   if (incursions || playerOnTurf) drift -= Math.min(2.5, (incursions * 0.3 + playerOnTurf * 0.5) * temperK);
   if (f.stance[PLAYER] === 'alliance') drift += 0.5;
+  if (w.commission?.seat && w.commission.memberIds.includes(f.id) && f.standing[PLAYER] < 0) drift += 0.4; // the table keeps things civil
   else if (f.standing[PLAYER] < 0 && !incursions && !playerOnTurf) drift += f.temperament === 'diplomatic' ? 1.2 : 0.6; // grudges fade
   if (f.grudges.length > 6) f.grudges.splice(0, f.grudges.length - 6);
   f.standing[PLAYER] = Math.min(clamp(f.standing[PLAYER] + drift, -100, 100), standingCap(f));
