@@ -2,6 +2,7 @@
 import { legworkFor } from './travel';
 import { PRODUCTION_DEFS, PRODUCT_INFO, RACKET_DEFS, SAFEHOUSE_TIERS } from '@content/rackets';
 import { launderCapacity, productionOutput, racketIncome, streetPrice } from './economy';
+import { LAUNDER_RATE } from '@content/rackets';
 import { drawEvents } from './events';
 import { addMemory, tickAgendas, tickGossip } from './people';
 import { tickCrews } from './crews';
@@ -61,7 +62,7 @@ export function endDay(w: World): World {
         break;
       }
       case 'fencing': { const have = p.stash.hot_goods; if (have > 0) { const sold = Math.min(have, 6 + r.level * 4); p.stash.hot_goods -= sold; income = Math.round(sold * PRODUCT_INFO.hot_goods.price * 0.6 * (1 + (r.level - 1) * 0.15)); } break; }
-      case 'laundering': { const cap = Math.max(0, launderCapacity(w, r) - p.launderedToday); const amt = Math.min(p.dirty, cap); if (amt > 0) { p.dirty -= amt; const clean = Math.round(amt * 0.85); p.cash += clean; income = clean; summary.clean += clean; p.launderedToday += amt; } break; }
+      case 'laundering': { const cap = Math.max(0, launderCapacity(w, r) - p.launderedToday); const amt = Math.min(p.dirty, cap); if (amt > 0) { p.dirty -= amt; const clean = Math.round(amt * LAUNDER_RATE); p.cash += clean; income = clean; summary.clean += clean; p.launderedToday += amt; } break; }
       case 'protection': {
         income = Math.round(racketIncome(w, r) * (1 + Math.min(0.3, collectors(w) * 0.1) + (lt ? 0.1 : 0))); // collectors (and a lieutenant) make sure it all arrives
         // owners under protection drift: fair rates build trust, high rates build resentment. A partner is crew: neither applies.

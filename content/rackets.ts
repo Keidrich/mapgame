@@ -118,6 +118,23 @@ export const RECIPES: Record<string, RecipeDef> = {
 /** What a unit of product sells for relative to average quality (50). */
 export const qualityMult = (q: number) => 0.7 + q / 200;
 
+/**
+ * Washing money. Your own laundering racket is the real answer and always the best one:
+ * it cleans at LAUNDER_RATE up to a daily capacity you can grow. A fixer is the bridge
+ * before you can afford one — no setup, nothing to own, a worse rate and a small daily
+ * cap, both improving as they come to trust you, and neither ever reaching the racket.
+ */
+export const LAUNDER_RATE = 0.85;      // a laundering racket: 85 cents on the dollar
+export const FIXER = {
+  ap: 1,                 // a trip across town and an hour in a back room
+  minRate: 0.55,         // at trust 0
+  maxRate: 0.70,         // at trust 100 — deliberately short of LAUNDER_RATE, for ever
+  capBase: 400,          // $/day they will take at trust 0
+  capPerTrust: 8,        // + per point of trust, so $1,200/day at trust 100
+  startTrust: 20,        // the one near your first block already knows your name
+  trustPerUse: 3,        // for a full day's worth; a token amount earns less
+};
+
 /** Delegation: what it takes to hand a crew member a district, and what they do with it. */
 export const LIEUTENANT = {
   ap: 1,

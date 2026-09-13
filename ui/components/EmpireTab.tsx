@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
 import { select } from '@sim/index';
 import type { ProductKind } from '@sim/types';
-import { PRODUCT_INFO, SAFEHOUSE_TIERS } from '@content/rackets';
+import { LAUNDER_RATE, PRODUCT_INFO, SAFEHOUSE_TIERS } from '@content/rackets';
 import { PRODUCTS, fmtMoney, pct, playerBusinesses, playerRackets, playerSafehouses, stashLine, stashTotals } from '@ui/derive';
 import { focus, getState, importWorld, openSheet, resetGame, toast, useWorld } from '@ui/store';
 import { Act, AmountPicker, Disclosure } from './Act';
@@ -129,10 +129,33 @@ function Launder() {
   const [amount, setAmount] = useState(1000);
   return (
     <Disclosure label="Launder" icon="🧼">
-      <p className="small muted"><Term id="dirty">Dirty</Term> {fmtMoney(w.player.dirty)} on hand · laundered today {fmtMoney(w.player.launderedToday)}. Needs a laundering racket, which converts at 85 cents on the dollar up to a daily cap.</p>
+      <p className="small muted"><Term id="dirty">Dirty</Term> {fmtMoney(w.player.dirty)} on hand · laundered today {fmtMoney(w.player.launderedToday)}. Needs a laundering racket, which converts at {Math.round(LAUNDER_RATE * 100)} cents on the dollar up to a daily cap.</p>
+      <Fixers />
       <AmountPicker presets={[500, 1000, 5000, Math.max(1, Math.floor(w.player.dirty))]} value={amount} onChange={setAmount} min={1} />
       <div className="mt8"><Act action={{ type: 'launder', amount }} label={`Launder ${fmtMoney(amount)}`} kind="primary" block /></div>
     </Disclosure>
+  );
+}
+
+/** Before you can afford a laundering racket, a fixer will wash a little at a worse rate. */
+function Fixers() {
+  const w = useWorld();
+  const fixers = select.fixersKnown(w);
+  if (!fixers.length) return null;
+  return (
+    <div className="mt8">
+      <p className="small muted">No capacity of your own yet? A <Term id="fixer">fixer</Term> will take a smaller amount at a worse rate:</p>
+      <div className="list">
+        {fixers.map(n => (
+          <button type="button" key={n.id} className="listitem" onClick={() => openSheet({ kind: 'npc', npcId: n.id })}>
+            <div className="grow">
+              <div className="title">{n.name}</div>
+              <div className="small muted">{Math.round(select.fixerRate(n.rel.trust) * 100)}c on the dollar · {fmtMoney(select.fixerCapLeft(w, n))} left today · {w.blocks[n.homeBlockId]?.name ?? 'somewhere close'}</div>
+            </div>
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }
 

@@ -4,7 +4,7 @@ import { insidersFor } from './select';
 import type { Action, Affordance, CheatKind, SitDownOffer } from './actions';
 import { emptyStash, stanceFor } from './generate';
 import { populateChunk } from './populate';
-import { PARTNER_RATE, businessesOwnedBy, launderCapacity, protectReason, protectRoute, streetPrice } from './economy';
+import { PARTNER_RATE, businessesOwnedBy, fixerCapLeft, fixerCapToday, fixerDailyCap, fixerRate, fixerUsedToday, launderCapacity, protectReason, protectRoute, streetPrice } from './economy';
 import { resolveEventOption } from './events';
 import { approachChance, resultLine } from './scenes';
 import { AGENDA_LABEL, addGrudge, addMemory } from './people';
@@ -22,7 +22,7 @@ import { isHeld, resolveHostage, roomFor } from './hostages';
 import { opLocked } from './select';
 import { moveProduct, onJoin, recipesForKind, restockCost, sellMult } from './production';
 import { PRODUCTION_UPGRADE_MULT, RECIPES } from '@content/rackets';
-import { LIEUTENANT } from '@content/rackets';
+import { FIXER, LAUNDER_RATE, LIEUTENANT } from '@content/rackets';
 import { activeCrewCount, officialTrust, addHeat, addInfluence, adjustRel, clamp, factionOf, log, money, nid, rngOf, spreadRep, takeCash } from './util';
 
 const no = (reason: string): Affordance => ({ ok: false, reason });
@@ -176,7 +176,16 @@ export function can(w: World, a: Action): Affordance {
       const r = ap(1); if (r) return no(r);
       return yes({ ap: 1 });
     }
-    case 'launder': { if (a.amount <= 0) return no('Amount?'); if (p.dirty < a.amount) return no('Not that much dirty cash.'); const cap = launderCapLeft(w); if (cap <= 0) return no('No laundering capacity left today. Start a laundering racket.'); return yes(); }
+    case 'launder': { if (a.amount <= 0) return no('Amount?'); if (p.dirty < a.amount) return no('Not that much dirty cash.'); const cap = launderCapLeft(w); if (cap <= 0) return no('No laundering capacity left today. Start a laundering racket, or take it to a fixer.'); return yes(); }
+    case 'launder_with_fixer': {
+      const n = npc(a.npcId); if (!n?.alive) return no('They are gone.');
+      if (n.role !== 'fixer') return no(`${n.name} does not move money.`);
+      const h = hereNpc(n); if (h) return no(h);
+      if (a.amount <= 0) return no('Amount?');
+      if (p.dirty < a.amount) return no('Not that much dirty cash.');
+      if (fixerCapLeft(w, n) <= 0) return no(`${n.name} has washed all they can for you today (${money(fixerDailyCap(n.rel.trust))}). Come back tomorrow, or trust makes the window bigger.`);
+      const r = ap(FIXER.ap); return r ? no(r) : yes({ ap: FIXER.ap });
+    }
 
     case 'plan_op': {
       const def = OP_DEFS[a.kind];
@@ -507,9 +516,24 @@ export function dispatch(prev: World, a: Action): World {
     }
     case 'launder': {
       const cap = launderCapLeft(w); const amt = Math.min(a.amount, cap);
-      const cut = 0.15; p.dirty -= amt; p.cash += Math.round(amt * (1 - cut));
+      p.dirty -= amt; p.cash += Math.round(amt * LAUNDER_RATE);
       p.launderedToday += amt;
-      log(w, `Cleaned ${money(amt)} (${Math.round(cut * 100)}% cut).`, 'money'); break;
+      log(w, `Cleaned ${money(amt)} (${Math.round((1 - LAUNDER_RATE) * 100)}% cut).`, 'money'); break;
+    }
+    case 'launder_with_fixer': {
+      const n = npc(a.npcId);
+      const cap = fixerCapToday(w, n);
+      const amt = Math.min(a.amount, fixerCapLeft(w, n), p.dirty);
+      const rate = fixerRate(n.rel.trust);
+      const clean = Math.round(amt * rate);
+      p.dirty -= amt; p.cash += clean;
+      n.fixer = { day: w.day, amount: fixerUsedToday(w, n) + amt, cap };
+      // real business builds a real relationship: a full day's worth is worth the most
+      const gain = Math.max(1, Math.round(FIXER.trustPerUse * (amt / Math.max(1, cap))));
+      adjustRel(n, { trust: gain, respect: 1 });
+      n.known = true;
+      log(w, `${n.name} takes ${money(amt)} and hands back ${money(clean)} clean — ${Math.round(rate * 100)} cents on the dollar. (+${gain} trust)`, 'money', { npcId: n.id });
+      break;
     }
 
     case 'plan_op': {

@@ -5,10 +5,12 @@ import { distanceM } from '@geo/project';
 import { Rng, hashString } from './rng';
 import { BUSINESS_DEFS } from '@content/businesses';
 import { BACKGROUND_BY_ID, BASE_SKILLS, TECH_START_RECIPES, WHEELS_BONUS_LEGWORK, legalCustomSkills } from '@content/backgrounds';
+import { FIXER } from '@content/rackets';
+import { connect } from './connections';
 import { addBusiness, mkNpc, populateChunk } from './populate';
 import { unlockRecipe } from './production';
 import { adjustRel } from './util';
-import { PLAYER, type Block, type LatLng, type Player, type Skills, type StartTraitId, type World } from './types';
+import { PLAYER, type Block, type LatLng, type Npc, type Player, type Skills, type StartTraitId, type World } from './types';
 
 export { controller, stanceFor, STEP_M } from './populate';
 export const WORLD_VERSION = 7; // 7: districts have closeness and naming pools, NPCs have family and friends
@@ -77,6 +79,11 @@ export function generateWorld(opts: NewGameOptions): World {
   if (soft.nerve > 35) { soft.nerve = rng.int(22, 35); if (!soft.traits.includes('coward')) soft.traits[1] = 'coward'; }
   const friend = startBlock.businessIds.flatMap(id => w.businesses[id].patronIds).map(id => w.npcs[id])[0];
   if (friend) { friend.rel.trust = 45; friend.rel.respect = 30; friend.notes.push('Knew you from before.'); }
+  // A fixer within reach from day one. Dirty money buys nothing legitimate, and a laundering
+  // racket costs clean cash the player may not have yet, so without somebody to wash a little
+  // at a bad rate a bad opening can dead-end. They stand on the start block: zero legwork,
+  // reachable before anything else in the city.
+  addFixer(w, rng, nid, startBlock);
   const startOwner = w.npcs[w.businesses[startBlock.businessIds[0]].ownerId];
   startOwner.rel.trust = 20; startOwner.rel.respect = 15;
 
@@ -86,6 +93,27 @@ export function generateWorld(opts: NewGameOptions): World {
   if (opts.background === 'custom' && opts.custom) applyStartTrait(w, opts.custom.trait, startBlock);
   w.rng = rng.state;
   return w;
+}
+
+/**
+ * The guaranteed early launderer. A person, not a business: no setup cost, nothing to own,
+ * a worse rate than a racket and a small daily window, both of which improve as they come
+ * to trust you. Seeded like the other two starting guarantees (the soft mark, the old
+ * friend) — one NPC, on the block the player begins on.
+ */
+function addFixer(w: World, rng: Rng, nid: (p: string) => string, startBlock: Block): Npc {
+  const n = mkNpc(rng, w, nid, { role: 'fixer', homeBlockId: startBlock.id, nerveBias: 55 });
+  n.rel.trust = FIXER.startTrust;   // they know your name, and nothing more than that
+  n.rel.respect = 10;
+  n.known = true;                   // you were told who to ask for before you got off the bus
+  n.notes.push('Washes money for a cut. The cut gets better the longer they know you.');
+  // they hold court somewhere on the block, so the player finds them by opening the door
+  const hangout = startBlock.businessIds[0];
+  if (hangout) { w.businesses[hangout].patronIds.push(n.id); n.favouriteBusinessIds.push(hangout); }
+  // everybody has people, this one included: a couple of ties into the block they work
+  const locals = startBlock.businessIds.flatMap(id => [w.businesses[id].ownerId, ...w.businesses[id].patronIds]).map(id => w.npcs[id]).filter(x => x && x.id !== n.id);
+  for (const other of locals.slice(0, 2)) connect(n, other, 'friend', 'knows everybody');
+  return n;
 }
 
 export function startingSkills(bg: Player['background'], custom?: Partial<Skills>): Skills {

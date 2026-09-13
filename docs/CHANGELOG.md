@@ -14,6 +14,60 @@ House rules for an entry (see `CLAUDE.md` → *Leave a trail*):
 
 ---
 
+## 2026-09-13 — The fixer: a guaranteed early launderer
+
+**What.** Every world now seeds one **fixer** NPC on the player's starting block, and a new
+`launder_with_fixer` action that washes dirty money at a trust-scaled rate, capped by the day.
+
+**Why.** Setup costs are clean-cash only (rightly — dirty money must not buy its own way
+out), and laundering is the only conversion in the game. A player who ends up with a pile of
+dirty money, no laundering racket and not enough clean cash to start one has nothing left to
+do about it. The soak bot hits exactly that state: it finished day 60 sitting on ~$40k dirty
+and negative clean cash. This is the bridge out, and only a bridge.
+
+**How.** Seeded like the two guarantees already in `generateWorld` (the soft-nerve first mark,
+the old friend): one `role: 'fixer'` NPC on the start block — zero legwork away, reachable
+before anything else — starting at `FIXER.startTrust` 20 and `known: true`, hanging around a
+business on the block so the player finds them by opening a door, and tied into the block's
+connection web like everybody else.
+
+The deal is deliberately, permanently worse than owning capacity:
+
+- Rate `fixerRate(trust)`: 0.55 at trust 0 → 0.70 at trust 100, linear, trust-scaled the same
+  way `buy_business` scales an owner's asking price. `LAUNDER_RATE` (a racket) is 0.85 and the
+  fixer's ceiling sits under it for ever, so a racket stays an upgrade, not a speed-up.
+- Window `fixerDailyCap(trust)`: $400 + $8/trust, so $1,200/day at full trust against a level-1
+  racket's $1,500 base before multipliers. **The window is frozen when they first take money
+  that day** (`Npc.fixer = { day, amount, cap }`) — without that, the trust earned by a use
+  widened the same day's cap and "come back tomorrow" never quite arrived.
+- Each use builds trust through `adjustRel`, scaled by how much of their day you filled
+  (`FIXER.trustPerUse` 3 for a full day's worth, minimum 1), so early reliance pays off.
+
+1 AP and face-to-face, like every other dealing with a person. Entirely separate from
+`launder`: it never touches `player.launderedToday` or racket capacity.
+
+While in here, `LAUNDER_RATE` replaced the 0.85 that was written out by hand in both `tick.ts`
+and the `launder` reducer case, so the fixer's ceiling can be compared against one source.
+
+**Files.** `content/rackets.ts` (`FIXER`, `LAUNDER_RATE`), `sim/economy.ts` (the four fixer
+formulas), `sim/types.ts` (`Npc.fixer`), `sim/actions.ts`, `sim/reducer.ts` (can + dispatch),
+`sim/generate.ts` (`addFixer`), `sim/select.ts`, `sim/tick.ts`, `scripts/headless.ts` (the bot
+uses one until it owns a racket), `ui/components/NpcSheet.tsx` (`FixerAct`),
+`ui/components/EmpireTab.tsx` (a signpost under Launder), `content/glossary.ts`,
+`sim/fixer.test.ts`, `docs/DESIGN.md` §4.6.
+
+**Watch out.**
+- **No `WORLD_VERSION` bump**, on purpose: `Npc.fixer` is optional and `role: 'fixer'` already
+  existed in the type, so v7 saves stay valid. The cost is that a game started before this
+  ships has no fixer, because the guarantee lands at world generation. Dropping every save to
+  fix that is the worse trade; if a migration system ever arrives, seeding a fixer into an old
+  save is a one-liner.
+- Fixers are only seeded at world generation, not in chunks populated later. One near the
+  start is the guarantee; a city-wide population of fixers is a separate question.
+- The soak bot now washes through the fixer when it has no laundering racket, which is why its
+  dirty pile at day 60 dropped from ~$40k to ~$24k. That is the feature working, not a balance
+  regression — the bot never builds a laundering racket at all.
+
 ## 2026-09-13 — Everybody has people: households and friends
 
 **What.** Rebuilt the NPC connection web so every person in the city has at least three

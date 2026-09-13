@@ -56,6 +56,12 @@ for (let d = 0; d < days; d++) {
   }
   if (w.player.stash.booze > 10 && !w.player.racketIds.some(id => w.rackets[id]?.kind === 'dealing')) { const spot = nearBiz().find(b => b.protection?.factionId === PLAYER && can(w, { type: 'start_racket', businessId: b.id, kind: 'dealing', product: 'booze' }).ok); if (spot) tryAct({ type: 'start_racket', businessId: spot.id, kind: 'dealing', product: 'booze' }); }
   if (w.player.dirty > 500) tryAct({ type: 'launder', amount: w.player.dirty });
+  // no capacity of your own yet: the fixer near the start block washes a little at a worse rate
+  if (w.player.dirty > 0 && !w.player.racketIds.some(id => w.rackets[id]?.kind === 'laundering')) {
+    const fx = select.fixersKnown(w)[0];
+    const room = fx ? select.fixerCapLeft(w, fx) : 0;
+    if (fx && room > 0 && goTo(npcBlock(fx.id))) tryAct({ type: 'launder_with_fixer', npcId: fx.id, amount: Math.min(w.player.dirty, room) });
+  }
   if (w.player.cash > 8000 && !w.player.lawyer) tryAct({ type: 'hire_lawyer' });
   w = dispatch(w, { type: 'end_day' });
   const bad = (v: number, what: string) => { if (!Number.isFinite(v)) throw new Error(`NaN in ${what} on day ${w.day}`); };

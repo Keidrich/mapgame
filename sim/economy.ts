@@ -1,5 +1,5 @@
 /** Income formulas for rackets and productions. Shared by the tick and by estimates. */
-import { LIEUTENANT, PRODUCTION_DEFS, PRODUCTION_LEVEL, PRODUCT_INFO, RACKET_DEFS, RECIPES } from '@content/rackets';
+import { FIXER, LIEUTENANT, PRODUCTION_DEFS, PRODUCTION_LEVEL, PRODUCT_INFO, RACKET_DEFS, RECIPES } from '@content/rackets';
 import { coverFor } from './lieutenants';
 import type { Business, Id, Npc, Production, Racket, World } from './types';
 
@@ -72,6 +72,40 @@ export function launderCapacity(w: World, r: Racket): number {
   const def = RACKET_DEFS[r.kind]; if (!def.launderCap) return 0;
   const biz = w.businesses[r.businessId];
   return def.launderCap * (1 + (r.level - 1) * 0.8) * runnerFactor(w, r.runnerId, def.skill, coverFor(w, biz)) * (0.5 + biz.baseIncome / 400);
+}
+
+/**
+ * A fixer's cut, as a rate on the dollar. Trust-scaled like the price an owner will sell
+ * a business for: the better they know you, the less they skim. It rises from FIXER.minRate
+ * to FIXER.maxRate and stops there — always under a laundering racket's LAUNDER_RATE, so
+ * owning your own capacity stays a real upgrade rather than a faster version of this.
+ */
+export function fixerRate(trust: number): number {
+  const t = Math.max(0, Math.min(100, trust)) / 100;
+  return FIXER.minRate + (FIXER.maxRate - FIXER.minRate) * t;
+}
+/** How much dirty money a fixer will touch in one day. Scales with trust the same way the rate does. */
+export function fixerDailyCap(trust: number): number {
+  return Math.round(FIXER.capBase + FIXER.capPerTrust * Math.max(0, Math.min(100, trust)));
+}
+/** What they have already washed for you today. The counter resets by day, not by tick. */
+export function fixerUsedToday(w: World, n: Npc): number {
+  return n.fixer && n.fixer.day === w.day ? n.fixer.amount : 0;
+}
+/**
+ * The window they agreed to today. Fixed the moment they first take money from you, so the
+ * trust you earn by using them opens a bigger window *tomorrow* rather than topping up the
+ * one they already set — "come back tomorrow" has to mean it.
+ */
+export function fixerCapToday(w: World, n: Npc): number {
+  return n.fixer && n.fixer.day === w.day ? n.fixer.cap : fixerDailyCap(n.rel.trust);
+}
+export function fixerCapLeft(w: World, n: Npc): number {
+  return Math.max(0, fixerCapToday(w, n) - fixerUsedToday(w, n));
+}
+/** Every fixer the player has come across, nearest first. */
+export function fixersKnown(w: World): Npc[] {
+  return Object.values(w.npcs).filter(n => n.role === 'fixer' && n.alive);
 }
 
 export function productionOutput(w: World, p: Production): number {

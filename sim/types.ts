@@ -170,6 +170,7 @@ export interface Npc {
   known: boolean;             // traits and nerve revealed (Read action, a scene, or enough trust)
   recipe?: string;            // a specialist: recruiting them unlocks this RECIPES id
   hostage?: { safehouseId: Id; since: number }; // held by you: alive, but out of their own life
+  fixer?: { day: number; amount: number; cap: number }; // role 'fixer': today's window, and what is left of it
   connections: Connection[]; // family and friends among the other NPCs; mutual, and nothing to do with the player
   notes: string[];
 }

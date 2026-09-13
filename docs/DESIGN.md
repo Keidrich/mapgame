@@ -176,7 +176,8 @@ friend-referral recruiting, turning a rival's brother into an inside man).
 ## 4. Player systems
 
 - **Cash** (clean) and **dirty cash**. Dirty cash can buy from criminals; clean cash
-  buys businesses and pays officials. Laundering converts at capacity per day.
+  buys businesses and pays officials. Laundering converts at capacity per day — through a
+  racket of your own, or early on through a fixer (§4.6).
 - **Heat** (global) and per-block heat. Heat drives raids, arrests, busts.
 - **Rep**: respect (from wins, generosity) and fear (from violence). Both spread to
   NPCs in nearby blocks.
@@ -285,6 +286,35 @@ compass first (area-weighted, so most starts land out in the neighbourhoods), an
 different corner" rolls again without giving back the corner you are in. Whether a pick is
 city-level comes from the geocoder; an address somebody typed, a pin tapped on the map and
 the device's own position are exact and are never moved.
+
+### 4.6 The fixer: money washed before you own a machine
+
+Setup costs are clean-cash only, on purpose — dirty money must not buy its own way out. But
+that rule has a dead end in it: a player with a pile of dirty money, no laundering racket and
+no clean cash to start one has nothing left to do about it. Every world therefore seeds one
+**fixer** on the starting block, alongside the other two starting guarantees (the soft-nerve
+first mark and the old friend who already trusts you).
+
+A fixer is a *person*, not a business: nothing to own, nothing to set up, no laundering-capable
+business planted near the player. `launder_with_fixer` costs 1 AP and has to be done face to
+face, like every other dealing with a person, and is entirely separate from `launder` — it
+never touches the player's own racket capacity or `launderedToday`.
+
+What they give is deliberately worse than the real thing, for ever:
+
+- **Rate**: `FIXER.minRate` 0.55 at trust 0 rising linearly to `FIXER.maxRate` 0.70 at trust
+  100, against a laundering racket's `LAUNDER_RATE` of 0.85. Trust-scaled the same way an
+  owner's asking price is. The ceiling is below the racket by design, so owning capacity is a
+  real upgrade rather than a faster version of the same thing.
+- **Window**: `capBase` $400/day plus $8 per point of trust — $1,200/day at trust 100, against
+  a level-1 racket's $1,500 base before its own multipliers. The window is *fixed when they
+  first take money that day*, so trust earned today widens it tomorrow and "come back
+  tomorrow" means it.
+- **Payoff**: each use builds trust with `adjustRel`, scaled by how much of their day you
+  filled, so leaning on them early genuinely improves the deal.
+
+They start at trust `FIXER.startTrust` 20 and `known: true` — usable on day one, a long way
+from the best deal.
 
 ## 5. Rackets, production, ops
 

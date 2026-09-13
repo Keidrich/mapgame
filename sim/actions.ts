@@ -46,6 +46,7 @@ export type Action =
   | { type: 'move_stash'; from: 'player' | Id; to: 'player' | Id; product: ProductKind; amount: number }
   | { type: 'sell_product'; product: ProductKind; amount: number; blockId: Id } // 1 AP street sale
   | { type: 'launder'; amount: number } // via laundering rackets capacity (auto at tick too)
+  | { type: 'launder_with_fixer'; npcId: Id; amount: number } // 1 AP: a fixer washes it at their own worse rate, up to their daily cap
   // --- ops ---
   | { type: 'plan_op'; kind: OpKind; crewIds: Id[]; approach?: 'loud' | 'quiet' | 'inside'; targetBusinessId?: Id; targetNpcId?: Id; targetFactionId?: FactionId; targetBlockId?: Id; targetDistrictId?: Id; safehouseId?: Id }
   | { type: 'launch_op'; opId: Id }

@@ -65,6 +65,7 @@ export function NpcSheet({ npcId }: { npcId: Id }) {
           <div className="mt8"><Act action={{ type: 'gift', npcId, amount: gift }} label={`Give ${fmtMoney(gift)}`} kind="primary" block /></div>
         </Disclosure>
         {canRecruit && <SceneAct scene={{ kind: 'recruit', npcId }} label="Recruit" icon="🧢" kind="primary" />}
+        {n.role === 'fixer' && n.alive && <FixerAct npcId={npcId} />}
         {n.official && (
           <Disclosure label={`Bribe the ${n.official.kind}`} icon="💼" kind="primary">
             <p className="small muted">{OFFICIAL_BLURB[n.official.kind]}</p>
@@ -74,6 +75,32 @@ export function NpcSheet({ npcId }: { npcId: Id }) {
         )}
       </div>
     </Sheet>
+  );
+}
+
+/**
+ * A fixer washes dirty money for a cut. Worse than your own laundering racket and capped
+ * by the day, both improving with trust — the bridge until you can afford the real thing.
+ */
+function FixerAct({ npcId }: { npcId: Id }) {
+  const w = useWorld();
+  const [amount, setAmount] = useState(500);
+  const n = w.npcs[npcId];
+  if (!n) return null;
+  const rate = select.fixerRate(n.rel.trust);
+  const cap = select.fixerCapToday(w, n);
+  const left = select.fixerCapLeft(w, n);
+  const back = Math.round(Math.min(amount, left, w.player.dirty) * rate);
+  return (
+    <Disclosure label="Wash money" icon="🧼" kind="primary">
+      <p className="small muted">
+        {Math.round(rate * 100)} cents on the dollar, up to {fmtMoney(cap)} a day — {fmtMoney(left)} left today.
+        Both get better as {n.name.split(' ')[0]} comes to trust you, and neither ever matches a <Term id="laundering">laundering racket</Term> of your own.
+      </p>
+      <p className="small muted"><Term id="dirty">Dirty</Term> {fmtMoney(w.player.dirty)} on hand.</p>
+      <AmountPicker presets={[250, 500, 1000, Math.max(1, Math.min(left, Math.floor(w.player.dirty)))]} value={amount} onChange={setAmount} min={1} />
+      <div className="mt8"><Act action={{ type: 'launder_with_fixer', npcId, amount }} label={`Wash ${fmtMoney(amount)} → ${fmtMoney(back)} clean`} kind="primary" block /></div>
+    </Disclosure>
   );
 }
 

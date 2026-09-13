@@ -23,7 +23,17 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
   dirty: {
     title: 'Dirty cash',
     body: 'Money from rackets, shakedowns and street sales. It covers wages, rent and tribute, but officials and sellers want clean.',
-    note: 'A laundering racket turns it clean at 85 cents on the dollar, up to a daily limit.',
+    note: 'A laundering racket turns it clean at 85 cents on the dollar, up to a daily limit. Before you can afford one, a fixer will wash a smaller amount for a bigger cut.',
+  },
+  laundering: {
+    title: 'Laundering racket',
+    body: 'Your own washing machine, installed on a business you protect or own: 85 cents on the dollar, up to a daily capacity that grows with the racket level, the runner and the takings of the place it sits in.',
+    note: 'It costs clean cash to set up. Until you have that, a fixer is the way through — worse rate, smaller window.',
+  },
+  fixer: {
+    title: 'Fixer',
+    body: 'Somebody who washes money for a cut, with no racket and nothing to set up. They pay 55 to 70 cents on the dollar and will only handle a few hundred a day, both improving as they come to trust you.',
+    note: 'Never as good as a laundering racket of your own, on purpose. Use them to get off the ground, then build the real thing.',
   },
   heat: {
     title: 'Heat',
