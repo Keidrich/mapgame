@@ -409,6 +409,13 @@ card with 2–3 options. Options apply deterministic outcomes.
   definitions, event cards, faction archetypes.
 - `/ui` — React + MapLibre GL. Reads state, dispatches actions. Mobile-first, bottom
   sheets, thumb-reach nav. `ui/net` is the only network code (Overpass, Nominatim).
+- **`can()` runs during render.** Every button asks it whether it is enabled, so a throw in
+  `can()` is not a bad button — it unmounts React and blanks the screen with the save out of
+  reach. Two rules follow: `can()` answers for any action the UI can put on screen (never
+  assume a shape — `factionOf` hands back street crew ids as readily as faction ids), and the
+  UI keeps error boundaries around the tabs, the sheets and the game itself so a crash costs a
+  panel rather than the session. `sim/affordances.test.ts` and `ui/sheets.test.tsx` hold both
+  ends of that: every question the UI asks, and every sheet it can open.
 - Persistence: autosave to IndexedDB (the world grows with every chunk). Export/import as JSON.
 - PWA: installable, tiles cached.
 - Later: Capacitor wrapper for stores; real POIs via Overpass; real-time AP regen;

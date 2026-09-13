@@ -148,8 +148,17 @@ export function can(w: World, a: Action): Affordance {
       if (b.safehouseId) return no('There is already a safehouse on this block.');
       const c = claimedByPlayer(b) ? 0 : SAFEHOUSE_TIERS[0].rent;   // nobody collects rent on a derelict block you took
       const r = c ? cash(c) : null; if (r) return no(r);
+      // Whoever holds this corner may object. `factionOf` returns whoever controls the block,
+      // and that is a street crew id as often as a faction's — so never index w.factions with
+      // it blind. Doing that threw here, and a throw inside can() runs during render: it took
+      // the whole screen down every time a crew-held block was opened.
       const ctrl = factionOf(w, a.blockId);
-      if (ctrl && ctrl !== PLAYER && (w.factions[ctrl].stance[PLAYER] === 'war' || w.factions[ctrl].stance[PLAYER] === 'beef')) return no(`${w.factions[ctrl].name} would burn it down the same night.`);
+      if (ctrl && ctrl !== PLAYER) {
+        const f = w.factions[ctrl];
+        if (f && (f.stance[PLAYER] === 'war' || f.stance[PLAYER] === 'beef')) return no(`${f.name} would burn it down the same night.`);
+        const sc = w.crews[ctrl];
+        if (sc && sc.tribute !== PLAYER && sc.mood < 0) return no(`The ${sc.name} hold this corner and you are not on good terms. Parley with them, or take it off them.`);
+      }
       return yes({ cash: c });
     }
     case 'upgrade_safehouse': { const s = w.safehouses[a.safehouseId]; if (s?.owner !== PLAYER) return no('Not yours.'); if (s.tier >= 3) return no('Maxed out.'); const c = SAFEHOUSE_TIERS[s.tier].rent; const r = cash(c); return r ? no(r) : yes({ cash: c }); }

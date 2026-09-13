@@ -14,6 +14,42 @@ House rules for an entry (see `CLAUDE.md` → *Leave a trail*):
 
 ---
 
+## 2026-09-13 — Fix: opening a street crew's corner blanked the game
+
+**What.** Clicking a block held by a street crew unmounted the whole app and left a black
+screen. Fixed, and wrapped in error boundaries so no future render crash can do the same.
+
+**Why it happened.** `can('rent_safehouse')` did `w.factions[factionOf(w, blockId)].stance[…]`.
+`factionOf` returns whoever *controls* a block, and a street crew holds its corner with 35–55
+influence — so on those blocks it returns a **crew** id, `w.factions[crewId]` is `undefined`,
+and reading `.stance` threw. The block sheet renders a "rent a safehouse" button, `can()` runs
+during render to decide whether it is enabled, and a throw during render unmounts React: black
+screen, save still in IndexedDB, no way back to it. Pre-existing; nothing recent caused it.
+
+**How.** The lookup is guarded, and street crews get a rule of their own rather than being
+squeezed through the faction one: a crew on your payroll never objects, a hostile crew
+(`mood < 0`) refuses and points at parley or taking the corner, and a neutral crew does not
+care — the same shape as the faction rule, which only blocks at beef or war.
+
+Then the safety net, because the failure mode was out of proportion to the bug: `ErrorBoundary`
+wraps the game, the tab panel and the sheet stack. A crash below one of those now shows what
+broke and a way back (close the panel, back to the map, reload) instead of taking the session.
+Renders never touch the world, so "close it and carry on" is honest.
+
+**Files.** `sim/reducer.ts` (the `rent_safehouse` case), `ui/components/ErrorBoundary.tsx` (new),
+`ui/App.tsx`, `sim/affordances.test.ts` (new), `ui/sheets.test.tsx` (new), `vitest.config.ts`
+(the suite now includes `ui/**/*.test.tsx`), `docs/DESIGN.md` §9.
+
+**Watch out.**
+- `factionOf` / `controller` / `select.blockController` all return a **street crew id** when a
+  crew holds the block. Compare ids freely; never index `w.factions` with the result without a
+  guard. That was the only unguarded one left — `sim/affordances.test.ts` now walks every block,
+  business, person and faction in a city with crews and asserts `can()` answers instead of
+  throwing, which is the general version of this bug.
+- UI tests run under `environment: 'node'` with `react-dom/server`. That catches render-time
+  throws, which is the class that blanks the screen; it does not catch anything that only
+  happens in effects, event handlers or the map.
+
 ## 2026-09-13 — The fixer: a guaranteed early launderer
 
 **What.** Every world now seeds one **fixer** NPC on the player's starting block, and a new

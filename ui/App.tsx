@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Act } from './components/Act';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { HelpSheet } from './components/HelpSheet';
 import { BlockSheet } from './components/BlockSheet';
 import { BusinessSheet } from './components/BusinessSheet';
@@ -18,14 +19,15 @@ import { Toasts } from './components/Toasts';
 import { SceneSheet } from './components/SceneSheet';
 import { select } from '@sim/index';
 import { fmtMoney } from './derive';
-import { markVictorySeen, rebuildOnRealStreets, resetGame, useStore, useWorld } from './store';
+import { closeSheets, markVictorySeen, rebuildOnRealStreets, resetGame, setTab, useStore, useWorld } from './store';
 
 export function App() {
   const hasWorld = useStore(s => s.world !== null);
   const booting = useStore(s => s.booting);
   if (booting) return <div className="splash"><div className="spinner" /><b>RACKETS</b></div>;
   if (!hasWorld) return <Onboarding />;
-  return <Game />;
+  // last line of defence: a crash anywhere below still leaves a page you can read and reload
+  return <ErrorBoundary what="the game"><Game /></ErrorBoundary>;
 }
 
 function Game() {
@@ -44,10 +46,12 @@ function Game() {
         {tab === 'map' && <MapLegend />}
         {tab !== 'map' && (
           <div className="panel" key={tab}>
-            {tab === 'crew' && <CrewTab />}
-            {tab === 'ops' && <OpsTab />}
-            {tab === 'factions' && <FactionsTab />}
-            {tab === 'empire' && <EmpireTab />}
+            <ErrorBoundary what={`the ${tab} tab`} onReset={() => setTab('map')} resetLabel="Back to the map">
+              {tab === 'crew' && <CrewTab />}
+              {tab === 'ops' && <OpsTab />}
+              {tab === 'factions' && <FactionsTab />}
+              {tab === 'empire' && <EmpireTab />}
+            </ErrorBoundary>
           </div>
         )}
         {pending > 0
@@ -55,9 +59,13 @@ function Game() {
           : <div className="fab" style={{ padding: 0, background: 'none', boxShadow: 'none' }}><Act action={{ type: 'end_day' }} label="End Day" icon="🌙" kind="primary" /></div>}
       </main>
       <TabBar />
-      {sheet?.kind === 'block' && <BlockSheet blockId={sheet.blockId} />}
-      {sheet?.kind === 'business' && <BusinessSheet businessId={sheet.businessId} />}
-      {sheet?.kind === 'npc' && <NpcSheet npcId={sheet.npcId} />}
+      {sheet && (
+        <ErrorBoundary what="that panel" onReset={closeSheets} resetLabel="Close it">
+          {sheet.kind === 'block' && <BlockSheet blockId={sheet.blockId} />}
+          {sheet.kind === 'business' && <BusinessSheet businessId={sheet.businessId} />}
+          {sheet.kind === 'npc' && <NpcSheet npcId={sheet.npcId} />}
+        </ErrorBoundary>
+      )}
       {help && <HelpSheet />}
       <SceneSheet />
       {recap && <RecapSheet />}

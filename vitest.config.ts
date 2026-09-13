@@ -12,5 +12,7 @@ export default defineConfig({
       '@geo': dir('./geo'),
     },
   },
-  test: { include: ['sim/**/*.test.ts', 'geo/**/*.test.ts'], environment: 'node' },
+  // ui tests render components with react-dom/server: a sheet that throws is a black screen,
+  // so they run in the same suite as the sim's
+  test: { include: ['sim/**/*.test.ts', 'geo/**/*.test.ts', 'ui/**/*.test.tsx'], environment: 'node' },
 });
