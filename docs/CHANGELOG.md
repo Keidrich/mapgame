@@ -14,6 +14,30 @@ House rules for an entry (see `CLAUDE.md` → *Leave a trail*):
 
 ---
 
+## 2026-09-13 — Trim the dead band under the tab bar on a home-screen install
+
+**What.** Installed to the home screen, the bottom nav reserved the whole home-indicator inset
+below itself: a 94px bar with ~34px of empty ground under the labels. Now 80px.
+
+**Why.** `--sab` is `env(safe-area-inset-bottom)`, which iOS reports as 34px in standalone (and
+0 in a browser tab, which is why this only showed up on the installed app). Apple's own tab bars
+take the full inset, but they sit under a 49pt row with the labels hard against its bottom edge;
+ours already leaves ~10px of slack inside a 60px row, so the full inset stacked into a visible
+dead band.
+
+**How.** A second variable, `--sab-nav: min(var(--sab), 20px)`, used by the bottom-anchored
+chrome — tab bar, bottom sheet, scene sheet, the onboarding footer, the toast offset and the
+panel's scroll padding. 20px plus the row's own slack keeps content ~8px clear of the home
+indicator's zone. Scrolling content keeps the full `--sab`: padding at the end of a scroll costs
+nothing. On a desktop or a browser tab the inset is 0 and `min()` leaves everything as it was.
+
+**Files.** `ui/styles.css`.
+
+**Watch out.** `env(safe-area-inset-*)` is 0 in a normal browser window, so this class of thing
+is invisible in dev and in the UI tests. To see it, force the value in the page
+(`document.documentElement.style.setProperty('--sab', '34px')`) and screenshot at phone size —
+that is how the 94px → 80px was measured.
+
 ## 2026-09-13 — Fix: shipped changes took two reloads to reach players
 
 **What.** A new deploy did not appear until the player reloaded **twice**. The Social tab was
