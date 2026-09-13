@@ -82,11 +82,18 @@ function Connections({ npcId }: { npcId: Id }) {
   const w = useWorld();
   const n = w.npcs[npcId];
   const ties = n ? select.connectionsOf(w, n) : [];
-  if (!ties.length) return null;
+  if (!n || !ties.length) return null;
+  // who somebody has is the same kind of knowledge as their nerve: you learn it by looking
+  if (!select.isKnown(n)) return (
+    <>
+      <div className="section-title">People<Info id="connections" /></div>
+      <p className="small muted" style={{ margin: '8px 0 0' }}>They have people. Size them up to find out who.</p>
+    </>
+  );
   const family = ties.filter(t => t.kind === 'family');
   const friends = ties.filter(t => t.kind === 'friend');
   const line = (label: string, list: typeof ties) => list.length ? (
-    <p className="small mt8" style={{ margin: '8px 0 0' }}>
+    <p className="small" style={{ margin: '8px 0 0' }}>
       <span className="muted">{label}: </span>
       {list.map((t, i) => (
         <span key={t.npc.id}>
