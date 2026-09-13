@@ -9,7 +9,7 @@ import { BUSINESS_DEFS } from '@content/businesses';
 import { chunksInBox, type GeoChunk } from '@geo/chunks';
 import { topInfluence } from '@ui/derive';
 import { bumpChunks, openSheet, populateAndOpen, useStore } from '@ui/store';
-import { allCachedChunks, loadChunk } from '@ui/net/chunks';
+import { allCachedChunks, loadChunk, recentlyFailed } from '@ui/net/chunks';
 
 // MapLibre 6 spawns its worker from a file next to its own module, which a bundled build never ships.
 // Point it at the copy Vite bundles for us instead, or every source silently fails to load in production.
@@ -165,7 +165,7 @@ export function MapView() {
     const m = map.current; if (!m || m.getZoom() < LOAD_MIN_ZOOM) return;
     const b = m.getBounds(); const w = worldRef.current;
     for (const key of chunksInBox(b.getSouth(), b.getWest(), b.getNorth(), b.getEast(), 9)) {
-      if (loading.current.has(key) || w?.chunks[key] || allCachedChunks().some(c => c.key === key)) continue;
+      if (loading.current.has(key) || w?.chunks[key] || allCachedChunks().some(c => c.key === key) || recentlyFailed(key)) continue;
       loading.current.add(key); setLoadingCount(loading.current.size);
       void loadChunk(key).then(() => { loading.current.delete(key); setLoadingCount(loading.current.size); bumpChunks(); }).catch(() => { loading.current.delete(key); setLoadingCount(loading.current.size); });
     }

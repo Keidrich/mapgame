@@ -4,7 +4,7 @@ import { resolveBasemap } from './Map';
 import { generateWorld } from '@sim/index';
 import type { LatLng, Player } from '@sim/types';
 import { newGame } from '@ui/store';
-import { loadChunk } from '@ui/net/chunks';
+import { gridChunk, loadChunk, reason } from '@ui/net/chunks';
 import { chunkBounds, chunkKeyAt, chunkNeighbors, type GeoChunk } from '@geo/chunks';
 
 const BACKGROUNDS: { id: Player['background']; label: string; blurb: string; ico: string }[] = [
@@ -58,24 +58,30 @@ export function Onboarding() {
   const [, tick] = useState(0);
   useEffect(() => { if (!building) return; setBuildStart(s => s || Date.now()); const iv = setInterval(() => tick(t => t + 1), 1000); return () => clearInterval(iv); }, [building]);
   useEffect(() => { if (!building) setBuildStart(0); }, [building]);
-  const start = async () => {
+  const [failed, setFailed] = useState<string | null>(null);
+  const start = async (useGrid = false) => {
     if (!place || building) return;
     const origin: LatLng = { lat: place.lat, lng: place.lng };
-    setBuilding('Contacting the map server…');
+    setBuilding('Contacting the map server…'); setFailed(null);
     skipRef.current = false;
     let city: GeoChunk | undefined; let extra: GeoChunk[] = []; let note = '';
-    try {
-      const skip = new Promise<never>((_, reject) => { const iv = setInterval(() => { if (skipRef.current) { clearInterval(iv); reject(new Error('skipped')); } }, 200); });
-      const startKey = chunkKeyAt(origin);
-      city = await Promise.race([loadChunk(startKey, s => setBuilding(s)), skip]);
-      if (city.source === 'hex') throw new Error('no street data');
-      // a start near a chunk edge would otherwise sit at the edge of the known world: pull in the neighbours that are close
-      const near = chunkNeighbors(startKey).filter(k => { const b = chunkBounds(k); const dLat = Math.max(b.south - origin.lat, 0, origin.lat - b.north) * 111320; const dLng = Math.max(b.west - origin.lng, 0, origin.lng - b.east) * 111320 * Math.cos((origin.lat * Math.PI) / 180); return Math.hypot(dLat, dLng) < 450; });
-      if (near.length) { setBuilding(`Mapping the streets next door… (${near.length})`); extra = (await Promise.race([Promise.all(near.map(k => loadChunk(k))), skip])).filter(c => c.source === 'osm'); }
-    } catch (e) {
-      note = (e as Error).message === 'skipped' ? 'Using a simple grid for now. Real streets load as you explore.' : `Could not map the real streets here (${(e as Error).message}). Using a grid instead.`;
-      setBuilding(note);
-      await new Promise(r => setTimeout(r, 900));
+    const startKey = chunkKeyAt(origin);
+    if (!useGrid) {
+      try {
+        const skip = new Promise<never>((_, reject) => { const iv = setInterval(() => { if (skipRef.current) { clearInterval(iv); reject(new Error('skipped')); } }, 200); });
+        city = await Promise.race([loadChunk(startKey, s => setBuilding(s), { attempts: 2, timeoutMs: 40000 }), skip]);
+        // a start near a chunk edge would otherwise sit at the edge of the known world: pull in the neighbours that are close
+        const near = chunkNeighbors(startKey).filter(k => { const b = chunkBounds(k); const dLat = Math.max(b.south - origin.lat, 0, origin.lat - b.north) * 111320; const dLng = Math.max(b.west - origin.lng, 0, origin.lng - b.east) * 111320 * Math.cos((origin.lat * Math.PI) / 180); return Math.hypot(dLat, dLng) < 450; });
+        if (near.length) { setBuilding(`Mapping the streets next door… (${near.length})`); extra = (await Promise.race([Promise.allSettled(near.map(k => loadChunk(k))), skip])).flatMap(r => (r.status === 'fulfilled' ? [r.value] : [])); }
+      } catch (e) {
+        // no silent grid: say what happened and let the player retry or choose the grid
+        const why = (e as Error).message === 'skipped' ? 'You stopped the download.' : `Could not map the real streets here: ${reason(e)}.`;
+        setBuilding(null); setFailed(why);
+        return;
+      }
+    } else {
+      city = gridChunk(startKey);
+      note = 'Started on a simple grid by choice. Real streets load as you explore, and you can rebuild on them from the map any time.';
     }
     setBuilding('Populating the city…');
     await new Promise(r => setTimeout(r, 30));
@@ -130,7 +136,17 @@ export function Onboarding() {
 
       <div className="grow" />
       <div className="onboard-foot">
-        <button type="button" className="btn btn-primary btn-block" style={{ minHeight: 52 }} disabled={!place || !!building} onClick={start}>{building ? 'Building your city…' : place ? `Start in ${place.name}` : 'Start'}</button>
+        {failed && (
+          <div className="card mb8" style={{ borderColor: 'var(--red)' }}>
+            <b>Streets not mapped.</b>
+            <p className="small muted mt8">{failed} The map server is free and sometimes slow; a second try usually works.</p>
+            <div className="row mt8" style={{ gap: 8 }}>
+              <button type="button" className="btn btn-primary grow" onClick={() => void start(false)}>Try again</button>
+              <button type="button" className="btn btn-ghost" onClick={() => void start(true)}>Use a grid instead</button>
+            </div>
+          </div>
+        )}
+        <button type="button" className="btn btn-primary btn-block" style={{ minHeight: 52 }} disabled={!place || !!building} onClick={() => void start(false)}>{building ? 'Building your city…' : place ? `Start in ${place.name}` : 'Start'}</button>
         {!place && <p className="small muted mt8" style={{ textAlign: 'center', margin: '8px 0 0' }}>Pick a starting point first.</p>}
       </div>
       {building && (
@@ -138,9 +154,9 @@ export function Onboarding() {
           <div className="spinner" />
           <b>Mapping {place?.name}</b>
           <p className="small muted">{building}</p>
-          <p className="small muted">Real streets, real blocks, real businesses from OpenStreetMap. Usually ten to twenty seconds{buildStart ? ` · ${Math.round((Date.now() - buildStart) / 1000)}s` : ''}.</p>
-          {buildStart > 0 && Date.now() - buildStart > 8000 && !skipRef.current && (
-            <button type="button" className="btn btn-ghost mt8" onClick={() => { skipRef.current = true; setBuilding('Skipping…'); }}>Taking too long? Start on a grid</button>
+          <p className="small muted">Real streets, real blocks, real businesses from OpenStreetMap. Dense cities take longer; a minute is normal on a slow map server{buildStart ? ` · ${Math.round((Date.now() - buildStart) / 1000)}s` : ''}.</p>
+          {buildStart > 0 && Date.now() - buildStart > 30000 && !skipRef.current && (
+            <button type="button" className="btn btn-ghost mt8" onClick={() => { skipRef.current = true; setBuilding('Stopping…'); }}>Stop and choose</button>
           )}
         </div>
       )}

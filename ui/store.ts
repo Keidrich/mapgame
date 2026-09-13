@@ -7,7 +7,8 @@ import { can, dispatch, WORLD_VERSION } from '@sim/index';
 import type { Action, Affordance } from '@sim/actions';
 import type { Id, LogEntry, World } from '@sim/types';
 import { idbDel, idbGet, idbSet } from '@ui/net/idb';
-import { loadChunk } from '@ui/net/chunks';
+import { loadChunk, reason } from '@ui/net/chunks';
+import { chunkKeyAt } from '@geo/chunks';
 
 export type Tab = 'map' | 'crew' | 'ops' | 'factions' | 'empire';
 export type Sheet =
@@ -99,7 +100,9 @@ export async function populateAndOpen(chunkKey: string, blockId: Id) {
   const w = state.world; if (!w) return;
   if (!w.chunks[chunkKey]) {
     pushToasts([{ day: w.day, text: 'Getting to know the area…', tone: 'info' }]);
-    const chunk = await loadChunk(chunkKey);
+    let chunk;
+    try { chunk = await loadChunk(chunkKey, undefined, { attempts: 2 }); }
+    catch (e) { pushToasts([{ day: w.day, text: `Could not map that area: ${reason(e)}. Tap it again in a moment.`, tone: 'warn' }]); return; }
     if (!state.world || state.world.chunks[chunkKey]) return;
     act({ type: 'populate_chunk', chunk });
     bumpChunks();
@@ -140,6 +143,20 @@ export function act(action: Action): boolean {
   set({ world: next });
   pushToasts(next.log.slice(before));
   return true;
+}
+/** A city that started on the grid can be rebuilt on the real streets: same place, name and background, fresh start. */
+export async function rebuildOnRealStreets(onStatus: (s: string) => void): Promise<string | null> {
+  const w = state.world; if (!w) return 'No game.';
+  const key = chunkKeyAt(w.origin);
+  try {
+    const chunk = await loadChunk(key, onStatus, { attempts: 3, timeoutMs: 45000 });
+    onStatus('Populating the city…');
+    await new Promise(r => setTimeout(r, 30));
+    const { generateWorld } = await import('@sim/generate');
+    const next = generateWorld({ origin: w.origin, placeName: w.placeName, playerName: w.player.name, background: w.player.background, chunk });
+    newGame(next);
+    return null;
+  } catch (e) { return reason(e); }
 }
 export function newGame(w: World) {
   save(w);

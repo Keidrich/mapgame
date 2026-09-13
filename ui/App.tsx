@@ -18,7 +18,7 @@ import { Toasts } from './components/Toasts';
 import { SceneSheet } from './components/SceneSheet';
 import { select } from '@sim/index';
 import { fmtMoney } from './derive';
-import { markVictorySeen, resetGame, useStore, useWorld } from './store';
+import { markVictorySeen, rebuildOnRealStreets, resetGame, useStore, useWorld } from './store';
 
 export function App() {
   const hasWorld = useStore(s => s.world !== null);
@@ -69,6 +69,7 @@ function Game() {
           <button type="button" className="btn" style={{ background: '#000', color: '#fff', borderColor: '#000', minWidth: 160 }} onClick={markVictorySeen}>Keep playing</button>
         </div>
       )}
+      {w.mapSource === 'hex' && !w.gameOver && <GridBanner />}
       {w.gameOver && <GameOver />}
       <Toasts />
     </div>
@@ -86,6 +87,26 @@ function MapLegend() {
         ? rows.map(r => <div key={r.id} className="name"><span className="sw" style={{ background: r.color }} />{r.name}</div>)
         : <>{rows.map(r => <span key={r.id} className="sw" style={{ background: r.color }} />)}<span>Legend</span></>}
     </button>
+  );
+}
+
+/** A city on the grid is a fallback, never the goal: offer the real streets until the player has them. */
+function GridBanner() {
+  const w = useWorld();
+  const [status, setStatus] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [hidden, setHidden] = useState(false);
+  if (hidden) return null;
+  const go = async () => { setErr(null); setStatus('Contacting the map server…'); const e = await rebuildOnRealStreets(setStatus); setStatus(null); if (e) setErr(e); };
+  return (
+    <div className="banner" role="status" style={{ background: 'var(--bg-2)', color: 'var(--text)', border: '1px solid var(--orange)' }}>
+      <b>🗺️ {w.placeName} is on a grid.</b>
+      <p className="small muted" style={{ margin: '4px 0 8px' }}>{status ?? (err ? `Still no luck: ${err}.` : 'The real streets could not be mapped when this game started. Rebuilding uses the actual blocks; it restarts the game at day 1 in the same place.')}</p>
+      <div className="row" style={{ gap: 8 }}>
+        <button type="button" className="btn btn-primary grow" disabled={!!status} onClick={() => void go()}>{status ? 'Mapping…' : 'Rebuild on real streets'}</button>
+        <button type="button" className="btn btn-ghost" disabled={!!status} onClick={() => setHidden(true)}>Later</button>
+      </div>
+    </div>
   );
 }
 
