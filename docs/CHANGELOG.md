@@ -14,6 +14,101 @@ House rules for an entry (see `CLAUDE.md` → *Leave a trail*):
 
 ---
 
+## 2026-09-14 — The wire: cards, taps, wire fraud, a digital war lane, dirt, and scrubbing
+
+**What.** A whole cybercrime lane, eight pieces: a **mugging** op as the doorway; lifted **cards**
+with a freshness clock and three ways to work them; **ratting** with two modes (one look, or a
+tap left running); **wire fraud** behind the game's first per-target gate; **Pull Their Wires** as
+a war lane without muscle; **dirt-brokering** to rival factions; **Scrub Your Trail** as a tech
+answer to heat that no official touches; and a `{ kind: 'hack' }` crew assignment that works the
+card pile passively. Plus one fix found on the way (see *Watch out*).
+
+**Why.** `tech` was a skill you spent points on and then mostly read about. Every existing money
+lane went through muscle, charm or a business you owned; nothing paid off brains-and-tech play,
+and the heat system had exactly one release valve — bribing an official — so a quiet player had
+no quiet way out.
+
+**How.**
+
+*Everything is dice.* `content/cyber.ts` and `sim/cyber.ts` contain no technique of any kind, and
+neither does the UI. A card is a tier, a limit and a clock. The brand, **Bellwether**, is
+invented — there is no real issuer, network or number anywhere in RACKETS, and that is a hard
+rule, not a preference.
+
+*Cards.* Freshness 70–100, falling 9/day; value scales with it, so cards perish. A quiet run
+takes 18% of the limit at 10% dead / 6% flag; one big score takes 70% at 55% / 30%. Both scale
+with staleness, with whether the card is already flagged, and inversely with the player's tech. A
+flagged card run again opens a police file 35% of the time. Dumping the whole pile through a
+carding racket of your own pays 28% of face with no exposure — deliberately the worst money and
+the best insurance.
+
+*Ratting.* The first op to use `OpDef.modes` (a list beside the three approaches, not a second
+approach system). `tapRisk()` is shaped like `holdRisk()` in `hostages.ts` — base × time — but its
+inputs are the person: their `tech`, `connected` (×1.35), `quiet` (×1.2). Not the block. There is
+a source-scanning test asserting `tapRisk` contains no block lookup, because turning it into a
+stakeout is the obvious wrong simplification.
+
+*Wire fraud.* `requires: { rattedTarget: true }` — the only per-target requirement in the game.
+`opLocked(w, kind, target?)` now takes a target; `plan_op` passes the npc id. With no target (the
+ops tree) it asks only whether you have any mark at all, so the node can read unlocked; the real
+per-person check happens at plan time. Reading A does nothing for A's brother.
+
+*Digital strike.* Same `requires.stance` as `ambush_soldiers` — one gating mechanism, not two.
+Disrupts the target's rackets 3–6 days, pays $200–1,200 against the ambush's $800–3,500, and
+leaves their soldiers standing. Not a strictly better option, on purpose.
+
+*Dirt.* Base $1,200 × rank (boss 2.5, lieutenant 1.6) × the buyer's existing stance toward the
+subject's people (war 2, beef 1.5, unaffiliated 0.8) × a charm term. Buyer gains 8 standing; 30%
+blowback costs 12 with the subject's faction plus a grudge. Sells once.
+
+*Heat.* `player.cyberHeat` rises with ordinary heat on every wire action and comes down **only**
+through `scrub_trail` (1 AP, ~$260/point before skill, ~6 points before skill, both improved by
+tech + brains at 7% each). It routes through no captain and no councillor — that is the whole
+point of the lane's tradeoff.
+
+*Crew.* `{ kind: 'hack' }` runs the freshest cards first, ~2/day scaled by tech, keeps 20%, needs
+at least 3 live cards to bother, and costs 1 wire heat a day. No action, no AP.
+
+*Pulling a tap.* `endTap(w, n, false, rng)` was written for a player-initiated pull and had no
+caller — a tap could be planted and never taken off, which makes a compounding risk a trap rather
+than a decision. Added `{ type: 'pull_tap'; npcId }`, free and AP-free on purpose, plus a panel on
+the NPC sheet showing the days it has run and the real per-day discovery number.
+
+**Files.** New: `content/cyber.ts`, `sim/cyber.ts`, `ui/components/Wire.tsx`, and six test files
+(`sim/cards.test.ts`, `ratting`, `wire-fraud`, `digital-war`, `dirt-brokering`,
+`hack-assignment`) plus `ui/wire.test.tsx`. Changed: `sim/types.ts` (`Card`, `Secret`, `Npc.tap/ratted`,
+`Player.cards/secrets/cyberHeat`, `Op.mode`, `Assignment` gains `hack`), `sim/actions.ts`,
+`sim/reducer.ts`, `sim/select.ts`, `sim/ops.ts`, `sim/tick.ts`, `content/rackets.ts` (`OpMode`,
+`OpRequires.rattedTarget`, six op defs, the carding racket), `content/glossary.ts` (eight new
+entries), `ui/components/OpsTab.tsx` (mode picker; the wire-fraud target list shows only marks
+you have been inside of), `ui/components/NpcSheet.tsx`, `ui/components/EmpireTab.tsx`,
+`ui/derive.ts`, `ui/test-util.ts` (new `plain()` — `renderToString` writes `<!-- -->` between
+adjacent interpolations, so any assertion spanning a text/expression boundary needs it),
+`docs/DESIGN.md` §4.10.
+
+**Watch out.**
+
+- **No `WORLD_VERSION` bump.** Every new field is optional and every reader defaults it, so old
+  saves survive. Keep it that way if you extend this.
+- **`opChance` now counts the player on `minCrew: 0` ops**, and this is a real balance change that
+  came out of building the lane. It never counted the player at all, so a solo-capable op with no
+  crew on it had a skill sum of zero and floored at the 3% minimum — while the ops tree cheerfully
+  advertised it as "solo ok". Mugging went 3% → 56%, Scout the Edges 3% → 64% for a fresh
+  character. Ops that *require* crew are untouched deliberately: their balance is the crew you
+  bring, not you.
+- **The soak does not cover that change.** Six seeds × 60 days came back byte-identical before and
+  after ($609 / $1,106 / $1,213 dirty on seeds 1–3), because the headless bot only ever runs
+  crewed ops. That is reassuring about the economy curve and says nothing about the solo path — if
+  you touch solo-op balance, the soak will not tell you. Teaching the bot to run solo ops and work
+  a card pile is the obvious next job and is **not done**.
+- One existing test changed: the 1.3× cap test in `sim/items.test.ts` zeroes the player's muscle
+  now, because on a stick-up the player is one of the hands and was pushing the quiet side to the
+  ceiling too. A new test beside it pins the solo-hands rule in both directions.
+- **Deliberately out of scope:** no bot coverage for the wire (above); dirt is sellable to
+  factions only, not to individual NPCs; `cyberHeat` has no UI meter of its own yet — it is shown
+  inside the scrub panel and nowhere else, which is thin if the number ever matters more.
+
+
 ## 2026-09-13 — Combat you take part in, war work, and casing a place
 
 **What.** Four things: a faction attacking you directly now waits for an answer instead of

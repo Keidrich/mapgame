@@ -150,6 +150,7 @@ export type Assignment =
   | { kind: 'op'; opId: Id }
   | { kind: 'guard'; blockId: Id }
   | { kind: 'collect' }
+  | { kind: 'hack' }                         // works the card pile without being asked
   | { kind: 'lieutenant'; districtId: Id };  // runs a district for you
 
 export type OfficialKind = 'captain' | 'councillor' | 'judge';
@@ -172,6 +173,8 @@ export interface Npc {
   grudge?: { since: number; reason: string; spread: number }; // holds it against you and tells people
   known: boolean;             // traits and nerve revealed (Read action, a scene, or enough trust)
   hint?: string;              // the coarse read you get from casing the place: a feel, not a file
+  tap?: { since: number };    // you are listening to this one; risk compounds daily (sim/cyber.ts)
+  ratted?: number;            // the day you last got inside their business; wire fraud needs this
   recipe?: string;            // a specialist: recruiting them unlocks this RECIPES id
   hostage?: { safehouseId: Id; since: number }; // held by you: alive, but out of their own life
   fixer?: { day: number; amount: number; cap: number }; // role 'fixer': today's window, and what is left of it
@@ -197,7 +200,8 @@ export type Stash = Record<ProductKind, number>;
 // ---------- rackets ----------
 export type RacketKind =
   | 'protection' | 'numbers' | 'bookmaking' | 'gambling_den' | 'loansharking'
-  | 'fencing' | 'chop_shop' | 'dealing' | 'laundering' | 'smuggling' | 'no_show_jobs';
+  | 'fencing' | 'chop_shop' | 'dealing' | 'laundering' | 'smuggling' | 'no_show_jobs'
+  | 'carding';   // moves stolen cards wholesale, the way fencing moves hot goods
 
 export interface Racket {
   id: Id;
@@ -253,6 +257,8 @@ export type OpKind =
   | 'scout_block' | 'claim_abandoned' | 'kidnap'
   // armed work: the same shapes, done with something in your hand
   | 'armed_robbery' | 'armed_intimidation'
+  // the wire: pockets, listening, paper, and sabotage that leaves no bodies
+  | 'mugging' | 'rat' | 'wire_fraud' | 'digital_strike'
   // only on the table while a faction is at beef or war with you
   | 'ambush_soldiers' | 'defend_racket' | 'war_strike';
 
@@ -269,6 +275,7 @@ export interface Op {
   safehouseId?: Id;      // kidnap: where they go
   crewIds: Id[];
   approach?: 'loud' | 'quiet' | 'inside';
+  mode?: string;   // op-specific choice (OpDef.modes), e.g. one look vs. a standing tap
   insideId?: Id;   // the contact used for an inside job
   planDays: number;
   daysLeft: number;
@@ -379,6 +386,9 @@ export interface Player {
    */
   items?: Id[];
   equipped?: Id[];
+  cards?: Card[];        // stolen cards waiting to be run or dumped
+  secrets?: Secret[];    // what listening turned up; leverage, or a thing to sell
+  cyberHeat?: number;    // the share of your heat that came off the wire, and the only part scrubbing can touch
   quality?: Partial<Record<ProductKind, number>>; // running average quality of the carried stash
   recipes?: string[]; // RECIPES ids unlocked (stolen formulas, specialists)
   crewIds: Id[];
@@ -392,6 +402,32 @@ export interface Player {
   launderedToday: number;
   crewEver: number;   // people who have ever joined your crew, for op requirements
   homeBlockId: Id;
+}
+
+// ---------- the wire ----------
+export type CardTier = 'classic' | 'gold' | 'black';
+/**
+ * A stolen card. Abstract on purpose: a tier, what it is good for, and how long before it
+ * stops working. No number, no issuer, nothing that resembles one.
+ */
+export interface Card {
+  id: Id;
+  tier: CardTier;
+  limit: number;       // what is left on it
+  freshness: number;   // 0..100, falls daily; dead at 0
+  flagged?: boolean;   // somebody is already watching this one
+  takenDay: number;
+  fromNpcId?: Id;      // whose pocket it came out of
+}
+
+/** Something you learned by listening. Usable as leverage, or sellable to somebody who wants it. */
+export interface Secret {
+  id: Id;
+  npcId: Id;
+  kind: 'agenda' | 'connection';
+  text: string;
+  day: number;
+  soldTo?: FactionId;
 }
 
 // ---------- confrontations: somebody came for you, and you are standing there ----------

@@ -99,15 +99,32 @@ describe('kit in the odds', () => {
   });
 
   it('cannot gild a job the crew is already over-qualified for, but can still spoil it', () => {
-    // opChance caps each skill's contribution at 1.3× what the job needs. A stick-up with
-    // three hands is already at that ceiling, so a gun adds nothing there — and the quiet
-    // penalty still lands, which is the point: carrying it is a decision either way.
+    // opChance caps each skill's contribution at 1.3× what the job needs. A stick-up with three
+    // hands is already at that ceiling, so a gun adds nothing there — and the quiet penalty still
+    // lands, which is the point: carrying it is a decision either way.
+    // On a minCrew-0 job the player is one of those hands too, so the player's own muscle is put
+    // out of the way here; the ceiling under test is the crew's, not theirs.
     const w = ready();
+    w.player.skills.muscle = 0;
     const loud = select.opChance(w, 'robbery', crewIds(w), 'loud');
     const quiet = select.opChance(w, 'robbery', crewIds(w), 'quiet');
     carry(w, 'sawnoff');
     expect(select.opChance(w, 'robbery', crewIds(w), 'loud')).toBe(loud);
     expect(select.opChance(w, 'robbery', crewIds(w), 'quiet')).toBeLessThan(quiet);
+  });
+
+  it('a job you can do alone counts you as one of the hands', () => {
+    // Without this a solo-capable op with no crew on it has a skill sum of zero and floors at the
+    // 3% minimum, while the tree advertises it as "solo ok". Jobs that require crew are unaffected.
+    const w = ready();
+    const strong = select.opChance(w, 'robbery', [], 'loud');
+    w.player.skills.muscle = 0;
+    expect(select.opChance(w, 'robbery', [], 'loud')).toBeLessThan(strong);
+
+    // heist_bank needs a crew by definition, so the player's own hands are not in its sum
+    const before = select.opChance(w, 'heist_bank', crewIds(w), 'loud');
+    w.player.skills.muscle = 10;
+    expect(select.opChance(w, 'heist_bank', crewIds(w), 'loud')).toBe(before);
   });
 
   it('stacks what is on you, and stays inside the odds clamp', () => {

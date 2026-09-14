@@ -2,6 +2,8 @@ import { RECIPES } from '@content/rackets';
 import { successionOrDeath } from './politics';
 import { caseWitnessOf, openCase, silenceWitness } from './cases';
 import { addProduct, knownRecipes, unlockRecipe } from './production';
+import { addCard, cyberHeat, learnSecret, rollCard, startTap } from './cyber';
+import { CARD_TIERS } from '@content/cyber';
 import { OP_APPROACHES, OP_DEFS } from '@content/rackets';
 import type { Rng } from './rng';
 import { opChance } from './select';
@@ -33,6 +35,57 @@ export function resolveOp(w: World, o: Op, rng: Rng) {
     res.heat = Math.round(def.heat * (margin > 30 ? 0.6 : 1) * (ap?.heat ?? 1) * kitHeatMult(w));
     if (o.insideId && w.npcs[o.insideId]) adjustRel(w.npcs[o.insideId], { trust: 5, respect: 5 });
     switch (o.kind) {
+      case 'mugging': {
+        const n = o.targetNpcId ? w.npcs[o.targetNpcId] : undefined;
+        p.dirty += value; res.cash = value;
+        let extra = '';
+        if (n) {
+          adjustRel(n, { fear: 20, trust: -25 });
+          addMemory(w, n.homeBlockId, 'mugging', `Somebody put ${n.name} against a wall and went through their pockets.`);
+          // a pocket sometimes has a card in it: everything on the wire starts here
+          if (rng.chance(0.45)) { const card = rollCard(w, rng, n.id); addCard(w, card); extra = ` There was a ${CARD_TIERS[card.tier].label} in the wallet.`; }
+        }
+        res.text = `${n?.name ?? 'They'} never saw who it was. ${money(value)} and a bad night for them.${extra}`;
+        break;
+      }
+      case 'rat': {
+        const n = o.targetNpcId ? w.npcs[o.targetNpcId] : undefined;
+        if (!n) { res.text = 'Nothing there to get into.'; break; }
+        n.ratted = w.day;
+        if (o.mode === 'tap') {
+          startTap(w, n);
+          res.text = `You are inside ${n.name}'s business and you are staying there. Every day it runs is a day something useful comes back — and a day closer to them finding it.`;
+        } else {
+          const secret = learnSecret(w, n, rng);
+          res.text = secret
+            ? `One good look through ${n.name}'s business. ${secret.text}`
+            : `You get inside ${n.name}'s business and find nothing anybody would pay for. Some people really are that dull.`;
+        }
+        cyberHeat(w, 2, n.homeBlockId);
+        break;
+      }
+      case 'wire_fraud': {
+        const n = o.targetNpcId ? w.npcs[o.targetNpcId] : undefined;
+        p.dirty += value; res.cash = value;
+        if (n) { adjustRel(n, { trust: -20 }); n.notes.push('Money went missing from their arrangements.'); }
+        cyberHeat(w, Math.round(def.heat / 2), n?.homeBlockId);
+        res.text = `${money(value)} moves out of ${n?.name ?? 'their'} arrangements and into somewhere quiet. It will be weeks before anybody reconciles it.`;
+        break;
+      }
+      case 'digital_strike': {
+        const biz2 = target;
+        const hit = biz2?.racketIds.map(id => w.rackets[id]).filter(r => r && r.owner !== PLAYER) ?? [];
+        const days = rng.int(3, 6);
+        for (const r of hit) r.disrupted = Math.max(r.disrupted, days);
+        p.dirty += value; res.cash = value;
+        const owner = biz2?.protection?.factionId ? w.factions[biz2.protection.factionId] : undefined;
+        if (owner) { owner.standing[PLAYER] = clamp(owner.standing[PLAYER] - 4, -100, 100); }
+        cyberHeat(w, def.heat, biz2?.blockId);
+        res.text = hit.length
+          ? `The tills at ${biz2?.name ?? 'their place'} stop ringing and the book stops balancing. ${hit.length} of their operations are dead for ${days} days, and nobody has a face to blame.`
+          : `${biz2?.name ?? 'The place'} is dark for a few days. Nothing of theirs was running there worth killing.`;
+        break;
+      }
       case 'ambush_soldiers': {
         const f = o.targetFactionId ? w.factions[o.targetFactionId] : undefined;
         p.dirty += value; res.cash = value;

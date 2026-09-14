@@ -403,6 +403,62 @@ is `casedUntil` a few days out, which is worth a real difficulty cut on the next
 deliberately coarser than a size-up: casing tells you a little about everybody, `read` tells you
 everything about one person.
 
+### 4.10 The wire: cards, taps, dirt, and a tech answer to heat
+
+The whole lane is fiction wearing a realistic skin. There is no technique in `content/cyber.ts`,
+`sim/cyber.ts` or the UI, no exploit of any kind, and the card brand — **Bellwether** — is
+invented. A card is a tier, a limit and a freshness clock; a tap is a risk that compounds per
+day; "running it" is a roll against two thresholds. That is the entire model, on purpose.
+
+**Getting in.** **Mugging** (tier 0, solo) is the doorway: somebody's pockets, and a card in the
+wallet about half the time. Everything else on the wire needs something to start from.
+
+**Cards.** Three tiers (classic / gold / black), weighted so a black card is rare. Freshness
+starts 70–100 and falls 9 a day, and value scales with it, so a card is a perishable good, not a
+bank balance. Two ways to work one: a **quiet run** (18% of the limit, small chance of killing or
+flagging it) or **one big score** (70%, and usually the last thing it ever does). A flagged card
+run again is how a police file gets opened. The third option is **dumping the pile** through a
+carding racket of your own at 28% of face — much less money, zero exposure, and the right answer
+when heat is high or the pile has gone stale.
+
+**Ratting** (`rat`, tier 1) is the first op with **modes** rather than only approaches: *one good
+look* hands back a **secret**; *leave it running* plants a **tap**. A tap feeds a line most days
+and compounds a discovery risk shaped like `holdRisk()` in `hostages.ts` — but the inputs are the
+*person*, not the block: their own `tech`, and whether they are `connected` or `quiet`. That is a
+deliberate line, tested in `sim/ratting.test.ts` including a source scan: a tap is not a stakeout,
+and no block field may ever enter `tapRisk`. Being found out costs 45 trust and can open a file.
+
+**Wire fraud** (tier 3) carries `requires: { rattedTarget: true }` — the only **per-target**
+requirement in the game. Getting inside A's business unlocks wire fraud against A and nobody
+else, not even A's family. `opLocked(w, kind, target?)` takes the target for this; with no target
+in hand (browsing the tree) it asks only whether you have any mark at all, and the real check
+happens at `plan_op` with the npc id. Do not flatten this into a `priorOps` edge.
+
+**Pull Their Wires** (`digital_strike`) is the war lane without muscle, gated by the *same*
+`requires.stance` as **Ambush Their Soldiers**. It disrupts the target's rackets 3–6 days and
+pays little; it is not a strictly better ambush, and it leaves their soldiers standing.
+
+**Dirt-brokering.** A secret sells once, to a faction that is not the subject's own and is not at
+war with you. Price scales with the subject's rank (boss 2.5×, lieutenant 1.6×) and the buyer's
+existing stance toward the subject's people (war 2×, beef 1.5×). The buyer gains 8 standing; ~30%
+of the time the subject's people work out where it came from and you lose 12 with them plus a
+grudge.
+
+**Wire heat is tracked separately.** `player.cyberHeat` rises alongside ordinary heat with every
+card run, rat and strike, and **Scrub Your Trail** is the only thing that clears it — 1 AP and
+cash per point, with tech and brains buying more points and a lower price per point. It routes
+through no official at all: a captain's bribe cannot touch it, and that is the tradeoff the lane
+is built on.
+
+**Crew on the wire.** A `{ kind: 'hack' }` assignment works the pile passively: no action, no AP.
+They run the freshest cards first and keep 20% of the take. They will not bother below three live
+cards, because a day of somebody's time is worth more than that.
+
+**A related fix, in the same pass.** `opChance` never counted the player, so an op with
+`minCrew: 0` and no crew on it had a skill sum of zero and floored at the 3% minimum — while the
+ops tree advertised it as "solo ok". Every solo-capable op now counts the player as one of the
+hands; ops that *require* crew are untouched, because their balance is the crew you bring.
+
 ## 5. Rackets, production, ops
 
 **Rackets** (persistent, on a business): protection, numbers, bookmaking, gambling

@@ -13,6 +13,7 @@ export { connectionsOf, familyOf, backingOf } from './connections';
 export { ownedItems, equippedItems, isEquipped, ownedCount, equippedCount, equipSlotsLeft, kitSkillBoost, kitApproachBias, kitHeatMult, kitMods, isMarket, marketStock, buyPrice, sellPrice, EQUIP_MAX } from './items';
 import { equippedItems, kitApproachBias, kitSkillBoost } from './items';
 export { confrontations, activeConfrontation, confrontOptions, confrontChance, backupCrew, CONFRONT_AS } from './combat';
+export { cards, liveCards, cardById, cardValue, runOdds, dumpValue, tapped, daysTapped, tapRisk, secrets, secretsAbout, unsoldSecrets, dirtPrice, scrubPower, cyberHeat } from './cyber';
 /** Rackets a faction has marked: the ones 'Dig In' answers. */
 export function threatenedRackets(w: World) {
   return w.player.racketIds.map(id => w.rackets[id]).filter(r => r && (r.threatened ?? 0) >= w.day);
@@ -68,6 +69,12 @@ export function crewSkillSum(w: World, ids: Id[]): Record<string, number> {
 }
 export function opChance(w: World, kind: OpKind, crewIds: Id[], approach?: OpApproach, targetBusinessId?: Id): number {
   const d = OP_DEFS[kind]; const s = crewSkillSum(w, crewIds); const ap = approach ? OP_APPROACHES[approach] : undefined;
+  // On a job you can do alone, you are one of the hands. Without this a minCrew-0 op with no crew
+  // on it has a skill sum of zero and floors at 3% — the tree says "solo ok" and the game says no.
+  // It matters most on the wire, where the skill the job wants (tech) is the player's own and
+  // hiring somebody with tech 11 is a long way past where these ops sit in the tree. Jobs that
+  // *require* crew are untouched on purpose: their balance is the crew you bring, not you.
+  if (d.minCrew === 0) for (const k of Object.keys(s)) s[k] += w.player.skills[k as keyof typeof w.player.skills];
   // what the player is carrying counts: kit adds to the crew's hands, and it pulls an
   // approach's weights up or down — a sawn-off makes a loud job better and a quiet one worse
   for (const [k, v] of Object.entries(kitSkillBoost(w))) s[k] = (s[k] ?? 0) + (v ?? 0);
@@ -138,7 +145,7 @@ export function controlShare(w: World): number {
 
 // ---------------------------------------------------------------- op progression
 /** Why this op is not on the table yet, or undefined when it is. Same shape as availableRackets. */
-export function opLocked(w: World, kind: OpKind): string | undefined {
+export function opLocked(w: World, kind: OpKind, target?: { npcId?: Id }): string | undefined {
   const req = OP_DEFS[kind].requires; if (!req) return undefined;
   const p = w.player;
   if (req.crewCount !== undefined && p.crewEver < req.crewCount) return `Needs ${req.crewCount} ${req.crewCount === 1 ? 'person' : 'people'} to have joined your crew. You have had ${p.crewEver}.`;
@@ -159,6 +166,14 @@ export function opLocked(w: World, kind: OpKind): string | undefined {
     return `War work. Nobody is at ${req.stance.join(' or ')} with you${req.stance.includes('beef') ? ' yet' : ''}.`;
   }
   if (req.weapon && !equippedItems(w).some(i => i.category === 'weapon')) return 'You do not walk into this one empty-handed. Carry a weapon.';
+  if (req.rattedTarget) {
+    // The only per-target requirement in the game: it asks about this mark, not about you. With a
+    // target in hand that is the whole check. Without one — the ops tree, browsing — the honest
+    // question is whether you have any mark at all, otherwise the node could never read unlocked.
+    const n = target?.npcId ? w.npcs[target.npcId] : undefined;
+    if (n) { if (!n.ratted) return `You have never been inside ${n.name}'s business. Get in there first.`; }
+    else if (!rattedNpcs(w).length) return 'Only possible against somebody whose business you have already been inside. Get inside one first — one good look, or a tap left running.';
+  }
   return undefined;
 }
 /** Factions holding one of these stances toward the player right now. */
@@ -167,8 +182,15 @@ export function factionsAt(w: World, stances: Stance[]): Faction[] {
 }
 
 /** Ops whose requirements are met right now. */
-export function opsAvailable(w: World): OpKind[] {
-  return (Object.keys(OP_DEFS) as OpKind[]).filter(k => !opLocked(w, k));
+export function opsAvailable(w: World, target?: { npcId?: Id }): OpKind[] {
+  return (Object.keys(OP_DEFS) as OpKind[]).filter(k => !opLocked(w, k, target));
 }
+/** The player's rackets of one kind — the carding racket a card dump needs, for instance. */
+export function playerRacketsOfKind(w: World, kind: RacketKind) {
+  return w.player.racketIds.map(id => w.rackets[id]).filter(r => r && r.kind === kind && !r.disrupted);
+}
+
+/** Everybody whose business you have been inside: the marks wire fraud is possible against. */
+export function rattedNpcs(w: World): Npc[] { return Object.values(w.npcs).filter(n => n.ratted && n.alive); }
 export { isAbandoned, isKnownAbandoned, isClaimable, claimedByPlayer, abandonedBlocks } from './abandoned';
 export { allHostages, hostagesOf, isHeld, daysHeld, ransomValue, holdRisk } from './hostages';

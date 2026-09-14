@@ -99,6 +99,7 @@ function Planner() {
   const [safehouseId, setSafehouseId] = useState<Id | undefined>(undefined);
   const [crewIds, setCrewIds] = useState<Id[]>([]);
   const [approach, setApproach] = useState<OpApproach | undefined>(undefined);
+  const [mode, setMode] = useState<string | undefined>(undefined);
   const [filter, setFilter] = useState('');
   const idle = select.idleCrew(w);
   const def = kind ? OP_DEFS[kind] : null;
@@ -109,9 +110,12 @@ function Planner() {
   const insiders = select.insidersFor(w, target.businessId);
   const sums = select.crewSkillSum(w, crewIds);
   const targets = useMemo(() => kind ? select.opTargets(w, kind) : [], [w, kind]);
-  const npcs = useMemo(() => Object.values(w.npcs).filter(n => n.alive && !n.crew && (n.role === 'boss' || n.role === 'lieutenant' || n.role === 'owner' || n.role === 'official' || n.role === 'soldier')).filter(n => !filter || n.name.toLowerCase().includes(filter.toLowerCase())).slice(0, 40), [w, filter]);
-  const action = kind ? { type: 'plan_op' as const, kind, crewIds, approach, targetBusinessId: target.businessId, targetNpcId: target.npcId, targetFactionId: target.factionId, targetBlockId: target.blockId, targetDistrictId: target.districtId, safehouseId } : null;
-  const reset = () => { setKind(null); setTarget({}); setCrewIds([]); setApproach(undefined); setFilter(''); setSafehouseId(undefined); };
+  // Wire fraud's requirement is per person, so its target list is only the people it can legally
+  // run against. Everything else picks from the usual pool.
+  const onlyRatted = !!def?.requires?.rattedTarget;
+  const npcs = useMemo(() => (onlyRatted ? select.rattedNpcs(w) : Object.values(w.npcs).filter(n => n.alive && !n.crew && (n.role === 'boss' || n.role === 'lieutenant' || n.role === 'owner' || n.role === 'official' || n.role === 'soldier'))).filter(n => !filter || n.name.toLowerCase().includes(filter.toLowerCase())).slice(0, 40), [w, filter, onlyRatted]);
+  const action = kind ? { type: 'plan_op' as const, kind, crewIds, approach, mode, targetBusinessId: target.businessId, targetNpcId: target.npcId, targetFactionId: target.factionId, targetBlockId: target.blockId, targetDistrictId: target.districtId, safehouseId } : null;
+  const reset = () => { setKind(null); setTarget({}); setCrewIds([]); setApproach(undefined); setMode(undefined); setFilter(''); setSafehouseId(undefined); };
   const toggle = (id: Id) => setCrewIds(ids => ids.includes(id) ? ids.filter(x => x !== id) : def && ids.length >= def.maxCrew ? ids : [...ids, id]);
 
   return (
@@ -145,6 +149,7 @@ function Planner() {
                   <input className="input mb8" placeholder="Filter by name…" value={filter} onChange={e => setFilter(e.target.value)} />
                   <div className="list" style={{ maxHeight: 260, overflowY: 'auto' }}>
                     {npcs.map(n => <button type="button" key={n.id} className="listitem" onClick={() => setTarget({ npcId: n.id })}><div className="grow"><div className="title">{n.name}</div><div className="sub">{cap(n.role)}{n.faction ? ` · ${select.factionName(w, n.faction)}` : ''} · {w.blocks[n.homeBlockId]?.name}</div></div></button>)}
+                    {npcs.length === 0 && <p className="small muted">{onlyRatted ? 'Nobody you have been inside of. Run Get Inside Their Business on somebody worth defrauding first — this one is per person, and reading one of their people does nothing for the next.' : 'Nobody by that name.'}</p>}
                   </div>
                 </>
               ) : def.target === 'district' ? (
@@ -166,6 +171,20 @@ function Planner() {
               ) : (
                 <select className="select" value="" onChange={e => setTarget({ blockId: e.target.value })}><option value="">Pick a block…</option>{Object.values(w.blocks).map(b => <option key={b.id} value={b.id}>{b.name}</option>)}</select>
               )}
+            </>
+          )}
+          {step === 2 && def.modes && (
+            <>
+              <div className="section-title">How far do you take it?</div>
+              <div className="col">
+                {def.modes.map(m => { const on = (mode ?? def.modes![0].id) === m.id; return (
+                  <button type="button" key={m.id} className={`opt${on ? ' sel' : ''}`} onClick={() => setMode(m.id)}>
+                    <span className="lbl">{m.icon} {m.label}</span>
+                    <span className="det">{m.blurb}</span>
+                    <span className="stakes"><b className="green">✓ {m.good}</b> <b className="red">✗ {m.bad}</b></span>
+                  </button>
+                ); })}
+              </div>
             </>
           )}
           {step === 2 && (

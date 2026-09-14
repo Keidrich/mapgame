@@ -51,8 +51,14 @@ export type Action =
   | { type: 'sell_product'; product: ProductKind; amount: number; blockId: Id } // 1 AP street sale
   | { type: 'launder'; amount: number } // via laundering rackets capacity (auto at tick too)
   | { type: 'launder_with_fixer'; npcId: Id; amount: number } // 1 AP: a fixer washes it at their own worse rate, up to their daily cap
+  // --- the wire (content/cyber.ts) ---
+  | { type: 'run_card'; cardId: Id; mode: 'small' | 'big' }   // work one card yourself
+  | { type: 'dump_cards'; racketId: Id }                      // the whole pile, wholesale, through a carding racket
+  | { type: 'sell_dirt'; secretId: Id; factionId: FactionId } // what you learned, sold to somebody who wants it
+  | { type: 'scrub_trail' }                                   // cash and an hour against the heat the wire made
+  | { type: 'pull_tap'; npcId: Id }                           // take a tap off before the risk compounds into being found
   // --- ops ---
-  | { type: 'plan_op'; kind: OpKind; crewIds: Id[]; approach?: 'loud' | 'quiet' | 'inside'; targetBusinessId?: Id; targetNpcId?: Id; targetFactionId?: FactionId; targetBlockId?: Id; targetDistrictId?: Id; safehouseId?: Id }
+  | { type: 'plan_op'; kind: OpKind; crewIds: Id[]; approach?: 'loud' | 'quiet' | 'inside'; mode?: string; targetBusinessId?: Id; targetNpcId?: Id; targetFactionId?: FactionId; targetBlockId?: Id; targetDistrictId?: Id; safehouseId?: Id }
   | { type: 'launch_op'; opId: Id }
   | { type: 'abort_op'; opId: Id }
   // --- factions / politics ---

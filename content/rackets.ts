@@ -26,6 +26,7 @@ export const RACKET_DEFS: Record<RacketKind, RacketDef> = {
   dealing:      { label: 'Dealing', icon: '💊', blurb: 'Move product to the patrons. Needs stock.', setupCost: 300, skill: 'charm', heat: 3, incomeBase: 0, scale: 'stash', dirty: true, needsProduct: true, risk: 0.08 },
   laundering:   { label: 'Laundering', icon: '🧼', blurb: 'Dirty money in, clean money out, minus a cut.', setupCost: 1500, skill: 'brains', heat: 1, incomeBase: 0, scale: 'business', dirty: false, launderCap: 1500, risk: 0.03 },
   smuggling:    { label: 'Smuggling', icon: '🚢', blurb: 'Product comes in cheap through here.', setupCost: 2000, skill: 'wheels', heat: 3, incomeBase: 260, scale: 'block', dirty: true, risk: 0.06 },
+  carding:      { label: 'Carding', icon: '💳', blurb: 'Somebody in the back turns stolen cards into clean-looking receipts. Wholesale, no questions.', setupCost: 900, skill: 'tech', heat: 2, incomeBase: 0, scale: 'stash', dirty: true, risk: 0.05 },
   no_show_jobs: { label: 'No-Show Jobs', icon: '🧾', blurb: 'Your guys are on the payroll. They never show.', setupCost: 1200, skill: 'charm', heat: 2, incomeBase: 380, scale: 'business', dirty: false, risk: 0.04 },
 };
 
@@ -59,6 +60,7 @@ export interface OpDef {
   target: 'business' | 'npc' | 'faction' | 'block' | 'district' | 'none';
   targetTypes?: string[];      // business types
   ownRacket?: boolean;         // aimed at a place where you run something: yours to defend, not to rob
+  modes?: OpMode[];            // op-specific choices, on top of the three approaches
   ownBusiness?: boolean;       // must target your own business
   cost?: number;               // upfront
   tier?: number;               // where it sits in the ops tree, for layout only
@@ -66,6 +68,8 @@ export interface OpDef {
 }
 
 /** What an op needs from you before it is even offered. All conditions must hold. */
+export interface OpMode { id: string; label: string; icon: string; blurb: string; good: string; bad: string }
+
 export interface OpRequires {
   crewCount?: number;          // people who have ever joined your crew
   safehouseTier?: number;      // a safehouse at this tier or better
@@ -76,6 +80,12 @@ export interface OpRequires {
   stance?: Stance[];
   /** Something in your hand: these are jobs you do not walk into empty-handed. */
   weapon?: boolean;
+  /**
+   * Per-target, not per-player: you must have been inside *this person's* business before.
+   * Every other condition here asks about the empire; this one asks about the mark, so it is
+   * checked against the op's own target rather than against global history.
+   */
+  rattedTarget?: boolean;
 }
 export const OP_DEFS: Record<OpKind, OpDef> = {
   heist_bank:      { label: 'Bank Job', icon: '🏦', blurb: 'The big one. Vault, hostages, getaway.', planDays: 5, minCrew: 3, maxCrew: 5, needs: { brains: 14, muscle: 10, wheels: 8, tech: 8 }, difficulty: 80, payout: [40000, 120000], heat: 35, target: 'business', targetTypes: ['bank'], tier: 4, requires: { priorOps: ['heist_jeweller', 'heist_armored'] } },
@@ -97,6 +107,15 @@ export const OP_DEFS: Record<OpKind, OpDef> = {
   ambush_soldiers: { label: 'Ambush Their Soldiers', icon: '🥊', blurb: 'Catch a crew of theirs off their own turf and take the fight to them for once.', planDays: 1, minCrew: 1, maxCrew: 4, needs: { muscle: 12, wheels: 5 }, difficulty: 45, payout: [800, 3500], heat: 14, target: 'faction', tier: 2, requires: { stance: ['beef', 'war'] } },
   defend_racket:   { label: 'Dig In', icon: '🛡️', blurb: 'Put people on a racket they have marked, and be there when the muscle arrives.', planDays: 0, minCrew: 1, maxCrew: 3, needs: { muscle: 8, brains: 4 }, difficulty: 35, payout: [0, 0], heat: 5, target: 'business', ownRacket: true, tier: 1, requires: { stance: ['beef', 'war'] } },
   war_strike:      { label: 'War Strike', icon: '⚔️', blurb: 'Take one of their lieutenants off the board while the shooting is already started. An act of war, and read as one.', planDays: 2, minCrew: 2, maxCrew: 4, needs: { muscle: 12, wheels: 6, brains: 4 }, difficulty: 55, payout: [0, 0], heat: 20, target: 'npc', tier: 3, requires: { stance: ['war'], crewCount: 2 } },
+  // ---- the wire ----
+  mugging:         { label: 'Mugging', icon: '🌙', blurb: 'Follow somebody off a lit street and take what is on them. Cash, a watch, whatever is in the wallet.', planDays: 0, minCrew: 0, maxCrew: 2, needs: { muscle: 5, wheels: 3 }, difficulty: 28, payout: [120, 900], heat: 7, target: 'npc', tier: 0 },
+  rat:             { label: 'Get Inside Their Business', icon: '🕳️', blurb: 'Their post, their calls, their standing arrangements. Learn what they are hiding — once, or for as long as you can keep it up.', planDays: 1, minCrew: 0, maxCrew: 2, needs: { tech: 9, brains: 7 }, difficulty: 45, payout: [0, 0], heat: 4, target: 'npc', tier: 1,
+    modes: [
+      { id: 'read', label: 'One good look', icon: '👁️', blurb: 'Everything they are sitting on, once.', good: 'A secret you can use or sell', bad: 'One shot; nothing after it' },
+      { id: 'tap', label: 'Leave it running', icon: '📻', blurb: 'Keep listening, day after day.', good: 'They keep telling you things', bad: 'The longer it runs, the likelier they find it' },
+    ] },
+  wire_fraud:      { label: 'Wire Fraud', icon: '🏧', blurb: 'Their arrangements, in your name, moved somewhere quiet. Only possible against somebody whose business you have already been inside.', planDays: 3, minCrew: 0, maxCrew: 2, needs: { tech: 14, brains: 12 }, difficulty: 65, payout: [9000, 30000], heat: 16, target: 'npc', tier: 3, requires: { rattedTarget: true } },
+  digital_strike:  { label: 'Pull Their Wires', icon: '🔌', blurb: 'Their tills stop ringing and their book stops balancing. Nobody gets hurt and nobody sees you.', planDays: 1, minCrew: 0, maxCrew: 2, needs: { tech: 11, brains: 8 }, difficulty: 50, payout: [200, 1200], heat: 6, target: 'business', tier: 2, requires: { stance: ['beef', 'war'] } },
   takeover:        { label: 'Take the Corner', icon: '🏴', blurb: 'Roll up on a street crew and take their block. Lighter than a faction raid.', planDays: 0, minCrew: 0, maxCrew: 3, needs: { muscle: 8 }, difficulty: 35, payout: [300, 1200], heat: 8, target: 'block', tier: 0 },
   steal_formula:   { label: 'Steal a Formula', icon: '📜', blurb: 'Break into a rival cook, a pharmacy or a print works and leave with something you can use.', planDays: 2, minCrew: 1, maxCrew: 3, needs: { tech: 8, brains: 6 }, difficulty: 50, payout: [0, 0], heat: 10, target: 'none', tier: 2, requires: { crewCount: 2, racketKinds: ['protection', 'numbers', 'bookmaking', 'gambling_den', 'loansharking', 'fencing', 'chop_shop', 'dealing', 'laundering', 'smuggling', 'no_show_jobs'] } },
   scout_block:     { label: 'Scout the Edges', icon: '🔦', blurb: 'Walk the dead streets at the edge of a district and find out what is still standing. You may come back with nothing.', planDays: 1, minCrew: 0, maxCrew: 2, needs: { brains: 5, tech: 3, wheels: 3 }, difficulty: 30, payout: [0, 0], heat: 2, target: 'district', tier: 0 },

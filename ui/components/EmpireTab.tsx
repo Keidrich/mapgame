@@ -9,6 +9,7 @@ import { BizRow } from './Rows';
 import { RacketCard } from './BusinessSheet';
 import { Meter } from './Meter';
 import { Info, Term, TermChip } from './Info';
+import { WireSection } from './Wire';
 
 export function EmpireTab() {
   const w = useWorld();
@@ -48,6 +49,8 @@ export function EmpireTab() {
 
       <div className="section-title">Businesses ({biz.length})</div>
       <div className="list">{biz.map(b => <BizRow key={b.id} w={w} biz={b} />)}{biz.length === 0 && <p className="small muted">You own nothing yet. Buy a business or protect one.</p>}</div>
+
+      <WireSection />
 
       <div className="section-title">Rackets ({rackets.length})</div>
       <div className="list">{rackets.map(r => <RacketCard key={r.id} w={w} r={r} showBiz />)}{rackets.length === 0 && <p className="small muted">No rackets. Start one from a business sheet.</p>}</div>

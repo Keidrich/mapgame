@@ -57,6 +57,7 @@ export function NpcSheet({ npcId }: { npcId: Id }) {
           <p className="small" style={{ margin: '4px 0 0' }}>{n.playerNote}</p>
         </div>
       )}
+      <TapPanel npcId={npcId} />
       <Connections npcId={npcId} />
       {/* the sim's own flavour, kept separate from the player's note above */}
       {n.notes.length > 0 && <ul className="small muted mt8" style={{ paddingLeft: 18, margin: 0 }}>{n.notes.map((x, i) => <li key={i}>{x}</li>)}</ul>}
@@ -115,6 +116,35 @@ function FixerAct({ npcId }: { npcId: Id }) {
 }
 
 /** Who they have behind them: family first, then old friends. Tap through to any of them. */
+/**
+ * A tap you have left running on somebody, and the one decision it asks: how long to leave it.
+ * The risk shown is the real number `tapRisk` rolls against, and it climbs every day — pulling it
+ * costs nothing, which is deliberate: getting out should never be the part you think twice about.
+ */
+function TapPanel({ npcId }: { npcId: Id }) {
+  const w = useWorld();
+  const n = w.npcs[npcId];
+  if (!n?.tap) {
+    if (!n?.ratted) return null;
+    return <p className="tiny muted mt8">🕳️ You have been inside their business. <Term id="ratted">That is what wire fraud reads.</Term></p>;
+  }
+  const days = select.daysTapped(w, n);
+  const risk = Math.round(select.tapRisk(w, n) * 100);
+  return (
+    <div className="card mt12" style={{ borderColor: risk >= 25 ? 'var(--red)' : 'var(--gold)' }}>
+      <div className="row between">
+        <b className="small">📻 You are listening<Info id="tap" /></b>
+        <span className={`chip ${risk >= 25 ? 'red' : ''}`}>{risk}% a day they find it</span>
+      </div>
+      <p className="small muted mt8" style={{ margin: '8px 0 0' }}>
+        {days === 0 ? 'Went on today.' : `Running ${days} day${days === 1 ? '' : 's'}.`} Every day it runs is a day it is likelier to be found,
+        and being found costs you everything they thought of you.
+      </p>
+      <div className="mt8"><Act action={{ type: 'pull_tap', npcId }} label="Take it off" icon="🔌" kind="ghost" block /></div>
+    </div>
+  );
+}
+
 function Connections({ npcId }: { npcId: Id }) {
   const w = useWorld();
   const n = w.npcs[npcId];
@@ -172,6 +202,7 @@ function CrewSection({ npcId }: { npcId: Id }) {
   for (const sh of playerSafehouses(w)) for (const pid of sh.productionIds) { const p = w.productions[pid]; if (p && (!p.workerId || p.workerId === npcId)) options.push({ label: `${PRODUCTION_DEFS[p.kind].icon} ${PRODUCTION_DEFS[p.kind].label} at ${sh.name}`, a: { kind: 'production', productionId: pid } }); }
   for (const b of select.playerBlocks(w)) options.push({ label: `🛡️ Guard ${b.name}`, a: { kind: 'guard', blockId: b.id } });
   options.push({ label: '💰 Collect', a: { kind: 'collect' } });
+  options.push({ label: '💻 On the wire (work the cards)', a: { kind: 'hack' } });
   for (const d of select.districtsRunnable(w)) { const cur = select.lieutenantOf(w, d.id); if (!cur || cur.id === npcId) options.push({ label: `⭐ Run ${d.name}`, a: { kind: 'lieutenant', districtId: d.id } }); }
   const [pick, setPick] = useState(0);
   const picked = options[pick]?.a;
@@ -201,6 +232,7 @@ function CrewSection({ npcId }: { npcId: Id }) {
               {options.map((o, i) => <option key={i} value={i}>{o.label}</option>)}
             </select>
             {picked?.kind === 'lieutenant' && <p className="small muted mt8">Needs loyalty 50, five days in the crew, and some muscle, brains and charm between them. Their cut goes up by half.</p>}
+            {picked?.kind === 'hack' && <p className="small muted mt8">They work the card pile all day and hand over most of what it makes — nothing in your handwriting, but a little wire heat every day. They will not bother unless you are holding at least three live cards. Tech is what makes them worth it.</p>}
             <div className="row mt8">
               <div className="grow"><Act action={{ type: 'assign', npcId, assignment: options[pick]?.a }} label="Assign" kind="primary" block /></div>
               {c.assignment && <Act action={{ type: 'assign', npcId }} label="Unassign" kind="ghost" />}

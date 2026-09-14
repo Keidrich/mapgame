@@ -22,6 +22,8 @@ import { isHeld, resolveHostage, roomFor } from './hostages';
 import { PLAYER_NOTE_MAX, opLocked } from './select';
 import { EQUIP_MAX, buyPrice, equipSlotsLeft, isMarket, marketStock, ownedCount, sellPrice } from './items';
 import { activeConfrontation, confrontOptions, confrontations, resolveConfrontation } from './combat';
+import { cardById, dumpCards, endTap, liveCards, runCard, scrubPower, scrubTrail, secrets, sellDirt } from './cyber';
+import { SCRUB } from '@content/cyber';
 import { CASE_JOINT } from '@content/rackets';
 import { ITEM_DEFS } from '@content/items';
 import { moveProduct, onJoin, recipesForKind, restockCost, sellMult } from './production';
@@ -243,9 +245,43 @@ export function can(w: World, a: Action): Affordance {
       const r = ap(FIXER.ap); return r ? no(r) : yes({ ap: FIXER.ap });
     }
 
+    case 'run_card': {
+      const c = cardById(w, a.cardId); if (!c) return no('You do not have that one.');
+      if (c.freshness <= 0 || c.limit <= 0) return no('Dead. It stopped working days ago.');
+      return yes();
+    }
+    case 'dump_cards': {
+      const r = w.rackets[a.racketId];
+      if (r?.owner !== PLAYER || r.kind !== 'carding') return no('Needs a carding racket of your own to move them through.');
+      if (r.disrupted) return no('That racket is shut for a few days.');
+      if (!liveCards(w).length) return no('Nothing worth dumping.');
+      return yes();
+    }
+    case 'sell_dirt': {
+      const sec = secrets(w).find(x => x.id === a.secretId); if (!sec) return no('You do not know that.');
+      if (sec.soldTo) return no('You already sold that one. It is not worth anything twice.');
+      const f = w.factions[a.factionId]; if (!f?.alive) return no('They are gone.');
+      const subject = w.npcs[sec.npcId];
+      if (subject?.faction === a.factionId) return no(`${f.short} are not going to pay for dirt on their own.`);
+      if ((f.stance[PLAYER] ?? 'peace') === 'war') return no(`${f.short} will not sit down with you at all right now.`);
+      return yes();
+    }
+    case 'pull_tap': {
+      const n = npc(a.npcId); if (!n?.tap) return no('Nothing of yours running on them.');
+      return yes();   // free: getting out is never the part you should have to think twice about
+    }
+    case 'scrub_trail': {
+      if (!(p.cyberHeat ?? 0)) return no('Nothing on the wire to clean up. This does not touch the heat you earned in person.');
+      const { points, cost } = scrubPower(w);
+      if (points <= 0) return no('Nothing left to scrub today.');
+      const r = ap(SCRUB.ap); if (r) return no(r);
+      const c = cash(cost); if (c) return no(c);
+      return yes({ ap: SCRUB.ap, cash: cost });
+    }
     case 'plan_op': {
       const def = OP_DEFS[a.kind];
-      const locked = opLocked(w, a.kind); if (locked) return no(locked);
+      // the per-target gate (wire fraud) is keyed to the mark, not to the empire
+      const locked = opLocked(w, a.kind, { npcId: a.targetNpcId }); if (locked) return no(locked);
       if (a.crewIds.length < def.minCrew) return no(`Needs at least ${def.minCrew} crew.`);
       if (a.crewIds.length > def.maxCrew) return no(`Too many. Max ${def.maxCrew}.`);
       for (const id of a.crewIds) { const n = npc(id); if (!n?.crew || n.crew.status !== 'idle') return no(`${n?.name ?? 'Someone'} is not available.`); }
@@ -608,7 +644,7 @@ export function dispatch(prev: World, a: Action): World {
     case 'plan_op': {
       const def = OP_DEFS[a.kind]; if (def.cost) takeCash(w, def.cost);
       const insider = a.approach === 'inside' ? insidersFor(w, a.targetBusinessId)[0] : undefined;
-      const o: Op = { id: nid(w, 'o'), kind: a.kind, approach: a.approach, insideId: insider?.id, targetBusinessId: a.targetBusinessId, targetNpcId: a.targetNpcId, targetFactionId: a.targetFactionId, targetBlockId: a.targetBlockId, targetDistrictId: a.targetDistrictId, safehouseId: a.safehouseId ?? (a.kind === 'kidnap' ? p.safehouseIds[0] : undefined), crewIds: a.crewIds.slice(), planDays: def.planDays, daysLeft: def.planDays, status: def.planDays === 0 ? 'ready' : 'planning', createdDay: w.day };
+      const o: Op = { id: nid(w, 'o'), kind: a.kind, approach: a.approach, mode: a.mode ?? OP_DEFS[a.kind].modes?.[0]?.id, insideId: insider?.id, targetBusinessId: a.targetBusinessId, targetNpcId: a.targetNpcId, targetFactionId: a.targetFactionId, targetBlockId: a.targetBlockId, targetDistrictId: a.targetDistrictId, safehouseId: a.safehouseId ?? (a.kind === 'kidnap' ? p.safehouseIds[0] : undefined), crewIds: a.crewIds.slice(), planDays: def.planDays, daysLeft: def.planDays, status: def.planDays === 0 ? 'ready' : 'planning', createdDay: w.day };
       w.ops[o.id] = o; p.opIds.push(o.id);
       for (const id of a.crewIds) { const n = npc(id); n.crew!.assignment = { kind: 'op', opId: o.id }; n.crew!.status = 'assigned'; }
       log(w, `${def.label}${a.approach ? ` (${OP_APPROACHES[a.approach].label.toLowerCase()}${insider ? `, ${insider.name} inside` : ''})` : ''} is ${o.status === 'ready' ? 'ready to go' : `in planning (${def.planDays} days)`}.`, 'info', { opId: o.id });
@@ -654,6 +690,30 @@ export function dispatch(prev: World, a: Action): World {
       if (a.on) carried.push(item.id);
       else carried.splice(carried.indexOf(item.id), 1);
       p.equipped = carried;
+      break;
+    }
+    case 'run_card': {
+      const c = cardById(w, a.cardId)!;
+      runCard(w, c, a.mode, rng);
+      break;
+    }
+    case 'dump_cards': {
+      dumpCards(w);
+      break;
+    }
+    case 'sell_dirt': {
+      const sec = secrets(w).find(x => x.id === a.secretId)!;
+      sellDirt(w, sec, a.factionId, rng);
+      break;
+    }
+    case 'pull_tap': {
+      endTap(w, npc(a.npcId), false, rng);
+      break;
+    }
+    case 'scrub_trail': {
+      const { cost } = scrubPower(w);
+      takeCash(w, cost);
+      scrubTrail(w);
       break;
     }
     case 'resolve_confrontation': {

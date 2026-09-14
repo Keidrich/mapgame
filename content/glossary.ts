@@ -522,6 +522,48 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
     title: 'Chance of success',
     body: 'Your crew\'s skills against the job\'s difficulty, weighted by the approach. Add more crew or better skills; an inside man is worth more than either.',
   },
+
+  // ---------------------------------------------------------------- the wire
+  wire: {
+    title: 'The wire',
+    body: 'Stolen cards, taps on people, and whatever those two turn up. Everything on the wire pays dirty and makes its own kind of heat, which no bribe will touch.',
+    note: 'Scrubbing your trail is the only thing that clears wire heat. Budget for it before you start.',
+  },
+  card: {
+    title: 'A lifted card',
+    body: 'A tier, a limit and a freshness clock that falls 9 a day. Fresh cards pay near the full slice of the limit; a cold one is worth almost nothing and stops working without telling you.',
+    note: 'Run it or dump it within a week. After that you are carrying evidence, not money.',
+  },
+  cardRun: {
+    title: 'Running a card',
+    body: 'A quiet run takes a small slice and rarely kills the card. One big score takes most of what is left and usually ends it — and is far likelier to get it flagged. Running a flagged card again is how a police file gets opened.',
+    note: 'Your tech skill lowers both bad outcomes. A stale card raises them.',
+  },
+  cardDump: {
+    title: 'Dumping the pile',
+    body: 'A carding racket of your own buys every live card wholesale at about a quarter of face value. Far less than running them, and it carries no exposure at all.',
+    note: 'The right answer when heat is high or the cards have gone stale.',
+  },
+  tap: {
+    title: 'A tap',
+    body: 'Persistent listening on one person. It feeds you a line most days and compounds a discovery risk every day it runs. The risk is about them, not where they are: how closely they watch their own affairs, and whether somebody checks things for them.',
+    note: 'Found out, they lose all trust in you and talk. Pull it before it is worth more than they are.',
+  },
+  ratted: {
+    title: 'Been inside',
+    body: 'You have had a proper look at this person\'s business, by a quick read or a tap. Some jobs — wire fraud above all — are only possible against somebody you have already been inside.',
+    note: 'It is per person. Reading one of their people does nothing for the next.',
+  },
+  dirt: {
+    title: 'Dirt',
+    body: 'A secret you learned about somebody. A rival faction will buy it, and pays far more for a boss than a soldier, more again if they are already at war with that person\'s people.',
+    note: 'Roughly one sale in three gets back to them. Selling dirt on a faction you still need is a choice, not an accident.',
+  },
+  scrub: {
+    title: 'Scrub your trail',
+    body: 'A day of quiet unpicking: paper burned, a name off two lists, a clerk looked after. It takes points off both your wire heat and your ordinary heat for cash, and needs no captain and no councillor.',
+    note: 'Tech and brains buy more points per pass and a lower price per point. It is the only way wire heat comes down.',
+  },
 };
 
 /** A term id that definitely exists, for typo safety at call sites that want it. */

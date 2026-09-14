@@ -4,6 +4,7 @@ import { PRODUCTION_DEFS, PRODUCT_INFO, RACKET_DEFS, SAFEHOUSE_TIERS } from '@co
 import { launderCapacity, productionOutput, racketIncome, streetPrice } from './economy';
 import { LAUNDER_RATE } from '@content/rackets';
 import { resolveConfrontation } from './combat';
+import { tickCards, tickHackCrew, tickTaps } from './cyber';
 import { drawEvents } from './events';
 import { addMemory, tickAgendas, tickGossip } from './people';
 import { tickCrews } from './crews';
@@ -29,6 +30,11 @@ export function endDay(w: World): World {
   // Anything still standing in front of the player when the day ends happens anyway: an
   // unanswered confrontation lands exactly as it would have before any of this existed.
   for (const c of [...(w.confrontations ?? [])]) resolveConfrontation(w, c, 'absent', rng);
+
+  // ---- the wire: cards go stale, taps report or get found, crew on the wire work the pile ----
+  tickCards(w);
+  tickTaps(w, rng);
+  tickHackCrew(w, rng);
 
   // ---- crew upkeep ----
   for (const id of p.crewIds) {

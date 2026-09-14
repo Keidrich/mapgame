@@ -80,6 +80,7 @@ export function assignmentLabel(w: World, a?: Assignment): string {
     case 'op': { const o = w.ops[a.opId]; return o ? `On op: ${OP_DEFS[o.kind].label}` : 'On an op'; }
     case 'guard': return `Guarding ${w.blocks[a.blockId]?.name ?? '?'}`;
     case 'collect': return 'Collecting';
+    case 'hack': return 'On the wire, working the cards';
     case 'lieutenant': return `Running ${w.districts[a.districtId]?.name ?? 'a district'}`;
   }
 }
