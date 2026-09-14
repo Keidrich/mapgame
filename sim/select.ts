@@ -16,6 +16,9 @@ export { connectionsOf, familyOf, backingOf } from './connections';
 export { ownedItems, equippedItems, isEquipped, ownedCount, equippedCount, equipSlotsLeft, kitSkillBoost, kitApproachBias, kitHeatMult, kitMods, isMarket, marketStock, buyPrice, sellPrice, EQUIP_MAX } from './items';
 import { authorityDifficulty, buyCaseCost, buyDownCost } from './authority-ops';
 import { saturationMult, synergyFor } from './territory';
+import { coverFor } from './lieutenants';
+import { foremanOf, supplyReading, SUPPLY_LABELS } from './automation';
+import { productionOutput } from './economy';
 import { routeDiscount } from './intel';
 import { rawRacketIncome, streetPrice } from './economy';
 import { qualityOf, sellMult } from './production';
@@ -38,6 +41,7 @@ export { defectReason } from './defect';
 export { daysKnown, familiar, familiarReason, favours, leverageOver, concessionReason, trustCeiling, fearCeiling } from './standing';
 // the personal history screen, and what a conversation can do with it
 export { dossier, ledgerOf, owedToThem, LEDGER_MAX } from './ledger';
+export { personalPull } from './commission';
 export { agendaKnown, agendaMoves, agendaCost, agendaChance, agendaReason, agendaTargetName, sharedConnections } from './agendas';
 export { talkOptions, isTalk, TALK } from './conversation';
 export { fixerRate, fixerDailyCap, fixerUsedToday, fixerCapToday, fixerCapLeft, fixersKnown } from './economy';
@@ -361,4 +365,151 @@ export function assetBonus(w: World, tgt: OpTarget): number {
   if (viaNpc) return viaNpc.bonus;
   const owner = tgt.businessId ? w.npcs[w.businesses[tgt.businessId]?.ownerId] : undefined;
   return helpAgainst(w, owner)?.bonus ?? 0;
+}
+
+// ---------------------------------------------------------------- the empire ledger
+/**
+ * Every holding, in one shape.
+ *
+ * Businesses, rackets and productions each had their own row on their own tab, showing whatever
+ * that tab happened to know: the racket card knew its income, the block sheet knew saturation, the
+ * inventory knew whether a production had a foreman, and nothing anywhere put the three side by
+ * side. A player with twenty holdings could not answer "which of these is being crowded out" or
+ * "which of these is running itself" without opening twenty sheets.
+ *
+ * This is assembly, not simulation. Every number here is read from the system that owns it —
+ * `territory.ts` for saturation and synergy, `automation.ts` for the foreman and the standing
+ * order, `economy.ts` for income — and nothing is recomputed a second way.
+ */
+export type HoldingKind = 'business' | 'racket' | 'production';
+export interface HoldingAuto { state: 'foreman' | 'standing' | 'manual' | 'unmanned'; label: string; good: boolean }
+export interface Holding {
+  id: Id;
+  kind: HoldingKind;
+  icon: string;
+  name: string;
+  where: string;
+  blockId: Id;
+  districtId?: Id;
+  /** $/day. Actual last take for a racket, the day's estimate for a business or a production. */
+  income: number;
+  dirty: boolean;
+  /** 1 is clear; below 1 is your own kind crowding this one out of its district. */
+  saturation: number;
+  synergy?: { bonus: number; why: string };
+  auto: HoldingAuto;
+  /** Anything wrong right now, in the player's words. */
+  flags: string[];
+}
+
+export function holdings(w: World): Holding[] {
+  const out: Holding[] = [];
+  const blockName = (id: Id) => w.blocks[id]?.name ?? 'somewhere';
+
+  for (const id of w.player.businessIds) {
+    const b = w.businesses[id]; if (!b) continue;
+    const flags: string[] = [];
+    if (b.condition < 60) flags.push(`${Math.round(b.condition)}% condition`);
+    if (b.flags.includes('torched')) flags.push('burned out');
+    if (!b.insured) flags.push('uninsured');
+    out.push({
+      id: b.id, kind: 'business', icon: BUSINESS_DEFS[b.type].icon, name: b.name,
+      where: blockName(b.blockId), blockId: b.blockId, districtId: w.blocks[b.blockId]?.districtId,
+      income: Math.round(b.baseIncome * (b.condition / 100)), dirty: false,
+      saturation: 1, auto: { state: 'manual', label: 'Owned outright', good: true }, flags,
+    });
+  }
+
+  for (const id of w.player.racketIds) {
+    const r = w.rackets[id]; if (!r) continue;
+    const b = w.businesses[r.businessId];
+    const def = RACKET_DEFS[r.kind];
+    const flags: string[] = [];
+    if (r.disrupted > 0) flags.push(`disrupted ${r.disrupted}d`);
+    if ((r.threatened ?? 0) >= w.day) flags.push('threatened');
+    if (!r.runnerId && !(b && coverFor(w, b))) flags.push('nobody running it');
+    // a product racket that cannot reach stock earns nothing, and that is invisible on its card
+    const product = racketProduct(r);
+    const reading = product ? supplyReading(w, r, product) : undefined;
+    if (reading && reading.available <= 0) flags.push('no stock to sell');
+    out.push({
+      id: r.id, kind: 'racket', icon: def.icon, name: def.label,
+      where: b ? `${b.name} · ${blockName(b.blockId)}` : blockName(w.player.currentBlockId),
+      blockId: b?.blockId ?? w.player.currentBlockId, districtId: b ? w.blocks[b.blockId]?.districtId : undefined,
+      income: Math.round(r.lastIncome), dirty: !!def.dirty,
+      saturation: saturationMult(w, r), synergy: synergyFor(w, r),
+      auto: reading
+        ? { state: reading.rule === 'manual' ? 'manual' : 'standing', label: SUPPLY_LABELS[reading.rule].label, good: reading.rule !== 'manual' && reading.available > 0 }
+        : { state: r.runnerId ? 'manual' : 'unmanned', label: r.runnerId ? `Run by ${w.npcs[r.runnerId]?.name ?? 'somebody'}` : 'Nobody on it', good: !!r.runnerId },
+      flags,
+    });
+  }
+
+  for (const sid of w.player.safehouseIds) {
+    const sh = w.safehouses[sid]; if (!sh) continue;
+    for (const pid of sh.productionIds) {
+      const pr = w.productions[pid]; if (!pr) continue;
+      const def = PRODUCTION_DEFS[pr.kind];
+      const boss = foremanOf(w, pid);
+      const flags: string[] = [];
+      if (pr.disrupted > 0) flags.push(`disrupted ${pr.disrupted}d`);
+      if (pr.stock <= 1) flags.push('out of ingredients');
+      if (!pr.workerId && !boss) flags.push('nobody working it');
+      out.push({
+        id: pr.id, kind: 'production', icon: def.icon, name: `${def.label}${pr.recipe && RECIPES[pr.recipe] ? ` · ${RECIPES[pr.recipe].label}` : ''}`,
+        where: `${sh.name} · ${blockName(sh.blockId)}`, blockId: sh.blockId, districtId: w.blocks[sh.blockId]?.districtId,
+        // a production does not take cash, it makes stock: value it at what the street pays
+        income: Math.round(productionOutput(w, pr) * streetPrice(w, sh.blockId, def.product)),
+        dirty: true, saturation: 1,
+        auto: boss
+          ? { state: 'foreman', label: `${boss.name} keeps it running`, good: true }
+          : { state: pr.workerId ? 'manual' : 'unmanned', label: pr.workerId ? `Worked by ${w.npcs[pr.workerId]?.name ?? 'somebody'}` : 'Nobody on it', good: !!pr.workerId },
+        flags,
+      });
+    }
+  }
+  return out;
+}
+
+/** Which product a racket sells, when it sells one. The same map the automation tick uses. */
+function racketProduct(r: Racket): ProductKind | undefined {
+  if (r.kind === 'dealing') return r.product ?? 'green';
+  if (r.kind === 'fencing') return 'hot_goods';
+  if (r.kind === 'counterfeiting') return 'counterfeit';
+  return undefined;
+}
+
+export type HoldingSort = 'income' | 'name' | 'saturation' | 'kind' | 'where' | 'trouble';
+/**
+ * One comparator, in the sim rather than the component, so the order a player sees is a thing a
+ * test can assert. Every sort falls back to income and then id, so it is total and stable: two
+ * holdings with the same name never swap places between renders.
+ */
+export function sortHoldings(rows: Holding[], by: HoldingSort): Holding[] {
+  const rank: Record<HoldingKind, number> = { business: 0, racket: 1, production: 2 };
+  const cmp = (a: Holding, b: Holding): number => {
+    switch (by) {
+      case 'income': return b.income - a.income;
+      case 'name': return a.name.localeCompare(b.name);
+      case 'saturation': return a.saturation - b.saturation;   // most crowded out first: it is the problem
+      case 'kind': return rank[a.kind] - rank[b.kind];
+      case 'where': return a.where.localeCompare(b.where);
+      case 'trouble': return b.flags.length - a.flags.length;
+    }
+  };
+  return rows.slice().sort((a, b) => cmp(a, b) || b.income - a.income || a.id.localeCompare(b.id));
+}
+
+/** The one-line summary above the table: what the whole empire is actually doing. */
+export function holdingsTotals(w: World): { count: number; income: number; dirty: number; crowded: number; synergies: number; automated: number; trouble: number } {
+  const rows = holdings(w);
+  return {
+    count: rows.length,
+    income: rows.reduce((n, r) => n + r.income, 0),
+    dirty: rows.filter(r => r.dirty).reduce((n, r) => n + r.income, 0),
+    crowded: rows.filter(r => r.saturation < 1).length,
+    synergies: rows.filter(r => r.synergy).length,
+    automated: rows.filter(r => r.auto.state === 'foreman' || r.auto.state === 'standing').length,
+    trouble: rows.filter(r => r.flags.length > 0).length,
+  };
 }

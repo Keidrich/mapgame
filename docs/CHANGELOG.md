@@ -14,6 +14,72 @@ House rules for an entry (see `CLAUDE.md` → *Leave a trail*):
 
 ---
 
+## 2026-09-14 — The empire ledger, and the man in the chair
+
+**What.** A holdings dashboard: every business, racket and production in one sortable table, with
+what each earns, whether your own kind are crowding it out, whether something next door is feeding
+it, and whether anything is actually running it. Plus one targeted change to Commission voting — a
+boss's own history with the player can now pull his vote off his outfit's line.
+
+**Why.** Each kind of holding lived on its own card on its own tab, showing whatever that tab
+happened to know: the racket card knew its income, the block sheet knew saturation, the inventory
+knew whether a production had a foreman. Nothing anywhere put the three side by side, so a player
+with twenty holdings could not answer "which of these is being crowded out" or "which of these is
+running itself" without opening twenty sheets. The saturation and synergy systems in particular
+shipped a pass ago and were effectively invisible unless you went looking block by block.
+
+And the Commission voted a spreadsheet. Five men sit at that table and the only thing that had ever
+mattered was their outfits' balance sheets — while the game keeps a detailed record of what has
+passed between the player and each of those men personally, and never once read it.
+
+**How.**
+
+*The ledger* is `select.holdings` plus `ui/components/Holdings.tsx`, and it is **assembly, not
+simulation**: saturation and synergy from `territory.ts`, foreman and standing order from
+`automation.ts`, income from `economy.ts`, nothing recomputed a second way. Rows carry their flags
+too — a disrupted racket, a production out of ingredients, and the one that was genuinely hidden
+before: a product racket whose standing order points at stock that does not exist, which earns
+nothing and said so nowhere.
+
+`sortHoldings` lives in the sim rather than the component, so the order a player sees is a thing a
+test asserts rather than an emergent property of a render. Every sort falls back to income and then
+id, making it total and stable — two holdings with the same name never swap places between renders.
+Sorting by crowding puts the most squeezed first, because that is the one to move.
+
+*The vote.* `vote()` splits into `factionLean` — the original function, unchanged — and
+`personalPull`, which reads the boss himself: favours he owes and favours owed to him, a grudge, a
+hold over him, whether he is quietly an asset, and what beating the player made of him. All of it
+is data the standing, ledger and nemesis passes already keep; nothing new is recorded for this.
+
+Three guards keep it a refinement rather than a rework. It applies only to the three proposals that
+are *about the player* — a chair, a sanction on them, a claim in their favour — and the table's own
+business votes exactly as it always did. A pull only flips a vote once it clears `PERSONAL.flip`.
+And favours cap at two, so a boss is moved rather than bought.
+
+**Numbers.** `npm run sim -- 60 <seed> honest` is **bit-identical on all four seeds** — the ledger
+is read-only UI and the vote change only touches proposals about the player, which the honest
+scenario never reaches. `npm run sim -- 60 7 all` is unchanged at 19/19 systems.
+
+**Watch out.**
+
+- **No `WORLD_VERSION` bump and no new state at all.** Both pieces read what is already there.
+- **A test bug worth remembering.** `commission-vote.test.ts` reads the tally off the ruling line,
+  and the first version anchored the regex to end-of-string. A ruling that *passes* appends what it
+  did after the score, so the anchored match silently returned 0–0 for exactly the rulings worth
+  checking, and the test failed claiming nobody had voted for the player. It returns `[-1, -1]` on
+  no match now, so a future miss fails loudly instead of looking like a real result.
+- **`§4.19`/`§4.20` in DESIGN renumbered.** The inventory section moved to 4.20 and the bank/depot
+  section to 4.21 to make room; there were briefly two 4.20s.
+- The Empire tab now leads with the ledger and keeps the existing per-kind lists below it. They
+  overlap deliberately: the table is for deciding what to look at, the cards are for acting on it.
+
+**Files.** New: `ui/components/Holdings.tsx`, `ui/empire-ledger.test.tsx`,
+`sim/commission-vote.test.ts`. Changed: `sim/select.ts` (holdings, sortHoldings, holdingsTotals),
+`sim/commission.ts` (`PERSONAL`, `personalPull`, `factionLean`/`vote` split),
+`ui/components/EmpireTab.tsx`, `content/glossary.ts`, `docs/DESIGN.md` §4.19 and §6.
+
+---
+
 ## 2026-09-14 — Nemesis, informants, and the introduction the connections graph was built for
 
 **What.** Two pieces, both almost entirely assembled from things that already shipped. A faction

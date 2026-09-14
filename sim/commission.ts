@@ -7,6 +7,26 @@ import type { Rng } from './rng';
 import { PLAYER, type Faction, type GameEvent, type Proposal, type World } from './types';
 import { addInfluence, clamp, log, money, nid, standingCap } from './util';
 import { stanceFor } from './generate';
+import { familiar, favours, leverageOver } from './standing';
+import { owedToThem } from './ledger';
+import { notoriety } from './nemesis';
+
+/**
+ * How much a boss's own dealings with the player are worth at the table. Small on purpose: this
+ * moves a vote, it does not buy one, and the faction's interest is still most of the decision.
+ */
+export const PERSONAL = {
+  perFavour: 14,      // something real you settled for them
+  favourCap: 28,      // ...and no more than two of them count
+  perOwed: 10,        // something they did for you that you have not repaid
+  hold: 12,           // their street, their books, or somebody of theirs in your cellar
+  grudge: 22,         // you humiliated them and they have not let it go
+  asset: 16,          // they are already quietly yours
+  perNotoriety: 0.35, // a boss who made his name beating you owes you nothing
+  nemesisCap: 30,
+  strangerShare: 0.25, // none of it counts for much from somebody you have never dealt with
+  flip: 20,            // the pull needed to cross the floor at all
+};
 
 export const MEETING_EVERY = 10;
 
@@ -64,7 +84,7 @@ function propose(w: World, rng: Rng): Proposal | undefined {
 }
 
 /** How a faction votes: temperament and self-interest. */
-function vote(f: Faction, prop: Proposal): boolean {
+function factionLean(f: Faction, prop: Proposal): boolean {
   const atWar = (id: string) => f.stance[id] === 'war' || f.stance[id] === 'beef';
   switch (prop.kind) {
     case 'peace': return f.temperament === 'diplomatic' || (f.temperament !== 'aggressive' && (f.soldiers < 10 || f.cash < 2000)) || (f.temperament === 'aggressive' && f.soldiers < 6);
@@ -75,11 +95,58 @@ function vote(f: Faction, prop: Proposal): boolean {
   }
 }
 
+/**
+ * How far a boss's own history with the player pulls them off their outfit's line.
+ *
+ * A faction votes its interests, and until now that was the whole of it: the boss was a name on
+ * the minutes. But the table is five men in a room, and a man who owes you something real, or one
+ * you humiliated in front of his own people, does not vote the way the spreadsheet says. Which is
+ * exactly the data `sim/standing.ts` and `sim/ledger.ts` already keep about everybody — favours
+ * both ways, a grudge, a hold over them, and what beating them made of them.
+ *
+ * Positive pulls toward whatever the player wants; negative pushes away. Deliberately bounded: a
+ * boss can be moved, not bought, and the faction's own interest is still most of the vote.
+ */
+export function personalPull(w: World, f: Faction): number {
+  const boss = w.npcs[f.bossId];
+  if (!boss?.alive) return 0;
+  let pull = 0;
+  pull += Math.min(PERSONAL.favourCap, favours(boss) * PERSONAL.perFavour);      // they owe you
+  pull -= Math.min(PERSONAL.favourCap, owedToThem(boss) * PERSONAL.perOwed);     // or you owe them
+  if (leverageOver(w, boss)) pull += PERSONAL.hold;                              // you have something on them
+  if (boss.grudge) pull -= PERSONAL.grudge;                                      // you humiliated them
+  if (boss.asset) pull += PERSONAL.asset;                                        // they already work for you
+  // a boss who made his name beating you is not going to do you a favour at the table
+  pull -= Math.min(PERSONAL.nemesisCap, notoriety(boss) * PERSONAL.perNotoriety);
+  // and it only counts at all once you have actually dealt with them
+  return familiar(w, boss) ? Math.round(pull) : Math.round(pull * PERSONAL.strangerShare);
+}
+
+/**
+ * The vote itself: the outfit's lean, then the man. A pull only ever flips a vote when it is
+ * strong enough to clear `PERSONAL.flip`, so most of the table still votes its interests and the
+ * ones who cross the floor are the ones with a reason the player can point at.
+ */
+function vote(w: World, f: Faction, prop: Proposal): boolean {
+  const lean = factionLean(f, prop);
+  // which way "for the player" points on this proposal: a sanction on them is against, a seat
+  // for them is for, and the rest of the table's business is not personal either way
+  const forPlayer = prop.kind === 'seat' && prop.targetId === PLAYER ? 1
+    : prop.kind === 'sanction' && prop.targetId === PLAYER ? -1
+    : prop.kind === 'carve' && prop.targetId === PLAYER ? 1
+    : 0;
+  if (!forPlayer) return lean;
+  const pull = personalPull(w, f) * forPlayer;
+  if (lean && pull <= -PERSONAL.flip) return false;   // his outfit says yes and he will not
+  if (!lean && pull >= PERSONAL.flip) return true;    // his outfit says no and he does it anyway
+  return lean;
+}
+
 export function resolveMeeting(w: World, opt: string, rng: Rng) {
   const c = w.commission; const prop = c?.pending; if (!c || !prop) return;
   const ms = members(w);
   let yes = 0, no = 0; const votes: Record<string, boolean> = {};
-  for (const f of ms) { const v = vote(f, prop); votes[f.id] = v; if (v) yes++; else no++; }
+  for (const f of ms) { const v = vote(w, f, prop); votes[f.id] = v; if (v) yes++; else no++; }
   const mine: boolean | undefined = opt === 'yes' || opt === 'ally_yes' ? true : opt === 'no' || opt === 'ally_no' ? false : undefined;
   if (mine !== undefined) { const weight = c.seat ? 1 : 0.5; if (mine) yes += weight; else no += weight; }
   if (opt.startsWith('ally_')) { const ally = ms.find(f => f.stance[PLAYER] === 'alliance'); if (ally) { votes[ally.id] = mine!; ally.standing[PLAYER] = clamp(ally.standing[PLAYER] - 3, -100, 100); } }

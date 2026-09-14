@@ -9,6 +9,7 @@ import { RacketCard } from './BusinessSheet';
 import { Meter } from './Meter';
 import { Info, Term } from './Info';
 import { Inventory } from './Inventory';
+import { Holdings } from './Holdings';
 import { WireSection } from './Wire';
 
 export function EmpireTab() {
@@ -33,6 +34,9 @@ export function EmpireTab() {
         <div className="mt8"><Meter label={<Term id="control">City control</Term>} value={share * 100} color="var(--gold)" format={v => `${Math.round(v)}%`} /></div>
         <div className="small muted mt8">{select.playerBlocks(w).length} of {Object.keys(w.blocks).length} blocks · own 60% to take the city.</div>
       </div>
+
+      <div className="section-title">Holdings<Info id="holdings" /></div>
+      <Holdings />
 
       <Inventory />
       <div className="actions mt8"><Launder /></div>

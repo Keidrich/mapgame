@@ -162,6 +162,11 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
     title: 'Home turf',
     body: 'The block where you started. People here begin warmer, gain extra trust from visits, and your noise draws a fifth less heat.',
   },
+  holdings: {
+    title: 'The ledger',
+    body: 'Every business, racket and production you have, in one place: what each takes a day, whether your own kind are crowding it out of its district, whether something next door is feeding it, and whether anybody is actually running it.',
+    note: 'Sort by Crowding to find what to move, or by Trouble to find what to fix. "Needs a look" hides everything that is quietly working.',
+  },
   asset: {
     title: 'A standing arrangement',
     body: 'Somebody who keeps their ears open for you, or turns up when it goes wrong. Not a favour — a favour is spent once. This keeps paying: word before a faction moves on you, or real odds on a job against their own people.',

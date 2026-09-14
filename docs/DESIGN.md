@@ -895,7 +895,27 @@ the old behaviour), `empire` (anywhere you own, at a little heat for the driving
 (nothing arrives unless you carry it). Bounded per day, so it is people driving rather than
 teleportation.
 
-### 4.19 The inventory: identity, quantity, value and flow together
+### 4.19 The empire ledger
+
+Every business, racket and production in one table, at the top of the Empire tab. Each used to
+live on its own card on its own tab showing whatever that tab happened to know — the racket card
+knew its income, the block sheet knew saturation, the inventory knew whether a production had a
+foreman — and nothing put them side by side. A player with twenty holdings could not answer "which
+of these is being crowded out" or "which of these is running itself" without opening twenty sheets.
+
+`select.holdings` is assembly, not simulation: saturation and synergy from `territory.ts`, the
+foreman and the standing order from `automation.ts`, income from `economy.ts`, and nothing
+recomputed a second way. Each row carries what it earns a day, whether your own kind are crowding
+it out of its district, whether something next door is feeding it, who or what is running it, and
+anything wrong right now — a disrupted racket, a production out of ingredients, a product racket
+with a standing order pointing at stock that does not exist.
+
+`sortHoldings` lives in the sim rather than the component, so the order a player sees is a thing a
+test can assert; every sort falls back to income and then id, making it total and stable. Sorting
+by crowding puts the most squeezed first, because that is the one to move; "Needs a look" hides
+everything that is quietly working.
+
+### 4.20 The inventory: identity, quantity, value and flow together
 
 The rule, taken from City of Gangsters' warehouse view rather than its layout: **a quantity never
 appears without the thing it counts, at any level of zoom.** Every number on the stash screen sits
@@ -909,7 +929,7 @@ than invisible.
 Identity comes from `styleOf`, which *reports* rather than stores: the stash stays a bare count by
 design, and the named style is read off whichever production of yours is making that product.
 
-### 4.20 The bank and the depot
+### 4.21 The bank and the depot
 
 Both ship `income: [0,0]`, `valueMult: 0`, `rackets: []` — pure heist targets, inert on every other
 day. Nobody extorts a bank teller for protection money, so the fix is not a racket bolted onto
@@ -1027,6 +1047,16 @@ vote by temperament and self-interest. Without a chair the player can lean on an
 ally for half a vote; with one (petition, or the table votes you in) their vote
 counts, the pot can pay them, and members drift back toward peace with them.
 Voting with a member warms them; against, cools them.
+
+**And the man, not only the outfit.** `factionLean` is still most of the vote, but on the three
+proposals that are *about the player* — a chair, a sanction on them, a claim in their favour —
+`personalPull` reads the boss himself: favours he owes and favours owed to him, a grudge, a hold
+over him, whether he is quietly an asset, and what beating the player made of him. All of it is
+data §3.7–§3.9 already keep about everybody; nothing new is recorded for this. A pull only flips a
+vote once it clears `PERSONAL.flip`, and favours are capped at two, so a boss is moved rather than
+bought, and the ones who cross the floor are the ones the player can point at a reason for.
+Proposals about the table's own business — the peace, the pot, a claim between members — are
+untouched: none of that is personal.
 
 **Cold cases**: a hit, a bank or armored job, a sloppy jewel heist, an arson or a
 suspected frame opens a police file with, usually, a witness from the block.
