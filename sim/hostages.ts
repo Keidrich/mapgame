@@ -45,7 +45,7 @@ export function ransomValue(w: World, n: Npc): number {
 export function take(w: World, n: Npc, s: Safehouse) {
   n.hostage = { safehouseId: s.id, since: w.day };
   if (!s.hostageIds.includes(n.id)) s.hostageIds.push(n.id);
-  adjustRel(n, { trust: -60, fear: 40 });
+  adjustRel(w, n, { trust: -60, fear: 40 }, 'grave');
 }
 
 /** Let somebody go, for whatever reason. Clears both sides of the link. */
@@ -89,8 +89,8 @@ export function tickHostages(w: World, rng: Rng) {
     } else if (roll < 0.75) {
       release(w, n);
       n.grudge = { since: w.day, reason: 'you held them in a basement', spread: 0 };
-      adjustRel(n, { trust: -40, fear: 20 });
-      spreadRep(w, b.id, { fear: 6, trust: -4 });
+      adjustRel(w, n, { trust: -40, fear: 20 }, 'grave');
+      spreadRep(w, b.id, { fear: 6, trust: -4 }, 2, 'grave');
       addHeat(w, 8, b.id);
       addMemory(w, b.id, 'escape', `${n.name} got out of a cellar here and told everyone.`);
       log(w, `${n.name} got loose and made it to the street. Everybody on ${b.name} knows now. (+8 heat)`, 'bad', { npcId: n.id, blockId: b.id });
@@ -122,7 +122,7 @@ export function resolveHostage(w: World, n: Npc, mode: 'ransom' | 'leverage' | '
     p.dirty += paid;
     if (f) { f.cash -= paid; f.standing[PLAYER] = clamp(f.standing[PLAYER] - 15, -100, 100); f.grudges.push(`ransom:${n.name.split(' ')[0]}`); }
     p.fear = clamp(p.fear + 5);
-    if (blockId) spreadRep(w, blockId, { fear: 5 });
+    if (blockId) spreadRep(w, blockId, { fear: 5 }, 1, 'grave');
     log(w, `${money(paid)} for ${n.name}, after ${days} day${days === 1 ? '' : 's'}. They go home with a story.`, 'money', { npcId: n.id });
     return 'good';
   }
@@ -130,21 +130,21 @@ export function resolveHostage(w: World, n: Npc, mode: 'ransom' | 'leverage' | '
     release(w, n);
     const bend = rng.int(1, 100) <= 45 + p.skills.charm * 3 + Math.min(25, days * 4) - n.nerve * 0.3;
     if (bend) {
-      adjustRel(n, { fear: 45, trust: -10 });
+      adjustRel(w, n, { fear: 45, trust: -10 }, 'grave');
       n.notes.push('Owes you for a week in the dark.');
       if (f) { f.standing[PLAYER] = clamp(f.standing[PLAYER] - 8, -100, 100); f.truceUntil[PLAYER] = Math.max(f.truceUntil[PLAYER] ?? 0, w.day + 10); }
       p.fear = clamp(p.fear + 3);
       log(w, `${n.name} will do what you ask now${f ? `, and ${f.short} back off rather than push it` : ''}.`, 'good', { npcId: n.id });
       return 'good';
     }
-    adjustRel(n, { trust: -50, fear: 15 });
+    adjustRel(w, n, { trust: -50, fear: 15 }, 'grave');
     n.grudge = { since: w.day, reason: 'you held them', spread: 0 };
     if (f) { f.standing[PLAYER] = clamp(f.standing[PLAYER] - 20, -100, 100); f.grudges.push(`took:${n.name.split(' ')[0]}`); }
     log(w, `${n.name} looks at you the whole way out and says nothing. That one is going to cost you.`, 'bad', { npcId: n.id });
     return 'bad';
   }
   release(w, n);
-  adjustRel(n, { trust: 10, fear: 25 });
+  adjustRel(w, n, { trust: 10, fear: 25 }, 'grave');
   if (f) f.standing[PLAYER] = clamp(f.standing[PLAYER] - 5, -100, 100);
   log(w, `You put ${n.name} out on a corner with their coat and cab fare. Cheapest way out of a bad idea.`, 'info', { npcId: n.id });
   return 'info';

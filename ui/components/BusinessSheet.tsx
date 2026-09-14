@@ -27,6 +27,8 @@ export function BusinessSheet({ businessId }: { businessId: Id }) {
   const outlook = select.racketsByOutlook(w, biz);
   const [gift, setGift] = useState(500);
   const [rate, setRate] = useState(0.2);
+  // read once: `protectRoute` walks the owner's connections looking for somebody you are holding
+  const route = owner ? select.protectRoute(w, owner, rate) : undefined;
   const [offer, setOffer] = useState(biz.value);
   const [dealProduct, setDealProduct] = useState<ProductKind>('green');
   const prot = protectionLabel(w, biz);
@@ -83,14 +85,14 @@ export function BusinessSheet({ businessId }: { businessId: Id }) {
         {!yours && extortable && <SceneAct scene={{ kind: 'shakedown', npcId: biz.ownerId, businessId }} label="Shakedown" icon="👊" kind="danger" />}
         {!yours && extortable && (
           <Disclosure label="Protect" icon="💪">
-            <p className="small muted">The owner pays you a cut of income, every day. They agree when they are afraid of you — or when they trust you and the rate is a favour rather than a tax.</p>
+            <p className="small muted">The owner pays you a cut of income, every day. They agree when they are afraid of you — or when they trust you <i>and</i> you have a reason beyond that: a turn you did them, their street, or something out of their books.</p>
             <div className="chips mb8">{[0.1, 0.2, 0.3].map(r => <button type="button" key={r} className={`chip btn${rate === r ? ' sel' : ''}`} onClick={() => setRate(r)}>{pct(r)}</button>)}</div>
             <p className="small muted">About {fmtMoney(biz.baseIncome * rate * 3)}/day. Fair rates build trust; greedy ones breed snitches.</p>
-            {owner && (select.protectRoute(owner, rate) === 'friend'
-              ? <p className="small mt8" style={{ color: 'var(--green)' }}>👥 {owner.name} trusts you enough to say yes as a favour. No threats needed.</p>
-              : select.protectRoute(owner, rate) === 'fear'
+            {owner && (route === 'friend'
+              ? <p className="small mt8" style={{ color: 'var(--green)' }}>👥 {owner.name} trusts you and has a reason to say yes. No threats needed.</p>
+              : route === 'fear'
                 ? <p className="small muted mt8">😠 {owner.name} is frightened enough of you to agree.</p>
-                : <p className="small orange mt8">{select.protectReason(owner, rate)}</p>)}
+                : <p className="small orange mt8">{select.protectReason(w, owner, rate)}</p>)}
             <Act action={{ type: 'protect', businessId, rate }} label={`Protect at ${pct(rate)}`} kind="primary" block />
           </Disclosure>
         )}

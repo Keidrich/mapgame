@@ -152,9 +152,9 @@ export function resolveConfrontation(w: World, c: Confrontation, approach: Confr
     if (won) {
       if (f) f.soldiers = Math.max(0, f.soldiers - 1);
       log(w, `${helper ? `${helper.name} and two others` : 'Your people'} come round the corner before it starts properly. ${short} count heads and leave.`, 'good', refs(c));
-      spreadRep(w, c.blockId ?? w.player.currentBlockId, { respect: 3 });
+      spreadRep(w, c.blockId ?? w.player.currentBlockId, { respect: 3 }, 1, 'backed');
       heat(2);
-      if (helper) adjustRel(helper, { trust: 4, respect: 3 });
+      if (helper) adjustRel(w, helper, { trust: 4, respect: 3 });
     } else {
       land(w, c, rng, 0.6);
       if (helper?.crew) { helper.crew.status = 'injured'; helper.crew.statusDays = rng.int(3, 7); helper.crew.assignment = undefined; }
@@ -168,7 +168,7 @@ export function resolveConfrontation(w: World, c: Confrontation, approach: Confr
   if (won) {
     if (f) { f.soldiers = Math.max(0, f.soldiers - 1); f.standing[PLAYER] = clamp(f.standing[PLAYER] - 4, -100, 100); }
     w.player.fear = clamp(w.player.fear + 4);
-    spreadRep(w, c.blockId ?? w.player.currentBlockId, { respect: 4, fear: 3 });
+    spreadRep(w, c.blockId ?? w.player.currentBlockId, { respect: 4, fear: 3 }, 1, 'violence');
     heat(c.war ? 6 : 4);
     log(w, `You put the first one down and the rest of them think better of it. ${short} leave with nothing. The street watched.`, 'good', refs(c));
   } else {
@@ -194,7 +194,7 @@ function land(w: World, c: Confrontation, rng: Rng, severity: number) {
     if (stolen) p.dirty = Math.max(0, p.dirty - stolen);
   } else if (c.kind === 'business') {
     const biz = c.businessId ? w.businesses[c.businessId] : undefined;
-    if (biz) { biz.condition = clamp(biz.condition - Math.round((c.war ? 25 : 10) * severity)); adjustRel(w.npcs[biz.ownerId], { fear: 8 }); }
+    if (biz) { biz.condition = clamp(biz.condition - Math.round((c.war ? 25 : 10) * severity)); adjustRel(w, w.npcs[biz.ownerId], { fear: 8 }, 'property'); }
   } else {
     const n = c.npcId ? w.npcs[c.npcId] : undefined;
     if (n?.crew) {

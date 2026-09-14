@@ -3,6 +3,7 @@ import { FIXER, LIEUTENANT, PRODUCTION_DEFS, PRODUCTION_LEVEL, PRODUCT_INFO, RAC
 import { yieldMult } from './territory';
 import { coverFor } from './lieutenants';
 import type { Business, Id, Npc, Production, Racket, World } from './types';
+import { familiar, familiarReason, favours, leverageOver } from './standing';
 
 /** An owner has a place, a name and a living to lose, so they take far more talking round than a regular —
  *  and the better the place is doing, the less your offer is worth to them. */
@@ -18,23 +19,52 @@ export function ownerResistance(w: World, n: Npc): number {
 /** An owner who joins brings their place with them: a partner's cut, fixed, and nobody has to stand over it. */
 export const PARTNER_RATE = 0.2;
 
-/** Two ways a place ends up under your protection. Fear is the classic one: they are more afraid of you than
- *  their own nerve. Friendship is the other: somebody who trusts you will let you look after the place, but
- *  only as a favour — a friend does not hand over a third of the till, so the friendly route caps the rate. */
+/**
+ * Three ways a place ends up under your protection, and none of them is "we chatted a lot".
+ *
+ *  - **fear** — they are more afraid of you than their own nerve. Unchanged as a gate, but much
+ *    harder to reach now that fear is capped by what an act cost (`content/standing.ts`): talk
+ *    tops out at 35, so a shakedown has to be earned with something demonstrated.
+ *  - **friend** — they trust you *and* there is a reason beyond liking you: a favour you settled
+ *    for them, or leverage — you hold their street, or you have been through their books.
+ *    Handing over a fifth of the till every week is not a thing you do because somebody is nice.
+ *
+ * The trust number and the reason-beyond-trust are separate checks on purpose. Raising
+ * `PROTECT_TRUST` would only have made the grind longer; it would not have made it mean anything.
+ *
+ * Leverage is a layer on top of trust, never a door of its own. A version of this that let
+ * leverage in by itself ran for an afternoon and had to come out: protecting one place on a
+ * block tipped its influence, which then handed you every other place on it for nothing, which
+ * fed the influence again. Honest income came out 1.8× a day and average owner fear fell from
+ * 26 to 1 — the whole fear system routed around in a single runaway loop.
+ */
 export const PROTECT_TRUST = 40;      // trust that counts as "we are friends"
 export const PROTECT_FAVOUR_RATE = 0.2; // the most a friend will agree to without being leaned on
 export const PROTECT_NERVE = 0.6;     // fear + respect needed, as a share of their nerve
 export type ProtectRoute = 'fear' | 'friend';
-export function protectRoute(owner: Npc, rate: number): ProtectRoute | undefined {
+export function protectRoute(w: World, owner: Npc, rate: number): ProtectRoute | undefined {
+  // The fear door needs no familiarity of its own: fear is already floored by `sim/standing.ts`,
+  // and a demonstrated act introduces you. The friend door does — being owed a favour by
+  // somebody you have never actually dealt with is not a relationship, and without this line a
+  // hand-set `favours` walked straight past the floor every other concession enforces.
   if (owner.rel.fear + owner.rel.respect >= owner.nerve * PROTECT_NERVE) return 'fear';
-  if (owner.rel.trust >= PROTECT_TRUST && rate <= PROTECT_FAVOUR_RATE) return 'friend';
+  if (!familiar(w, owner)) return undefined;
+  if (owner.rel.trust >= PROTECT_TRUST && rate <= PROTECT_FAVOUR_RATE && (favours(owner) > 0 || leverageOver(w, owner))) return 'friend';
   return undefined;
 }
 /** Why they said no, in their words. */
-export function protectReason(owner: Npc, rate: number): string | undefined {
-  if (protectRoute(owner, rate)) return undefined;
-  if (owner.rel.trust >= PROTECT_TRUST) return `${owner.name} trusts you, but ${Math.round(rate * 100)}% is not a favour. Ask ${Math.round(PROTECT_FAVOUR_RATE * 100)}% or less as a friend, or make them afraid of you first.`;
-  return `${owner.name} is neither scared of you nor close to you. Shake them down or send a message — or get their trust to ${PROTECT_TRUST} and ask for ${Math.round(PROTECT_FAVOUR_RATE * 100)}% as a favour.`;
+export function protectReason(w: World, owner: Npc, rate: number): string | undefined {
+  if (protectRoute(w, owner, rate)) return undefined;
+  // Order matters: always name the door that is still open. The fear route needs no history at
+  // all, so a stranger hears about both — leading with "you have never dealt with them" would
+  // read as a wall when the shakedown is right there.
+  if (owner.rel.trust >= PROTECT_TRUST && rate > PROTECT_FAVOUR_RATE) return `${owner.name} trusts you, but ${Math.round(rate * 100)}% is not a favour. Ask ${Math.round(PROTECT_FAVOUR_RATE * 100)}% or less, or make them afraid of you first.`;
+  if (owner.rel.trust >= PROTECT_TRUST) {
+    const stranger = familiarReason(w, owner);
+    return stranger ? `${owner.name} is friendly for somebody you barely know. ${stranger} Or make them afraid of you instead.`
+      : `${owner.name} likes you well enough, and that is not a reason to hand you ${Math.round(rate * 100)}% a week. Settle something real for them, take their block, or get inside their books — then ask.`;
+  }
+  return `${owner.name} is neither scared of you nor close to you. Shake them down or send a message — or get their trust to ${PROTECT_TRUST}, do them a turn, and ask for ${Math.round(PROTECT_FAVOUR_RATE * 100)}% as a favour.`;
 }
 
 /** How well a racket or production is run. A runner is best; a lieutenant covering the district is a decent second; nobody is half. */
@@ -94,12 +124,12 @@ export function launderCapacity(w: World, r: Racket): number {
  * owning your own capacity stays a real upgrade rather than a faster version of this.
  */
 export function fixerRate(trust: number): number {
-  const t = Math.max(0, Math.min(100, trust)) / 100;
+  const t = Math.max(0, Math.min(FIXER.trustBand, trust)) / FIXER.trustBand;
   return FIXER.minRate + (FIXER.maxRate - FIXER.minRate) * t;
 }
 /** How much dirty money a fixer will touch in one day. Scales with trust the same way the rate does. */
 export function fixerDailyCap(trust: number): number {
-  return Math.round(FIXER.capBase + FIXER.capPerTrust * Math.max(0, Math.min(100, trust)));
+  return Math.round(FIXER.capBase + FIXER.capPerTrust * Math.max(0, Math.min(FIXER.trustBand, trust)));
 }
 /** What they have already washed for you today. The counter resets by day, not by tick. */
 export function fixerUsedToday(w: World, n: Npc): number {

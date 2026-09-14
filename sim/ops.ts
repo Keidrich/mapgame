@@ -47,14 +47,14 @@ export function resolveOp(w: World, o: Op, rng: Rng) {
     // the kit you carried changes what the job leaves behind, the same way the approach does
     res.heat = Math.round(def.heat * (margin > 30 ? 0.6 : 1) * (ap?.heat ?? 1) * kitHeatMult(w) * complicationHeat(o)
       * (o.kind === 'heist_armored' && routeFor(w, o.targetBusinessId) ? ROUTE.heatMult : 1));
-    if (o.insideId && w.npcs[o.insideId]) adjustRel(w.npcs[o.insideId], { trust: 5, respect: 5 });
+    if (o.insideId && w.npcs[o.insideId]) adjustRel(w, w.npcs[o.insideId], { trust: 5, respect: 5 });
     switch (o.kind) {
       case 'mugging': {
         const n = o.targetNpcId ? w.npcs[o.targetNpcId] : undefined;
         p.dirty += value; res.cash = value;
         let extra = '';
         if (n) {
-          adjustRel(n, { fear: 20, trust: -25 });
+          adjustRel(w, n, { fear: 20, trust: -25 }, 'violence');
           addMemory(w, n.homeBlockId, 'mugging', `Somebody put ${n.name} against a wall and went through their pockets.`);
           // a pocket sometimes has a card in it: everything on the wire starts here
           if (rng.chance(0.45)) { const card = rollCard(w, rng, n.id); addCard(w, card); extra = ` There was a ${CARD_TIERS[card.tier].label} in the wallet.`; }
@@ -85,7 +85,7 @@ export function resolveOp(w: World, o: Op, rng: Rng) {
       case 'wire_fraud': {
         const n = o.targetNpcId ? w.npcs[o.targetNpcId] : undefined;
         p.dirty += value; res.cash = value;
-        if (n) { adjustRel(n, { trust: -20 }); n.notes.push('Money went missing from their arrangements.'); }
+        if (n) { adjustRel(w, n, { trust: -20 }); n.notes.push('Money went missing from their arrangements.'); }
         cyberHeat(w, Math.round(def.heat / 2), n?.homeBlockId);
         res.text = `${money(value)} moves out of ${n?.name ?? 'their'} arrangements and into somewhere quiet. It will be weeks before anybody reconciles it.`;
         break;
@@ -113,7 +113,7 @@ export function resolveOp(w: World, o: Op, rng: Rng) {
           f.grudges.push('ambushed');
         }
         res.text = `You took ${f?.short ?? 'them'} on a street of your choosing for once. ${money(value)} off them and two of theirs in the hospital.`;
-        spreadRep(w, blockId ?? p.currentBlockId, { respect: 4, fear: 4 });
+        spreadRep(w, blockId ?? p.currentBlockId, { respect: 4, fear: 4 }, 1, 'property');
         break;
       }
       case 'defend_racket': {
@@ -137,15 +137,15 @@ export function resolveOp(w: World, o: Op, rng: Rng) {
           f.grudges.push(`war_strike:${n?.id ?? ''}`);
         }
         res.text = `${n?.name ?? 'Their lieutenant'} is dead, and everybody knows whose war it was. ${f?.short ?? 'They'} are down a man they could not spare.`;
-        spreadRep(w, blockId ?? p.currentBlockId, { fear: 8 });
+        spreadRep(w, blockId ?? p.currentBlockId, { fear: 8 }, 2, 'violence');
         openCase(w, 'hit', `The shooting of ${n?.name ?? 'a lieutenant'}`, { npcId: n?.id, opId: o.id, blockId }, o.crewIds, rng);
         break;
       }
       case 'armed_intimidation': {
         const owner = target ? w.npcs[target.ownerId] : undefined;
-        if (owner) adjustRel(owner, { fear: 26 + Math.round(p.skills.muscle / 2), trust: -10 });
+        if (owner) adjustRel(w, owner, { fear: 26 + Math.round(p.skills.muscle / 2), trust: -10 }, 'violence');
         if (target) { target.condition = clamp(target.condition - 8); addMemory(w, target.blockId, 'armed', `Somebody showed ${owner?.name ?? 'the owner'} a gun in ${target.name}.`); }
-        spreadRep(w, blockId ?? p.currentBlockId, { fear: 6 });
+        spreadRep(w, blockId ?? p.currentBlockId, { fear: 6 }, 1, 'violence');
         res.text = `Nobody in ${target?.name ?? 'the place'} is going to forget what was under your coat. ${owner?.name ?? 'The owner'} understood it the first time.`;
         break;
       }
@@ -154,7 +154,7 @@ export function resolveOp(w: World, o: Op, rng: Rng) {
         const n = o.targetNpcId ? w.npcs[o.targetNpcId] : undefined;
         const a = n ? authorityOf(w, n) : undefined;
         const dropped = n ? buyDownAttention(w, n, true) : 0;
-        if (n) adjustRel(n, { trust: 6 });
+        if (n) adjustRel(w, n, { trust: 6 });
         res.text = dropped
           ? `${n?.name ?? 'They'} takes the envelope and finds somewhere else to look. ${a?.name ?? 'The building'} eases off — attention down ${dropped}, and they are ${a ? POSTURES[a.posture].label.toLowerCase() : 'quieter'} now.`
           : `${n?.name ?? 'They'} takes the envelope. Nothing visibly changes, but you have a name inside now.`;
@@ -181,7 +181,7 @@ export function resolveOp(w: World, o: Op, rng: Rng) {
         if (clean) { p.cash += value; } else { p.dirty += value; }
         res.cash = value;
         const mark = o.targetNpcId ? w.npcs[o.targetNpcId] : undefined;
-        if (mark) adjustRel(mark, { trust: -35, fear: 4 });
+        if (mark) adjustRel(w, mark, { trust: -35, fear: 4 });
         if (o.kind === 'charity_front') { p.respect = clamp(p.respect + 4); spreadRep(w, blockId ?? p.currentBlockId, { respect: 4 }); }
         res.text = o.kind === 'long_con'
           ? `${mark?.name ?? 'They'} signs the last of it without reading it. ${money(value)}, and a person who will spend a long time working out what happened.`
@@ -229,7 +229,7 @@ export function resolveOp(w: World, o: Op, rng: Rng) {
         }
         if (o.kind === 'check_kiting' && target) target.flags.push('paper');
         if ((o.kind === 'heist_bank' || o.kind === 'heist_armored') && target) openCase(w, 'heist', `${target.name} job`, { businessId: target.id, blockId: target.blockId, opId: o.id }, o.crewIds, rng, margin > 30 ? 10 : 25);
-        if (o.kind === 'robbery' && target) { adjustRel(w.npcs[target.ownerId], { fear: 20, trust: -30 }); target.condition = clamp(target.condition - 10); }
+        if (o.kind === 'robbery' && target) { adjustRel(w, w.npcs[target.ownerId], { fear: 20, trust: -30 }, 'property'); target.condition = clamp(target.condition - 10); }
         break;
       }
       case 'heist_jeweller': case 'heist_warehouse': {
@@ -265,7 +265,7 @@ export function resolveOp(w: World, o: Op, rng: Rng) {
           else { f.standing[PLAYER] -= 15; f.soldiers = Math.max(0, f.soldiers - 1); }
         }
         if (n.role === 'owner') { for (const b of Object.values(w.businesses)) if (b.ownerId === n.id) { b.flags.push('owner_dead'); b.condition = clamp(b.condition - 20); } }
-        p.fear = clamp(p.fear + 10); spreadRep(w, n.homeBlockId, { fear: 12, trust: -5 }, 2);
+        p.fear = clamp(p.fear + 10); spreadRep(w, n.homeBlockId, { fear: 12, trust: -5 }, 2, 'grave');
         addMemory(w, n.homeBlockId, 'hit', `${n.name} was killed. Everybody knows who ordered it.`);
         if (caseWitnessOf(w, n.id)) silenceWitness(w, n.id, 'gone');
         openCase(w, 'hit', `${n.name.split(' ').slice(-1)[0]} killing`, { npcId: n.id, blockId: n.homeBlockId, opId: o.id }, o.crewIds, rng, o.approach === 'quiet' ? 10 : 25);
@@ -283,7 +283,7 @@ export function resolveOp(w: World, o: Op, rng: Rng) {
           if (suspects) { f.standing[PLAYER] -= 25; f.grudges.push(`framed:${n.name.split(' ')[0]}`); res.text += `${f.short} do not believe in coincidences.`; openCase(w, 'frame', `${n.name.split(' ').slice(-1)[0]} plant`, { npcId: n.id, blockId: n.homeBlockId, opId: o.id }, o.crewIds, rng, 10); }
           else res.text += `${f.short} blame bad luck and a talkative cousin.`;
         }
-        const captain = Object.values(w.npcs).find(x => x.official?.kind === 'captain'); if (captain) adjustRel(captain, { trust: 5 });
+        const captain = Object.values(w.npcs).find(x => x.official?.kind === 'captain'); if (captain) adjustRel(w, captain, { trust: 5 });
         p.heat = clamp(p.heat - 3); res.heat = Math.max(0, res.heat - 3);
         addMemory(w, n.homeBlockId, 'frame', `${n.name} went away on a case nobody around here believes.`);
         break;
@@ -299,8 +299,8 @@ export function resolveOp(w: World, o: Op, rng: Rng) {
         const b = w.blocks[o.targetBlockId!];
         claim(w, b);
         addInfluence(w, b.id, PLAYER, 45);
-        if (o.approach === 'loud') { p.fear = clamp(p.fear + 4); spreadRep(w, b.id, { fear: 5 }); res.text = `You run the squatters off ${b.name} with bats and a lot of noise. The lots are yours.`; }
-        else if (o.approach === 'inside') { const c = Object.values(w.npcs).find(x => x.official?.kind === 'councillor'); if (c) adjustRel(c, { trust: 4 }); res.text = `A file moves at City Hall and ${b.name} quietly becomes somebody else's problem. Yours.`; }
+        if (o.approach === 'loud') { p.fear = clamp(p.fear + 4); spreadRep(w, b.id, { fear: 5 }, 1, 'violence'); res.text = `You run the squatters off ${b.name} with bats and a lot of noise. The lots are yours.`; }
+        else if (o.approach === 'inside') { const c = Object.values(w.npcs).find(x => x.official?.kind === 'councillor'); if (c) adjustRel(w, c, { trust: 4 }); res.text = `A file moves at City Hall and ${b.name} quietly becomes somebody else's problem. Yours.`; }
         else res.text = `You take ${b.name} over a few quiet nights. Nobody who was sleeping there wanted an argument.`;
         break;
       }
@@ -310,7 +310,7 @@ export function resolveOp(w: World, o: Op, rng: Rng) {
         if (!s) { res.text = 'Nowhere to put them. The van drives around the block twice and goes home.'; break; }
         takeHostage(w, n, s);
         if (n.crew) { p.crewIds = p.crewIds.filter(id => id !== n.id); n.crew = undefined; }
-        p.fear = clamp(p.fear + 6); spreadRep(w, n.homeBlockId, { fear: 8, trust: -5 });
+        p.fear = clamp(p.fear + 6); spreadRep(w, n.homeBlockId, { fear: 8, trust: -5 }, 2, 'violence');
         addMemory(w, n.homeBlockId, 'kidnap', `${n.name} went out for cigarettes and did not come back.`);
         if (n.faction && w.factions[n.faction]) { const f = w.factions[n.faction]; f.standing[PLAYER] = clamp(f.standing[PLAYER] - 10, -100, 100); }
         res.text = `${n.name} is in the back of a van and then in ${s.name}. Now you have to decide what they are worth.`;
@@ -322,14 +322,14 @@ export function resolveOp(w: World, o: Op, rng: Rng) {
           const name = c.name; const blk = w.blocks[c.blockId];
           addInfluence(w, blk.id, PLAYER, (blk.influence[c.id] ?? 40) + 10);
           dissolveCrew(w, c, 'taken');
-          p.dirty += value; res.cash = value; p.fear = clamp(p.fear + 5); p.respect = clamp(p.respect + 4); spreadRep(w, blk.id, { fear: 8, respect: 3 });
+          p.dirty += value; res.cash = value; p.fear = clamp(p.fear + 5); p.respect = clamp(p.respect + 4); spreadRep(w, blk.id, { fear: 8, respect: 3 }, 2, 'violence');
           addMemory(w, blk.id, 'takeover', `${w.player.name}'s people ran the ${name} off the corner.`);
           res.text = `The ${name} are finished. ${blk.name} is yours, plus ${money(value)} from their stash. Their people are scared enough to listen.`;
         } else res.text = 'The corner was empty. Somebody got there first.';
         break;
       }
       case 'intimidate': {
-        if (target) { const owner = w.npcs[target.ownerId]; adjustRel(owner, { fear: 30, trust: -10 }); target.condition = clamp(target.condition - 15); spreadRep(w, target.blockId, { fear: 6 }); p.fear = clamp(p.fear + 3);
+        if (target) { const owner = w.npcs[target.ownerId]; adjustRel(w, owner, { fear: 30, trust: -10 }, 'property'); target.condition = clamp(target.condition - 15); spreadRep(w, target.blockId, { fear: 6 }, 1, 'property'); p.fear = clamp(p.fear + 3);
           if (target.protection && target.protection.factionId !== PLAYER) { w.factions[target.protection.factionId].standing[PLAYER] -= 10; } }
         res.text = `Windows out, bats swung. ${target ? w.npcs[target.ownerId].name : 'The owner'} got the message.`;
         break;
@@ -340,7 +340,7 @@ export function resolveOp(w: World, o: Op, rng: Rng) {
   } else {
     res.heat = Math.round(def.heat * 1.4 * (ap?.heat ?? 1) * kitHeatMult(w) * complicationHeat(o));
     const bad = -margin > 30; // badly failed
-    if (o.insideId && w.npcs[o.insideId]) { const ins = w.npcs[o.insideId]; ins.rel.trust = -50; ins.notes.push('Burned as an inside man.'); if (target) adjustRel(w.npcs[target.ownerId], { trust: -30, fear: 10 }); }
+    if (o.insideId && w.npcs[o.insideId]) { const ins = w.npcs[o.insideId]; ins.rel.trust = -50; ins.notes.push('Burned as an inside man.'); if (target) adjustRel(w, w.npcs[target.ownerId], { trust: -30, fear: 10 }, 'property'); }
     if (o.approach === 'loud' && bad && crew.length && rng.chance(0.3)) { const v = rng.pick(crew); if (v.crew && v.crew.status !== 'dead') { v.crew.status = 'dead'; v.crew.assignment = undefined; v.alive = false; } }
     const victim = crew.length ? rng.pick(crew) : undefined;
     let fate = '';
@@ -353,9 +353,9 @@ export function resolveOp(w: World, o: Op, rng: Rng) {
     res.text = `${def.label}${target ? ` at ${target.name}` : ''} goes wrong. ${fate} ${bad ? 'Sirens everywhere.' : 'You get out with nothing.'}`;
     if (o.kind === 'takeover' && o.targetBlockId) { const c = crewAt(w, o.targetBlockId); if (c) { c.strength = Math.min(10, c.strength + 1); c.mood -= 30; res.text += ` The ${c.name} are stronger for it.`; } }
     if (o.kind === 'claim_abandoned' && o.targetBlockId) { const b = w.blocks[o.targetBlockId]; if (b?.abandoned) { addHeat(w, 3, b.id); res.text += ` Whoever is living in ${b.name} is still living in ${b.name}.`; } }
-    if (o.kind === 'kidnap' && o.targetNpcId) { const n = w.npcs[o.targetNpcId]; adjustRel(n, { fear: 30, trust: -70 }); n.grudge = { since: w.day, reason: 'you tried to put them in a van', spread: 0 }; if (n.faction && w.factions[n.faction]) { const f = w.factions[n.faction]; f.standing[PLAYER] -= 30; f.grudges.push(`grab:${n.name.split(' ')[0]}`); } addMemory(w, n.homeBlockId, 'kidnap', `Somebody tried to grab ${n.name} in the street and failed.`); }
-    if (o.kind === 'frame' && o.targetNpcId) { const n = w.npcs[o.targetNpcId]; adjustRel(n, { trust: -50 }); if (n.faction && w.factions[n.faction]) { const f = w.factions[n.faction]; f.standing[PLAYER] -= 30; f.grudges.push(`frame:${n.name.split(' ')[0]}`); res.text += ` ${f.short} found the plant and know whose it was.`; } }
-    if (o.kind === 'hit' && o.targetNpcId) { const n = w.npcs[o.targetNpcId]; adjustRel(n, { fear: 15, trust: -60 }); if (n.faction && w.factions[n.faction]) { w.factions[n.faction].standing[PLAYER] -= 30; w.factions[n.faction].grudges.push(`attempt:${n.id}`); } }
+    if (o.kind === 'kidnap' && o.targetNpcId) { const n = w.npcs[o.targetNpcId]; adjustRel(w, n, { fear: 30, trust: -70 }, 'grave'); n.grudge = { since: w.day, reason: 'you tried to put them in a van', spread: 0 }; if (n.faction && w.factions[n.faction]) { const f = w.factions[n.faction]; f.standing[PLAYER] -= 30; f.grudges.push(`grab:${n.name.split(' ')[0]}`); } addMemory(w, n.homeBlockId, 'kidnap', `Somebody tried to grab ${n.name} in the street and failed.`); }
+    if (o.kind === 'frame' && o.targetNpcId) { const n = w.npcs[o.targetNpcId]; adjustRel(w, n, { trust: -50 }); if (n.faction && w.factions[n.faction]) { const f = w.factions[n.faction]; f.standing[PLAYER] -= 30; f.grudges.push(`frame:${n.name.split(' ')[0]}`); res.text += ` ${f.short} found the plant and know whose it was.`; } }
+    if (o.kind === 'hit' && o.targetNpcId) { const n = w.npcs[o.targetNpcId]; adjustRel(w, n, { fear: 15, trust: -60 }, 'grave'); if (n.faction && w.factions[n.faction]) { w.factions[n.faction].standing[PLAYER] -= 30; w.factions[n.faction].grudges.push(`attempt:${n.id}`); } }
     if (o.kind === 'war_strike' && o.targetNpcId) { const n = w.npcs[o.targetNpcId]; const f = n.faction ? w.factions[n.faction] : undefined; if (f) { f.standing[PLAYER] = clamp(f.standing[PLAYER] - 20, -100, 100); f.soldiers += 2; f.grudges.push(`war_strike_failed:${n.id}`); res.text += ` ${f.short} know exactly who sent them, and they are hiring.`; } }
     if (o.kind === 'defend_racket' && target) { const held = target.racketIds.map(id => w.rackets[id]).filter(r => r?.owner === PLAYER); for (const r of held) r.disrupted = Math.max(r.disrupted, 3); res.text += ' They came through anyway.'; }
     if (o.kind === 'insurance_fraud' && target) { target.condition = clamp(target.condition - 40); target.insured = false; target.flags.push('arson_suspect'); res.heat += 10; res.text += ' The fire marshal is asking about you.'; }

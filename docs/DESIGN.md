@@ -140,6 +140,9 @@ Ops have approaches too: **go in loud** (muscle, +25% take, heat ×1.6), **quiet
 (brains and tech, heat ×0.5, harder), **inside man** (someone at the target who trusts
 you at 35+ opens the door; if it fails they are burned).
 
+Every scene's positive effects run through the standing gates in §3.7: an approach buys what it
+cost, not what its base number asked for.
+
 ### 3.6 The family and friend web
 
 Nobody in a city knows nobody. At generation time every NPC ends up with people — mutual
@@ -170,6 +173,7 @@ What the web does today:
   them: "went to the police to keep Rosa Esposito, their cousin, out of it."
 - **Gossip** travels along real ties as well as the same-block, same-bar circle, so a
   humiliation reaches somebody's sister across the district instead of stopping at the bar.
+- **Reputation** travels along the same ties and nowhere else — see §3.7.
 - The NPC sheet lists who somebody has, and every name opens their own sheet.
 
 **The Social tab** is where the web is legible: everybody the player has met (the same
@@ -187,7 +191,75 @@ says. A note is bookkeeping rather than a move, so it is free and can be written
 an event is waiting.
 
 Phase 2, not built: leverage plays on top of the graph (threatening a named relative,
-friend-referral recruiting, turning a rival's brother into an inside man).
+friend-referral recruiting, turning a rival's brother into an inside man). A first piece of
+it landed with §3.7: somebody you are holding counts as a hold over everyone they are tied to.
+
+### 3.7 Standing: fear, trust, familiarity and word of mouth
+
+The four numbers every social system reads, and for a long time the four that were flat. One
+rule now governs all of them: **a relationship can only become as deep as the thing that built
+it.** `content/standing.ts` holds the numbers, `sim/standing.ts` the machinery, and everything
+goes through two chokepoints in `sim/util.ts` — `adjustRel` for face to face, `bleedRel` for
+word that merely reached somebody.
+
+**Fear is a consequence, not a formula.** Every act that frightens somebody declares a `Stake`:
+what it actually cost the player to do. A stake has a multiplier and, more importantly, a
+**ceiling** it can never take anybody past.
+
+| stake | what it is | ×  | ceiling |
+|---|---|---|---|
+| `words` | a stare, a raised voice, a name dropped | 0.45 | 35 |
+| `backed` | the same words with crew in the doorway, or their family named | 0.70 | 50 |
+| `property` | something of theirs broken, taken or burned | 1.30 | 80 |
+| `violence` | somebody hurt, and they know who did it | 1.80 | 95 |
+| `grave` | somebody taken, or worse | 2.40 | 100 |
+
+At or above a stake's ceiling the gain is exactly zero, and that is the intended reading: once
+somebody has watched you put a man in hospital, your hard stare tells them nothing new. The
+default for a call site that does not say is `words`, so anything costlier has to declare it.
+`threaten` reads its approach — a stare is `words`, bringing people or naming their family is
+`backed` — which is where the old flat "approach base plus half your muscle" used to sit.
+
+**Trust plateaus, and concessions need a reason on top.** Two separate checks, deliberately not
+merged into one bigger threshold:
+
+- Ordinary dealing — visits, drinks, small talk — stops at `CONCESSION.ordinary` (45), "we are
+  friendly". Only a **favour actually settled** lifts it, +15 each to a hard 85. Nobody is
+  bought outright.
+- A **major concession** — protection, a place in the crew, a friendly price on a business —
+  needs trust *and* one of: reciprocity (`rel.favours > 0`) or **leverage** (`leverageOver`):
+  you hold their street at influence 55+, you have been inside their books within 30 days or
+  are still listening, or somebody they are tied to is in your cellar.
+
+Leverage layers on top of trust; it is never a door of its own. A version that let leverage in
+by itself ran for an afternoon and had to come out — protecting one place tipped the block's
+influence, which handed you every other place on it for free, which fed the influence again.
+Honest income came out 1.8× a day and average owner fear fell from 26 to 1.
+
+`doFavour(w, n)` is the reciprocity hook, and the seam the agenda-resolution pass plugs into.
+Today it fires on the five places the player already settles something real: covering a debt,
+sorting an owner's problem, hearing somebody's family out, paying them, giving a debtor a week
+— and on **bribing an official**, whose entire relationship with the player is the money.
+
+**A familiarity floor, generalised.** `promoteReason` has always refused to hand a district to
+somebody who joined yesterday, however loyal: `w.day - c.joinedDay >= LIEUTENANT.minDays`. That
+was the only place in the game that asked how long you had known anyone. The same shape now sits
+under every deep relationship, on `rel.metDay` / `rel.contacts` (3 days **and** 2 separate
+occasions): below it trust stops at 25 and fear at 30. The one exception is a demonstrated act —
+`property` and up — which introduces you perfectly well. A contact is a meeting, not an
+arithmetic operation: several nudges in one day count once.
+
+**Reputation walks the graph.** `spreadRep` used to paint every face within a geographic radius,
+so a name made in one district quietly worked in the next. It now seeds on whoever was actually
+there and walks §3.6's connections outward — witnesses ×1, one degree ×0.45, two degrees ×0.18,
+and nothing at three. Word reaches the five people closest to somebody, not their whole address
+book. The old `radius` argument became `degrees`: how far *this* thing carries, so a killing
+travels two and a raised voice one. Somebody with no path back to the scene hears nothing, which
+is the whole point — expanding into new ground means starting cold there, socially, every time.
+
+**Saves.** All four fields on `Relationship` are optional, so `WORLD_VERSION` did not move. An
+existing save loads with everybody a stranger, which is the right answer for anyone the player
+has not dealt with since.
 
 ## 4. Player systems
 

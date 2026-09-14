@@ -4,6 +4,8 @@ import { PLAYER } from './types';
 import { distanceM } from '@geo/project';
 import { STEP_M } from './populate';
 import { controller } from './generate';
+import type { Stake } from '@content/standing';
+import { fearGain, makeContact, propagation, trustGain, witnessesAt } from './standing';
 
 export const clamp = (v: number, lo = 0, hi = 100) => Math.max(lo, Math.min(hi, v));
 export const round = (v: number) => Math.round(v);
@@ -21,9 +23,33 @@ export function log(w: World, text: string, tone: LogEntry['tone'] = 'info', ref
   if (w.log.length > 300) w.log.splice(0, w.log.length - 300);
 }
 
-export function adjustRel(n: Npc, d: { trust?: number; fear?: number; respect?: number }) {
-  if (d.trust) n.rel.trust = clamp(n.rel.trust + d.trust, -100, 100);
-  if (d.fear) n.rel.fear = clamp(n.rel.fear + d.fear);
+/**
+ * Move somebody's feeling about you, face to face.
+ *
+ * Every positive move goes through `sim/standing.ts` on the way in: fear is scaled and capped
+ * by `stake` — what the act actually cost you to commit — and trust by the familiarity floor
+ * and the ordinary-dealing ceiling. Losses are never gated: trust is easy to lose, and always
+ * was. The default stake is `words`, so a call site that does not say what it did is treated
+ * as the cheapest thing it could have been. Anything costlier has to say so.
+ *
+ * Calling this counts as having been in front of them (once per day). Word that merely reaches
+ * somebody goes through `bleedRel` instead, which is the same gate without the handshake.
+ */
+export function adjustRel(w: World, n: Npc, d: { trust?: number; fear?: number; respect?: number }, stake: Stake = 'words') {
+  if (!n) return;
+  makeContact(w, n);
+  applyRel(w, n, d, stake);
+}
+
+/** The same gate, for a feeling that arrived second-hand: gossip, or word going round a block. */
+export function bleedRel(w: World, n: Npc, d: { trust?: number; fear?: number; respect?: number }, stake: Stake = 'words') {
+  if (!n) return;
+  applyRel(w, n, d, stake);
+}
+
+function applyRel(w: World, n: Npc, d: { trust?: number; fear?: number; respect?: number }, stake: Stake) {
+  if (d.trust) n.rel.trust = clamp(n.rel.trust + trustGain(w, n, d.trust), -100, 100);
+  if (d.fear) n.rel.fear = clamp(n.rel.fear + fearGain(w, n, d.fear, stake));
   if (d.respect) n.rel.respect = clamp(n.rel.respect + d.respect);
 }
 
@@ -42,20 +68,27 @@ export function addInfluence(w: World, blockId: Id, f: FactionId, amount: number
   if (b.influence[f] <= 0) delete b.influence[f];
 }
 
-/** Word gets around: nearby NPCs learn to respect/fear you. */
-export function spreadRep(w: World, blockId: Id, d: { respect?: number; fear?: number; trust?: number }, radius = 1) {
-  const src = w.blocks[blockId];
-  for (const b of Object.values(w.blocks)) {
-    const dist = b.id === src.id ? 0 : distanceM(b.center, src.center) / STEP_M;
-    if (dist > radius + 0.3) continue;
-    const k = dist === 0 ? 1 : 0.4;
-    for (const bid of b.businessIds) {
-      const biz = w.businesses[bid];
-      for (const id of [biz.ownerId, ...biz.patronIds]) {
-        const n = w.npcs[id]; if (!n?.alive) continue;
-        adjustRel(n, { respect: (d.respect ?? 0) * k, fear: (d.fear ?? 0) * k, trust: (d.trust ?? 0) * k });
-      }
-    }
+/**
+ * Word gets around — along people, not across a map.
+ *
+ * This used to paint every face within a block's radius of wherever it happened, which meant a
+ * name made in one district quietly worked in the next one over, and expanding into new ground
+ * was only ever socially cold once, at the start of a save. Now it walks the connections graph
+ * out from whoever was actually there: witnesses full strength, the people they know a little
+ * under half, friends of friends a fifth, and nobody at three degrees. Somebody with no path
+ * back to the scene never hears about it at all.
+ *
+ * `degrees` is how far word travels for this particular thing — a killing carries further than
+ * a raised voice. It replaces the old geographic `radius`, which had the same call shape.
+ */
+export function spreadRep(w: World, blockId: Id, d: { respect?: number; fear?: number; trust?: number }, degrees = 1, stake: Stake = 'words') {
+  spreadFrom(w, witnessesAt(w, blockId), d, degrees, stake);
+}
+
+/** The same, seeded from the people it actually happened to. */
+export function spreadFrom(w: World, seeds: Npc[], d: { respect?: number; fear?: number; trust?: number }, degrees = 1, stake: Stake = 'words') {
+  for (const { npc, weight } of propagation(w, seeds, degrees)) {
+    bleedRel(w, npc, { respect: (d.respect ?? 0) * weight, fear: (d.fear ?? 0) * weight, trust: (d.trust ?? 0) * weight }, stake);
   }
 }
 

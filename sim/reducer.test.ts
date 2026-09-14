@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { PLAYER, approachChance, can, dispatch, generateWorld, select, type World } from './index';
+import { known, owes } from './test-util';
 
 const mk = (seed = 5) => generateWorld({ origin: { lat: 51.5, lng: -0.12 }, placeName: 'London', playerName: 'T', background: 'muscle', seed });
 const startBlock = (w: World) => select.startBlock(w);
@@ -38,10 +39,12 @@ describe('reducer', () => {
     expect(w.player.dirty).toBeGreaterThan(dirty);
     expect(w.player.ap).toBe(w.player.apMax);
   });
-  it('a friend does not have to be frightened first', () => {
+  it('a friend who owes you does not have to be frightened first', () => {
     let w = mk(); const t = softTarget(w);
     const owner = w.npcs[t.ownerId];
-    owner.rel.fear = 0; owner.rel.respect = 0; owner.nerve = Math.max(owner.nerve, 30); owner.rel.trust = 45;
+    owner.rel.fear = 0; owner.rel.respect = 0; owner.nerve = Math.max(owner.nerve, 30);
+    // trust alone is no longer a door: they have to owe you something real as well
+    owes(w, owner, 45);
     // a favour, yes; a third of the till, no
     const greedy = can(w, { type: 'protect', businessId: t.id, rate: 0.3 });
     expect(greedy.ok).toBe(false);
@@ -73,7 +76,7 @@ describe('reducer', () => {
   });
   it('a recruited owner brings their place in as a partner, and takes it back when they go', () => {
     let w = mk(); const t = softTarget(w); const owner = w.npcs[t.ownerId];
-    owner.rel.trust = 95; owner.traits = []; w.player.skills.charm = 10;
+    owes(w, owner, 95); owner.traits = []; w.player.skills.charm = 10;
     w.player.currentBlockId = owner.homeBlockId;
     let tries = 0;
     while (!w.npcs[owner.id].crew && tries++ < 20) {
@@ -182,7 +185,7 @@ describe('street crews', () => {
   it('a takeover op dissolves the crew and takes the corner', () => {
     let w = world(); const c = Object.values(w.crews)[0];
     // give the player a strong crew member
-    const patron = Object.values(w.npcs).find(n => n.role === 'patron')!; patron.rel.trust = 80; patron.skills.muscle = 10;
+    const patron = Object.values(w.npcs).find(n => n.role === 'patron')!; known(w, patron, { trust: 80 }); patron.skills.muscle = 10;
     w.player.currentBlockId = patron.homeBlockId;
     let tries = 0;
     while (!w.npcs[patron.id].crew && tries++ < 6) { w = dispatch(w, { type: 'recruit', npcId: patron.id, approach: 'cut' }); w.player.ap = 8; }

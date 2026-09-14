@@ -50,12 +50,16 @@ describe('the guaranteed fixer', () => {
 
 describe('the fixer\'s rate and window', () => {
   it('scales with trust, from minRate to maxRate', () => {
+    // The band is FIXER.trustBand, not 100: since the standing pass, trust from ordinary
+    // dealing stops at CONCESSION.ordinary and only real favours lift it, so a fixer you use
+    // daily tops out in the fifties. The curve is the same shape, measured over a range trust
+    // can actually reach.
     expect(fixerRate(0)).toBeCloseTo(FIXER.minRate, 5);
-    expect(fixerRate(100)).toBeCloseTo(FIXER.maxRate, 5);
-    expect(fixerRate(50)).toBeCloseTo((FIXER.minRate + FIXER.maxRate) / 2, 5);
-    for (let t = 0; t < 100; t += 5) expect(fixerRate(t + 5)).toBeGreaterThan(fixerRate(t));
-    expect(fixerRate(-40)).toBe(fixerRate(0));     // hostile is not worse than a stranger
-    expect(fixerRate(9999)).toBe(fixerRate(100));  // and nothing above the cap
+    expect(fixerRate(FIXER.trustBand)).toBeCloseTo(FIXER.maxRate, 5);
+    expect(fixerRate(FIXER.trustBand / 2)).toBeCloseTo((FIXER.minRate + FIXER.maxRate) / 2, 5);
+    for (let t = 0; t < FIXER.trustBand; t += 5) expect(fixerRate(t + 5)).toBeGreaterThan(fixerRate(t));
+    expect(fixerRate(-40)).toBe(fixerRate(0));                    // hostile is not worse than a stranger
+    expect(fixerRate(9999)).toBe(fixerRate(FIXER.trustBand));     // and nothing above the cap
   });
 
   it('never reaches a laundering racket of your own, even at maximum trust', () => {
@@ -67,8 +71,9 @@ describe('the fixer\'s rate and window', () => {
 
   it('caps what they will take in a day, and that cap grows with trust the same way', () => {
     expect(fixerDailyCap(0)).toBe(FIXER.capBase);
-    expect(fixerDailyCap(100)).toBe(FIXER.capBase + FIXER.capPerTrust * 100);
-    for (let t = 0; t < 100; t += 5) expect(fixerDailyCap(t + 5)).toBeGreaterThan(fixerDailyCap(t));
+    expect(fixerDailyCap(FIXER.trustBand)).toBe(FIXER.capBase + FIXER.capPerTrust * FIXER.trustBand);
+    for (let t = 0; t < FIXER.trustBand; t += 5) expect(fixerDailyCap(t + 5)).toBeGreaterThan(fixerDailyCap(t));
+    expect(fixerDailyCap(9999)).toBe(fixerDailyCap(FIXER.trustBand));
     expect(fixerDailyCap(-50)).toBe(fixerDailyCap(0));
   });
 });

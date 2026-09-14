@@ -5,7 +5,7 @@
 import { connectionsOf, familyOf } from './connections';
 import type { Rng } from './rng';
 import { PLAYER, type Agenda, type AgendaKind, type Block, type GameEvent, type Id, type Npc, type World } from './types';
-import { addHeat, adjustRel, clamp, log, money, nid } from './util';
+import { addHeat, bleedRel, clamp, log, money, nid } from './util';
 
 export const AGENDA_LABEL: Record<AgendaKind, string> = {
   debt: 'owes money to the wrong people', leave: 'wants out of this life', revenge: 'wants to get even', ambition: 'wants to be somebody', family: 'is protecting their family',
@@ -92,7 +92,7 @@ function milestone(w: World, n: Npc, a: Agenda, at: 50 | 100, rng: Rng) {
       if (at === 50 && known) log(w, `${n.name} is scared for ${kin ? `${kin.name} (${tie})` : 'their family'}. Pressure will push them to the police; kindness will not be forgotten.`, 'info', { npcId: n.id });
       if (at === 100) {
         if (n.rel.fear >= 40 && n.rel.trust < 20) { addHeat(w, 8); log(w, `${n.name} went to the police to keep ${who} out of it. (+8 heat)`, 'bad', { npcId: n.id }); }
-        else if (n.rel.trust >= 30) { adjustRel(n, { trust: 15 }); if (kin) adjustRel(kin, { trust: 8 }); log(w, `${n.name} says you're the only one who never went near ${who} (+15 trust)`, 'good', { npcId: n.id }); }
+        else if (n.rel.trust >= 30) { bleedRel(w, n, { trust: 15 }); if (kin) bleedRel(w, kin, { trust: 8 }); log(w, `${n.name} says you're the only one who never went near ${who} (+15 trust)`, 'good', { npcId: n.id }); }
       }
       break;
     }
@@ -118,7 +118,7 @@ export function tickGossip(w: World, rng: Rng) {
     for (const c of connectionsOf(w, n)) circle.add(c.npc.id);
     circle.delete(n.id);
     const listeners = rng.shuffle([...circle].map(id => w.npcs[id]).filter(x => x && x.alive && !x.crew)).slice(0, 2);
-    for (const l of listeners) { adjustRel(l, { trust: -3, respect: -2 }); if (l.role === 'owner') l.nerve = clamp(l.nerve + 2); }
+    for (const l of listeners) { bleedRel(w, l, { trust: -3, respect: -2 }); if (l.role === 'owner') l.nerve = clamp(l.nerve + 2); }
     g.spread += listeners.length;
     if (g.spread === listeners.length && listeners.length) log(w, `Word is going around ${w.blocks[n.homeBlockId]?.name ?? 'the block'}: ${g.reason}`, 'warn', { npcId: n.id, blockId: n.homeBlockId });
   }

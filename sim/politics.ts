@@ -44,9 +44,9 @@ function startCrisis(w: World, f: Faction, cands: Npc[]) {
 export function backCandidate(w: World, f: Faction, npcId: Id, amount: number) {
   if (!f.crisis) return;
   const n = w.npcs[npcId];
-  if (f.crisis.backing && f.crisis.backing !== npcId) { const prev = w.npcs[f.crisis.backing]; if (prev) adjustRel(prev, { trust: -30 }); log(w, `${prev?.name ?? 'Your first pick'} hears you switched horses.`, 'warn', { factionId: f.id }); f.crisis.backedWith = 0; }
+  if (f.crisis.backing && f.crisis.backing !== npcId) { const prev = w.npcs[f.crisis.backing]; if (prev) adjustRel(w, prev, { trust: -30 }); log(w, `${prev?.name ?? 'Your first pick'} hears you switched horses.`, 'warn', { factionId: f.id }); f.crisis.backedWith = 0; }
   f.crisis.backing = npcId; f.crisis.backedWith += amount;
-  adjustRel(n, { trust: 15, respect: 10 });
+  adjustRel(w, n, { trust: 15, respect: 10 });
   log(w, `You put ${money(amount)} and your name behind ${n.name} for the ${f.short} chair.`, 'money', { factionId: f.id, npcId: n.id });
 }
 
@@ -76,12 +76,12 @@ function crown(w: World, f: Faction, boss: Npc, how: 'quiet' | 'default' | 'cont
   if (c?.backing) {
     if (c.backing === boss.id) {
       setStanding(f.standing[PLAYER] + 30); f.owed = (f.owed ?? 0) + 1; f.truceUntil[PLAYER] = Math.max(f.truceUntil[PLAYER] ?? 0, w.day + 15);
-      adjustRel(boss, { trust: 30, respect: 15 }); p.respect = clamp(p.respect + 6);
+      adjustRel(w, boss, { trust: 30, respect: 15 }); p.respect = clamp(p.respect + 6);
       text += ` They know who put them there: ${f.short} owe you one, and there is a 15-day truce whether the soldiers like it or not.`;
       for (const b of Object.values(w.blocks)) if ((b.influence[f.id] ?? 0) > 0 && (b.influence[PLAYER] ?? 0) > 0) addInfluence(w, b.id, PLAYER, 3);
     } else {
       setStanding(f.standing[PLAYER] - 30); f.grudges.push(`backed:${w.npcs[c.backing]?.name.split(' ')[0] ?? 'rival'}`);
-      adjustRel(boss, { trust: -40 });
+      adjustRel(w, boss, { trust: -40 });
       text += ` You backed the wrong horse. The new boss knows.`;
     }
   }
@@ -130,12 +130,12 @@ export function broker(w: World, n: Npc, otherId: Id, approach: string, ok: bool
     p.respect = clamp(p.respect + (approach === 'lean' ? 4 : 8)); if (approach === 'lean') p.fear = clamp(p.fear + 3);
     const fee = approach === 'split' ? 0 : 400 + Math.round((a.soldiers + b.soldiers) * 25);
     if (fee) p.dirty += fee;
-    adjustRel(n, { trust: 10, respect: 15 });
+    adjustRel(w, n, { trust: 10, respect: 15 });
     log(w, `${a.short} and ${b.short} stop shooting: ${days}-day truce, brokered by you.${fee ? ` Both sides send a little something for your trouble: ${money(fee)}.` : ''} Everybody in the room will remember who made it happen.`, 'good', { factionId: a.id });
     return 'good';
   }
-  if (approach === 'lean') { for (const f of [a, b]) { f.standing[PLAYER] = cap(f, f.standing[PLAYER] - 12); f.stance[PLAYER] = stanceFor(f.standing[PLAYER]); } adjustRel(n, { respect: -10 }); log(w, `Both sides leave the room hating each other a little less and you a lot more.`, 'bad', { factionId: a.id }); }
-  else if (approach === 'favour') { a.standing[PLAYER] = cap(a, a.standing[PLAYER] - 10); a.stance[PLAYER] = stanceFor(a.standing[PLAYER]); if (a.owed) a.owed--; adjustRel(n, { trust: -8 }); log(w, `${a.short} feel used. Nothing changes between them and ${b.short}.`, 'bad', { factionId: a.id }); }
+  if (approach === 'lean') { for (const f of [a, b]) { f.standing[PLAYER] = cap(f, f.standing[PLAYER] - 12); f.stance[PLAYER] = stanceFor(f.standing[PLAYER]); } adjustRel(w, n, { respect: -10 }); log(w, `Both sides leave the room hating each other a little less and you a lot more.`, 'bad', { factionId: a.id }); }
+  else if (approach === 'favour') { a.standing[PLAYER] = cap(a, a.standing[PLAYER] - 10); a.stance[PLAYER] = stanceFor(a.standing[PLAYER]); if (a.owed) a.owed--; adjustRel(w, n, { trust: -8 }); log(w, `${a.short} feel used. Nothing changes between them and ${b.short}.`, 'bad', { factionId: a.id }); }
   else { const f = rng.pick([a, b]); f.standing[PLAYER] = cap(f, f.standing[PLAYER] - 5); log(w, `${money(4000)} gone. ${f.short} at least say thanks for the envelope.`, 'bad', { factionId: a.id }); }
   return 'bad';
 }

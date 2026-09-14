@@ -10,7 +10,7 @@ import type { World } from '@sim/types';
 import { SocialTab } from './components/SocialTab';
 import { NpcSheet } from './components/NpcSheet';
 import { newGame } from './store';
-import { asHtml } from './test-util';
+import { asHtml, plain } from './test-util';
 
 const mk = (seed = 12) => generateWorld({ origin: { lat: 51.5, lng: -0.12 }, placeName: 'London', playerName: 'T', background: 'muscle', seed });
 const render = (w: World) => { newGame(w); return renderToString(<SocialTab />); };
@@ -70,5 +70,33 @@ describe('the Social tab', () => {
     expect(sheet).toContain('Family');
     expect(sheet).toContain(tie.npc.name);
     expect(sheet).toContain(tie.label);      // "(cousin)"
+  });
+});
+
+describe('where you stand with somebody', () => {
+  it('names how well you know them, what they owe you, and any hold you have', () => {
+    const w = mk();
+    const n = Object.values(w.npcs).find(x => x.alive && !x.crew)!;
+    newGame(w);
+    expect(renderToString(<NpcSheet npcId={n.id} />)).toContain('Never dealt with them');
+    n.rel.metDay = w.day - 4; n.rel.contacts = 3; n.rel.favours = 2;
+    n.ratted = w.day;
+    newGame(w);
+    const html = plain(renderToString(<NpcSheet npcId={n.id} />));
+    expect(html).toContain('Known 4 days');
+    expect(html).toContain('3 times');
+    expect(html).toContain('Owes you 2 favours');
+    expect(html).toContain('You have a hold');
+  });
+
+  it('says it in the singular when there is one of a thing', () => {
+    const w = mk(13);
+    const n = Object.values(w.npcs).find(x => x.alive && !x.crew)!;
+    n.rel.metDay = w.day - 1; n.rel.contacts = 1; n.rel.favours = 1;
+    newGame(w);
+    const html = plain(renderToString(<NpcSheet npcId={n.id} />));
+    expect(html).toContain('Known 1 day ');
+    expect(html).toContain('1 time');
+    expect(html).toContain('Owes you a favour');
   });
 });

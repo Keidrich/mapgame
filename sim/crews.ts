@@ -85,8 +85,8 @@ export function parley(w: World, c: StreetCrew, boss: Npc, approach: string, ok:
   void rng;
   const b = w.blocks[c.blockId];
   if (approach === 'tribute') {
-    if (ok) { c.tribute = PLAYER; c.mood += 20; addInfluence(w, b.id, PLAYER, (b.influence[c.id] ?? 40) + 5); delete b.influence[c.id]; adjustRel(boss, { respect: 15, trust: 5 }); log(w, `The ${c.name} are on your payroll: about ${money(c.strength * 45 * 7)} a week, and ${b.name} is yours.`, 'good', { blockId: b.id }); return 'good'; }
-    c.mood -= 15; adjustRel(boss, { respect: -5 }); c.strength = Math.min(10, c.strength + 0.5); return 'bad';
+    if (ok) { c.tribute = PLAYER; c.mood += 20; addInfluence(w, b.id, PLAYER, (b.influence[c.id] ?? 40) + 5); delete b.influence[c.id]; adjustRel(w, boss, { respect: 15, trust: 5 }); log(w, `The ${c.name} are on your payroll: about ${money(c.strength * 45 * 7)} a week, and ${b.name} is yours.`, 'good', { blockId: b.id }); return 'good'; }
+    c.mood -= 15; adjustRel(w, boss, { respect: -5 }); c.strength = Math.min(10, c.strength + 0.5); return 'bad';
   }
   if (approach === 'join') {
     if (ok) {
@@ -98,10 +98,10 @@ export function parley(w: World, c: StreetCrew, boss: Npc, approach: string, ok:
       log(w, `${boss.name} and the ${name} come over. ${boss.name} joins your crew at ${money(cut)}/day; their people are yours to recruit.`, 'good', { blockId: b.id, npcId: boss.id });
       return 'good';
     }
-    adjustRel(boss, { trust: 3 }); return 'bad';
+    adjustRel(w, boss, { trust: 3 }); return 'bad';
   }
   // warn
-  if (ok) { c.strength = Math.max(1, c.strength - 2); c.mood -= 25; b.influence[c.id] = clamp((b.influence[c.id] ?? 40) - 20); adjustRel(boss, { fear: 25 }); spreadRep(w, b.id, { fear: 5 }); w.player.fear = clamp(w.player.fear + 3); addHeat(w, 2, b.id); log(w, `The ${c.name} get small. The block notices.`, 'good', { blockId: b.id }); return 'good'; }
+  if (ok) { c.strength = Math.max(1, c.strength - 2); c.mood -= 25; b.influence[c.id] = clamp((b.influence[c.id] ?? 40) - 20); adjustRel(w, boss, { fear: 25 }, 'violence'); spreadRep(w, b.id, { fear: 5 }, 1, 'violence'); w.player.fear = clamp(w.player.fear + 3); addHeat(w, 2, b.id); log(w, `The ${c.name} get small. The block notices.`, 'good', { blockId: b.id }); return 'good'; }
   c.mood -= 30; addHeat(w, 4, b.id);
   const victim = w.player.crewIds.map(id => w.npcs[id]).find(n => n.crew && (n.crew.status === 'idle' || n.crew.status === 'assigned'));
   if (victim?.crew && rng.chance(0.6)) { victim.crew.status = 'injured'; victim.crew.statusDays = rng.int(2, 5); victim.crew.assignment = undefined; log(w, `The ${c.name} jumped ${victim.name} that night. Laid up ${victim.crew.statusDays} days.`, 'bad', { blockId: b.id, npcId: victim.id }); }

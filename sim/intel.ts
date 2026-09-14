@@ -70,7 +70,7 @@ export function endIntel(w: World, n: Npc, caught: boolean) {
   n.intel = undefined;
   if (!kind) return;
   if (!caught) { log(w, `What you had inside ${where ?? 'there'} is no good any more. Rotas change.`, 'info', { npcId: n.id }); return; }
-  adjustRel(n, { trust: SKIM.trustHit, fear: 10 });
+  adjustRel(w, n, { trust: SKIM.trustHit, fear: 10 }, 'backed');
   n.notes.push('Was caught moving money that was not theirs.');
   log(w, `An auditor at ${where ?? 'the bank'} pulled a thread and ${n.name} was on the end of it. That money has stopped, and they know exactly whose idea it was.`, 'bad', { npcId: n.id });
 }

@@ -134,6 +134,13 @@ export interface Relationship {
   trust: number;   // -100..100
   fear: number;    // 0..100
   respect: number; // 0..100
+  // How well you actually know each other. All optional so an old save loads as a stranger,
+  // which is the right answer for anybody the player has not dealt with since. See
+  // `sim/standing.ts`: these drive the familiarity floor and the concession gates.
+  metDay?: number;         // the day you first dealt with them face to face
+  contacts?: number;       // separate days you have dealt with them
+  lastContactDay?: number; // so three visits in one afternoon count once
+  favours?: number;        // real things you resolved for them — reciprocity, not politeness
 }
 
 export type CrewStatus = 'idle' | 'assigned' | 'injured' | 'jailed' | 'dead';

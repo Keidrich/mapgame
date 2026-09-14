@@ -14,6 +14,124 @@ House rules for an entry (see `CLAUDE.md` → *Leave a trail*):
 
 ---
 
+## 2026-09-14 — Standing: fear costs what it cost you, trust plateaus, reputation walks the graph, and a familiarity floor under all of it
+
+**What.** The four numbers every social system reads — fear, trust, familiarity, reputation —
+reworked as one system, plus the full audit of everything that reads them. Shipped alone: no new
+content rides with it.
+
+**Why.** All four were flat, and each one had the same shape of bug behind it:
+
+- **Fear was a formula.** `threaten` paid an approach base plus half your muscle whether you
+  said a word or put somebody in hospital. A stare and a broken leg bought the same thing.
+- **Trust was a counter.** Enough pleasant visits and anybody would hand over their business,
+  their crew place, or a discount. Being liked *was* leverage.
+- **Reputation was paint.** One notable act coloured every face within a geographic radius, so a
+  name made on one side of town quietly worked on the other, and expanding into new ground was
+  only ever socially cold once — at the start of a save.
+- **Familiarity was checked in exactly one place.** `promoteReason` would not hand a district to
+  somebody who joined yesterday. Nothing else in the game cared how long you had known anyone.
+
+**How.** One rule, four applications: *a relationship can only become as deep as the thing that
+built it.* Numbers in `content/standing.ts`, machinery in `sim/standing.ts`, and everything funnels
+through two chokepoints in `sim/util.ts` — `adjustRel` (face to face, stamps a contact) and
+`bleedRel` (word that merely reached somebody; no handshake). `adjustRel` now takes the world, so
+all 83 call sites had to declare themselves; the default is the cheapest stake, so anything
+costlier has to say so.
+
+*1. Fear by stake.* Five stakes with a multiplier and a hard ceiling: `words` ×0.45/35,
+`backed` ×0.70/50, `property` ×1.30/80, `violence` ×1.80/95, `grave` ×2.40/100. At or above the
+ceiling the gain is exactly zero — a hard stare tells nobody anything new once they have watched
+you hurt a man. Thirty-odd call sites across ops, combat, hostages, events and the reducer now
+declare what they actually did. `threaten` reads its approach: a stare is `words`, crew in the
+doorway or their family named is `backed`.
+
+*2. Trust plateaus; concessions need a reason.* Ordinary dealing stops at 45. Each **favour
+actually settled** lifts that by 15 to a hard 85. On top of that, a major concession needs
+reciprocity or **leverage** — you hold their street (influence 55+), you have been inside their
+books within 30 days or are still listening, or somebody they are tied to is in your cellar.
+`doFavour(w, n)` is the hook the agenda-resolution pass plugs into; it fires today on the five
+places the player already settles something real, and on bribing an official, whose whole
+relationship with the player is the money.
+
+*3. Reputation on the graph.* `spreadRep` seeds on the people who were actually there and walks
+§3.6's connections: witnesses ×1, one degree ×0.45, two ×0.18, nothing at three, capped at the
+five people closest to anybody. The old geographic `radius` became `degrees` — how far *this*
+thing carries, so a killing travels two and a raised voice one.
+
+*4. The familiarity floor.* `rel.metDay` / `rel.contacts`, needing 3 days **and** 2 separate
+occasions — the `LIEUTENANT.minDays` pattern, generalised. Below it trust stops at 25 and fear at
+30. A demonstrated act (`property` and up) is exempt from the fear half: breaking somebody's
+window is its own introduction. Nothing is exempt from the trust half.
+
+*5. The audit.* Every gate that read a raw number:
+
+| what | before | after |
+|---|---|---|
+| `protectReason` friend route | trust ≥ 40 | + familiarity + (favour or leverage) |
+| `recruit` | approach odds only | familiarity always; `promise` needs a favour or leverage; `lean` needs fear ≥ 38 |
+| `buy_business` friendly price | trust ≥ 30 | + familiarity + (favour or leverage) |
+| sit-down `alliance` | standing ≥ 40 | + `factionLeverage`: a favour owed, 2 of their blocks held, or dirt on their boss |
+| sit-down `demand_block` | numbers only | + `factionLeverage` |
+| `promoteReason` | `minDays` + loyalty | unchanged — confirmed, and now the pattern the rest copy |
+| fixer rate and daily cap | scaled 0–100 trust | scaled over `FIXER.trustBand` (60), the band trust can now reach |
+| `bribe_official` | trust only | also `doFavour`, so the money can still reach a judge at 40 and `boughtBy` at 45 |
+| `offer_sale` event | weight at 45, picker at 45 | both 40, below the ordinary ceiling |
+
+**Two real bugs this turned up, both fixed here.**
+
+- **`can(recruit)` and `dispatch(recruit)` disagreed on the default approach.** The reducer
+  defaults an absent approach to `promise`; `can` compared `a.approach` directly, so every gate
+  keyed to an approach was skipped by any caller that left it off — including the new one. The UI
+  could offer a button the reducer then resolved as something else.
+- **`can(recruit)` checked distance before the gates you cannot walk to fix.** Being told to
+  cross town and *then* that they were never going to say yes is a bad answer for a player and a
+  worse one for the bot, which read the location refusal as a maybe and spent entire days walking
+  to people it could not recruit. Hard gates now come first. This one was worth about $12,000 and
+  eight rackets over thirteen honest days.
+
+**Numbers.** `npm run sim -- 60 <seed> honest`, cash / dirty at day 61:
+
+| seed | before | after |
+|---|---|---|
+| 3 | 37 / 494 | 64 / 1,111 |
+| 7 | 6,161 / 1,037 | 7,714 / 1,092 |
+| 11 | 0 / 12,721 | −388 / 50,182 |
+| 19 | −1,443 / 24,982 | 125 / 2,774 |
+
+`npm run sim -- 60 7 all` still reports **13/13 systems** and 32 distinct op kinds.
+
+**Watch out.**
+
+- **No `WORLD_VERSION` bump.** All four new `Relationship` fields are optional, so existing saves
+  load — with everybody a stranger, which is the right answer for anyone the player has not dealt
+  with since. They will notice concessions they used to get are refused until they re-earn them.
+- **The honest curve moved and is not comparable seed-for-seed with older entries.** Seeds 3, 7
+  and 19 land in a similar band; seed 11 does not, for a reason that is not this pass's (below).
+- **Seed 11's 50,182 stuck dirty is a pre-existing hole this pass made visible, not one it
+  created.** The bot recruited the city's only fixer. `recruit` sets `role = 'crew'`, and
+  `fixersKnown` filters on `role === 'fixer'`, so the only laundering route in that world simply
+  stopped existing. Confirmed identical at generation before and after this pass. **Deliberately
+  out of scope** — it needs either a "was a fixer" flag or recruit preserving the capability, and
+  this pass ships alone. It was already costing seed 11 $12,721 before any of this.
+- **`sim/test-util.ts` is new** and is where the new pacing is expressed for tests: `known()`,
+  `owes()`, `unknown()`. A test that sets `rel.trust = 90` and expects a concession will now fail,
+  correctly — use these instead of re-deriving the floor.
+- **Glossary ids:** `leverage` was already taken by the hostage-release mode, so the new entry is
+  `hold`. New ids: `stakes`, `familiarity`, `hold`, `favour`.
+- The NPC sheet gained a **Standing** row (how long you have known them, what they owe you, any
+  hold) so a refusal has somewhere to be looked up.
+
+**Files.** New: `content/standing.ts`, `sim/standing.ts`, `sim/test-util.ts`,
+`sim/fear-stakes.test.ts`, `sim/trust-gating.test.ts`, `sim/reputation-propagation.test.ts`,
+`sim/familiarity-floor.test.ts`. Changed: `sim/util.ts`, `sim/types.ts`, `sim/economy.ts`,
+`sim/reducer.ts`, `sim/select.ts`, `sim/events.ts`, `sim/people.ts`, `sim/ops.ts`, `sim/combat.ts`,
+`sim/hostages.ts`, `sim/crews.ts`, `sim/cyber.ts`, `sim/intel.ts`, `sim/production.ts`,
+`sim/generate.ts`, `sim/politics.ts`, `sim/tick.ts`, `content/rackets.ts`, `content/glossary.ts`,
+`ui/components/NpcSheet.tsx`, `ui/components/BusinessSheet.tsx`, `docs/DESIGN.md` §3.7.
+
+---
+
 ## 2026-09-14 — The bot learns the production pass: foremen, standing orders, and getting inside a bank
 
 **What.** The soak bot now posts a foreman, sets a standing order on a product racket, and goes

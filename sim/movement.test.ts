@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { PLAYER, can, dispatch, generateWorld, select, type Block, type World } from './index';
 import { FOOTHOLD, legworkFor, route } from './travel';
 import { BUSINESS_DEFS } from '@content/businesses';
+import { owes } from './test-util';
 
 const mk = (seed = 5) => generateWorld({ origin: { lat: 51.5, lng: -0.12 }, placeName: 'London', playerName: 'T', background: 'muscle', seed });
 
@@ -151,6 +152,10 @@ describe('face-to-face actions need you to be there', () => {
   it('refuses a visit, read, threaten or recruit off-block and allows it on-block', () => {
     const w = mk(3); const { near, away } = people(w);
     expect(near).toBeDefined(); expect(away).toBeDefined();
+    // Recruiting checks the familiarity floor before it checks the distance, so that a player is
+    // never walked across town only to be told they were never going to say yes. Both of these
+    // therefore have to be people you already know, or the refusal under test never surfaces.
+    owes(w, near!); owes(w, away!);
     for (const act of [
       { type: 'visit' as const, npcId: away!.id },
       { type: 'read' as const, npcId: away!.id },

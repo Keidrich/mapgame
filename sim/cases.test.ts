@@ -3,6 +3,7 @@ import { PLAYER, can, dispatch, generateWorld, select } from './index';
 import { openCase, tickCases } from './cases';
 import { tickCommission, resolveMeeting, MEETING_EVERY } from './commission';
 import { Rng } from './rng';
+import { known } from './test-util';
 
 const mk = (seed = 5) => generateWorld({ origin: { lat: 51.5, lng: -0.12 }, placeName: 'London', playerName: 'T', background: 'muscle', seed });
 
@@ -20,10 +21,15 @@ describe('cold cases', () => {
     // the witness gets scared
     wit.rel.fear = 80;
     const e0 = c.evidence; tickCases(w, rng); expect(c.evidence - e0).toBeLessThan(fast);
-    // a threaten that lands on the witness clears them from the file
+    // A threat that lands on the witness clears them from the file — but a stare cannot do it
+    // any more. Silence needs fear 40 and `STAKES.words` tops out at 35, so the player has to
+    // bring people to the door: `threaten:crew` is a `backed` act and reaches 50.
     wit.rel.fear = 0; w.player.skills.muscle = 10; w.player.fear = 90; wit.nerve = 5; wit.traits = ['coward'];
+    known(w, wit);
+    const muscle = Object.values(w.npcs).find(n => n.id !== me.id && n.alive && !n.crew)!;
+    muscle.crew = { loyalty: 60, cut: 50, status: 'idle', statusDays: 0, joinedDay: 1 }; muscle.role = 'crew'; w.player.crewIds.push(muscle.id);
     let w2 = w; let tries = 0;
-    while (w2.cases![0].witnessId && tries++ < 6) { w2 = dispatch(w2, { type: 'threaten', npcId: wit.id, approach: 'stare' }); w2.player.ap = 8; }
+    while (w2.cases![0].witnessId && tries++ < 6) { w2 = dispatch(w2, { type: 'threaten', npcId: wit.id, approach: 'crew' }); w2.player.ap = 8; }
     expect(w2.cases![0].witnessId).toBeUndefined();
     // run it to charges
     const t = structuredClone(w2); t.player.heat = 90; t.player.lawyer = false;

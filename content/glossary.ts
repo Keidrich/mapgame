@@ -85,13 +85,34 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
   // ---------------------------------------------------------------- a person
   trust: {
     title: 'Trust',
-    body: 'How much this person will do for you, from −100 to 100. Drives visits, talking an owner into paying, and recruiting.',
-    note: 'At 20 you have their number: traits and nerve show. At 35 they will open a door for an inside job.',
+    body: 'How much this person will do for you, from −100 to 100. Drives visits, talking an owner into paying, and recruiting. Ordinary dealing — visits, drinks, small talk — takes somebody to friendly and stops there. Only a favour you actually settled for them takes it higher.',
+    note: 'At 20 you have their number: traits and nerve show. At 35 they will open a door for an inside job. Past friendly you have to have done something.',
   },
   npcfear: {
     title: 'Fear (of you)',
-    body: 'How much they think you will hurt them, 0 to 100. Drives every strongarm approach, and keeps a witness off the stand at 40 or more.',
-    note: 'Fades by 1 every other day. Fear without trust makes people call the police the moment they can.',
+    body: 'How much they think you will hurt them, 0 to 100. Drives every strongarm approach, and keeps a witness off the stand at 40 or more. How far it can go depends on what you actually did: talk buys wariness and stops, a threat with your crew behind it goes further, and something broken or somebody hurt goes furthest.',
+    note: 'Fades by 1 every other day. A hard stare tells somebody nothing they did not already know once they have watched you put a man down.',
+  },
+  stakes: {
+    title: 'What it cost you',
+    body: 'Every act that frightens somebody is worth what it cost you to do. A stare is free, so it buys very little and hits a low ceiling fast. Wrecking a place, or hurting somebody, is expensive and cannot be undone — so it spikes fear hard and reaches much higher.',
+    note: 'Repeating a cheap threat forever will not get you past its ceiling. To go further you have to escalate.',
+  },
+  familiarity: {
+    title: 'How well you know them',
+    body: 'Days since you first dealt with somebody, and how many separate occasions. Nothing deep registers before both are real: a stranger can be wary of you and can find you tolerable, and that is as far as either goes.',
+    note: 'The same rule that stops you handing a district to somebody who joined your crew yesterday. Breaking something of theirs is the one exception — that introduces you.',
+  },
+  // `leverage` further down is the hostage-release mode, which had the id first.
+  hold: {
+    title: 'A hold over them',
+    body: 'A reason to say yes that has nothing to do with liking you: you hold the street their door opens onto, you have been through their books, or somebody they are close to is in your cellar.',
+    note: 'It layers on top of trust, it does not replace it. Somebody who does not trust you at all is not going to be talked round by either.',
+  },
+  favour: {
+    title: 'What they owe you',
+    body: 'Something real you settled for them — a debt covered, a problem sorted, a week they needed. Each one raises how far that relationship can go, and it is the only thing that does.',
+    note: 'Money handed over is not a favour, except to an official, whose whole relationship with you is the money.',
   },
   npcrespect: {
     title: 'Respect (for you)',
@@ -120,7 +141,7 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
   connections: {
     title: 'Family and friends',
     body: 'Who this person actually has. Everybody in the city has people — a household of relatives, a couple of old friends, usually both. Anyone with more backup than their neighbours is harder to frighten and slower to trust a stranger, whoever they are.',
-    note: 'Word travels along these ties. Humiliate somebody and their cousin hears about it across the district, not just the regulars at the bar.',
+    note: 'Your name travels along these ties and nowhere else: the people who were there, then the people they know, then faintly one step further, then nothing. A reputation made on one side of town does not follow you to the other.',
   },
   closeness: {
     title: 'Closeness',

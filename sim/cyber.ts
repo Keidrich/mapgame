@@ -116,7 +116,7 @@ export function startTap(w: World, n: Npc) { n.tap = { since: w.day }; n.ratted 
 export function endTap(w: World, n: Npc, found: boolean, rng: Rng) {
   n.tap = undefined;
   if (!found) { log(w, `You take the tap off ${n.name} before anybody trips over it.`, 'info', { npcId: n.id }); return; }
-  adjustRel(n, { trust: TAP.trustHit, fear: 5 });
+  adjustRel(w, n, { trust: TAP.trustHit, fear: 5 }, 'backed');
   n.notes.push('Found out somebody was listening.');
   log(w, `${n.name} found the tap. Whatever you had with them is gone, and they are telling people.`, 'bad', { npcId: n.id });
   if (rng.chance(TAP.caseChance)) openCase(w, 'frame', `Interference with ${n.name}'s business`, { npcId: n.id, blockId: n.homeBlockId }, [], rng);
@@ -198,7 +198,7 @@ export function sellDirt(w: World, s: Secret, factionId: FactionId, rng: Rng): n
     theirs.grudges.push(`sold_dirt:${s.npcId}`);
     log(w, `${theirs.short} worked out who sold it. That will be remembered.`, 'bad', { factionId: theirs.id });
   }
-  if (n) adjustRel(n, { trust: -15 });
+  if (n) adjustRel(w, n, { trust: -15 });
   return paid;
 }
 

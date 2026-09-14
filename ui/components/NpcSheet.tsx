@@ -45,6 +45,7 @@ export function NpcSheet({ npcId }: { npcId: Id }) {
       </div>
       <div className="mt12"><SkillBars skills={n.skills} /></div>
       <div className="mt12"><RelMeters rel={n.rel} /></div>
+      <Standing npcId={npcId} />
       <dl className="kv mt12">
         <dt><Term id="findAt">Find at</Term></dt>
         <dd>{where ? <button type="button" className="chip btn" onClick={() => openSheet({ kind: 'business', businessId: where.id })}>{where.name}</button> : home ? <button type="button" className="chip btn" onClick={() => openSheet({ kind: 'block', blockId: home.id })}>{home.name}</button> : '—'}</dd>
@@ -249,5 +250,28 @@ function CrewSection({ npcId }: { npcId: Id }) {
         <div className="mt8"><Act action={{ type: 'fire', npcId }} label="Fire" icon="🚪" kind="danger" confirm={`Fire ${n.name}?`} /></div>
       </div>
     </>
+  );
+}
+
+/**
+ * Where you stand with somebody, past the three bars. These are the things that decide whether
+ * a real ask lands, and before this panel they were invisible: a player who kept being told
+ * "that is not a reason to hand you a third of the till" had nowhere to look to find out why.
+ */
+function Standing({ npcId }: { npcId: string }) {
+  const w = useWorld();
+  const n = w.npcs[npcId]; if (!n) return null;
+  const days = select.daysKnown(w, n);
+  const met = n.rel.metDay !== undefined;
+  const owed = select.favours(n);
+  const hold = select.leverageOver(w, n);
+  return (
+    <div className="chips mt8">
+      <TermChip id="familiarity" tone={select.familiar(w, n) ? 'var(--green)' : undefined}>
+        {!met ? 'Never dealt with them' : `Known ${days} day${days === 1 ? '' : 's'} · ${n.rel.contacts ?? 0} time${(n.rel.contacts ?? 0) === 1 ? '' : 's'}`}
+      </TermChip>
+      {owed > 0 && <TermChip id="favour" tone="var(--green)">Owes you {owed === 1 ? 'a favour' : `${owed} favours`}</TermChip>}
+      {hold && <TermChip id="hold" tone="var(--gold)" note={hold.why}>You have a hold</TermChip>}
+    </div>
   );
 }

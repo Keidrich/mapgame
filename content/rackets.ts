@@ -238,11 +238,19 @@ export const LAUNDER_RATE = 0.85;      // a laundering racket: 85 cents on the d
 export const FIXER = {
   ap: 1,                 // a trip across town and an hour in a back room
   minRate: 0.55,         // at trust 0
-  maxRate: 0.70,         // at trust 100 — deliberately short of LAUNDER_RATE, for ever
+  maxRate: 0.70,         // at full trust — deliberately short of LAUNDER_RATE, for ever
   capBase: 400,          // $/day they will take at trust 0
-  capPerTrust: 8,        // + per point of trust, so $1,200/day at trust 100
+  capPerTrust: 15,       // + per point of trust, so about $1,300/day at a fully earned 60
   startTrust: 20,        // the one near your first block already knows your name
   trustPerUse: 3,        // for a full day's worth; a token amount earns less
+  /**
+   * Both the rate and the cap used to divide by 100, which assumed trust could get there. Since
+   * the standing pass it cannot: ordinary dealing stops at `CONCESSION.ordinary` and only real
+   * favours lift it, so a fixer you use every day tops out in the fifties. Scaling against that
+   * band instead of a theoretical 100 keeps the curve the shape it was — a hard opening that
+   * eases as the relationship earns it — rather than silently halving every fixer in the city.
+   */
+  trustBand: 60,
 };
 
 /** Delegation: what it takes to hand a crew member a district, and what they do with it. */

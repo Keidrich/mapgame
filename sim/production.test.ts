@@ -4,6 +4,7 @@ import { RECIPES } from '@content/rackets';
 import { addProduct, moveProduct, productionQuality, qualityOf, resolveProductionEvent, unlockRecipe } from './production';
 import { resolveOp } from './ops';
 import { Rng } from './rng';
+import { known } from './test-util';
 
 const mk = (seed = 5) => generateWorld({ origin: { lat: 51.5, lng: -0.12 }, placeName: 'London', playerName: 'T', background: 'brains', seed });
 
@@ -77,7 +78,8 @@ describe('production quality and recipes', () => {
     expect(got).toBe(true);
     // specialist
     const w2 = mk(5); w2.player.cash = 5000;
-    const n = Object.values(w2.npcs).find(x => x.role === 'patron' && x.alive)!; n.recipe = 'hydro'; n.rel.trust = 90; n.traits = ['greedy'];
+    const n = Object.values(w2.npcs).find(x => x.role === 'patron' && x.alive)!; n.recipe = 'hydro'; n.traits = ['greedy'];
+    known(w2, n, { trust: 90 });   // you do not hire a specialist you have never met
     w2.player.currentBlockId = n.homeBlockId;
     let w3 = w2; let tries = 0;
     while (!w3.npcs[n.id].crew && tries++ < 8) { w3 = dispatch(w3, { type: 'recruit', npcId: n.id, approach: 'cut' }); w3.player.ap = 8; }

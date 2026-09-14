@@ -160,7 +160,7 @@ function applyStartTrait(w: World, trait: StartTraitId, startBlock: Block): void
       break;
     case 'feared':
       w.player.fear += 15;
-      for (const n of locals.filter(x => x.role === 'owner')) adjustRel(n, { fear: 12, trust: -5 });
+      for (const n of locals.filter(x => x.role === 'owner')) adjustRel(w, n, { fear: 12, trust: -5 }, 'backed');
       break;
   }
 }

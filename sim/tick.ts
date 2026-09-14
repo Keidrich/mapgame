@@ -107,7 +107,7 @@ export function endDay(w: World): World {
         income = Math.round(racketIncome(w, r) * (1 + Math.min(0.3, collectors(w) * 0.1) + (lt ? 0.1 : 0))); // collectors (and a lieutenant) make sure it all arrives
         // owners under protection drift: fair rates build trust, high rates build resentment. A partner is crew: neither applies.
         if (!b.protection?.partner) {
-          if ((b.protection?.rate ?? 0.15) <= 0.15) { if (rng.chance(0.2)) adjustRel(owner, { trust: 1 }); } else if (rng.chance(0.3)) adjustRel(owner, { trust: -1 });
+          if ((b.protection?.rate ?? 0.15) <= 0.15) { if (rng.chance(0.2)) adjustRel(w, owner, { trust: 1 }); } else if (rng.chance(0.3)) adjustRel(w, owner, { trust: -1 });
           if (owner.rel.trust < -40 && owner.rel.fear < 30 && rng.chance(0.1)) { addHeat(w, 6, b.blockId); log(w, `${owner.name} at ${b.name} talked to the police. (+6 heat)`, 'bad', { businessId: b.id, npcId: owner.id }); }
         }
         break;
