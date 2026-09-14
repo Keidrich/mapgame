@@ -12,6 +12,7 @@ import { RecapSheet } from './components/RecapSheet';
 import { FactionsTab } from './components/FactionsTab';
 import { Hud } from './components/Hud';
 import { MapView } from './components/Map';
+import { MapLayers } from './components/MapLayers';
 import { NpcSheet } from './components/NpcSheet';
 import { Onboarding } from './components/Onboarding';
 import { OpsTab } from './components/OpsTab';
@@ -46,6 +47,7 @@ function Game() {
       <main className="main">
         <MapView />
         {tab === 'map' && <MapLegend />}
+        {tab === 'map' && <MapLayers />}
         {tab !== 'map' && (
           <div className="panel" key={tab}>
             <ErrorBoundary what={`the ${tab} tab`} onReset={() => setTab('map')} resetLabel="Back to the map">

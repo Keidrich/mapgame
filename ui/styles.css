@@ -70,6 +70,15 @@ p { margin: 0 0 8px; }
 @media (min-width: 700px) { .leaflet-control-zoom { display: block; } .leaflet-bar a { background: var(--bg-3) !important; color: var(--text) !important; border-color: var(--line) !important; } }
 .hex-badge { display: flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 11px; background: rgba(20, 23, 28, 0.85); border: 1px solid var(--line); color: var(--text); font-size: 11px; font-weight: 700; pointer-events: none; }
 .hex-fire { font-size: 14px; filter: drop-shadow(0 0 3px rgba(229, 72, 77, 0.9)); pointer-events: none; }
+/* the law on the map: a building you can tap, and a ring that pulses once it is looking at you */
+.law-marker { display: flex; align-items: center; justify-content: center; min-width: 28px; height: 28px; padding: 0 4px; border-radius: 14px; background: rgba(13, 20, 34, 0.94); border: 1.5px solid #4d8df6; font-size: 14px; line-height: 1; box-shadow: 0 1px 4px rgba(0,0,0,0.6); }
+.law-marker.hot { border-color: #e5484d; box-shadow: 0 0 0 3px rgba(229, 72, 77, 0.25); }
+/* the map overlay picker */
+.layerbar { position: absolute; left: 8px; bottom: 8px; z-index: 5; display: flex; flex-wrap: wrap; gap: 4px; max-width: calc(100% - 16px); }
+.layerbar .chip { background: rgba(13, 17, 23, 0.9); backdrop-filter: blur(4px); }
+.layerbar .chip.sel { border-color: var(--gold); color: var(--gold); }
+.layerkey { position: absolute; left: 8px; bottom: 44px; z-index: 5; display: flex; align-items: center; gap: 6px; padding: 4px 8px; border-radius: 6px; background: rgba(13, 17, 23, 0.9); border: 1px solid var(--line); font-size: 11px; color: var(--muted); }
+.layerkey .ramp { width: 64px; height: 8px; border-radius: 4px; }
 .biz-marker { display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 14px; background: rgba(20, 23, 28, 0.92); border: 1.5px solid var(--line); font-size: 15px; line-height: 1; box-shadow: 0 1px 4px rgba(0,0,0,0.6); }
 .biz-marker.yours { border-color: var(--gold); box-shadow: 0 0 0 2px var(--gold-dim); }
 .biz-marker.sel { border-color: #fff; }

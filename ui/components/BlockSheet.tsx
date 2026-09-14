@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { select } from '@sim/index';
 import { PLAYER, type Id, type ProductKind, type Safehouse, type World } from '@sim/types';
+import { AUTHORITY_KINDS, POSTURES } from '@content/authority';
 import { PRODUCTION_DEFS, PRODUCTION_UPGRADE_MULT, PRODUCT_INFO, RECIPES, SAFEHOUSE_TIERS } from '@content/rackets';
 import { PRODUCTS, crewName, districtName, fmtMoney, influenceRows, safehouseAt, stashLine } from '@ui/derive';
 import { openSheet, useWorld } from '@ui/store';
@@ -50,11 +51,12 @@ export function BlockSheet({ blockId }: { blockId: Id }) {
       </div>
       <div className="grid2 mt12">
         <Meter label={<Term id="wealth">Wealth</Term>} value={b.wealth} color="var(--green)" />
-        <Meter label={<Term id="police">Police</Term>} value={b.police} color="var(--blue)" />
+        <Meter label={<Term id="police">Police</Term>} value={select.effectivePolice(w, b.id)} color="var(--blue)" />
         <Meter label={<Term id="blockHeat">Heat</Term>} value={b.heat} color="var(--red)" />
         <Meter label={<Term id="population">People</Term>} value={b.population} color="var(--purple)" />
         {closeness !== undefined && <Meter label={<Term id="closeness">Close-knit</Term>} value={Math.round(closeness * 100)} color="var(--gold)" />}
       </div>
+      <Watchers blockId={b.id} />
       {b.memory.length > 0 && (
         <>
           <div className="section-title">What people remember<Info id="memory" /></div>
@@ -70,7 +72,7 @@ export function BlockSheet({ blockId }: { blockId: Id }) {
             </TermChip>
           </div>
           <p className="small muted mt8">
-            Nothing trades here and almost nobody is watching. Police {Math.round(b.police)}, about {Math.round(b.population)} people.
+            Nothing trades here and almost nobody is watching. Police {Math.round(select.effectivePolice(w, b.id))}, about {Math.round(b.population)} people.
             {' '}Nobody on this block can testify against you, because there is nobody on it.
             {b.abandoned.claimedBy === PLAYER ? ' A safehouse here costs nothing to take or keep.' : ' Take it with the Take the Lot op.'}
           </p>
@@ -212,6 +214,38 @@ function SafehouseCard({ w, sh }: { w: World; sh: Safehouse }) {
         </div>
       </Disclosure>
       <div className="mt8"><Act action={{ type: 'upgrade_safehouse', safehouseId: sh.id }} label={sh.tier >= 3 ? 'Max tier' : `Upgrade to ${SAFEHOUSE_TIERS[sh.tier]?.label ?? 'next tier'}`} icon="⬆️" block /></div>
+    </div>
+  );
+}
+
+/**
+ * Who is watching this block, and how hard. The monitoring radius used to be a number baked
+ * into the block at generation with nothing to point at; this is the entity behind it.
+ */
+function Watchers({ blockId }: { blockId: Id }) {
+  const w = useWorld();
+  const seen = select.watchersOf(w, blockId);
+  if (!seen.length) return null;
+  const b = w.blocks[blockId];
+  const added = Math.round(select.effectivePolice(w, blockId) - b.police);
+  return (
+    <div className="card mt12" style={{ borderColor: seen.some(x => x.authority.posture !== 'routine') ? 'var(--red)' : 'var(--blue)' }}>
+      <div className="row between">
+        <b className="small">🚔 Being watched<Info id="authority" /></b>
+        {added > 0 && <span className="chip">+{added} police here</span>}
+      </div>
+      <div className="col mt8" style={{ gap: 6 }}>
+        {seen.map(({ authority: a, hops }) => {
+          const rung = POSTURES[a.posture];
+          return (
+            <div key={a.id} className="row between small">
+              <span>{AUTHORITY_KINDS[a.kind].icon} {a.name}<span className="muted"> · {hops === 0 ? 'on this block' : `${hops} street${hops === 1 ? '' : 's'} away`}</span></span>
+              <span className={a.posture === 'routine' ? 'muted' : 'red'}>{rung.icon} {rung.label}</span>
+            </div>
+          );
+        })}
+      </div>
+      <p className="tiny muted mt8">{POSTURES[select.topPosture(w)].blurb} Bribing somebody inside slows them down; it never stops them.</p>
     </div>
   );
 }

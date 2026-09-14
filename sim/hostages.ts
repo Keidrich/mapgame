@@ -7,6 +7,7 @@
  * have had them. Nothing here says "an abandoned block is safer" — it just is, because a
  * derelict block generates with almost no police and almost nobody living on it.
  */
+import { effectivePolice } from './authority';
 import type { Rng } from './rng';
 import { PLAYER, type Id, type Npc, type Safehouse, type World } from './types';
 import { addHeat, adjustRel, clamp, log, money, spreadRep } from './util';
@@ -59,7 +60,7 @@ export function holdRisk(w: World, n: Npc): number {
   const s = n.hostage ? w.safehouses[n.hostage.safehouseId] : undefined;
   const b = s ? w.blocks[s.blockId] : undefined;
   if (!b) return 0;
-  const place = (b.police / 50) * (0.25 + b.population / 60); // quiet, empty ground is the cheap place to do this
+  const place = (effectivePolice(w, b.id) / 50) * (0.25 + b.population / 60); // quiet, empty ground is the cheap place to do this
   const time = 1 + daysHeld(w, n) * HOSTAGE_DAY_RISK;
   const loud = n.traits.includes('hothead') ? 1.4 : n.traits.includes('coward') ? 0.7 : 1;
   const connected = n.traits.includes('connected') ? 1.3 : 1;

@@ -51,8 +51,10 @@ world. Blocks link to neighbours across chunk borders through shared street edge
 Where there are no streets (open country, no network) a hex grid stands in.
 
 ### 3.2 Blocks
-- `wealth` 0–100, `police` 0–100 (baseline patrol), `heat` 0–100 (your notoriety
-  here), `population` (drives patron count and product demand), `areaM2`.
+- `wealth` 0–100, `police` 0–100 (**baseline** patrol only — the number a risk roll wants is
+  `effectivePolice()`, baseline plus what the Authorities nearby are projecting; see §6.1),
+  `heat` 0–100 (your notoriety here), `population` (drives patron count and product demand),
+  `areaM2`.
 - `influence: Record<FactionId, number>` — control is whoever has the most, above a
   threshold. `player` is a faction id too.
 - `district` — real neighbourhood names from OpenStreetMap when available, with the
@@ -475,6 +477,71 @@ robbery, insurance fraud (torch an insured business you own), check-kiting fraud
 (via a front), smuggle run, hit, intimidation. Plan phase in days, crew slots with
 skill requirements, success roll from crew skills vs difficulty and heat, payout
 as cash/loot, consequences as heat/injury/jail/faction anger.
+
+## 5.5 The law, the map, and the edge of the map
+
+### 5.5.1 Authority — not a faction
+
+`Authority` is its own type and deliberately not a `Faction`. A Faction carries soldiers, cash,
+tribute owed, a standing toward every other faction and the alliance → peace → tension → beef →
+war ladder. Police have none of that, and forcing them into it would make "declare war on the
+cops" a legal move: you could ally with them, be paid tribute by them, broker peace between them
+and the Vitales. So the law gets a lighter type — anchored to a block, with officials, an
+`attention` number and a posture — and there is no conversion between the two ladders in either
+direction (`sim/authority.test.ts` asserts that, both ways).
+
+**Anchoring.** One per police landmark from OSM (`populate.ts` already tags those blocks), plus a
+`city_hall` at the same downtown block the officials live on. A city whose real map has no police
+station at all gets one precinct on its busiest block, so the law is never only clerks.
+
+**The monitoring radius.** A station used to write `police += 25` into its block and `+= 10` into
+each neighbour, once, at generation, and then stop existing — an invisible number with nothing
+behind it. That bump is now projected live by the entity: `reach: 25, falloff: 0.4` over a
+`POSTURES[posture].radius` hop BFS on the same `neighborIds` graph movement walks. At the
+`routine` rung that comes out as exactly +25 / +10, so a fresh world starts where the old one
+did; unlike the old number it grows when the precinct starts paying attention, it vanishes if the
+entity does, and the map can draw it. **Every risk roll reads `effectivePolice(w, blockId)`**, not
+`b.police` — racket incidents, production interruptions, where a faction expands, hostage risk,
+the street line on a block sheet. Generation-time placement (derelicts, back rooms) still reads
+the raw baseline, because it runs before the buildings are all in place.
+
+**The ladder.** `routine → watching → investigating → task_force → crackdown`, on `attention`,
+which chases `pressureOn()` at +6/−3 a day so escalation builds and decays rather than flipping.
+Pressure is `street × streetWeight + wire × wireWeight + openCases × caseWeight`, where *street*
+is `heat − cyberHeat` and *wire* is `cyberHeat`. The two kinds weight them opposite ways: a
+precinct is boots on the ground (street 1.0, wire 0.45), city hall reads reports and the wire is
+all report (street 0.55, wire 1.2). That is the reason `cyberHeat` is a separate tracked share
+rather than just more heat — the same 60 heat escalates a different building depending on how you
+earned it. An official of yours inside the building takes up to 45% off what it notices, never
+100%. Posture multiplies the nightly raid chance (1.0 → 2.2), so the rung costs something.
+
+### 5.5.2 Map layer modes
+
+Toggleable overlays — heat, wealth, police (baseline + the live monitoring field), one outfit's
+influence, one product's demand — over fields the sim already keeps. **Visualisation only:** an
+overlay reads, never writes, and no overlay may motivate a new per-block stat. If a wanted
+overlay has no field behind it, that is a simulation change and belongs in `/sim` first.
+`ui/map-layers.test.tsx` pins both halves: the readings, and that switching layers leaves the
+world object byte-identical.
+
+### 5.5.3 Fog over unmapped ground
+
+Cloud covers every chunk in view that is not populated — ground whose streets were never
+downloaded and ground that was downloaded but never visited look the same, because to the player
+there is no difference. Cached-but-unvisited streets draw faintly underneath it.
+
+**Clearing is tied to movement, not to the camera.** `sim/fog.ts` decides: a chunk opens when a
+*presence* is within `REVEAL_M` (500 m, about a block and a half) of its bounds. A presence is
+the player, or a crew member posted somewhere — guarding a block, running a racket, working a
+production, lieutenant over a district. Idle, jailed and dead crew are worth nothing. The rule is
+pure; the UI does the fetching, because `/sim` does no network work.
+
+**This is a real behaviour change.** Tapping empty map space used to call `populateAndOpen` and
+fill a district with people on the spot; it now refuses and explains. Panning warms the geometry
+cache and nothing more. The single place a chunk becomes a real place is `revealNear()`, called
+after a move, a posting and each End Day — `ui/fog-delivery.test.ts` asserts that it is the only
+one, because the obvious future regression is somebody restoring instant-populate as a
+quality-of-life fix.
 
 ## 6. Factions and politics
 

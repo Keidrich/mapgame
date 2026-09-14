@@ -1,6 +1,8 @@
 import { useEffect, useRef } from 'react';
 import { fmtMoneyShort } from '@ui/derive';
 import { openHelp, useWorld } from '@ui/store';
+import { select } from '@sim/index';
+import { POSTURES } from '@content/authority';
 import { Term } from './Info';
 
 export function Hud() {
@@ -41,6 +43,10 @@ export function Hud() {
           <span><Term id="respect">Respect</Term> <b>{Math.round(p.respect)}</b></span>
           <span><Term id="fear">Fear</Term> <b>{Math.round(p.fear)}</b></span>
           {p.lawyer && <Term id="lawyer">⚖️</Term>}
+          {/* the rung the law is on: it drives how often a raid comes, so it belongs next to heat */}
+          {select.topPosture(w) !== 'routine' && (
+            <Term id="posture"><span className="red">{POSTURES[select.topPosture(w)].icon} {POSTURES[select.topPosture(w)].label}</span></Term>
+          )}
           {p.jailedDays > 0 && <span className="red">Jailed {p.jailedDays}d</span>}
         </div>
       </div>

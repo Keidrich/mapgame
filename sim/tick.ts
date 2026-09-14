@@ -1,6 +1,7 @@
 /** End of day. Everything that happens while the player sleeps. */
 import { legworkFor } from './travel';
 import { PRODUCTION_DEFS, PRODUCT_INFO, RACKET_DEFS, SAFEHOUSE_TIERS } from '@content/rackets';
+import { effectivePolice, raidPressure, tickAuthorities } from './authority';
 import { launderCapacity, productionOutput, racketIncome, streetPrice } from './economy';
 import { LAUNDER_RATE } from '@content/rackets';
 import { resolveConfrontation } from './combat';
@@ -92,7 +93,7 @@ export function endDay(w: World): World {
     // incidents
     // a partner minds their own place without being assigned to it, so it runs as safely as one with a runner
     const minded = !!r.runnerId || (r.kind === 'protection' && !!b.protection?.partner);
-    const risk = def.risk * (1 + (r.level - 1) * 0.5) * (w.blocks[b.blockId].police / 50) * (minded ? 0.7 : lt ? LIEUTENANT.riskMult : 1.2);
+    const risk = def.risk * (1 + (r.level - 1) * 0.5) * (effectivePolice(w, b.blockId) / 50) * (minded ? 0.7 : lt ? LIEUTENANT.riskMult : 1.2);
     if (rng.chance(risk)) {
       if (rng.chance(0.5)) { r.disrupted = rng.int(1, 3); addHeat(w, 4, b.blockId); log(w, `Cops rolled through ${b.name}. ${def.label} shut for ${r.disrupted} day${r.disrupted > 1 ? 's' : ''}.`, 'bad', { businessId: b.id, racketId: r.id }); }
       else if (r.runnerId && rng.chance(0.4)) { const n = w.npcs[r.runnerId]; if (n.crew) { n.crew.status = 'jailed'; n.crew.statusDays = jailDays(w, 10); n.crew.assignment = undefined; r.runnerId = undefined; log(w, `${n.name} got picked up running the ${def.label.toLowerCase()} at ${b.name}. ${p.lawyer ? 'Your lawyer is on it.' : 'No lawyer, so it will be a while.'}`, 'bad', { npcId: n.id, businessId: b.id }); } }
@@ -119,7 +120,7 @@ export function endDay(w: World): World {
       addProduct(s, def.product, made, pr.quality); pr.lastOutput = made;
       if (made < out) log(w, `${s.name} is full. ${out - made} ${PRODUCT_INFO[def.product].label.toLowerCase()} wasted.`, 'warn', { blockId: s.blockId });
       addHeat(w, def.heat * 0.25 * (1 + (pr.level - 1) * PRODUCTION_LEVEL.heat) * (recipe?.heat ?? 1), s.blockId);
-      if (rng.chance(def.risk * (recipe?.risk ?? 1) * (1 + (pr.level - 1) * 0.25) * (w.blocks[s.blockId].police / 60))) {
+      if (rng.chance(def.risk * (recipe?.risk ?? 1) * (1 + (pr.level - 1) * 0.25) * (effectivePolice(w, s.blockId) / 60))) {
         pr.disrupted = rng.int(2, 4); addHeat(w, 5, s.blockId);
         log(w, `${pr.kind === 'still' ? 'The still blew a seal' : pr.kind === 'lab' ? 'Chemical fire at the lab' : 'Neighbours complained about the smell'} at ${s.name}. Down ${pr.disrupted} days.`, 'bad', { blockId: s.blockId });
         if (worker?.crew && rng.chance(0.3)) { worker.crew.status = 'jailed'; worker.crew.statusDays = jailDays(w, 12); worker.crew.assignment = undefined; pr.workerId = undefined; log(w, `The cops came with the fire department. ${worker.name} was inside.`, 'bad', { npcId: worker.id, blockId: s.blockId }); }
@@ -143,10 +144,13 @@ export function endDay(w: World): World {
   tickLieutenants(w, rng, districtTake);
 
   // ---- police ----
+  // the buildings decide how hard they are looking before anything is rolled against that
+  tickAuthorities(w);
   const captain = Object.values(w.npcs).find(n => n.official?.kind === 'captain');
   const captainHelp = captain && captain.rel.trust >= 30 ? 1.5 : 0;
   if (p.heat >= 100) bust(w, rng);
-  else if (p.heat > 60 && rng.chance(((p.heat - 60) / 150) * (nearPoliceAssets(w).length ? 1.5 : 1))) raid(w, rng);
+  // a task force raids more often than a routine watch: the ladder has to cost something
+  else if (p.heat > 60 && rng.chance(((p.heat - 60) / 150) * (nearPoliceAssets(w).length ? 1.5 : 1) * raidPressure(w))) raid(w, rng);
   p.heat = clamp(p.heat - (4 + captainHelp + p.heat * 0.03)); // old news cools fastest
   for (const b of Object.values(w.blocks)) b.heat = clamp(b.heat - 3);
 

@@ -194,3 +194,9 @@ export function playerRacketsOfKind(w: World, kind: RacketKind) {
 export function rattedNpcs(w: World): Npc[] { return Object.values(w.npcs).filter(n => n.ratted && n.alive); }
 export { isAbandoned, isKnownAbandoned, isClaimable, claimedByPlayer, abandonedBlocks } from './abandoned';
 export { allHostages, hostagesOf, isHeld, daysHeld, ransomValue, holdRisk } from './hostages';
+export {
+  authorities, authorityById, authorityOf, officialsOf, watchersOf,
+  effectivePolice, monitoringAt, monitoringField, hopsWithin,
+  pressureOn, boughtRelief, postureFor, topPosture, raidPressure,
+} from './authority';
+export { presenceBlocks, revealable, isFogged, withinReach, distanceToChunk, nearestFoggedDistance, REVEAL_M } from './fog';

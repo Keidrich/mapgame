@@ -1,3 +1,4 @@
+import { effectivePolice } from './authority';
 import { BUSINESS_DEFS } from '@content/businesses';
 import { OP_APPROACHES, OP_DEFS, PRODUCTION_DEFS, PRODUCT_INFO, RACKET_DEFS, RACKET_UPGRADE_COST, SAFEHOUSE_TIERS } from '@content/rackets';
 import { insidersFor } from './select';
@@ -912,7 +913,7 @@ function patronTip(w: World, n: Npc, rng: import('./rng').Rng): string | undefin
   if (rich) options.push(`"${rich.name} does better than it looks. ${w.npcs[rich.ownerId].name} keeps cash in the back."`);
   const coward = block.businessIds.map(id => w.npcs[w.businesses[id].ownerId]).find(o => o.traits.includes('coward'));
   if (coward) options.push(`"${coward.name} scares easy. Everybody knows it."`);
-  if (block.police > 60) options.push('"Cops sit on this block. Careful what you carry."');
+  if (effectivePolice(w, block.id) > 60) options.push('"Cops sit on this block. Careful what you carry."');
   if (!options.length) return undefined;
   return rng.pick(options);
 }

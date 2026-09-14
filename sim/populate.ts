@@ -3,6 +3,7 @@
  * a new faction. Deterministic given the world's RNG state and the chunk data.
  */
 import { RECIPES } from '@content/rackets';
+import { addAuthority, attachOfficials, authorities } from './authority';
 import { abandonChance, makeAbandoned } from './abandoned';
 import { BUSINESS_DEFS, DISTRICT_DEFS, type DistrictDef } from '@content/businesses';
 import { BUSINESS_NAME_PARTS, FACTION_ARCHETYPES, NAME_GROUPS, NAME_GROUP_IDS, NICKNAMES, STYLE_GROUP, STYLE_LAST, type NameGroup } from '@content/names';
@@ -65,11 +66,20 @@ export function populateChunk(w: World, chunk: GeoChunk, rng: Rng, opts: Populat
   for (const b of Object.values(w.blocks)) { const n = seenNames.get(b.name) ?? 0; seenNames.set(b.name, n + 1); if (n) b.name = `${b.name} ${n + 1}`; }
 
   // ---- landmarks: schools make every incident louder, police stations answer faster ----
+  // A police station used to write +25 into the block and +10 into its neighbours, once, at
+  // generation, and then stop existing. It is a real entity now (`sim/authority.ts`): the same
+  // numbers come out of `reach: 25, falloff: 0.4` at the routine rung, but they are live, they
+  // grow when the precinct starts paying attention, and the map can draw the radius.
   for (const l of chunk.landmarks ?? []) {
     const b = l.blockId ? w.blocks[l.blockId] : undefined; if (!b || !added.includes(b)) continue;
     if (!b.tags.includes(l.kind)) b.tags.push(l.kind);
-    if (l.kind === 'police') { b.police = clamp(b.police + 25); for (const nb of b.neighborIds) if (w.blocks[nb]) w.blocks[nb].police = clamp(w.blocks[nb].police + 10); }
+    if (l.kind === 'police' && !authorities(w).some(a => a.blockId === b.id)) {
+      addAuthority(w, 'precinct', b.id, l.name || `${b.name} Precinct`, nid('au'));
+    }
   }
+  // anybody generated without a building — including officials made before the first precinct
+  // existed — gets one now
+  attachOfficials(w);
 
   // ---- businesses: real POIs first, procedural fill after ----
   const used = new Set(Object.values(w.businesses).map(b => b.name));

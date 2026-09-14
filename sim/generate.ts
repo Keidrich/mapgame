@@ -6,6 +6,7 @@ import { Rng, hashString } from './rng';
 import { BUSINESS_DEFS } from '@content/businesses';
 import { BACKGROUND_BY_ID, BASE_SKILLS, TECH_START_RECIPES, WHEELS_BONUS_LEGWORK, legalCustomSkills } from '@content/backgrounds';
 import { FIXER } from '@content/rackets';
+import { addAuthority, attachOfficials, authorities } from './authority';
 import { connect } from './connections';
 import { addBusiness, mkNpc, populateChunk } from './populate';
 import { unlockRecipe } from './production';
@@ -13,7 +14,7 @@ import { adjustRel } from './util';
 import { PLAYER, type Block, type LatLng, type Npc, type Player, type Skills, type StartTraitId, type World } from './types';
 
 export { controller, stanceFor, STEP_M } from './populate';
-export const WORLD_VERSION = 7; // 7: districts have closeness and naming pools, NPCs have family and friends
+export const WORLD_VERSION = 8; // 8: the law is an entity (Authority) and the police-station bump is live, not baked
 export const HEX_SIZE_M = 190;
 
 export interface NewGameOptions {
@@ -52,14 +53,24 @@ export function generateWorld(opts: NewGameOptions): World {
   const blocks = Object.values(w.blocks);
   const startBlock = blocks.slice().sort((a, b) => distanceM(a.center, opts.origin) - distanceM(b.center, opts.origin))[0];
 
-  // officials live downtown (or wherever the player starts)
+  // officials live downtown (or wherever the player starts), and they answer to a building
   const downtown = Object.values(w.districts).find(d => d.kind === 'downtown');
   const cityHall = (downtown && w.blocks[downtown.blockIds[0]]) ?? startBlock;
+  addAuthority(w, 'city_hall', cityHall.id, `${opts.placeName} City Hall`, nid('au'));
+  // A city with no police station anywhere on the real map would otherwise have no precinct at
+  // all, and the law would be a building full of clerks. Put one on the busiest block going.
+  if (!authorities(w).some(a => a.kind === 'precinct')) {
+    const busiest = blocks.slice().sort((a, b) => b.police - a.police)[0] ?? startBlock;
+    if (!busiest.tags.includes('police')) busiest.tags.push('police');
+    addAuthority(w, 'precinct', busiest.id, `${busiest.name} Precinct`, nid('au'));
+  }
   for (const kind of ['captain', 'councillor', 'judge'] as const) {
     const o = mkNpc(rng, w, nid, { role: 'official', homeBlockId: cityHall.id, nerveBias: 70 });
     o.official = { kind, corruption: rng.int(20, 80) };
     o.name = `${kind === 'captain' ? 'Capt.' : kind === 'judge' ? 'Judge' : 'Councillor'} ${o.name.split(' ').slice(-1)[0]}`;
   }
+  // a captain belongs to a precinct, the councillor and the judge to city hall
+  attachOfficials(w);
   // player start
   const used = new Set(Object.values(w.businesses).map(b => b.name));
   if (!startBlock.businessIds.length) addBusiness(rng, w, nid, startBlock, 'bar', used);

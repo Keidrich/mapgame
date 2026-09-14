@@ -284,8 +284,27 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
   },
   police: {
     title: 'Police',
-    body: 'Baseline patrol here. Multiplies the chance that any racket on this block has an incident, and how often production gets interrupted.',
-    note: 'A police station on the block or next door raises it sharply.',
+    body: 'Patrol strength here: the block\'s own baseline plus whatever the precincts and city hall nearby are putting on it today. It multiplies the chance any racket here has an incident and how often production is interrupted.',
+    note: 'The number on the block sheet is the live one. The Police map overlay shades the whole city by it.',
+  },
+  authority: {
+    title: 'Precincts and city hall',
+    body: 'The law is a building, not a gang. It sits on a block, watches outward from there, and decides for itself how hard to look at you. You cannot sit down with it, pay it tribute, ally with it or declare war on it — none of that means anything to a precinct.',
+    note: 'Its radius grows as it escalates, so a block that was quiet can come under watch without anything on the block changing.',
+  },
+  posture: {
+    title: 'How hard they are looking',
+    body: 'Routine, watching, investigating, task force, crackdown. It climbs from how much heat you are carrying, how much of that came off the wire, and how many case files are open — and it climbs with a lag, so a bad week shows up for a while after the week ends.',
+    note: 'A precinct answers to noise in the street. City hall reads reports, so wire trouble moves it faster than a brawl does.',
+  },
+  fog: {
+    title: 'Unmapped ground',
+    body: 'The city under cloud is city you have not been out to. It opens when you or somebody you have posted there walks to the edge of it — never by tapping it, and never by scrolling the map.',
+    note: 'Post a crew member to guard a block out that way and they open it up without you making the walk.',
+  },
+  mapLayer: {
+    title: 'Map overlays',
+    body: 'Shading over what the sim already tracks per block: heat, wealth, police, one outfit\'s influence, or what a block would buy in a day. Nothing is simulated differently while an overlay is on — it is a way of looking, not a mode.',
   },
   blockHeat: {
     title: 'Block heat',

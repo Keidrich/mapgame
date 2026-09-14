@@ -14,6 +14,96 @@ House rules for an entry (see `CLAUDE.md` → *Leave a trail*):
 
 ---
 
+## 2026-09-14 — The law as an entity, map overlays, and fog over unmapped ground
+
+**What.** Three things: police become a real entity (`Authority`) with a visible monitoring
+radius and their own escalation ladder; toggleable map overlays over per-block fields that
+already existed; and cloud over unmapped city that lifts by travelling rather than by tapping.
+
+**Why.** A police station used to write `police += 25` into its block and `+= 10` into each
+neighbour, once, at world generation, and then cease to exist — an invisible number with nothing
+behind it that the player could neither see nor reason about. The three officials floated free
+with no territorial tie. And tapping empty map space instantly conjured a district full of
+people, which made territory something you summoned rather than somewhere you went.
+
+**How.**
+
+*Authority, deliberately not a Faction.* A `Faction` carries soldiers, cash, tribute owed,
+standing toward every other faction, and the alliance/peace/tension/beef/war ladder. Police have
+none of that, and reusing the type would make "declare war on the cops" a legal move — you could
+ally with them, be paid tribute by them, broker peace between them and the Vitales. So
+`Authority` is its own lighter type: a block, an `attention` number, a posture, and a list of
+officials. Nothing converts between the two ladders in either direction, and
+`sim/authority.test.ts` asserts that both ways round.
+
+*The radius is live now.* `reach: 25, falloff: 0.4` over a posture-sized hop BFS on the same
+`neighborIds` graph movement walks. At the `routine` rung that is exactly +25 / +10 — a fresh
+world starts precisely where the old one did — but unlike the baked number it grows with posture,
+vanishes if the entity does, and the map can draw it. **Every risk roll now reads
+`effectivePolice(w, blockId)`**, not `b.police`: racket incidents, production interruptions,
+faction expansion, hostage risk, the block sheet. Generation-time placement still reads the raw
+baseline, because it runs before the buildings are all in place.
+
+*The ladder.* routine → watching → investigating → task_force → crackdown, on an `attention`
+number that chases pressure at +6/−3 a day so escalation builds and decays instead of flipping.
+Pressure is `street × streetWeight + wire × wireWeight + openCases × caseWeight`, where *street*
+is `heat − cyberHeat` and *wire* is `cyberHeat`. The two kinds weight them oppositely — a
+precinct is boots on the ground (street 1.0 / wire 0.45), city hall reads reports and the wire is
+all report (street 0.55 / wire 1.2). That is the point of `cyberHeat` existing as a distinct
+tracked share: the same 60 heat escalates a different building depending on how you earned it. An
+official of yours inside takes up to 45% off what it notices, never 100%. Posture multiplies the
+nightly raid chance 1.0 → 2.2.
+
+*Overlays.* Heat, wealth, police (baseline + the live monitoring field), one outfit's influence,
+one product's demand. Reads only — no overlay added a per-block stat, and
+`ui/map-layers.test.tsx` asserts that switching layers leaves the world object byte-identical.
+
+*Fog.* Cloud over every unpopulated chunk in view, so never-downloaded ground and
+downloaded-but-unvisited ground look the same — because to the player they are. `sim/fog.ts`
+decides what lifts: a chunk opens when a *presence* is within `REVEAL_M` (500 m, about a block
+and a half) of its bounds. A presence is the player, or a crew member actually posted somewhere
+(guard, racket runner, production worker, lieutenant); idle, jailed and dead crew are worth
+nothing. The rule is pure; the UI does the fetching, since `/sim` does no network work.
+
+**Files.** New: `content/authority.ts`, `sim/authority.ts`, `sim/fog.ts`,
+`ui/components/MapLayers.tsx`, and four test files (`sim/authority.test.ts`, `sim/fog.test.ts`,
+`ui/map-layers.test.tsx`, `ui/fog-delivery.test.ts`). Changed: `sim/types.ts` (`Authority`,
+`World.authorities`, `Npc.official.authorityId`), `sim/generate.ts` (city hall + a fallback
+precinct + `WORLD_VERSION`), `sim/populate.ts` (the bump becomes an entity),
+`sim/tick.ts`/`hostages.ts`/`factions.ts`/`reducer.ts` (read `effectivePolice`), `sim/select.ts`,
+`ui/store.ts` (layer state; `revealNear` replaces `populateAndOpen`), `ui/components/Map.tsx`
+(overlay shading, fog layer, law markers), `ui/components/BlockSheet.tsx` (a Watchers panel),
+`ui/components/Hud.tsx`, `ui/styles.css`, `content/glossary.ts`, `docs/DESIGN.md` §5.5.
+
+**Watch out.**
+
+- **`WORLD_VERSION` 7 → 8, so every existing save is dropped.** It has to be: old saves have the
+  +25/+10 already baked into `b.police` and no `authorities` at all, so they would either
+  double-count the radius or show none of it.
+- **Tapping empty map no longer populates it — this is the change that will surprise a
+  playtester.** There is no transition: where a tap used to produce a district, it now produces a
+  sentence telling you to walk. If that reads as broken rather than deliberate, the dial is
+  `REVEAL_M` in `sim/fog.ts` (higher opens the city faster; high enough makes fog decorative).
+  `ui/fog-delivery.test.ts` pins `revealNear()` as the only path that populates a chunk,
+  precisely because restoring instant-populate is the obvious "quality of life" regression.
+- **Balance: neutral at rest, real once you escalate.** Measured directly rather than through the
+  soak, because a change this deep reshuffles the RNG and makes seed-by-seed totals meaningless
+  (they swung −0% to +54% in both directions across 5 seeds, which is noise, not a trend). On five
+  cities: at the routine rung the citywide mean police rises 1.8–2.1 points with 8–9 blocks of 45
+  covered and raid chance ×1.0 — and in a city with a real police landmark it is *exactly*
+  neutral by construction. After 40 days at heat 85 / cyberHeat 30, coverage nearly triples
+  (8–9 → 21–30 blocks) and raids run ×1.8.
+- **The soak bot does not exercise any of this.** It never escalates far, never opens overlays and
+  never walks into fog, so the economy curve says nothing about the three features. Teaching it to
+  travel into unmapped ground would be the way to catch a fog rule that strands the player, and is
+  **not done**.
+- **Deliberately out of scope:** no way to interact with an Authority directly (no surrendering,
+  no negotiating, no attacking a precinct); bribery still works through the individual officials
+  it already worked through, and now merely slows their building down; the overlay set is fixed,
+  with no per-district or per-faction heat view; and fog has no minimap or compass to tell you
+  which way the unmapped city lies.
+
+
 ## 2026-09-14 — The wire: cards, taps, wire fraud, a digital war lane, dirt, and scrubbing
 
 **What.** A whole cybercrime lane, eight pieces: a **mugging** op as the doorway; lifted **cards**

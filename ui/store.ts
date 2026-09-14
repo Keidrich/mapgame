@@ -3,14 +3,16 @@
  * selection, toasts). All game mutations go through `act()` → sim `dispatch`.
  */
 import { useSyncExternalStore } from 'react';
-import { can, dispatch, WORLD_VERSION } from '@sim/index';
+import { can, dispatch, select, WORLD_VERSION } from '@sim/index';
 import type { Action, Affordance } from '@sim/actions';
-import type { Id, LogEntry, World } from '@sim/types';
+import type { Id, LogEntry, ProductKind, World } from '@sim/types';
 import { idbDel, idbGet, idbSet } from '@ui/net/idb';
-import { loadChunk, reason } from '@ui/net/chunks';
-import { chunkKeyAt } from '@geo/chunks';
+import { allCachedChunks, loadChunk, reason } from '@ui/net/chunks';
+import { chunkKeyAt, chunksInBox } from '@geo/chunks';
 
 export type Tab = 'map' | 'crew' | 'ops' | 'social' | 'factions' | 'empire';
+/** Which per-block field the map is shading. Pure presentation: see `ui/components/MapLayers.tsx`. */
+export type MapLayer = 'control' | 'heat' | 'wealth' | 'police' | 'influence' | 'demand';
 export type Sheet =
   | { kind: 'block'; blockId: Id }
   | { kind: 'business'; businessId: Id }
@@ -37,6 +39,9 @@ export interface UiState {
   victorySeen: boolean;
   help: boolean;       // the 'how to play' sheet
   recap: Recap | null; // the overnight report, shown before the day's events
+  layer: MapLayer;      // the map overlay; reads fields that already exist, adds no simulation
+  layerFactionId?: Id;  // which faction the influence layer is showing
+  layerProduct?: ProductKind; // which product the demand layer is showing
 }
 
 export const SAVE_KEY = 'rackets.save.v3';
@@ -71,7 +76,7 @@ function loadVictorySeen(w: World | null): boolean {
   try { return !!w && localStorage.getItem(VICTORY_KEY) === String(w.seed); } catch { return false; }
 }
 
-let state: UiState = { world: null, booting: true, chunkVersion: 0, tab: 'map', sheets: [], selection: {}, scene: null, toasts: [], victorySeen: false, help: false, recap: null };
+let state: UiState = { world: null, booting: true, chunkVersion: 0, tab: 'map', sheets: [], selection: {}, scene: null, toasts: [], victorySeen: false, help: false, recap: null, layer: 'control' };
 const listeners = new Set<() => void>();
 let toastSeq = 1;
 
@@ -105,20 +110,71 @@ export function idleTick(w: World, savedAt: number | undefined, now: number) {
   save(next);
   set({ world: next, recap, tab: 'map', sheets: [], scene: null });
 }
+export function setLayer(layer: MapLayer, opts: { factionId?: Id; product?: ProductKind } = {}) {
+  set({ layer, layerFactionId: opts.factionId ?? state.layerFactionId, layerProduct: opts.product ?? state.layerProduct });
+}
 export function bumpChunks() { set({ chunkVersion: state.chunkVersion + 1 }); }
-/** The player tapped an unpopulated block: fetch/populate its chunk, then open the block. */
-export async function populateAndOpen(chunkKey: string, blockId: Id) {
+/**
+ * The player tapped somewhere under cloud. Tapping used to populate the chunk on the spot — a
+ * whole district of people appearing because you touched the screen. Now it says no: ground
+ * opens when somebody of yours walks to the edge of it (see `sim/fog.ts` and `revealNear`).
+ */
+export function explainFog(chunkKey: string) {
   const w = state.world; if (!w) return;
-  if (!w.chunks[chunkKey]) {
-    pushToasts([{ day: w.day, text: 'Getting to know the area…', tone: 'info' }]);
-    let chunk;
-    try { chunk = await loadChunk(chunkKey, undefined, { attempts: 2, timeoutMs: 25000, budgetMs: 40000, priority: 5 }); }
-    catch (e) { pushToasts([{ day: w.day, text: `Could not map that area: ${reason(e)}. Tap it again in a moment.`, tone: 'warn' }]); return; }
-    if (!state.world || state.world.chunks[chunkKey]) return;
+  const near = select.nearestFoggedDistance(w, [chunkKey]);
+  pushToasts([{
+    day: w.day,
+    tone: 'info',
+    text: near !== undefined && near > select.REVEAL_M * 4
+      ? 'You have never been out that way. Walk toward it and it will open up.'
+      : 'Nearly. Get to the edge of what you know and the next streets come into focus.',
+  }]);
+}
+
+/**
+ * Populate every cached chunk somebody of yours has now got close enough to see. Called after
+ * anything that moves a person — a walk, a posting, the end of a day — so the map opens up as
+ * the player travels rather than as they pan. Geometry that has not been fetched yet is fetched
+ * here too: the fog rule decides *whether*, the network decides *when*.
+ */
+export async function revealNear() {
+  const w = state.world; if (!w) return;
+  const cached = allCachedChunks().map(c => c.key);
+  let opened = 0;
+  // Populating one chunk can put the player within reach of the next one along, so this asks
+  // again off the *new* world each time rather than off one snapshot. Bounded by the cache.
+  for (let pass = 0; pass < cached.length; pass++) {
+    const now = state.world; if (!now) break;
+    const key = select.revealable(now, cached)[0];
+    if (!key) break;
+    const chunk = allCachedChunks().find(c => c.key === key);
+    if (!chunk) break;
     act({ type: 'populate_chunk', chunk });
-    bumpChunks();
+    if (state.world?.chunks[key]) opened++; else break;   // refused for some reason; do not spin
   }
-  if (state.world?.blocks[blockId]) openSheet({ kind: 'block', blockId });
+  // ground somebody is standing next to but whose streets were never downloaded
+  const cur = state.world;
+  if (cur) {
+    for (const key of chunksInBox(...boxAround(cur)).filter(k => !cur.chunks[k] && !cached.includes(k))) {
+      if (!select.withinReach(cur, key) || revealing.has(key)) continue;
+      revealing.add(key);
+      void loadChunk(key, undefined, { attempts: 1, priority: 3 })
+        .then(chunk => { if (state.world && !state.world.chunks[chunk.key] && select.withinReach(state.world, chunk.key)) { act({ type: 'populate_chunk', chunk }); bumpChunks(); } })
+        .catch(() => { /* it opens the next time somebody walks out this way */ })
+        .finally(() => { revealing.delete(key); });
+    }
+  }
+  if (opened) {
+    bumpChunks();
+    pushToasts([{ day: w.day, text: opened === 1 ? 'The next few streets come into focus.' : `${opened} more parts of the city come into focus.`, tone: 'good' }]);
+  }
+}
+const revealing = new Set<string>();
+/** A small box around the player, in the shape chunksInBox wants. */
+function boxAround(w: World): [number, number, number, number, number] {
+  const c = w.blocks[w.player.currentBlockId]?.center ?? w.origin;
+  const d = 0.025;
+  return [c.lat - d, c.lng - d, c.lat + d, c.lng + d, 9];
 }
 
 /** Subscribe to a slice. The selector must return a stable reference for an unchanged state. */
@@ -149,10 +205,13 @@ export function act(action: Action): boolean {
   if (action.type === 'end_day') {
     const recap: Recap = { fromDay: w.day, toDay: next.day, idle: false, cashBefore: w.player.cash, dirtyBefore: w.player.dirty, heatBefore: w.player.heat, logStart: before };
     set({ world: next, sheets: [], tab: 'map', scene: null, help: false, recap });
+    void revealNear();
     return true;
   }
   set({ world: next });
   pushToasts(next.log.slice(before));
+  // the map opens up as people travel, not as the camera pans
+  if (action.type === 'move' || action.type === 'assign') void revealNear();
   return true;
 }
 /** A city that started on the grid can be rebuilt on the real streets: same place, name and background, fresh start. */

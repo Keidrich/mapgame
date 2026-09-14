@@ -1,4 +1,5 @@
 /** Faction AI: runs once per faction per day. Factions play the same game the player does. */
+import { effectivePolice } from './authority';
 import { BUSINESS_DEFS } from '@content/businesses';
 import { coverFor } from './lieutenants';
 import { stanceFor } from './generate';
@@ -59,7 +60,7 @@ export function runFaction(w: World, f: Faction, rng: Rng) {
       const ctrl = factionOf(w, nb.id);
       if (ctrl === f.id) continue;
       const mine = nb.influence[f.id] ?? 0; if (mine >= 100) continue;
-      let score = nb.wealth / 20 + nb.businessIds.length - nb.police / 25 + rng.float() * 3;
+      let score = nb.wealth / 20 + nb.businessIds.length - effectivePolice(w, nb.id) / 25 + rng.float() * 3;
       if (ctrl === PLAYER) score += stanceOf(f) === 'war' ? 6 : stanceOf(f) === 'beef' ? 2 : -8;
       else if (ctrl) score += f.stance[ctrl] === 'war' ? 4 : f.stance[ctrl] === 'beef' ? 1 : -4;
       if (nb.districtId === f.homeDistrictId) score += 3;

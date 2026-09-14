@@ -5,6 +5,7 @@
  */
 
 import type { NameGroup } from '@content/names';
+import type { AuthorityKind, AuthorityPosture } from '@content/authority';
 export type { NameGroup };
 
 export type Id = string;
@@ -168,7 +169,7 @@ export interface Npc {
   nerve: number;              // 0..100 resistance to intimidation
   alive: boolean;
   crew?: CrewInfo;            // set when in the player's crew
-  official?: { kind: OfficialKind; corruption: number; retainerDay?: number; boughtBy?: FactionId };
+  official?: { kind: OfficialKind; corruption: number; retainerDay?: number; boughtBy?: FactionId; authorityId?: Id }; // authorityId: the building they answer to, not a free-floating NPC
   agenda?: Agenda;            // a want that advances daily whether or not you show up
   grudge?: { since: number; reason: string; spread: number }; // holds it against you and tells people
   known: boolean;             // traits and nerve revealed (Read action, a scene, or enough trust)
@@ -320,6 +321,26 @@ export interface Faction {
 }
 
 export interface SuccessionCrisis { since: number; resolvesDay: number; candidateIds: Id[]; backing?: Id; backedWith: number }
+
+// ---------- the law: an entity, deliberately not a faction ----------
+/**
+ * A precinct or a city hall, anchored to one block. It has no soldiers, no cash, no tribute and
+ * no standing toward anybody — none of which a Faction can do without — so it is its own type.
+ * You cannot sit down with it, ally with it or declare war on it: it decides how hard to look at
+ * you, on its own ladder, from how much trouble you are making. See `content/authority.ts`.
+ */
+export type { AuthorityKind, AuthorityPosture };
+
+export interface Authority {
+  id: Id;
+  kind: AuthorityKind;
+  name: string;
+  blockId: Id;              // where it sits; its monitoring radiates from here
+  attention: number;        // 0..100 toward the player, chasing pressure with a lag
+  posture: AuthorityPosture;
+  postureSince: number;     // day the current rung started, for the log and the UI
+  officialIds: Id[];        // the captain / councillor / judge who answer to this building
+}
 
 // ---------- street crews: small independent gangs holding one block ----------
 export interface StreetCrew {
@@ -497,6 +518,7 @@ export interface World {
   crews: Record<Id, StreetCrew>;
   factions: Record<FactionId, Faction>;
   player: Player;
+  authorities?: Record<Id, Authority>;  // precincts and city hall; optional so older saves still load
   cases?: CaseFile[];      // open police investigations into things you did
   commission?: Commission; // the bosses' table, once the city is big enough to need one
   market?: { shortage: Partial<Record<ProductionKind, number>>; saturation: Partial<Record<ProductKind, number>> }; // 'until day' markers
