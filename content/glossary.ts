@@ -506,7 +506,7 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
   // ---------------------------------------------------------------- production
   quality: {
     title: 'Quality',
-    body: 'What the next batch will be worth, 5 to 100. Set by the worker\'s skill and traits, the production level, and the recipe.',
+    body: 'What the next batch will be worth, 5 to 100. Set by whoever is working it — a crew member, or you — plus the production level and the recipe. A line nobody is near makes 22.',
     note: 'Street price runs from 0.7× at the bottom to 1.2× at the top. Stashes keep a weighted average as you mix batches.',
   },
   stock: {
@@ -516,6 +516,11 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
   prodLevel: {
     title: 'Production level',
     body: 'One to three. Each level adds output and quality, and raises heat and the chance of a fire, a leak or a complaint.',
+  },
+  selfWorked: {
+    title: 'You work it yourself',
+    body: 'With nobody on it, you run one line personally — whichever your own skill does the most good on. Better than leaving it empty, and worse than a crew member who does nothing else, which is the reason to hire one.',
+    note: 'You are one person, so it is one line. The second production is what sends you out to find somebody.',
   },
   recipe: {
     title: 'Recipe',
@@ -632,7 +637,8 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
   },
   opChance: {
     title: 'Chance of success',
-    body: 'Your crew\'s skills against the job\'s difficulty, weighted by the approach. Add more crew or better skills; an inside man is worth more than either.',
+    body: 'The skills of everyone on the job against its difficulty, weighted by the approach. On a job you can do alone you are one of the hands, and what those jobs ask for is what one capable person brings — so your background decides which of them are yours. Add crew, better kit, or an inside man, who is worth more than either.',
+    note: 'Each skill counts for at most 1.3× what the job asks, so a fourth pair of hands on the same skill adds nothing.',
   },
 
   // ---------------------------------------------------------------- the wire

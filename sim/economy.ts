@@ -1,6 +1,7 @@
 /** Income formulas for rackets and productions. Shared by the tick and by estimates. */
 import { FIXER, LIEUTENANT, PRODUCTION_DEFS, PRODUCTION_LEVEL, PRODUCT_INFO, RACKET_DEFS, RECIPES } from '@content/rackets';
 import { yieldMult } from './territory';
+import { PLAYER_HANDS, playerWorks } from './production';
 import { coverFor } from './lieutenants';
 import type { Business, Id, Npc, Production, Racket, World } from './types';
 import { familiar, familiarReason, favours, leverageOver } from './standing';
@@ -154,7 +155,11 @@ export function fixersKnown(w: World): Npc[] {
 export function productionOutput(w: World, p: Production): number {
   const def = PRODUCTION_DEFS[p.kind];
   const recipe = p.recipe ? RECIPES[p.recipe] : undefined;
-  return def.outputBase * (1 + (p.level - 1) * PRODUCTION_LEVEL.output) * (recipe?.output ?? 1) * runnerFactor(w, p.workerId, def.skill);
+  // Nobody on it does not mean nobody is there: if this is the line you work yourself, your own
+  // skill runs it (see PLAYER_HANDS). Only then does it fall back to the absentee's half rate.
+  const hands = playerWorks(w, p) ? PLAYER_HANDS.floor + w.player.skills[def.skill] / PLAYER_HANDS.per
+    : runnerFactor(w, p.workerId, def.skill);
+  return def.outputBase * (1 + (p.level - 1) * PRODUCTION_LEVEL.output) * (recipe?.output ?? 1) * hands;
 }
 
 export function streetPrice(w: World, blockId: string, product: keyof typeof PRODUCT_INFO): number {

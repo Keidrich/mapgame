@@ -10,7 +10,7 @@ import { PLAYER, dispatch, generateWorld, select, type World } from '@sim/index'
 import { Rng } from '@sim/rng';
 import { SCENARIOS, setUp, topUp, type ScenarioName } from './admin';
 import { newCoverage, bump, warn, type Coverage } from './coverage';
-import { answerEverything, buyKit, goTo, handleMoney, haveAConversation, launchOps, planAnOp, promoteLieutenants, resetPolicy, resolveEvents, runTheEmpire, tallyNight, tallyProduction, tallyPeople, workTheAgendas, workTheBuildings, workTheCorners, workTheRoom, workTheStreet, workTheWire, type Ctx } from './policy';
+import { answerEverything, buyKit, goTo, handleMoney, haveAConversation, launchOps, planAnOp, promoteLieutenants, resetPolicy, resolveEvents, runTheEmpire, sellSomethingOnTheStreet, tallyNight, tallyProduction, tallyPeople, workTheAgendas, workTheBuildings, workTheCorners, workTheRoom, workTheStreet, workTheWire, type Ctx } from './policy';
 
 export interface RunOpts {
   days: number;
@@ -38,7 +38,7 @@ export function run(opts: RunOpts): RunResult {
   resetPolicy();
   // Ops need people who are not already running something. A scenario that plans no ops holds
   // nobody back, so the honest day is exactly the shape it always was.
-  const c: Ctx = { w, rng: new Rng(seed * 7 + 1), cov, crewCap: s.crewCap, reserve: (opts.opsPerDay ?? s.opsPerDay) > 0 ? 4 : 0 };
+  const c: Ctx = { w, rng: new Rng(seed * 7 + 1), cov, crewCap: s.crewCap, reserve: (opts.opsPerDay ?? s.opsPerDay) > 0 ? 4 : 0, stillAt: s.stillAt ?? 5000 };
   const startBlockId = select.startBlock(c.w).id;
   const opsPerDay = opts.opsPerDay ?? s.opsPerDay;
 
@@ -54,6 +54,16 @@ export function run(opts: RunOpts): RunResult {
     // 2. a district needs somebody running it, and you need something in your hands
     promoteLieutenants(c);
     buyKit(c);
+    // A scenario built around making something puts its line up — and takes yesterday's product
+    // to a corner — before the day can spend the money or the legs on anything else. On day one
+    // there is exactly enough for a back room and a still, and the bot otherwise settles
+    // somebody's shark debt and buys a round with it, then takes a protection racket, and does
+    // not get a line up until day 49 of 60. Setup costs want *clean* cash and everything a solo
+    // player earns after day one is dirty, so missing the opening window means missing it for a
+    // month. Everything else keeps the order it has always had: `stillAt` is only lowered by a
+    // production-first scenario.
+    const lineFirst = c.stillAt < 5000;
+    if (lineFirst) { runTheEmpire(c, startBlockId); sellSomethingOnTheStreet(c); }
 
     // 3. go and do something. The honest scenario plans no ops and holds no cards, so for it
     //    these three are no-ops and the day is exactly the shape the original bot's was.
@@ -64,6 +74,12 @@ export function run(opts: RunOpts): RunResult {
     for (let i = 0; i < opsPerDay; i++) if (!planAnOp(c)) break;
     launchOps(c);
     workTheWire(c);
+    // Everybody else sells with whatever the jobs did not want. Position matters twice over:
+    // ahead of the ops it costs the sixty-day sweep five distinct op kinds, and last, with the
+    // rest of the empire, it never fires at all — by then a confrontation is usually queued and
+    // every action comes back "Deal with what is in front of you first." A production-first
+    // scenario takes the hit knowingly: selling the stock *is* its living.
+    if (!lineFirst) sellSomethingOnTheStreet(c);
 
     // 4. Somebody's problem, then the street, then the rest of the empire, then money — in that
     //    order, because the laundering has to come after the day that earned something to

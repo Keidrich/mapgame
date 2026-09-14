@@ -23,7 +23,7 @@ import { foremanOf, supplyReading, SUPPLY_LABELS } from './automation';
 import { productionOutput } from './economy';
 import { laneDiscount, routeDiscount } from './intel';
 import { rawRacketIncome, streetPrice } from './economy';
-import { qualityOf, sellMult } from './production';
+import { playerWorks, qualityOf, sellMult } from './production';
 import { equippedItems, kitApproachBias, kitSkillBoost } from './items';
 export { confrontations, activeConfrontation, confrontOptions, confrontChance, backupCrew, CONFRONT_AS } from './combat';
 export { cards, liveCards, cardById, cardValue, runOdds, dumpValue, tapped, daysTapped, tapRisk, secrets, secretsAbout, unsoldSecrets, dirtPrice, scrubPower, cyberHeat } from './cyber';
@@ -49,7 +49,7 @@ export { racketsAllowed, setupCost, tierOf, tierInfo, extortReason, wayIn, hasWa
 export { agendaKnown, agendaMoves, agendaCost, agendaChance, agendaReason, agendaTargetName, sharedConnections } from './agendas';
 export { talkOptions, isTalk, TALK } from './conversation';
 export { fixerRate, fixerDailyCap, fixerUsedToday, fixerCapToday, fixerCapLeft, fixersKnown } from './economy';
-export { knownRecipes, recipesForKind, restockCost, qualityOf, sellMult, shortageActive, saturationActive, productionQuality } from './production';
+export { knownRecipes, recipesForKind, restockCost, qualityOf, sellMult, shortageActive, saturationActive, productionQuality, playerWorks, playerWorked, PLAYER_HANDS } from './production';
 import { distanceM } from '@geo/project';
 import { STEP_M } from './populate';
 import { PLAYER, type Block, type Business, type ProductKind, type Racket, type Faction, type FactionId, type Id, type Npc, type OpKind, type RacketKind, type Stance, type World } from './types';
@@ -468,7 +468,7 @@ export function holdings(w: World): Holding[] {
       const flags: string[] = [];
       if (pr.disrupted > 0) flags.push(`disrupted ${pr.disrupted}d`);
       if (pr.stock <= 1) flags.push('out of ingredients');
-      if (!pr.workerId && !boss) flags.push('nobody working it');
+      if (!pr.workerId && !boss && !playerWorks(w, pr)) flags.push('nobody working it');
       out.push({
         id: pr.id, kind: 'production', icon: def.icon, typeId: pr.kind, name: `${def.label}${pr.recipe && RECIPES[pr.recipe] ? ` · ${RECIPES[pr.recipe].label}` : ''}`,
         where: `${sh.name} · ${blockName(sh.blockId)}`, blockId: sh.blockId, districtId: w.blocks[sh.blockId]?.districtId,
@@ -477,7 +477,10 @@ export function holdings(w: World): Holding[] {
         dirty: true, saturation: 1,
         auto: boss
           ? { state: 'foreman', label: `${boss.name} keeps it running`, good: true }
-          : { state: pr.workerId ? 'manual' : 'unmanned', label: pr.workerId ? `Worked by ${w.npcs[pr.workerId]?.name ?? 'somebody'}` : 'Nobody on it', good: !!pr.workerId },
+          : pr.workerId ? { state: 'manual', label: `Worked by ${w.npcs[pr.workerId]?.name ?? 'somebody'}`, good: true }
+          // the line you are standing in yourself: not idle, but the reason to hire somebody
+          : playerWorks(w, pr) ? { state: 'manual', label: 'You work it yourself', good: true }
+          : { state: 'unmanned', label: 'Nobody on it', good: false },
         flags,
       });
     }

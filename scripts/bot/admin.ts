@@ -13,7 +13,7 @@
  */
 import { dispatch, type CheatKind, type World } from '@sim/index';
 
-export type ScenarioName = 'honest' | 'ambitious' | 'boosted' | 'law' | 'wire' | 'war' | 'heists' | 'everything';
+export type ScenarioName = 'honest' | 'solo' | 'ambitious' | 'boosted' | 'law' | 'wire' | 'war' | 'heists' | 'everything';
 
 export interface Scenario {
   label: string;
@@ -26,6 +26,14 @@ export interface Scenario {
   opsPerDay: number;
   /** How many people the bot will recruit. Part of the honest scenario's shape, so it is fixed. */
   crewCap: number;
+  /**
+   * Cash the bot wants in hand before it builds a production line. The default is deliberately
+   * cautious — a player with an empire does not spend their last $1,200 on a still — and it is a
+   * knob rather than a constant because the honest scenario's numbers must not move: it never
+   * reaches this much, so it has never built a line, and lowering it globally would have
+   * rewritten the one curve that is comparable across passes.
+   */
+  stillAt?: number;
 }
 
 const CORE: { what: CheatKind; amount?: number }[] = [
@@ -57,6 +65,21 @@ export const SCENARIOS: Record<ScenarioName, Scenario> = {
     label: 'honest',
     blurb: 'No admin panel and no ops. The economy curve only means something in this mode.',
     setup: [], opsPerDay: 0, crewCap: 6,
+  },
+  /**
+   * One person, alone, from nothing. No cheats, no crew, and the only things on the board are
+   * the jobs that need nobody and what you can make and sell yourself.
+   *
+   * This is the scenario the solo pass exists for, and the reason it is a scenario rather than a
+   * change to `honest`: the honest run never builds a line and never runs a job, so it could not
+   * tell you whether any of this pass worked. Read `jobs run alone`, `lines built` and
+   * `street sales` in its coverage table — if the first is near zero the solo tree is a lie, and
+   * if the last two are zero a player with nobody has no way to make a living.
+   */
+  solo: {
+    label: 'solo',
+    blurb: 'One person, no crew, no cheats: solo jobs and a still. The opening, on its own.',
+    setup: [], opsPerDay: 2, crewCap: 0, stillAt: 1800,
   },
   /** An honest player who takes risks: no cheats, but it plans and launches real jobs. */
   ambitious: {

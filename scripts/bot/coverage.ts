@@ -18,6 +18,8 @@ export type Counter =
   | 'launders' | 'fixer_launders' | 'raids' | 'busts' | 'moves'
   // the production pack: automation, distribution, and what a bank or a depot is worth
   | 'foremen' | 'foreman_switches' | 'supply_set' | 'supply_delivered'
+  // making and moving a product yourself: the opening a player with nobody actually has
+  | 'lines_built' | 'lines_self_worked' | 'street_sales' | 'solo_ops'
   | 'intel_ratted' | 'skims' | 'routes' | 'route_used' | 'consigns' | 'offshores' | 'lanes' | 'offshore_filed'
   // conversations and the agendas they can settle
   | 'talks' | 'talk_openers' | 'talk_closed' | 'agendas_settled' | 'agendas_trapped' | 'favours_owed'
@@ -59,6 +61,9 @@ export const SYSTEMS: { label: string; needs: Counter[]; hint: string }[] = [
   { label: 'scrubbing wire heat', needs: ['scrubs'], hint: 'wire heat was never cleaned up' },
   { label: 'kit', needs: ['items_bought'], hint: 'nothing was ever bought or carried' },
   { label: 'foremen', needs: ['foremen'], hint: 'no production was ever put on automation, so recipe-switching and auto-restock are untested' },
+  { label: 'making a product', needs: ['lines_built'], hint: 'no production line was ever built, so the whole make-it-yourself opening — the one a player with no crew and no rackets actually has — is untested' },
+  { label: 'selling it yourself', needs: ['street_sales'], hint: 'nothing was ever sold on a corner by hand, so street price, demand and quality are untested outside the racket tick' },
+  { label: 'jobs run alone', needs: ['solo_ops'], hint: 'every job the bot ran had crew on it, so nothing says whether a player with nobody can land anything' },
   { label: 'standing orders', needs: ['supply_set', 'supply_delivered'], hint: 'every product racket was left on its default rule; distribution is untested' },
   { label: 'institutional intel', needs: ['intel_ratted'], hint: 'nobody inside an institution was ever got at, so the five buildings that pay out only through the wire do nothing in the sweep' },
   { label: 'offshore accounts', needs: ['offshores'], hint: 'the accountant lane never opened, so the biggest laundering capacity in the game and its paper trail are both untested' },
@@ -101,6 +106,7 @@ export function report(c: Coverage): string[] {
     ['employees got at', count(c, 'intel_ratted')], ['skims', count(c, 'skims')],
     ['routes', count(c, 'routes')], ['routes used on a job', count(c, 'route_used')],
     ['consignments', count(c, 'consigns')], ['offshore', count(c, 'offshores')], ['trade lanes', count(c, 'lanes')], ['files opened on the paper', count(c, 'offshore_filed')],
+    ['lines built', count(c, 'lines_built')], ['worked by the player', count(c, 'lines_self_worked')], ['street sales', count(c, 'street_sales')], ['jobs run alone', count(c, 'solo_ops')],
   ] as const;
   out.push(`  production & intel: ${auto.map(([k, n]) => `${k} ${n}`).join(', ')}`);
   const social = [

@@ -23,10 +23,12 @@ import { newGame } from './store';
 import { asHtml, plain } from './test-util';
 
 const mk = (seed = 111) => generateWorld({ origin: { lat: 51.5, lng: -0.12 }, placeName: 'London', playerName: 'T', background: 'muscle', seed });
-// The lane the crime pass widened: taking somebody's number and washing money sideways are the
-// same kind of work as the original three — nobody is hurt, nobody sees you, and it is all done
-// through somebody else's arrangements.
-const WIRE: OpKind[] = ['rat', 'wire_fraud', 'digital_strike', 'sim_swap', 'crypto_wash'];
+// The lane the crime pass widened and the solo pass finished: taking somebody's number, selling
+// their feeds on and washing money sideways are the same kind of work as the original three —
+// nobody is hurt, nobody sees you, and it is all done through somebody else's arrangements.
+// Every one of them is work for one person at a keyboard, which is why they all sit at minCrew 0.
+const WIRE: OpKind[] = ['rat', 'wire_fraud', 'digital_strike', 'sim_swap', 'crypto_wash',
+  'stream_piracy', 'synth_identity', 'betting_app'];
 
 describe('the wire reads as one lane', () => {
   it('all three are tagged as a family in the content, and nothing else is', () => {
@@ -34,6 +36,14 @@ describe('the wire reads as one lane', () => {
     const tagged = (Object.keys(OP_DEFS) as OpKind[]).filter(k => OP_DEFS[k].family === 'wire');
     expect(tagged.sort()).toEqual([...WIRE].sort());
     expect(OP_FAMILIES.wire.label.length).toBeGreaterThan(2);
+  });
+
+  it('and every job in it can be run by one person', () => {
+    // The promise the lane's blurb makes. It was false for five of the eight: the needs were
+    // written on the crew scale (wire fraud wanted tech 14 + brains 12 — three good people) and
+    // three of them had a headcount gate on top, so "solo ok" in the tree meant 3% in the game.
+    for (const k of WIRE) expect(OP_DEFS[k].minCrew, `${k} needs crew`).toBe(0);
+    for (const k of WIRE) expect(OP_DEFS[k].requires?.crewCount, `${k} is gated on a headcount`).toBeUndefined();
   });
 
   it('the tree shows the family name on them, and a heading over the group', () => {

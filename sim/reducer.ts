@@ -1324,7 +1324,14 @@ function patronTip(w: World, n: Npc, rng: import('./rng').Rng): string | undefin
   const block = w.blocks[n.homeBlockId];
   const options: string[] = [];
   const ctrl = Object.entries(block.influence).sort((a, b) => b[1] - a[1])[0];
-  if (ctrl && ctrl[0] !== PLAYER && w.factions[ctrl[0]]) options.push(`"${w.factions[ctrl[0]].short} collect on this block every week. ${w.npcs[w.factions[ctrl[0]].lieutenantIds[0]].name} handles it."`);
+  // A faction whose last lieutenant is dead or in a cell still holds blocks, so `lieutenantIds[0]`
+  // is routinely undefined by the middle of a war — and this used to read `.name` off it and take
+  // the whole dispatch down. Name the collector when there is one; otherwise it is just the crew.
+  if (ctrl && ctrl[0] !== PLAYER && w.factions[ctrl[0]]) {
+    const f = w.factions[ctrl[0]];
+    const lt = f.lieutenantIds.map(id => w.npcs[id]).find(x => x?.alive);
+    options.push(`"${f.short} collect on this block every week.${lt ? ` ${lt.name} handles it.` : ''}"`);
+  }
   const rich = Object.values(w.businesses).filter(b => b.blockId === block.id && b.baseIncome > 250)[0];
   if (rich) options.push(`"${rich.name} does better than it looks. ${w.npcs[rich.ownerId].name} keeps cash in the back."`);
   const coward = block.businessIds.map(id => w.npcs[w.businesses[id].ownerId]).find(o => o.traits.includes('coward'));

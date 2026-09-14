@@ -25,6 +25,8 @@ export interface Ctx {
    * unmanned, the loop below used to assign every last body and `idleCrew` was empty for ever.
    */
   reserve: number;
+  /** Cash in hand before the bot will build a production line. See `Scenario.stillAt`. */
+  stillAt: number;
 }
 
 export const tryAct = (c: Ctx, a: Action): boolean => {
@@ -239,13 +241,14 @@ export function runTheEmpire(c: Ctx, startBlockId: Id) {
   setStandingOrders(c);
   for (const sid of c.w.player.safehouseIds) {
     const sh = c.w.safehouses[sid]; if (!sh) continue;
-    if (!sh.productionIds.length && c.w.player.cash > 5000) tryAct(c, { type: 'start_production', safehouseId: sid, kind: 'still' });
+    if (!sh.productionIds.length && c.w.player.cash > c.stillAt && tryAct(c, { type: 'start_production', safehouseId: sid, kind: 'still' })) bump(c.cov, 'lines_built');
     for (const pid of sh.productionIds) {
       const pr = c.w.productions[pid]; if (!pr) continue;
       if (pr.stock < 2) tryAct(c, { type: 'restock_production', productionId: pid, days: 7 });
       // a foreman is strictly better than a plain worker, so only fall back to one if nobody
       // could take the job — which is also how a player would do it
       if (!pr.workerId && !select.foremanOf(c.w, pid) && select.idleCrew(c.w).length > c.reserve) { const free = select.idleCrew(c.w)[0]; if (free) tryAct(c, { type: 'assign', npcId: free.id, assignment: { kind: 'production', productionId: pid } }); }
+      if (select.playerWorks(c.w, pr)) bump(c.cov, 'lines_self_worked');
       if (pr.level < 3 && c.w.player.cash > 15000) tryAct(c, { type: 'upgrade_production', productionId: pid });
       const known = select.recipesForKind(c.w, pr.kind); if (known.length && !pr.recipe) tryAct(c, { type: 'set_recipe', productionId: pid, recipe: known[0] });
     }
@@ -255,6 +258,35 @@ export function runTheEmpire(c: Ctx, startBlockId: Id) {
     const spot = nearBiz(c).find(b => b.protection?.factionId === PLAYER && can(c.w, { type: 'start_racket', businessId: b.id, kind: 'dealing', product: 'booze' }).ok);
     if (spot && tryAct(c, { type: 'start_racket', businessId: spot.id, kind: 'dealing', product: 'booze' })) bump(c.cov, 'rackets_started');
   }
+}
+
+/**
+ * Carry it to a corner and sell it yourself.
+ *
+ * The bot has made booze since the production pack shipped and had no idea how to sell any of
+ * it: `sell_product` had never once been called in a soak, so street price, block demand and the
+ * quality multiplier were only ever exercised through the racket tick. That is half the opening
+ * a player with no crew actually has — make a thing, walk it to a corner, take dirty cash — and
+ * it was the half with no coverage at all.
+ *
+ * One session, on the block the player is standing on, biggest pile first, and only once there
+ * is a pile worth the walk. The block caps what it can absorb (`demand × 3`), so this is a
+ * trickle by design, not a money printer. A sale also costs the AP an op would have used, which
+ * is why it waits for a load rather than going out with a handful.
+ *
+ * Where it sits in the day is `run.ts`'s call, and it matters: run *last*, with the rest of the
+ * empire, it never fired once in a boosted sixteen-day run, because by then a confrontation is
+ * usually queued and every action comes back "Deal with what is in front of you first."
+ */
+const SELL_AT = 15;
+export function sellSomethingOnTheStreet(c: Ctx) {
+  const here = c.w.player.currentBlockId; if (!here) return;
+  const stash = c.w.player.stash;
+  const best = (Object.keys(stash) as (keyof typeof stash)[])
+    .filter(k => (stash[k] ?? 0) > 0)
+    .sort((a, b) => (stash[b] ?? 0) - (stash[a] ?? 0))[0];
+  if (!best || (stash[best] ?? 0) < SELL_AT) return;
+  if (tryAct(c, { type: 'sell_product', blockId: here, product: best, amount: stash[best] ?? 0 })) bump(c.cov, 'street_sales');
 }
 
 /**
@@ -276,6 +308,12 @@ export function handleMoney(c: Ctx) {
 
 export function buyKit(c: Ctx) {
   const w = c.w;
+  // A player whose plan is to make and sell something buys the still before the gun. Without
+  // this the solo run spent its opening on kit and did not get a line up until day 49 of 60, so
+  // the half of the pass about making a living had eleven days of coverage. Only bites on a
+  // scenario that actually wants a line early (`stillAt` below the cautious default), so the
+  // honest run's day is untouched.
+  if (c.stillAt < 5000 && !Object.keys(w.productions).length && w.player.cash < c.stillAt * 2) return;
   if (w.player.cash > 800 && (w.player.equipped ?? []).length < select.EQUIP_MAX) {
     const shop = Object.values(w.businesses).filter(b => select.isMarket(b) && (select.travelCost(w, b.blockId) ?? 9) <= 1)[0];
     const want = shop && select.marketStock(shop).filter(i => !(w.player.items ?? []).includes(i.id)).sort((a, b) => b.cost - a.cost).find(i => i.cost < w.player.cash * 0.7);
@@ -625,8 +663,12 @@ export function tallyNight(c: Ctx, before: { busts: number; logLen: number }) {
   if (c.w.player.busts > before.busts) bump(c.cov, 'busts', c.w.player.busts - before.busts);
   for (const l of c.w.log.slice(before.logLen)) if (l.text.startsWith('RAID')) bump(c.cov, 'raids');
   for (const o of Object.values(c.w.ops)) {
-    if (o.status === 'done' && !seen.has(o.id)) { seen.add(o.id); bump(c.cov, 'ops_done'); }
-    if (o.status === 'failed' && !seen.has(o.id)) { seen.add(o.id); bump(c.cov, 'ops_failed'); }
+    if ((o.status === 'done' || o.status === 'failed') && !seen.has(o.id)) {
+      seen.add(o.id);
+      bump(c.cov, o.status === 'done' ? 'ops_done' : 'ops_failed');
+      // a job that went out with nobody on it: the whole claim of the solo pass, counted
+      if (!o.crewIds.length) bump(c.cov, 'solo_ops');
+    }
     if (o.complication?.answered === 'absent' && !absent.has(o.id)) { absent.add(o.id); bump(c.cov, 'complications_absent'); }
   }
 }

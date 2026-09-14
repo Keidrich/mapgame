@@ -519,6 +519,30 @@ are badges. A locked node explains exactly what is missing through the same expl
 component the glossary uses. The street tier (stick-up, send a message, take the corner,
 scout, take the lot) has `minCrew: 0` and is genuinely solo.
 
+**What `minCrew: 0` has to mean.** `needs` is a *sum across the hands on the job*, and one person
+is about a 4 in a skill and an 8 if it is the skill they came up on — the player's spread never
+grows, so that is true on day 1 and on day 300. So an op marked solo must have `needs` written on
+the one-person scale, or the tree says "solo ok" and the arithmetic says no: wire fraud asked for
+tech 14 + brains 12 on an op whose `maxCrew` is 2, which is a three-hand job, and came out at 3%
+for every background including the one whose whole pitch is the wire.
+
+The rule, enforced by `sim/solo-play.test.ts`:
+
+- **The primary need is reachable but not cappable by a specialist alone.** Above ~8 (so a
+  specialist at 8 does not sit on the 1.3 ceiling with nobody on the job — that would leave no
+  reason ever to bring a second pair of hands) and low enough that they land it: the floors are
+  60% at tier 0 down to 30% at tier 4, for the best background, picking the best approach, on day
+  one with no kit and no heat.
+- **Secondary needs stay at what anybody has spare** (4–6). `ratio` is the *mean* across needs, so
+  a second need on the crew scale sinks the whole job on its own regardless of the first.
+- **The background whose skill the job names comes out on top.** Also a test: a rescale that went
+  too far would make every solo op a shrug for everyone.
+
+This raises the floor without moving the ceiling — `ratio` caps at 1.3 per skill either way — so a
+crewed job is within a few points of what it always was. Charm jobs need the most room, because no
+approach weights charm (`loud` is muscle/wheels, `quiet` is tech/brains, `inside` is brains), so a
+charm player can only ever lose by picking one.
+
 ### 4.5 Who you are, and where you start
 
 **Five backgrounds**, one per skill. Muscle, Brains and Charm open loud, patient and
@@ -697,6 +721,15 @@ cards, because a day of somebody's time is worth more than that.
 ops tree advertised it as "solo ok". Every solo-capable op now counts the player as one of the
 hands; ops that *require* crew are untouched, because their balance is the crew you bring.
 
+**The whole lane is one person's work.** `family: 'wire'` now covers eight jobs — get inside them,
+take their number, pirate feeds, pull their wires, build a person, run a book online, wire fraud,
+wash it sideways — and every one of them has `minCrew: 0` and no `crewCount` gate. That is the
+lane's promise on the badge and it was false for five of the eight: three carried a headcount gate
+(`crewCount` reads `player.crewEver`, so you had to have *hired* somebody before you could sit down
+at a keyboard alone) and their `needs` were on the crew scale. Pacing now comes from `priorOps`,
+`safehouseTier` and the per-target flags, which is where it belongs. Both halves are pinned by
+`ui/clarity.test.tsx` and `sim/solo-play.test.ts`, so a ninth wire job added without them fails.
+
 ## 5. Rackets, production, ops
 
 **Rackets** (persistent, on a business): protection, numbers, bookmaking, gambling
@@ -796,11 +829,26 @@ ones where a number makes sense.
 **The bot** lives in `scripts/bot/` — `policy.ts` (what it does with a day), `admin.ts`
 (scenarios), `coverage.ts` (what got exercised), `run.ts` (one run). `headless.ts` is only a CLI.
 
+`solo` is the shape to copy when a pass needs coverage the honest run cannot give it. The honest
+scenario's numbers are frozen, and it never builds a production line or runs a job — so it could
+say nothing at all about whether a player with nobody can play. `solo` uses no admin panel either,
+so its numbers are honest too; it just plays a different game. Its three counters — `jobs run
+alone`, `lines built`, `street sales` — are the ones to read: if the first is near zero the solo
+tree is a lie, and if the last two are zero a player with nobody has no way to make a living.
+
+`Scenario.stillAt` is the knob that made this possible without touching the frozen run: the bot
+would not build a production line below $5,000 clean, the honest bot never has that much, and
+lowering the threshold globally would have rewritten the one curve that is comparable across
+passes. A production-first scenario also gets its line and its street sale at the *top* of the
+day — on day one there is exactly enough for a back room and a still, and the bot otherwise
+settles somebody's shark debt with it and does not get a line up until day 49 of 60.
+
 Scenarios:
 
 | scenario | admin panel | ops/day | what it is for |
 |---|---|---|---|
 | `honest` | none | 0 | **frozen.** The economy curve, comparable across passes |
+| `solo` | none | 2 | one person, `crewCap: 0`: the opening, on its own |
 | `ambitious` | none | 2 | an honest player who takes risks |
 | `boosted` / `law` / `wire` / `war` / `heists` | yes | 3 | one system, set up and hammered |
 | `everything` | yes | 3 | the run that should reach every system |
@@ -994,6 +1042,23 @@ per day with value per unit by how full the safehouse is (`qualityMult(q) × out
 with room to spare, more units is more money; with the shelves full, every unit you make displaces
 one you already have, so it had better be worth more. Without that term the careful recipes were
 dead weight at every moment of the game.
+
+**You are one of the hands here too.** `runnerFactor` gives an unmanned line 0.5 — an absentee's
+half rate — and that was also what the player got while standing in their own back room. It made
+the one opening a broke day-one player can actually afford (a back room, $600, and a still,
+$1,200, out of $2,500) pay like a line nobody was running: 6 units a day at quality 22, unsellable
+rubbish. The player now personally works **one** line, the unmanned one their own skill does the
+most good on (`playerWorked`, ties broken on id so the ledger's estimate and the end-of-day tick
+can never disagree about which room you were standing in). `PLAYER_HANDS` puts them at
+`0.55 + skill/12` against a runner's `0.6 + skill/10` and quality `30 + skill×4` against
+`35 + skill×5`: a tech player's first still goes from 6/day at q22 to 14.6/day at q62, and a
+muscle player's to 8.6 at q38.
+
+Two limits carry the design, and both are the point rather than a rough edge. **Below a dedicated
+runner**, because somebody who does nothing else does it better and you are also running a city —
+that gap is what makes hiring worth the wage. And **one line**, because you are one person: the
+*second* still is what sends you out to meet somebody, which is the whole arc. Put a worker on
+yours and you are freed up for the next one.
 
 **A foreman** (`{ kind: 'foreman', productionId }`) is the production assignment with its head up:
 it keeps the production on the best recipe currently known, buys ingredients when the tin runs dry,

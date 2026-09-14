@@ -78,10 +78,24 @@ describe('the boosted scenarios reach what honest play cannot', () => {
   }, SLOW);
 
   it('boosted worlds are stamped, so their numbers can never pass as an economy curve', () => {
+    // Read off the scenario rather than a list of names: a scenario that uses no admin panel is
+    // honest play by definition, and adding one should not mean remembering to edit this line.
     for (const name of SCENARIO_NAMES) {
       const r = canon(name);
-      expect(!!r.w.cheated, name).toBe(name !== 'honest' && name !== 'ambitious');
+      expect(!!r.w.cheated, name).toBe(SCENARIOS[name].setup.length > 0);
     }
+  }, SLOW);
+
+  it('the solo scenario really is one person on their own', () => {
+    // The whole claim of the scenario. If it ever recruits, its numbers stop being about a
+    // player with nobody and the coverage table starts flattering the solo tree.
+    expect(SCENARIOS.solo.setup).toEqual([]);
+    expect(SCENARIOS.solo.crewCap).toBe(0);
+    const r = canon('solo');
+    expect(r.w.player.crewIds.length, 'the solo bot hired somebody').toBe(0);
+    expect(count(r.cov, 'solo_ops'), 'the solo bot never finished a job with nobody on it').toBeGreaterThan(0);
+    expect(count(r.cov, 'lines_built'), 'the solo bot never built anything to sell').toBeGreaterThan(0);
+    expect(count(r.cov, 'street_sales'), 'the solo bot never sold anything by hand').toBeGreaterThan(0);
   }, SLOW);
 
   it('law work actually runs in the law scenario', () => {

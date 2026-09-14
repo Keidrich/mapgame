@@ -14,6 +14,142 @@ House rules for an entry (see `CLAUDE.md` → *Leave a trail*):
 
 ---
 
+## 2026-09-14 — Playing it alone: the solo tree, the whole wire lane, and your own hands on a still
+
+**What.** Two halves of one problem. Every op the tree marks solo is now a job a solo player can
+actually land; the whole wire lane is work for one person, by rule and by test; and the player
+personally works one unmanned production line instead of leaving it at the absentee half-rate. A
+new soak scenario, `solo`, plays sixty days with `crewCap: 0` so any of this can be checked.
+
+**Why.** The opening did not work. Measured before anything was changed, at day-one skills, best
+background, best approach, alone:
+
+| job | tier | before | after |
+|---|---|---|---|
+| Get inside their business | 1 | 39% | 70% |
+| Take their number | 1 | 35% | 57% |
+| Pirate feeds | 2 | 47% | 64% |
+| Pull their wires | 2 | 28% | 54% |
+| The long con | 2 | 12% | 53% |
+| Wire fraud | 3 | **4%** | 42% |
+| Wash it sideways | 4 | — (needed 3 crew) | 40% |
+
+Two causes, and neither was the formula.
+
+1. **`needs` written on the crew scale.** `needs` is a *sum across the hands on the job*, and one
+   person is about a 4 in a skill and an 8 if it is theirs — and the player's spread never grows,
+   so that is as true on day 300 as on day 1. Wire fraud asked for tech 14 + brains 12 on an op
+   whose `maxCrew` is 2 and whose `minCrew` is 0: a three-hand job wearing a "solo ok" badge. The
+   second need did most of the damage, because `ratio` is the *mean* across needs, so one
+   crew-scale entry sinks the job however good you are at the other.
+2. **Headcount gates on solo work.** `crewCount` reads `player.crewEver`, so pirate feeds, build a
+   person and wash it sideways could not be *opened* until you had hired somebody — on a lane sold
+   as work you do at a keyboard on your own.
+
+**How — the ops.** Every `minCrew: 0` op's `needs` is now on the one-person scale: a primary that a
+specialist can reach but not cap alone, and secondaries at what anybody has spare. Floors, held by
+`sim/solo-play.test.ts`: 60% at tier 0 down to 30% at tier 4, for the best background, alone, day
+one, no kit, no heat, and not counting the inside man (which needs somebody on trust 35+ and is not
+offered at all on a job aimed at a person, so counting it would flatter every number in the file).
+
+This raises the floor without moving the ceiling — `ratio` caps at 1.3 per skill either way, so a
+fully-crewed wire fraud went 58% → 64% while the solo one went 4% → 42%. There is a test for that
+too, and one for the opposite overshoot: `rat` at tech 8 let a specialist cap the job alone, which
+left no reason ever to bring a second pair of hands, so it went back up to 9.
+
+Charm jobs needed the most room, and the reason is worth writing down: **no approach weights
+charm.** `loud` is muscle/wheels, `quiet` is tech/brains, `inside` is brains — so a charm player
+can only ever lose by picking one, and a charm job's needs have to be reachable at weight 1.0 or
+the charm lane is just a worse brains lane. The long con, charity front and buying down the heat
+were all being won by the brains background before this.
+
+**How — the wire.** `family: 'wire'` now covers eight jobs, not five: pirate feeds, build a person
+and run a book online were doing the same work without the badge. The rule is now testable —
+**every op in the wire family has `minCrew: 0` and no `crewCount`** — and the lane's blurb says so
+on the screen. Pacing moved to `priorOps`, `safehouseTier` and the per-target flags, which is where
+it belongs. Run a book online and wash it sideways dropped to `minCrew: 0`; pirate feeds trades its
+headcount gate for `safehouseTier: 1` (somewhere to put the gear), which a day-one player can
+reach.
+
+**How — the still.** `runnerFactor` gives an unmanned line 0.5, an absentee's half rate, and that
+was also what you got standing in your own back room with tech 8 in your head. It made the one
+opening a broke day-one player can afford — a back room ($600) and a still ($1,200) out of $2,500 —
+pay like a line nobody was running: 6 units a day at quality 22, which is unsellable. You now work
+**one** line personally: the unmanned one your own skill does the most good on, ties broken on id
+so the ledger's estimate and the end-of-day tick can never disagree about which room you were in.
+`PLAYER_HANDS` is `0.55 + skill/12` against a runner's `0.6 + skill/10`, quality `30 + skill×4`
+against `35 + skill×5`. A tech player's first still: **6/day at q22 → 14.6/day at q62**. Muscle:
+8.6 at q38.
+
+Both limits are the design, not a rough edge. **Below a dedicated runner**, because somebody who
+does nothing else does it better — that gap is what makes a wage worth paying. And **one line**,
+because you are one person: the second still is what sends you out to meet somebody, which is the
+arc the whole pass is for.
+
+**How — the bot, which could see none of this.** The honest run never builds a line and never
+plans a job, so it had nothing to say about any of the above, and its numbers are frozen. So:
+a `solo` scenario, no admin panel, `crewCap: 0`, `opsPerDay: 2`. Sixty days on seed 7: **147 jobs
+finished with nobody on them across 15 op kinds**, six of the eight wire jobs among them (run a
+book online and wash it sideways want a bookmaking racket and a tier-2 safehouse, which sixty solo
+days do not reach); a line up on day one and worked by the player every day after; product carried
+to a corner by hand seventeen times. It ends on $1,070 clean, $863 dirty and six rackets — the
+honest bot, *with four crew*, ends the same sixty days on $38 and three.
+
+Three new counters say whether it worked: `jobs run alone`, `lines built`, `street sales`. The last
+one was a genuine blind spot — `sell_product` had **never once been called in a soak** in the
+game's history, so street price, block demand and the quality multiplier were only ever exercised
+through the racket tick. The bot now takes its stock to a corner.
+
+Two knobs keep the frozen run frozen. `Scenario.stillAt` is the cash the bot wants before building
+a line: 5,000 for everyone (the honest bot never has that much, which is why it has never built
+one), 1,800 for `solo`. And a production-first scenario gets its line and its street sale at the
+*top* of the day — otherwise the bot settles somebody's shark debt and buys a round with the
+opening money, takes a protection racket, and does not get a line up until day 49 of 60. The
+honest 60-day curve is byte-identical before and after: cash 38, dirty 238, 3 rackets, control
+11.1%.
+
+**A crash the soak found on the way.** `patronTip` in the reducer read
+`w.npcs[faction.lieutenantIds[0]].name` after only checking the faction exists. A faction whose
+last lieutenant is dead or in a cell still holds blocks, so that is routinely `undefined` by the
+middle of a war — and it took the whole dispatch down. It now names the collector when there is
+one and says "they collect on this block every week" when there is not. Pre-existing; a real player
+could hit it.
+
+**Files.** `content/rackets.ts` (needs, difficulty and `requires` on 20 ops; three new `family`
+tags; the lane blurb) · `sim/production.ts` (`PLAYER_HANDS`, `playerWorked`, `playerWorks`,
+quality) · `sim/economy.ts` (`productionOutput`) · `sim/select.ts` (the holdings row, the
+re-export) · `sim/reducer.ts` (the `patronTip` crash) · `ui/components/BlockSheet.tsx` ·
+`content/glossary.ts` (`selfWorked`, `quality`, `opChance`) · `scripts/bot/{admin,policy,run,coverage}.ts` ·
+`sim/solo-play.test.ts` (new, 40 cases) · `ui/clarity.test.tsx`, `scripts/bot.test.ts`.
+
+**Watch out.**
+
+- **No `WORLD_VERSION` bump.** Nothing here adds a field; saves carry over.
+- **Balance shift, and it is a real one.** Every solo-capable op got easier for the background it
+  belongs to, and a solo player's first production line roughly doubles in output and triples in
+  quality. Existing saves get both immediately.
+- **The sweep's distinct-op-kind count is noisier than one seed makes it look.** Seed 7 went
+  48 → 43 when the bot started selling on the street, which reads like a coverage regression and is
+  not one. Three seeds, with the sale on and off:
+
+  | | seed 7 | seed 11 | seed 23 |
+  |---|---|---|---|
+  | selling | 43 | 45 | 53 |
+  | not selling | 48 | 55 | 44 |
+
+  The spread *within* each row (ten kinds) swamps the difference between them, and seed 23 is nine
+  kinds *better* with the sale. One more action a day moves the bot's whole trajectory through a
+  63-op tree; it does not make anything unreachable. **Do not tune the bot against a single seed's
+  count** — that is how this nearly turned into an afternoon of chasing noise.
+- **Deliberately out of scope.** `buy_down`, `buy_case` and `shell_company` kept their
+  `crewCount: 1`: they are not wire work and reaching into a building is fairly gated behind having
+  been a boss at all. Their `needs` were rescaled with the rest.
+- **Still carried over from the tier pass:** recruiting the city's only fixer deletes all
+  laundering capacity, because `recruit` sets `role = 'crew'` and `fixersKnown` filters on
+  `role === 'fixer'`.
+
+---
+
 ## 2026-09-14 — What the bot walkthrough found: too grey, and four things still drawing emoji
 
 **What.** Let the soak bot play 23 days, then rendered every screen off that save and looked at

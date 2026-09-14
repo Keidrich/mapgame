@@ -181,7 +181,7 @@ function SafehouseCard({ w, sh }: { w: World; sh: Safehouse }) {
                 <b><Icon of="production" id={pr.kind} size={14} /> {def.label} <Term id="prodLevel" className="muted small">L{pr.level}</Term></b>
                 <span className="small muted">→ <Icon of="product" id={def.product} size={12} /> {pr.lastOutput}/day</span>
               </div>
-              <div className="small muted"><Term id="stock">Stock</Term> {pr.stock}d · worker {crewName(w, pr.workerId)}{pr.disrupted > 0 && <span className="red"> · <Term id="disrupted">disrupted</Term> {pr.disrupted}d</span>}</div>
+              <div className="small muted"><Term id="stock">Stock</Term> {pr.stock}d · worker {pr.workerId ? crewName(w, pr.workerId) : select.playerWorks(w, pr) ? <Term id="selfWorked" className="gold">you</Term> : 'nobody'}{pr.disrupted > 0 && <span className="red"> · <Term id="disrupted">disrupted</Term> {pr.disrupted}d</span>}</div>
               <div className="chips mt8">
                 <TermChip id="quality">Quality {select.productionQuality(w, pr)}</TermChip>
                 {pr.recipe && RECIPES[pr.recipe] && <TermChip id="recipe" className="gold" note={`${RECIPES[pr.recipe].label}: ${RECIPES[pr.recipe].blurb}`}>{RECIPES[pr.recipe].label}</TermChip>}

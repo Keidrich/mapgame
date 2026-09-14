@@ -27,11 +27,47 @@ export function moveProduct(from: Holder, to: Holder, product: ProductKind, unit
   addProduct(to, product, units, q);
 }
 
+/**
+ * Your own hands, when nobody else's are on it.
+ *
+ * An unmanned line runs at `runnerFactor`'s 0.5 — an absentee's half rate — and that was also
+ * what you got while standing in your own back room with tech 8 in your head. It made the
+ * opening move of the game (a safehouse and a still, before you know a soul) pay like a line
+ * nobody was running, which is most of why a solo start felt dead.
+ *
+ * Deliberately below a dedicated runner (`0.6 + skill/10`, up to 1.6): somebody who does
+ * nothing else does it better, and you are also running a city. That gap is the reason to hire
+ * — and since you are one person you cover one line, so the *second* still is what pushes you
+ * to go and meet people. That is the arc: solo, then a crew.
+ */
+export const PLAYER_HANDS = { floor: 0.55, per: 12, qualityFloor: 30, qualityPer: 4 };
+
+/**
+ * The single production the player works themselves: the unmanned one their own skill does the
+ * most good on. Ties break on id so the pick is deterministic and the ledger's estimate and the
+ * end-of-day tick can never disagree about which line you were standing in.
+ */
+export function playerWorked(w: World): string | undefined {
+  let best: Production | undefined; let score = -1;
+  for (const sid of w.player.safehouseIds) {
+    for (const pid of w.safehouses[sid]?.productionIds ?? []) {
+      const pr = w.productions[pid]; if (!pr || pr.workerId) continue;
+      const sk = w.player.skills[PRODUCTION_DEFS[pr.kind].skill];
+      if (sk > score || (sk === score && best && pr.id < best.id)) { best = pr; score = sk; }
+    }
+  }
+  return best?.id;
+}
+/** Is this the line the player is working? */
+export const playerWorks = (w: World, p: Production) => !p.workerId && playerWorked(w) === p.id;
+
 export function productionQuality(w: World, p: Production): number {
   const def = PRODUCTION_DEFS[p.kind];
   const worker = p.workerId ? w.npcs[p.workerId] : undefined;
   const working = worker && worker.crew && worker.crew.status === 'assigned';
-  let q = working ? 35 + worker.skills[def.skill] * 5 : 22;
+  let q = working ? 35 + worker.skills[def.skill] * 5
+    : playerWorks(w, p) ? PLAYER_HANDS.qualityFloor + w.player.skills[def.skill] * PLAYER_HANDS.qualityPer
+    : 22;
   q += (p.level - 1) * PRODUCTION_LEVEL.quality;
   if (p.recipe && RECIPES[p.recipe]) q += RECIPES[p.recipe].quality;
   if (working) {
