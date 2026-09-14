@@ -15,7 +15,10 @@ export type Counter =
   | 'confrontations' | 'law_ops' | 'attention_bought' | 'sprung' | 'cases_killed'
   | 'cards_run' | 'cards_dumped' | 'taps' | 'secrets_sold' | 'scrubs'
   | 'items_bought' | 'rackets_started' | 'businesses_bought' | 'crew_hired'
-  | 'launders' | 'fixer_launders' | 'raids' | 'busts' | 'moves';
+  | 'launders' | 'fixer_launders' | 'raids' | 'busts' | 'moves'
+  // the production pack: automation, distribution, and what a bank or a depot is worth
+  | 'foremen' | 'foreman_switches' | 'supply_set' | 'supply_delivered'
+  | 'intel_ratted' | 'skims' | 'routes' | 'route_used';
 
 export interface Coverage {
   counts: Record<Counter, number>;
@@ -49,6 +52,9 @@ export const SYSTEMS: { label: string; needs: Counter[]; hint: string }[] = [
   { label: 'the wire', needs: ['cards_run', 'cards_dumped', 'taps', 'secrets_sold'], hint: 'no cards, taps or dirt: the whole cyber lane is untested' },
   { label: 'scrubbing wire heat', needs: ['scrubs'], hint: 'wire heat was never cleaned up' },
   { label: 'kit', needs: ['items_bought'], hint: 'nothing was ever bought or carried' },
+  { label: 'foremen', needs: ['foremen'], hint: 'no production was ever put on automation, so recipe-switching and auto-restock are untested' },
+  { label: 'standing orders', needs: ['supply_set', 'supply_delivered'], hint: 'every product racket was left on its default rule; distribution is untested' },
+  { label: 'bank / depot intel', needs: ['intel_ratted', 'skims', 'routes'], hint: 'nobody at a bank or a depot was ever got at, so those two buildings still do nothing in the sweep' },
   { label: 'laundering', needs: ['launders', 'fixer_launders'], hint: 'dirty money never got washed' },
   { label: 'police pressure', needs: ['raids', 'busts'], hint: 'the police never actually did anything' },
 ];
@@ -74,6 +80,13 @@ export function report(c: Coverage): string[] {
   out.push(`  ops by kind (${kinds.length} distinct): ${kinds.map(([k, n]) => `${k} ${n}`).join(', ') || 'none'}`);
   const comps = Object.entries(c.complicationKinds).sort((a, b) => b[1] - a[1]);
   if (comps.length) out.push(`  complications: ${comps.map(([k, n]) => `${k} ${n}`).join(', ')}`);
+  const auto = [
+    ['foremen posted', count(c, 'foremen')], ['recipe switches', count(c, 'foreman_switches')],
+    ['standing orders set', count(c, 'supply_set')], ['deliveries', count(c, 'supply_delivered')],
+    ['employees got at', count(c, 'intel_ratted')], ['skims', count(c, 'skims')],
+    ['routes', count(c, 'routes')], ['routes used on a job', count(c, 'route_used')],
+  ] as const;
+  out.push(`  production & intel: ${auto.map(([k, n]) => `${k} ${n}`).join(', ')}`);
   for (const warning of c.warnings) out.push(`  ! ${warning}`);
   return out;
 }

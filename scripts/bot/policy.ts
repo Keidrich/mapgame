@@ -10,7 +10,7 @@
  * paths mostly need an admin scenario to be reachable at all (see `admin.ts`); the honest
  * scenario will still spend most of its days shaking down bars, which is correct.
  */
-import { PLAYER, can, dispatch, select, type Action, type Id, type OpKind, type World } from '@sim/index';
+import { PLAYER, can, dispatch, select, type Action, type Id, type OpKind, type ProductKind, type World } from '@sim/index';
 import { OP_DEFS, RACKET_DEFS } from '@content/rackets';
 import type { Rng } from '@sim/rng';
 import { bump, bumpComplication, bumpOp, warn, type Coverage } from './coverage';
@@ -196,19 +196,28 @@ export function promoteLieutenants(c: Ctx) {
 export function runTheEmpire(c: Ctx, startBlockId: Id) {
   if (!c.w.player.safehouseIds.length) tryAct(c, { type: 'rent_safehouse', blockId: startBlockId });
 
-  // crew: rackets first, then the wire once there is a pile worth working
+  // crew: a foreman first, then rackets, then the wire once there is a pile worth working.
+  // Ordering matters and it was wrong once: with rackets first, forty-odd unmanned rackets
+  // always won and no foreman was ever posted in a sixty-day run. A production nobody runs
+  // wastes ingredients every single day and drifts onto the wrong recipe; one more racket
+  // runner is worth a few hundred. There is normally one production, so this costs one body.
   for (const n of select.idleCrew(c.w)) {
+    const orphan = unmannedProduction(c);
+    if (orphan && tryAct(c, { type: 'assign', npcId: n.id, assignment: { kind: 'foreman', productionId: orphan } })) { bump(c.cov, 'foremen'); continue; }
     const r = c.w.player.racketIds.map(id => c.w.rackets[id]).find(x => x && !x.runnerId);
     if (r) { tryAct(c, { type: 'assign', npcId: n.id, assignment: { kind: 'racket', racketId: r.id } }); continue; }
     if (select.liveCards(c.w).length >= 3) tryAct(c, { type: 'assign', npcId: n.id, assignment: { kind: 'hack' } });
   }
+  setStandingOrders(c);
   for (const sid of c.w.player.safehouseIds) {
     const sh = c.w.safehouses[sid]; if (!sh) continue;
     if (!sh.productionIds.length && c.w.player.cash > 5000) tryAct(c, { type: 'start_production', safehouseId: sid, kind: 'still' });
     for (const pid of sh.productionIds) {
       const pr = c.w.productions[pid]; if (!pr) continue;
       if (pr.stock < 2) tryAct(c, { type: 'restock_production', productionId: pid, days: 7 });
-      if (!pr.workerId) { const free = select.idleCrew(c.w)[0]; if (free) tryAct(c, { type: 'assign', npcId: free.id, assignment: { kind: 'production', productionId: pid } }); }
+      // a foreman is strictly better than a plain worker, so only fall back to one if nobody
+      // could take the job — which is also how a player would do it
+      if (!pr.workerId && !select.foremanOf(c.w, pid)) { const free = select.idleCrew(c.w)[0]; if (free) tryAct(c, { type: 'assign', npcId: free.id, assignment: { kind: 'production', productionId: pid } }); }
       if (pr.level < 3 && c.w.player.cash > 15000) tryAct(c, { type: 'upgrade_production', productionId: pid });
       const known = select.recipesForKind(c.w, pr.kind); if (known.length && !pr.recipe) tryAct(c, { type: 'set_recipe', productionId: pid, recipe: known[0] });
     }
@@ -298,6 +307,102 @@ export function workTheStreet(c: Ctx) {
   }
 }
 
+
+/** A production of yours with nobody running it at all. */
+function unmannedProduction(c: Ctx): Id | undefined {
+  for (const sid of c.w.player.safehouseIds) {
+    for (const pid of c.w.safehouses[sid]?.productionIds ?? []) {
+      const pr = c.w.productions[pid]; if (!pr) continue;
+      if (!select.foremanOf(c.w, pid)) return pid;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Point every product racket at stock it can actually reach. Left alone they sit on `block`,
+ * which is right when the safehouse is downstairs and useless when it is across town — so widen
+ * the rule when nothing on this block can feed it and there is stock elsewhere.
+ */
+function setStandingOrders(c: Ctx) {
+  for (const id of c.w.player.racketIds) {
+    const r = c.w.rackets[id]; if (!r) continue;
+    const product = PRODUCT_OF[r.kind]?.(r); if (!product) continue;
+    const rule = select.supplyRule(r);
+    const here = select.supplyReading(c.w, r, product);
+    if (here.available > 0) continue;                       // the current rule is already feeding it
+    const anywhere = c.w.player.safehouseIds.some(sid => (c.w.safehouses[sid]?.stash[product] ?? 0) > 0);
+    const want = anywhere ? 'empire' : 'block';
+    if (rule === want) continue;
+    if (tryAct(c, { type: 'set_supply', racketId: r.id, rule: want })) bump(c.cov, 'supply_set');
+  }
+}
+const PRODUCT_OF: Partial<Record<string, (r: { product?: ProductKind }) => ProductKind>> = {
+  dealing: r => r.product ?? 'green',
+  fencing: () => 'hot_goods',
+  counterfeiting: () => 'counterfeit',
+};
+
+/**
+ * Get inside somebody who works at a bank or an armoured depot. Those two buildings do nothing
+ * on any other day, and what an employee knows is the entire point of them — so this is worth an
+ * op of its own rather than waiting for one to turn up in the deck.
+ */
+export function workTheBuildings(c: Ctx): boolean {
+  // 1. follow through on anything already open: a route is only worth having if a job uses it
+  const route = select.anyRoute(c.w);
+  if (route) {
+    const depot = c.w.businesses[route.intel!.businessId];
+    const idle = select.idleCrew(c.w).slice(0, OP_DEFS.heist_armored.maxCrew).map(n => n.id);
+    if (depot && idle.length >= OP_DEFS.heist_armored.minCrew && !select.opLocked(c.w, 'heist_armored', { businessId: depot.id })) {
+      const already = Object.values(c.w.ops).some(o => o.kind === 'heist_armored' && (o.status === 'planning' || o.status === 'ready'));
+      if (!already && tryAct(c, { type: 'plan_op', kind: 'heist_armored', crewIds: idle, approach: 'loud', targetBusinessId: depot.id })) {
+        bump(c.cov, 'route_used'); bump(c.cov, 'ops_planned'); bumpOp(c.cov, 'heist_armored');
+        bump(c.cov, 'tier2_ops');
+        return true;
+      }
+    }
+  }
+
+  // 2. otherwise go and get inside somebody who works at one
+  const mark = Object.values(c.w.npcs).find(n => {
+    if (!n.alive || n.crew || n.intel) return false;
+    const src = select.intelSourceFor(c.w, n);
+    return !!src && !select.opLocked(c.w, 'rat', { npcId: n.id });
+  });
+  if (!mark) return false;
+  const idle = select.idleCrew(c.w).slice(0, OP_DEFS.rat.maxCrew).map(n => n.id);
+  if (idle.length < OP_DEFS.rat.minCrew) return false;
+  if (Object.values(c.w.ops).some(o => o.kind === 'rat' && o.targetNpcId === mark.id && (o.status === 'planning' || o.status === 'ready'))) return false;
+  if (!tryAct(c, { type: 'plan_op', kind: 'rat', crewIds: idle, mode: 'read', targetNpcId: mark.id })) return false;
+  bump(c.cov, 'ops_planned'); bumpOp(c.cov, 'rat');
+  return true;
+}
+
+/** Count what the production pack actually did overnight, after End Day. */
+export function tallyProduction(c: Ctx) {
+  for (const n of Object.values(c.w.npcs)) {
+    if (n.intel?.kind === 'skim' && !seenIntel.has(n.id)) { seenIntel.add(n.id); bump(c.cov, 'skims'); bump(c.cov, 'intel_ratted'); }
+    if (n.intel?.kind === 'route' && !seenIntel.has(n.id)) { seenIntel.add(n.id); bump(c.cov, 'routes'); bump(c.cov, 'intel_ratted'); }
+  }
+  for (const sid of c.w.player.safehouseIds) {
+    for (const pid of c.w.safehouses[sid]?.productionIds ?? []) {
+      const pr = c.w.productions[pid]; if (!pr) continue;
+      const was = lastRecipe.get(pid);
+      if (select.foremanOf(c.w, pid) && was !== pr.recipe) { lastRecipe.set(pid, pr.recipe); if (was !== undefined) bump(c.cov, 'foreman_switches'); }
+      else if (was === undefined) lastRecipe.set(pid, pr.recipe);
+    }
+  }
+  // a delivery is stock that left a safehouse and turned up on the player without a manual move
+  for (const id of c.w.player.racketIds) {
+    const r = c.w.rackets[id]; if (!r) continue;
+    const product = PRODUCT_OF[r.kind]?.(r); if (!product) continue;
+    if (select.supplyRule(r) !== 'manual' && r.lastIncome > 0) { bump(c.cov, 'supply_delivered'); break; }
+  }
+}
+const seenIntel = new Set<Id>();
+const lastRecipe = new Map<Id, string | undefined>();
+
 /** Count what the night did to you, after End Day. */
 export function tallyNight(c: Ctx, before: { busts: number; logLen: number }) {
   if (c.w.player.busts > before.busts) bump(c.cov, 'busts', c.w.player.busts - before.busts);
@@ -311,4 +416,4 @@ export function tallyNight(c: Ctx, before: { busts: number; logLen: number }) {
 const seen = new Set<Id>();
 const absent = new Set<Id>();
 /** Reset the per-run memory, so two runs in one process do not pollute each other. */
-export function resetPolicy() { seen.clear(); absent.clear(); }
+export function resetPolicy() { seen.clear(); absent.clear(); seenIntel.clear(); lastRecipe.clear(); }

@@ -573,12 +573,20 @@ Scenarios:
 moving a step changes the RNG stream and the curve with it for no gameplay reason. Coverage comes
 from the other scenarios, never from changing this one.
 
-**Coverage is the point.** Every run reports which of ten systems it touched, how many distinct
-op kinds ran, which complications fired, and what never ran at all. A `✗` means that system had
-no coverage and any conclusion drawn about it from the soak is worthless. `scripts/bot.test.ts`
-fails when `everything` stops reaching every system — so a future pass that ships something the
-bot cannot see breaks the build rather than passing quietly, which is what happened three passes
-running before this existed.
+**Coverage is the point.** Every run reports which of thirteen systems it touched, how many
+distinct op kinds ran, which complications fired, and what never ran at all. A `✗` means that
+system had no coverage and any conclusion drawn about it from the soak is worthless.
+`scripts/bot.test.ts` fails when `everything` stops reaching every system — so a future pass that
+ships something the bot cannot see breaks the build rather than passing quietly, which is what
+happened three passes running before this existed. Shipping a system means adding a row here in
+the same pass, or it is untested by construction.
+
+**Assignment order in `runTheEmpire` is load-bearing.** The bot hands idle crew out in a fixed
+order, and that order decides what gets coverage at all. Foreman first, then racket runner, then
+the wire: with rackets first, forty-odd unmanned rackets always won the draw and no foreman was
+ever posted in a sixty-day run — the automation system shipped and the bot could not reach it.
+The justification is also the real one for a player: a production nobody runs wastes ingredients
+every day and drifts onto the wrong recipe, while one more racket runner is worth a few hundred.
 
 ### 4.15 Why rackets diversify, and why territory finally moves
 

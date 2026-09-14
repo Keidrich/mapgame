@@ -10,7 +10,7 @@ import { PLAYER, dispatch, generateWorld, select, type World } from '@sim/index'
 import { Rng } from '@sim/rng';
 import { SCENARIOS, setUp, topUp, type ScenarioName } from './admin';
 import { newCoverage, bump, warn, type Coverage } from './coverage';
-import { answerEverything, buyKit, handleMoney, launchOps, planAnOp, promoteLieutenants, resetPolicy, resolveEvents, runTheEmpire, tallyNight, workTheStreet, workTheWire, type Ctx } from './policy';
+import { answerEverything, buyKit, handleMoney, launchOps, planAnOp, promoteLieutenants, resetPolicy, resolveEvents, runTheEmpire, tallyNight, tallyProduction, workTheBuildings, workTheStreet, workTheWire, type Ctx } from './policy';
 
 export interface RunOpts {
   days: number;
@@ -55,6 +55,10 @@ export function run(opts: RunOpts): RunResult {
 
     // 3. go and do something. The honest scenario plans no ops and holds no cards, so for it
     //    these three are no-ops and the day is exactly the shape the original bot's was.
+    // a bank or a depot is only ever worth something through somebody who works there, so the
+    //    bot goes looking for that mark itself rather than waiting for the deck to offer one.
+    //    Gated on opsPerDay so a scenario that plans no ops keeps exactly the day it always had.
+    if (opsPerDay > 0) workTheBuildings(c);
     for (let i = 0; i < opsPerDay; i++) if (!planAnOp(c)) break;
     launchOps(c);
     workTheWire(c);
@@ -70,6 +74,7 @@ export function run(opts: RunOpts): RunResult {
     c.w = dispatch(c.w, { type: 'end_day' });
     answerEverything(c);   // a job that went sideways overnight is waiting in the morning
     tallyNight(c, before);
+    tallyProduction(c);
     check(c, d);
   }
   return { w: c.w, cov, scenario };

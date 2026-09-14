@@ -14,6 +14,77 @@ House rules for an entry (see `CLAUDE.md` → *Leave a trail*):
 
 ---
 
+## 2026-09-14 — The bot learns the production pass: foremen, standing orders, and getting inside a bank
+
+**What.** The soak bot now posts a foreman, sets a standing order on a product racket, and goes
+looking for somebody who works at a bank or an armoured depot to rat — then uses the route intel
+it gets on a `heist_armored`. Three new rows in the coverage table cover those systems, so
+`scripts/bot.test.ts` fails if a future pass breaks them.
+
+**Why.** The production overhaul shipped automation, distribution and a use for banks and depots,
+and the bot could not reach any of it. A sixty-day sweep reported a healthy economy and told you
+nothing about three systems that had just landed — which is exactly the failure the coverage
+table was built to stop, happening again one pass later.
+
+**How.**
+
+*Three new tracked systems* in `scripts/bot/coverage.ts` — `foremen`, `standing orders`,
+`bank / depot intel` — backed by eight counters (`foremen`, `foreman_switches`, `supply_set`,
+`supply_delivered`, `intel_ratted`, `skims`, `routes`, `route_used`) and a `production & intel:`
+summary line. Same shape as `kit` and `the wire`, so `fullyCovered()` now demands 13/13.
+
+*The assignment order was the whole bug.* `runTheEmpire` handed idle crew to unmanned rackets
+first. With 41–45 rackets and 8 crew there is always an unmanned racket, so the foreman branch
+below it was dead code: **foremen posted 0 over sixty days, on every scenario.** Reordered to
+foreman → racket → wire. That is also the right call for a player: a production nobody runs
+wastes ingredients daily and drifts onto the wrong recipe; the marginal racket runner is worth a
+few hundred. There is normally one production, so it costs one body.
+
+*Standing orders* (`setStandingOrders`) only act when a racket's current rule is feeding it
+nothing: widen `block` → `empire` when stock exists elsewhere, narrow back when it does not.
+Leaving a working rule alone matters — rewriting every racket's rule every day would have made
+the counter look great and tested nothing.
+
+*Banks and depots* (`workTheBuildings`) run before the ordinary op planner and do one of two
+things: if a route is live, plan the `heist_armored` that uses it; otherwise find an un-ratted
+employee whose `intelSourceFor` is a bank or a depot and plan a `rat` on them. It is gated on
+`opsPerDay > 0` so the no-ops scenarios keep the day they have always had.
+
+**Numbers.** `npm run sim -- 60 7 all`, combined across the eight scenarios:
+
+| | before | after |
+|---|---|---|
+| systems covered | 12/13 (`foremen` ✗) | **13/13** |
+| foremen posted | 0 | 7 |
+| standing orders set | 0 | 3 |
+| deliveries | 0 | 25 |
+| employees got at / skims | 0 / 0 | 69 / 68 |
+| routes | 0 | 1 |
+| distinct op kinds | 31 | 32 (of 41) |
+
+**Watch out.**
+
+- **The frozen `honest` scenario moved on one seed of four.** Seeds 3, 11 and 19 are bit-identical
+  before and after; seed 7 goes $6,320 → $6,161 (−2.5%), because that is the only one of the four
+  where a spare crew member exists to be made a foreman. Nothing in `/sim` or `/content` changed —
+  the diff is three files under `scripts/bot/`. This is the bot playing slightly differently, not
+  a balance shift, but the seed-7 number in older entries will not reproduce. Compare across seeds.
+- **`recipe switches` still reads 0.** The bot sets a recipe before it posts the foreman, and the
+  foreman agrees with it, so nothing switches. Real behaviour, not a gap — but it means
+  `bestRecipeFor`'s switching path is exercised by `sim/production-automation.test.ts` and not by
+  the soak. Left as is deliberately.
+- **`routes used on a job` is 0 or 1 depending on seed.** A route has to exist *and* survive to a
+  day with enough idle crew for `heist_armored`. The `bank / depot intel` row is satisfied by
+  skims alone, so the test does not hang on it; if you want that path covered reliably it needs an
+  admin-panel entry that hands you a route.
+- Nine op kinds still never run: `heist_warehouse`, `insurance_fraud`, `frame`, `defend_racket`,
+  `digital_strike`, `takeover`, `claim_abandoned`, `heist_containers`, `heist_countroom`.
+
+**Files.** `scripts/bot/coverage.ts`, `scripts/bot/policy.ts`, `scripts/bot/run.ts`,
+`docs/DESIGN.md` §4.14.
+
+---
+
 ## 2026-09-14 — Production overhaul: the icon bug's real cause, an inventory worth reading, foremen, recipes with names, and two buildings that did nothing
 
 **What.** Five pieces. The icon bug turned out to have one root cause behind three separate
