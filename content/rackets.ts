@@ -177,7 +177,11 @@ export const OP_DEFS: Record<OpKind, OpDef> = {
   // All three read the target Authority's posture as difficulty, so pushing back on a
   // crackdown is a different job from leaning on a routine precinct.
   buy_down:        { label: 'Buy Down the Heat', icon: '💼', blurb: 'Sit down with somebody inside the building and pay for their attention to go elsewhere. What it costs depends entirely on how hard they are already looking.', planDays: 1, minCrew: 0, maxCrew: 2, needs: { charm: 8, brains: 4 }, difficulty: 45, payout: [0, 0], heat: 3, target: 'npc', tier: 2, costScales: 'authority', requires: { officialTarget: true, crewCount: 1 } },
-  spring_crew:     { label: 'Spring Somebody', icon: '🔓', blurb: 'Get one of your own out before their sentence runs: a signature in the right place, a transfer that goes wrong, a door left unlocked.', planDays: 2, minCrew: 1, maxCrew: 3, needs: { brains: 10, tech: 7, charm: 5 }, difficulty: 58, payout: [0, 0], heat: 14, target: 'npc', tier: 2, cost: 2500, requires: { jailedTarget: true, crewCount: 1 } },
+  // minCrew 0 is not a balance choice, it is the fix for a dead end. A bust jails each of your
+  // people independently, and two back to back can leave nobody standing — at which point the one
+  // op that gets them back needed an idle crew member you no longer had. The op whose whole
+  // purpose is recovering from losing your crew must never require crew. You go yourself.
+  spring_crew:     { label: 'Spring Somebody', icon: '🔓', blurb: 'Get one of your own out before their sentence runs: a signature in the right place, a transfer that goes wrong, a door left unlocked.', planDays: 2, minCrew: 0, maxCrew: 3, needs: { brains: 9, tech: 5, charm: 4 }, difficulty: 54, payout: [0, 0], heat: 14, target: 'npc', tier: 2, cost: 2500, requires: { jailedTarget: true, crewCount: 1 } },
   buy_case:        { label: 'Kill a File', icon: '🗄️', blurb: 'Reach into one specific open investigation and end it: paper misfiled, an exhibit lost, a detective reassigned. Not the same as frightening a witness — this is the file itself.', planDays: 3, minCrew: 0, maxCrew: 2, needs: { brains: 9, charm: 5 }, difficulty: 56, payout: [0, 0], heat: 6, target: 'case', tier: 3, costScales: 'authority', requires: { caseTarget: true, crewCount: 1 } },
 
   // ---- more ways into a vault ----

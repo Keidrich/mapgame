@@ -175,7 +175,7 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
   asset: {
     title: 'A standing arrangement',
     body: 'Somebody who keeps their ears open for you, or turns up when it goes wrong. Not a favour — a favour is spent once. This keeps paying: word before a faction moves on you, or real odds on a job against their own people.',
-    note: 'It costs what any big ask costs: they have to know you, and owe you something real or be somewhere you have a hold. Stop calling for a few weeks and they stop answering.',
+    note: 'It costs what any big ask costs: they have to know you, and owe you something real or be somewhere you have a hold. Stop calling for a few weeks and they stop answering — each of them on their own clock, so a batch you turned in the same week will not all drift on the same morning.',
   },
   referral: {
     title: 'An introduction',
@@ -184,8 +184,8 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
   },
   nemesis: {
     title: 'Somebody who keeps turning up',
-    body: 'A faction lieutenant who has met you enough times to be changed by it. Beating you makes them — harder, better connected, eventually known by a name they earned against you — and it is what puts them in the running when their boss goes down.',
-    note: 'Beating them takes it back. So does settling whatever they are carrying: a lieutenant who owes you something real can be asked to walk out on their own people.',
+    body: 'A faction lieutenant who has met you enough times to be changed by it. Three things make one: beating you counts most, simply turning up again counts for something on its own, and every hiding you give them takes a little back. Enough of it and they are harder, better connected, and known by a name they earned against you.',
+    note: 'Somebody who loses to you every single time stays a name on your sheet and never quite becomes this — but what the street has already learned about them never comes off. Settling whatever they are carrying is the other way out: a lieutenant who owes you something real can be asked to walk out on their own people.',
   },
   conversation: {
     title: 'A conversation',
@@ -367,6 +367,7 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
   mapLayer: {
     title: 'Map overlays',
     body: 'Shading over what the sim already tracks per block: heat, wealth, police, one outfit\'s influence, or what a block would buy in a day. Nothing is simulated differently while an overlay is on — it is a way of looking, not a mode.',
+    note: 'The chip names the overlay you are on. Tap it to pick another, and it folds away again so the map is a map.',
   },
   blockHeat: {
     title: 'Block heat',

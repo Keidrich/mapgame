@@ -286,7 +286,24 @@ function bust(w: World, rng: import('./rng').Rng) {
   const lostDirty = Math.round(p.dirty * 0.8); p.dirty -= lostDirty;
   for (const k of Object.keys(p.stash) as (keyof typeof p.stash)[]) p.stash[k] = 0;
   let jailed = 0;
-  for (const id of p.crewIds) { const n = w.npcs[id]; if (n.crew && n.crew.status !== 'dead' && rng.chance(p.lawyer ? 0.3 : 0.5)) { n.crew.status = 'jailed'; n.crew.statusDays = jailDays(w, 14); n.crew.assignment = undefined; jailed++; } }
+  // Somebody was out that night.
+  //
+  // Each of your people is rolled independently, so two busts back to back can and did leave a
+  // player with 8 of 8 jailed, dead or injured and nobody to assign to anything — including
+  // nobody to send after the ones inside. That is not a hard night, it is a dead end, and a
+  // player who has crushed every criminal rival in the city can still walk into it. The last
+  // standing body is never taken: whoever is left is the thread you pull to get the rest back.
+  const standing = () => p.crewIds.map(id => w.npcs[id]).filter(n => n.crew && (n.crew.status === 'idle' || n.crew.status === 'assigned'));
+  const spare = Math.max(0, standing().length - 1);
+  let taken = 0;
+  for (const id of p.crewIds) {
+    const n = w.npcs[id]; if (!n.crew || n.crew.status === 'dead') continue;
+    const onTheirFeet = n.crew.status === 'idle' || n.crew.status === 'assigned';
+    if (onTheirFeet && taken >= spare) continue;
+    if (!rng.chance(p.lawyer ? 0.3 : 0.5)) continue;
+    n.crew.status = 'jailed'; n.crew.statusDays = jailDays(w, 14); n.crew.assignment = undefined;
+    jailed++; if (onTheirFeet) taken++;
+  }
   for (const id of p.racketIds) { const r = w.rackets[id]; if (r) { r.disrupted = 5; r.runnerId = undefined; } }
   for (const id of p.racketIds.slice()) if (w.rackets[id]?.kind === 'gambling_den' && rng.chance(0.5)) closeRacket(w, id);
   p.heat = 40; p.respect = clamp(p.respect - 10);

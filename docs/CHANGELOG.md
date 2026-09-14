@@ -14,6 +14,145 @@ House rules for an entry (see `CLAUDE.md` → *Leave a trail*):
 
 ---
 
+## 2026-09-14 — Six things bot playtesting found, and what they actually were
+
+**What.** Six findings from playing all eight scenarios end to end. Four were real bugs, one was a
+real bug with the wrong cause attached, and one was a bot problem that was also telling the truth
+about the game. Plus a collapsible map-layer menu, asked for alongside.
+
+---
+
+### 1. Every nemesis that ever earned a name had two
+
+`nemesisName()` split on the first space and inserted the earned nickname there. `populate.ts`
+gives **every boss and every lieutenant** a nickname at generation, and a nemesis is always a
+lieutenant — so this was not an edge case, it was all of them:
+`Cassandra "the Nail" "Moose" Booker`. The function's own doc comment said "replaces"; it added.
+It now strips whatever is already in quotes first. `sim/nemesis-naming.test.ts` runs every
+milestone nickname against every generated lieutenant on a real seed.
+
+### 2. The duplicate repel event was two different events with one sentence between them
+
+Reported as a duplicate-processing bug from four runs across three scenarios, and it reproduced
+immediately — same day, identical wording, in `war`, `everything`, `boosted` and `law`. **It was
+not a duplicate.** In war a faction takes *two acts a day*; two genuinely different incidents —
+muscle in a racket, one of your crew against a wall across town — were both answered with a fight,
+both won, and both printed the same fixed string, which named the faction and nothing else. Two
+events, one sentence.
+
+So the fix is not deduplication, it is the log saying which incident it means. `what(w, c)` was
+already computed for the ledger line; every outcome line now uses it. Same-day duplicate log lines
+across the four scenarios: **23/24/22/17 → 11/7/8/10**, and none of the remainder is a
+confrontation line.
+
+There *was* one genuine duplicate hiding behind it: two acts a day can pick the same racket twice.
+`alreadyAtTheDoor` now means one door gets one crowd.
+
+### 3. Total crew wipeout was a dead end, not a balance question
+
+The report was 8 of 8 crew jailed, dead or injured at once with both rival factions already at
+zero soldiers. Measured across the sweep, that is not an outlier — `boosted` normally ends 60 days
+with **1 of 8** standing and 25 busts behind it.
+
+The balance is arguable. What is not arguable: **`spring_crew` required an idle crew member**, and
+it is the one op whose entire purpose is getting your people out of a cell. The op that recovers
+from losing your crew required crew. Lose everybody and there was no move.
+
+Two changes. `spring_crew` is `minCrew: 0` — you go yourself — with its `needs` rescaled onto the
+one-person scale from the solo pass (46% solo for a brains player, 39% tech, 21% muscle: hard, and
+the right kind of hard). And `bust()` never takes the last body standing: whoever is left is the
+thread you pull. Across 40 seeded busts, standing crew is never zero; two busts back to back still
+cannot empty the outfit. In the sweep `spring_crew` went from barely reachable to **56 runs**.
+
+### 4. The nemesis system was not "rarely firing". It was unreachable.
+
+Worse than reported. Notoriety floors at 0 and a loss took a flat slab off it, so a lieutenant who
+came at the player and lost sat on the floor for ever and no later win climbed off. The 60-day war
+soak had Pablo "Tiny" Delgado at the player's door **84 times — W7 L77 — at notoriety 0.0**, and
+*every scenario in the sweep finished with zero nemeses*.
+
+Two of the three things that make a recurring antagonist were counted; the third — that they keep
+turning up at all — was not, in a file literally called "the lieutenant who keeps turning up".
+
+- **`perMeeting: 1.4`**, win or lose. The man at your door for the ninth time is somebody.
+- **`perLossFraction: 0.12`** replaces the flat `perLoss: 6`. Proportional erosion keeps the
+  design intent — a nemesis who keeps losing stops being one — without a fixed subtraction against
+  a floor of 0 turning decline into deletion. It is self-limiting, which the flat number was not.
+- **`earnedFloor`**: notoriety never falls back through a milestone already paid. A name the
+  street gave them does not come off.
+
+The three terms sit in tension on purpose: somebody who *only* loses plateaus at
+`perMeeting / perLossFraction` ≈ 10–18, deliberately **below** `known` (20) — on your sheet, not
+your nemesis. A win is worth several meetings, so beating you occasionally is what crosses the
+line. Pablo now finishes at **40** in war and **85** in `everything`; a lieutenant with W0 L24 sits
+at 11.6.
+
+**A nemesis now appears in 6 of 8 scenarios, including both that use no admin panel** (`solo` 2,
+`ambitious` 2). It previously appeared only in `boosted`/`everything`, at 1. Sweep total for
+"made into somebody": 5 → 12.
+
+### 5. Informants went cold in clumps because they shared one clock
+
+`ASSET.goesCold` was a flat global threshold, so every asset turned in the same week and left
+alone became eligible on the same morning. The 20%-a-day roll spreads the *drop* slightly and does
+nothing about the clump, because they all entered the pool together. Each person now carries a
+fixed offset up to `ASSET.coldSpread` (12 days), **derived from their id rather than rolled** —
+`/sim` has no `Math.random`, and a save reloaded mid-arrangement has to come back with the same
+clock it had. `sim/informant-cooldown.test.ts` checks a batch of 24 spreads over several days,
+that no single day takes more than 40% of them, and that the clock survives a save round trip.
+
+### 6. The bot walking loop was a bot bug that was also telling the truth
+
+`workTheStreet` ended its day by walking to a random person and visiting them, and on a *failed*
+visit it `continue`d. Once a walk between two adjacent blocks costs no legwork, that is an
+oscillation between the same pair until the loop guard runs out. Fixed: a failed visit ends the
+day. Same fix on the heat branch, plus a one-bribe-a-day guard — the captain was being paid seven
+times in one day in the `law` scenario.
+
+**And the design question the user asked me to judge.** It is mostly a bot gap: the honest bot
+plans no ops by design, so it genuinely has less to do than a player. But the honest run says
+something real that is not the bot's fault, so it is written down rather than tuned away: **90 days
+of honest play finishes with one crew member and no cash.** Wages outrun three rackets' income and
+the player has no way out of it inside what honest play is allowed to do. Flagged, not fixed — the
+honest run is a measuring stick and you do not fix a measurement by moving the stick.
+
+### Also: the map-layer picker is a menu now
+
+Six overlay chips plus their sub-pickers is two rows of furniture across the bottom of the map that
+cannot be dismissed — over exactly the ground the player is most likely to be looking at. Shut, it
+is one chip naming the mode you are in; open, it is the same list it always was; picking one shuts
+it again, because picking one is why it was opened.
+
+---
+
+**Files.** `sim/nemesis.ts` (the name, `scoreMeeting`, `earnedFloor`) · `content/nemesis.ts`
+(`perMeeting`, `perLossFraction`) · `sim/combat.ts` (outcome lines, `alreadyAtTheDoor`) ·
+`sim/factions.ts` · `sim/tick.ts` (`bust`) · `sim/informants.ts` + `content/informants.ts`
+(`coldAfter`, `coldSpread`) · `content/rackets.ts` (`spring_crew`) · `scripts/bot/policy.ts` ·
+`ui/components/MapLayers.tsx`, `ui/store.ts`, `ui/styles.css`, `ui/icons/paths.ts` ·
+`content/glossary.ts` · five new test files + `ui/map-layers.test.tsx`.
+
+**Watch out.**
+
+- **No `WORLD_VERSION` bump.** Nothing here adds a stored field; saves carry over. A save with a
+  nemesis mid-arc picks up the new curve from wherever they are, which is fine — the floor only
+  ever protects milestones already earned.
+- **The honest 60-day curve moved, and this is the entry that says so.** cash 38 → 3, dirty
+  238 → 254, crew 4 → 5, fear 6 → 28; rackets 3 and control 11.1% unchanged. Cause is finding 6:
+  the bot was spending the end of every day in a loop, so the old numbers were produced by a bot
+  that was broken. `honest` is frozen against *tuning*, not against bug fixes — but a moved
+  baseline has to be stated, which is why these numbers are here rather than in a commit body.
+- **Balance shift.** Nemeses will now actually happen to competent players, which means harder
+  lieutenants, better-connected ones, and a real contender when a boss goes down. That is the
+  intended arc, but an existing save of a dominant player will feel it.
+- **Sweep numbers.** 46 distinct op kinds, all 25 systems covered. That sits inside the 43–55
+  seed-noise band established last pass — do not read a two-kind move off one seed.
+- **Deliberately not done.** The wider question behind finding 3 — whether crackdown frequency at
+  high posture is itself too high (25 busts in 60 boosted days) — is untouched. The dead end is
+  fixed; whether the pressure is fun is a separate judgement and a separate pass.
+
+---
+
 ## 2026-09-14 — Playing it alone: the solo tree, the whole wire lane, and your own hands on a still
 
 **What.** Two halves of one problem. Every op the tree marks solo is now a job a solo player can

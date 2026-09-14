@@ -8,7 +8,7 @@ import { STEP_M } from './populate';
 import type { Rng } from './rng';
 import { PLAYER, type Block, type Faction, type FactionId, type World } from './types';
 import { addInfluence, clamp, factionOf, log, standingCap } from './util';
-import { queueConfrontation } from './combat';
+import { alreadyAtTheDoor, queueConfrontation } from './combat';
 import { leaderFor, nemesisName } from './nemesis';
 import { warnedBy } from './informants';
 import { bossChurn, successionOrDeath, tickCrisis } from './politics';
@@ -151,6 +151,8 @@ function actAgainstPlayer(w: World, f: Faction, rng: Rng, war: boolean) {
     if (roll < 0.45 && myRackets.length) {
       const r = rng.pick(myRackets); const biz = w.businesses[r.businessId];
       if (!near(biz.blockId) && !war) continue;
+      // war takes two acts a day and both can land on the same place; one door, one crowd
+      if (alreadyAtTheDoor(w, { businessId: biz.id })) continue;
       const guarded = p.crewIds.some(id => { const c = w.npcs[id].crew; return c?.assignment?.kind === 'guard' && c.assignment.blockId === biz.blockId; });
       if (guarded && rng.chance(0.6)) { log(w, `${f.short} muscle showed up at ${biz.name}. Your guard ran them off.`, 'good', { businessId: biz.id, factionId: f.id }); continue; }
       const lt = coverFor(w, biz);
@@ -166,6 +168,7 @@ function actAgainstPlayer(w: World, f: Faction, rng: Rng, war: boolean) {
         text: `${led ? `${nemesisName(led)} and some ${f.short} muscle are` : `${f.short} muscle are`} standing in ${biz.name} asking who runs the ${r.kind.replace('_', ' ')}. You are looking right at them.` });
     } else if (roll < 0.7 && p.businessIds.length) {
       const biz = w.businesses[rng.pick(p.businessIds)];
+      if (alreadyAtTheDoor(w, { businessId: biz.id })) continue;
       const led = leaderFor(w, f, rng);
       queueConfrontation(w, { factionId: f.id, kind: 'business', war, businessId: biz.id, blockId: biz.blockId, byNpcId: led?.id,
         warned: warnedBy(w, f, rng)?.id,
@@ -174,6 +177,7 @@ function actAgainstPlayer(w: World, f: Faction, rng: Rng, war: boolean) {
       const alive = p.crewIds.map(id => w.npcs[id]).filter(n => n.crew && (n.crew.status === 'idle' || n.crew.status === 'assigned'));
       if (!alive.length) continue;
       const victim = rng.pick(alive);
+      if (alreadyAtTheDoor(w, { npcId: victim.id })) continue;
       const led = leaderFor(w, f, rng);
       queueConfrontation(w, { factionId: f.id, kind: 'crew', war, npcId: victim.id, blockId: victim.homeBlockId, byNpcId: led?.id,
         warned: warnedBy(w, f, rng)?.id,

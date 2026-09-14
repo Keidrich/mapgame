@@ -19,11 +19,20 @@ import type { Rng } from './rng';
 import { PLAYER, type Faction, type Id, type Nemesis, type Npc, type World } from './types';
 import { clamp, log } from './util';
 
-/** Their working name. A nickname earned against you replaces the given one everywhere. */
+/**
+ * Their working name. A nickname earned against you **replaces** the given one everywhere.
+ *
+ * Replaces, not adds. `populate.ts` gives every boss and every lieutenant a nickname at
+ * generation (`First "Moose" Last`), and a nemesis is always a lieutenant — so this inserted a
+ * second one next to the first on *every* nemesis that ever reached the `named` milestone:
+ * `Cassandra "the Nail" "Moose" Booker`. Strip whatever is already in quotes, then insert.
+ */
+const GIVEN_NICKNAME = /\s*"[^"]*"\s*/;
 export function nemesisName(n: Npc): string {
   const nick = n.nemesis?.nickname;
+  const given = n.name.replace(GIVEN_NICKNAME, ' ').trim();
   if (!nick) return n.name;
-  const parts = n.name.split(' ');
+  const parts = given.split(' ');
   return `${parts[0]} "${nick}" ${parts.slice(1).join(' ')}`.trim();
 }
 
@@ -46,15 +55,42 @@ export function leaderFor(w: World, f: Faction, rng: Rng): Npc | undefined {
 }
 
 /**
+ * The floor their notoriety cannot fall back through: whatever the street has already learned.
+ *
+ * A milestone is a thing that happened in public — they picked up a name, they turned up with
+ * worse people — and losing a fight afterwards does not unhappen it. Without this, a long run of
+ * player wins walks an established nemesis back down past their own nickname and the milestones
+ * they already paid for silently stop being true.
+ */
+function earnedFloor(s: Nemesis): number {
+  let floor = 0;
+  for (const m of MILESTONES) if (s.earned.includes(m.id)) floor = Math.max(floor, m.at);
+  return floor;
+}
+
+/**
  * One meeting, scored. `stake` is what the meeting actually cost — the same vocabulary the fear
  * system uses — so beating the player in a fight is worth roughly four times talking over them.
- * A loss takes some of it back, because a nemesis who keeps losing stops being one.
+ *
+ * Three things make a nemesis, and the third was missing for a long time:
+ *
+ *  1. **What they did to you.** A win against the player, worth `perWin` × the stake.
+ *  2. **What you did to them.** A loss shaves `perLossFraction` of what they have, because a
+ *     nemesis who keeps losing stops being one — but see the note on that constant for why it is
+ *     a fraction and not the flat number it used to be.
+ *  3. **That they keep turning up at all.** `perMeeting`, win or lose. Somebody at your door for
+ *     the ninth time is a presence whatever happened the previous eight times, and without this
+ *     the whole system was unreachable for a player who was winning — which is every player the
+ *     game is actually for.
  */
 export function scoreMeeting(w: World, n: Npc | undefined, won: boolean, stake: Stake, why: string): void {
   if (!n?.alive || n.crew || n.faction === PLAYER) return;
   const s = start(w, n);
-  if (won) { s.wins++; s.notoriety = clamp(s.notoriety + NEMESIS.perWin * STAKES[stake].mult); }
-  else { s.losses++; s.notoriety = clamp(s.notoriety - NEMESIS.perLoss * STAKES[stake].mult); }
+  const mult = STAKES[stake].mult;
+  if (won) { s.wins++; s.notoriety += NEMESIS.perWin * mult; }
+  else { s.losses++; s.notoriety -= s.notoriety * NEMESIS.perLossFraction * mult; }
+  s.notoriety += NEMESIS.perMeeting * mult;
+  s.notoriety = clamp(s.notoriety, earnedFloor(s));
   remember(w, n, won ? 'harm' : 'door', why);
   payMilestones(w, n);
 }

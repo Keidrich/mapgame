@@ -21,6 +21,18 @@ export const ASSET = {
   heatPerUse: 1,
   /** They will not do it for ever without hearing from you. Days of silence before they drift. */
   goesCold: 25,
+  /**
+   * Days of spread on that, per person, so a batch recruited in the same week does not all lapse
+   * on the same morning.
+   *
+   * `goesCold` was a flat global threshold, so every asset turned on day 12 and never used became
+   * eligible to drift on day 37 together — and two separate soak runs had several "is not
+   * returning calls" lines land on one day. The 20%-a-day roll spreads the *drop* a little and
+   * does nothing about the clump, because they all entered the pool at once. The offset is
+   * derived from the person's id rather than rolled, so it is stable across a save and identical
+   * on a replay: one relationship, one clock.
+   */
+  coldSpread: 12,
 };
 
 /**

@@ -104,6 +104,17 @@ export function confrontOptions(w: World, c: Confrontation): ConfrontOption[] {
   ];
 }
 
+/**
+ * Is somebody already at this exact door today? Two acts a day in war can pick the same racket
+ * twice, and then the player gets the same building's name in the queue twice over with no way
+ * to tell the two apart — which is the one case where "it looks like a duplicate" really is one.
+ */
+export function alreadyAtTheDoor(w: World, c: Pick<Confrontation, 'businessId' | 'npcId' | 'blockId'>): boolean {
+  const at = c.businessId ?? c.npcId ?? c.blockId;
+  if (!at) return false;
+  return confrontations(w).some(x => x.day === w.day && (x.businessId ?? x.npcId ?? x.blockId) === at);
+}
+
 /** Queue one. Called from the faction tick instead of applying the damage there and then. */
 export function queueConfrontation(w: World, c: Omit<Confrontation, 'id' | 'day'>): Confrontation {
   const full: Confrontation = { ...c, id: nid(w, 'x'), day: w.day };
@@ -160,7 +171,7 @@ export function resolveConfrontation(w: World, c: Confrontation, given: Confront
   if (approach === 'absent') {
     land(w, c, rng, 1);
     scoreMeeting(w, led, true, stake, `They came for ${what(w, c)} and you were not there. ${damageLine(w, c)}`);
-    log(w, `You were not there when ${led ? nemesisName(led) : short} came. ${damageLine(w, c)}`, 'bad', refs(c));
+    log(w, `You were not there when ${led ? nemesisName(led) : short} came to ${what(w, c)}. ${damageLine(w, c)}`, 'bad', refs(c));
     return false;
   }
 
@@ -169,12 +180,12 @@ export function resolveConfrontation(w: World, c: Confrontation, given: Confront
   if (approach === 'flee') {
     score(w, !won, won ? `You went out the back on them at ${what(w, c)}.` : `They were already at the back door at ${what(w, c)}.`);
     if (won) {
-      log(w, `You are out the back before they are through the door. Nothing of yours is broken, but ${short} tell it their way.`, 'info', refs(c));
+      log(w, `You are out the back of ${what(w, c)} before they are through the door. Nothing of yours is broken, but ${short} tell it their way.`, 'info', refs(c));
       w.player.respect = clamp(w.player.respect - 2);
       if (f) f.standing[PLAYER] = clamp(f.standing[PLAYER] + 2, -100, 100);  // they got what they wanted without a fight
     } else {
       land(w, c, rng, 1);
-      log(w, `You go for the door and they are already there. ${damageLine(w, c)}`, 'bad', refs(c));
+      log(w, `You go for the door at ${what(w, c)} and they are already there. ${damageLine(w, c)}`, 'bad', refs(c));
       w.player.respect = clamp(w.player.respect - 4);
     }
     return won;
@@ -186,14 +197,14 @@ export function resolveConfrontation(w: World, c: Confrontation, given: Confront
     const helper = crew.length ? w.npcs[rng.pick(crew)] : undefined;
     if (won) {
       if (f) f.soldiers = Math.max(0, f.soldiers - 1);
-      log(w, `${helper ? `${helper.name} and two others` : 'Your people'} come round the corner before it starts properly. ${short} count heads and leave.`, 'good', refs(c));
+      log(w, `${helper ? `${helper.name} and two others` : 'Your people'} come round the corner at ${what(w, c)} before it starts properly. ${short} count heads and leave.`, 'good', refs(c));
       spreadRep(w, c.blockId ?? w.player.currentBlockId, { respect: 3 }, 1, 'backed');
       heat(2);
       if (helper) adjustRel(w, helper, { trust: 4, respect: 3 });
     } else {
       land(w, c, rng, 0.6);
       if (helper?.crew) { helper.crew.status = 'injured'; helper.crew.statusDays = rng.int(3, 7); helper.crew.assignment = undefined; }
-      log(w, `Your people get there late. ${damageLine(w, c)}${helper ? ` ${helper.name} took a beating on the way in.` : ''}`, 'bad', refs(c));
+      log(w, `Your people got to ${what(w, c)} late. ${damageLine(w, c)}${helper ? ` ${helper.name} took a beating on the way in.` : ''}`, 'bad', refs(c));
       heat(3);
     }
     return won;
@@ -206,18 +217,27 @@ export function resolveConfrontation(w: World, c: Confrontation, given: Confront
     w.player.fear = clamp(w.player.fear + 4);
     spreadRep(w, c.blockId ?? w.player.currentBlockId, { respect: 4, fear: 3 }, 1, 'violence');
     heat(c.war ? 6 : 4);
-    log(w, `You put the first one down and the rest of them think better of it. ${short} leave with nothing. The street watched.`, 'good', refs(c));
+    log(w, `You put the first one down at ${what(w, c)} and the rest of them think better of it. ${short} leave with nothing. The street watched.`, 'good', refs(c));
   } else {
     land(w, c, rng, 1.25);
     w.player.heat = clamp(w.player.heat);
     heat(c.war ? 7 : 5);
-    log(w, `There are more of them than there are of you. ${damageLine(w, c)} You will feel that tomorrow.`, 'bad', refs(c));
+    log(w, `There are more of them than there are of you at ${what(w, c)}. ${damageLine(w, c)} You will feel that tomorrow.`, 'bad', refs(c));
   }
   return won;
 }
 
 const refs = (c: Confrontation) => ({ factionId: c.factionId, businessId: c.businessId, npcId: c.npcId, blockId: c.blockId });
-/** Where it happened, for a ledger line that reads like a memory rather than a field name. */
+/**
+ * Where it happened, for a ledger line that reads like a memory rather than a field name.
+ *
+ * Also in every outcome line above, and that is not decoration. In war a faction takes two acts a
+ * day, so two *different* incidents — muscle in one of your rackets, one of your crew against a
+ * wall across town — both resolved with a fight and both won printed the same fixed string
+ * naming only the faction. It read as one event logged twice, and was reported as a duplicate-
+ * processing bug in four separate soak runs. There was never a duplicate: the log was simply not
+ * saying which of the two it was talking about.
+ */
 function what(w: World, c: Confrontation): string {
   const biz = c.businessId ? w.businesses[c.businessId] : undefined;
   if (biz) return biz.name;

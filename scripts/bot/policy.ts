@@ -355,6 +355,7 @@ export function workTheCorners(c: Ctx) {
 }
 
 /** The street: recruit, lie low, add rackets, expand, buy in. Roughly what it always did. */
+let bribedOn = -1;
 export function workTheStreet(c: Ctx) {
   let guard = 0;
   while (c.w.player.ap > 0 && guard++ < 30) {
@@ -368,11 +369,15 @@ export function workTheStreet(c: Ctx) {
       continue;
     }
     if (p.heat > 45) {
+      // One bribe a day, not one per pass round this loop: the captain takes the money every
+      // time he is asked, and the loop asked seven times in a day in the law scenario.
       const captain = select.officials(w).find(o => o.official!.kind === 'captain');
-      if (captain && p.cash > 2500) tryAct(c, { type: 'bribe_official', npcId: captain.id, amount: 1000 });
+      if (captain && p.cash > 2500 && bribedOn !== w.day && tryAct(c, { type: 'bribe_official', npcId: captain.id, amount: 1000 })) bribedOn = w.day;
       const n = c.rng.pick(biz.flatMap(b => [b.ownerId, ...b.patronIds]));
-      if (goTo(c, npcBlock(c, n))) tryAct(c, { type: 'visit', npcId: n });
-      continue;
+      // same trap as the fallback at the bottom of this loop: a failed visit must end the day,
+      // not send the bot walking between two blocks until the guard runs out
+      if (goTo(c, npcBlock(c, n)) && tryAct(c, { type: 'visit', npcId: n })) continue;
+      break;
     }
     // Which racket to put where is a real decision now: saturation decays the fifth of a kind in
     // a district and synergy pays kinds that feed each other. `racketsByOutlook` is the same
@@ -415,8 +420,16 @@ export function workTheStreet(c: Ctx) {
     if (buy && p.cash > buy.value * 1.5) {
       if (tryAct(c, { type: 'buy_business', businessId: buy.id, offer: Math.round(buy.value * 0.9) })) { bump(c.cov, 'businesses_bought'); continue; }
     }
+    // Last resort: go and talk to somebody. If even that will not take — everybody nearby has
+    // already been spoken to today — the day is over as far as this loop is concerned.
+    //
+    // This used to `continue` on a failed visit, and once a walk between two adjacent blocks
+    // costs no legwork the bot oscillated between the same pair for the rest of the guard's
+    // thirty iterations, logging a walk each time and doing nothing. It is the eight identical
+    // "You walk from J8 to K7" lines at the end of a long honest run.
     const n = c.rng.pick(biz.flatMap(b => [b.ownerId, ...b.patronIds]));
-    if (goTo(c, npcBlock(c, n))) tryAct(c, { type: 'visit', npcId: n }); else break;
+    if (goTo(c, npcBlock(c, n)) && tryAct(c, { type: 'visit', npcId: n })) continue;
+    break;
   }
 }
 
@@ -675,4 +688,4 @@ export function tallyNight(c: Ctx, before: { busts: number; logLen: number }) {
 const seen = new Set<Id>();
 const absent = new Set<Id>();
 /** Reset the per-run memory, so two runs in one process do not pollute each other. */
-export function resetPolicy() { seen.clear(); absent.clear(); seenIntel.clear(); seenCases.clear(); lastRecipe.clear(); madeNemesis.clear(); }
+export function resetPolicy() { bribedOn = -1; seen.clear(); absent.clear(); seenIntel.clear(); seenCases.clear(); lastRecipe.clear(); madeNemesis.clear(); }

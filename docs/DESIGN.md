@@ -387,10 +387,35 @@ fresh name every week — and `scoreMeeting` writes the meeting to their page.
 
 Notoriety buys `MILESTONES` in order, each paid once and each one legible change: a trait, then
 muscle, then **a name** (`nemesisName` replaces the given name everywhere from then on), then
-connections, then brains. Beating them takes it back. It also feeds `successionWeight`, which is
-on the existing `f.crisis` scale and in `candidatesFor` — a lieutenant who has been beating you in
-public is exactly who the soldiers would follow, and the shortlist used to be whoever happened to
-be first in the array.
+connections, then brains. It also feeds `successionWeight`, which is on the existing `f.crisis`
+scale and in `candidatesFor` — a lieutenant who has been beating you in public is exactly who the
+soldiers would follow, and the shortlist used to be whoever happened to be first in the array.
+
+**Three things make one, and for a long time only two of them counted.** A win against the player
+is worth `perWin` × the stake; a loss shaves `perLossFraction` of what they have; and *turning up
+at all* is worth `perMeeting`, win or lose.
+
+That last one is the fix for a system that was quietly unreachable. Notoriety floors at 0 and a
+loss used to take a flat slab off it, so a lieutenant who came at the player and lost sat on the
+floor for ever and no later win climbed off it — a sixty-day war soak had one lieutenant at the
+player's door **84 times**, W7 L77, with a notoriety of **0.0**, and every scenario in the sweep
+finished with zero nemeses. A system that only fires for a player who is losing is backwards for a
+game whose whole arc is starting from nothing. The three terms now sit in tension on purpose:
+
+- somebody who *only* ever loses plateaus at `perMeeting / perLossFraction`, which is deliberately
+  **below `known`** — on your sheet with a record, not your nemesis;
+- somebody who beats you occasionally crosses it, because a win is worth several meetings;
+- and `earnedFloor` stops a later run of player wins walking an established nemesis back down past
+  milestones they have already been paid. A name the street gave them does not come off.
+
+Erosion is proportional rather than flat for the same reason it is not zero: "a nemesis who keeps
+losing stops being one" is right, but a fixed subtraction against a floor of 0 is a deletion, not
+a decline. `sim/nemesis-balance.test.ts` holds all of it.
+
+**The name is a replacement, not an addition.** `populate.ts` gives every boss and lieutenant a
+nickname at generation, and a nemesis is always a lieutenant — so `nemesisName` inserting an
+earned nickname next to the given one produced `Cassandra "the Nail" "Moose" Booker` on *every*
+nemesis that ever reached the `named` milestone. It strips whatever is already in quotes first.
 
 **Defection** (`sim/defect.ts`) is the mirror of `flipLieutenant`, which had handled losing one of
 yours since the lieutenant pass and had no opposite. It is explicitly *not* a loyalty number you
@@ -417,7 +442,11 @@ concession costs — `concessionReason`, so leverage or a settled favour — and
   own people, through `assetBonus`, which reads the target the same way every other modifier does.
 
 They go cold if you never call: `ASSET.goesCold` days of silence and they drift, which is why
-using one is what keeps it.
+using one is what keeps it — plus a fixed per-person offset up to `ASSET.coldSpread`, derived from
+their id rather than rolled. Without it the threshold is one global clock: a batch turned in the
+same week and left alone all becomes eligible on the same morning, and soak runs had several "is
+not returning calls" lines land on one day. Deriving it from the id rather than a roll keeps
+`/sim` pure and survives a save round trip, so one relationship has one clock for its whole life.
 
 **Referrals** are the one thing in the game that shortcuts the familiarity floor. Somebody who
 knows you well enough (`REFERRAL.minTrust`, and familiar themselves) makes a call, and the target's
@@ -647,6 +676,26 @@ standing in front of you for that one.
 Ignore a confrontation and End Day lands it exactly as it would have before any of this
 existed, which is also what keeps the headless soak honest.
 
+**Every outcome line names where it happened, and that is not decoration.** In war a faction takes
+*two acts a day*. Two genuinely different incidents — muscle in one of your rackets, one of your
+people against a wall across town — both answered with a fight and both won printed the same fixed
+sentence, which named the faction and nothing else. It read as one event logged twice and was
+reported as a duplicate-processing bug from four separate soak runs. There was never a duplicate:
+the log simply was not saying which of the two it meant. `what(w, c)` was already computed for the
+ledger line; the log lines now use it too.
+
+The one case where it really was a duplicate is `alreadyAtTheDoor`: two acts a day can pick the
+same racket twice, and one door gets one crowd.
+
+**A bust never takes the last body standing.** Each of your people is rolled independently, so two
+busts back to back could and did leave a player with 8 of 8 jailed, dead or injured and nobody to
+assign to anything — a player who had already crushed every criminal rival in the city. That is
+not a hard night, it is a state with no exit, and the exit was blocked twice over: `spring_crew`,
+the one op whose entire purpose is getting your people out of a cell, required an *idle crew
+member*, which is precisely the resource its own failure mode removes. So both halves changed —
+`spring_crew` is `minCrew: 0` (you go yourself; see §4.4 for what a solo op's `needs` have to look
+like), and `bust()` leaves whoever is left on their feet. Held by `sim/crew-wipeout.test.ts`.
+
 ### 4.9 War work, armed work, and casing a place
 
 `OpRequires` gained two conditions rather than a parallel gate: `stance` (somebody must be at
@@ -857,6 +906,24 @@ Scenarios:
 moving a step changes the RNG stream and the curve with it for no gameplay reason. Coverage comes
 from the other scenarios, never from changing this one.
 
+Frozen against *tuning*, not against bug fixes. `workTheStreet` ended its day by walking to a
+random person and visiting them, and on a failed visit it `continue`d — so once a walk between two
+adjacent blocks costs no legwork the bot oscillated between the same pair until the loop guard ran
+out, logging a walk each time and doing nothing. That is the eight identical "You walk from J8 to
+K7" lines at the end of a long honest run. Fixing it moves the honest curve, and that is correct:
+the numbers were being produced by a bot that spent the end of every day in a loop. When a fix
+moves this curve, say so in the changelog with the before and after — the value of the run is that
+it is comparable, and a silently moved baseline is worse than a moved one.
+
+**What the honest run actually says about the game, which is a separate thing.** Ninety days of
+honest play still touches 7 of 25 systems and finishes with one crew member and no cash. Most of
+that is the scenario's own constraint — it plans no ops at all by design, so nine of the rows it
+misses are downstream of that. What is *not* the scenario's constraint is that the outfit shrinks:
+wages outrun three rackets' income and the player cannot get out of it without doing something the
+honest bot is not allowed to do. That is a real fact about ordinary play and it is written down
+here rather than tuned away, because the honest run is a measuring stick and you do not fix a
+measurement by moving the stick.
+
 **A boosted scenario gets a longer day.** `CORE` opens with `{ what: 'ap', amount: 14 }`, and
 `cheat('ap', n)` raises `apMax` rather than only refilling. This is not flavour: every pass since
 the standing rework added something the bot spends AP on, and against a fixed eight-AP day each one
@@ -864,7 +931,7 @@ quietly cost op coverage — the sixty-day sweep fell from 32 distinct op kinds 
 passes before this went in, and came back to 33 after. The honest scenario does not get it and must
 never get it; its whole value is being comparable across passes.
 
-**Coverage is the point.** Every run reports which of nineteen systems it touched, how many
+**Coverage is the point.** Every run reports which of twenty-five systems it touched, how many
 distinct op kinds ran, which complications fired, and what never ran at all. A `✗` means that
 system had no coverage and any conclusion drawn about it from the soak is worthless.
 `scripts/bot.test.ts` fails when `everything` stops reaching every system — so a future pass that

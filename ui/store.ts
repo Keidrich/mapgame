@@ -42,6 +42,7 @@ export interface UiState {
   layer: MapLayer;      // the map overlay; reads fields that already exist, adds no simulation
   layerFactionId?: Id;  // which faction the influence layer is showing
   layerProduct?: ProductKind; // which product the demand layer is showing
+  layersOpen: boolean;  // the overlay picker: a menu, so the map can be looked at without it
 }
 
 export const SAVE_KEY = 'rackets.save.v3';
@@ -76,7 +77,7 @@ function loadVictorySeen(w: World | null): boolean {
   try { return !!w && localStorage.getItem(VICTORY_KEY) === String(w.seed); } catch { return false; }
 }
 
-let state: UiState = { world: null, booting: true, chunkVersion: 0, tab: 'map', sheets: [], selection: {}, scene: null, toasts: [], victorySeen: false, help: false, recap: null, layer: 'control' };
+let state: UiState = { world: null, booting: true, chunkVersion: 0, tab: 'map', sheets: [], selection: {}, scene: null, toasts: [], victorySeen: false, help: false, recap: null, layer: 'control', layersOpen: false };
 const listeners = new Set<() => void>();
 let toastSeq = 1;
 
@@ -112,6 +113,10 @@ export function idleTick(w: World, savedAt: number | undefined, now: number) {
 }
 export function setLayer(layer: MapLayer, opts: { factionId?: Id; product?: ProductKind } = {}) {
   set({ layer, layerFactionId: opts.factionId ?? state.layerFactionId, layerProduct: opts.product ?? state.layerProduct });
+}
+/** Open or shut the overlay picker. Closed is the default: the map is the thing being looked at. */
+export function toggleLayers(open?: boolean) {
+  set({ layersOpen: open ?? !state.layersOpen });
 }
 export function bumpChunks() { set({ chunkVersion: state.chunkVersion + 1 }); }
 /**

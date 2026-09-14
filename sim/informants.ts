@@ -17,6 +17,7 @@ import { connectionsOf } from './connections';
 import { concessionReason, familiar } from './standing';
 import { remember } from './ledger';
 import type { Rng } from './rng';
+import { hashString } from './rng';
 import { PLAYER, type Asset, type Faction, type FactionId, type Id, type Npc, type World } from './types';
 import { addHeat, adjustRel, log } from './util';
 
@@ -68,10 +69,18 @@ export function turnAsset(w: World, n: Npc, kind: AssetKind): Asset {
   return n.asset;
 }
 
+/**
+ * How long *this* person will go without hearing from you. `ASSET.goesCold` plus a fixed offset
+ * off their id — see `ASSET.coldSpread` for why it is not one number for everybody.
+ */
+export function coldAfter(n: Npc): number {
+  return ASSET.goesCold + (hashString(n.id) % (ASSET.coldSpread + 1));
+}
+
 /** They stop returning calls if you never make any. Read by the tick, not by the player. */
 export function goneCold(w: World, n: Npc): boolean {
   const a = n.asset; if (!a) return false;
-  return w.day - Math.max(a.since, lastUse(n)) > ASSET.goesCold;
+  return w.day - Math.max(a.since, lastUse(n)) > coldAfter(n);
 }
 function lastUse(n: Npc): number {
   for (let i = (n.ledger ?? []).length - 1; i >= 0; i--) { const e = n.ledger![i]; if (e.kind === 'intel') return e.day; }

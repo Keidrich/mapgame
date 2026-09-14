@@ -18,7 +18,36 @@ import type { Trait } from '@sim/types';
 export const NEMESIS = {
   /** Notoriety a win is worth before the stake multiplier. A loss to the player takes some back. */
   perWin: 9,
-  perLoss: 6,
+  /**
+   * What a loss takes back, as a *fraction of what they already have* rather than a flat amount.
+   *
+   * This was a flat 6, and it made the whole system dead for any player who was winning.
+   * Notoriety floors at 0, so a lieutenant who comes at you and loses sits on the floor for ever
+   * and no later win ever climbs off it: a sixty-day war run had Pablo "Tiny" Delgado at the
+   * player's door **84 times** — W7 L77 — with a notoriety of **0.0**, and every scenario in the
+   * sweep produced zero nemeses. The system was tuned to reward failure, which is backwards for a
+   * game about starting from nothing.
+   *
+   * Proportional erosion keeps the design intent — "a nemesis who keeps losing stops being one" —
+   * without the floor swallowing everything: a loss shaves what is there instead of deleting a
+   * fixed slab of it, so somebody with a record keeps most of it and somebody with none loses
+   * nothing they had. It is also self-limiting, which the flat number was not.
+   */
+  perLossFraction: 0.12,
+  /**
+   * What simply turning up is worth, before the stake multiplier, win or lose.
+   *
+   * The file is called "the lieutenant who keeps turning up" and nothing in it counted turning
+   * up. Presence is the third thing a recurring antagonist is made of, alongside what they did to
+   * you and what you did to them — the man at your door for the ninth time is somebody now even
+   * if you have put him down all nine times.
+   *
+   * With `perLossFraction`, this sets where a lieutenant who *always* loses plateaus:
+   * `perMeeting / perLossFraction` ≈ 10–18 depending on the stakes, which sits deliberately below
+   * `known` (20). He is on your sheet with a record; he is not your nemesis. Winning even
+   * occasionally is what carries somebody over that line.
+   */
+  perMeeting: 1.4,
   /** Below this they are just a name on a card; at or above it the sheet says what they are. */
   known: 20,
   /**

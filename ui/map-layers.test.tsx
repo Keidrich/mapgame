@@ -10,7 +10,7 @@ import { generateWorld } from '@sim/generate';
 import { PLAYER, select, type World } from '@sim/index';
 import { layerValue } from './components/Map';
 import { MapLayers } from './components/MapLayers';
-import { newGame, setLayer, getState } from './store';
+import { newGame, setLayer, toggleLayers, getState } from './store';
 import { plain } from './test-util';
 
 const mk = (seed = 4) => generateWorld({ origin: { lat: 51.5, lng: -0.12 }, placeName: 'London', playerName: 'T', background: 'brains', seed });
@@ -18,11 +18,41 @@ const render = (w: World) => { newGame(w); return plain(renderToString(<MapLayer
 const anyBlock = (w: World) => Object.values(w.blocks)[0];
 
 describe('the picker', () => {
-  it('offers every overlay, and starts on plain control', () => {
+  it('is shut by default, and shut means one chip naming the mode you are in', () => {
+    // Six chips and their sub-pickers is a band of furniture across the bottom of the map that
+    // cannot be dismissed — over the ground the player is most likely to be looking at.
+    const html = render(mk());
+    expect(getState().layersOpen).toBe(false);
+    expect(html).toContain('Control');
+    for (const label of ['Heat', 'Wealth', 'Police', 'Influence', 'Demand']) {
+      expect(html, `${label} is on screen with the menu shut`).not.toContain(label);
+    }
+  });
+
+  it('offers every overlay once it is open, and starts on plain control', () => {
     const w = mk();
-    const html = render(w);
+    newGame(w); toggleLayers(true);
+    const html = plain(renderToString(<MapLayers />));
     for (const label of ['Control', 'Heat', 'Wealth', 'Police', 'Influence', 'Demand']) expect(html).toContain(label);
     expect(getState().layer).toBe('control');
+  });
+
+  it('picking one shuts it again, because picking one is why it was opened', () => {
+    const w = mk();
+    newGame(w); toggleLayers(true);
+    expect(getState().layersOpen).toBe(true);
+    setLayer('heat'); toggleLayers(false);
+    expect(getState().layersOpen).toBe(false);
+    expect(plain(renderToString(<MapLayers />))).toContain('Heat');
+  });
+
+  it('opening and shutting changes nothing in the world', () => {
+    const w = mk();
+    render(w);
+    const before = JSON.stringify(getState().world);
+    toggleLayers(true); toggleLayers(false); toggleLayers();
+    expect(JSON.stringify(getState().world)).toBe(before);
+    toggleLayers(false);
   });
 
   it('switching is presentation only: the world object is untouched', () => {

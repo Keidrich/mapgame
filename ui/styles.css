@@ -724,11 +724,19 @@ h1, h2, h3, h4, .sheet-title, .panel h2, .modal h2 {
   left: 8px; right: 8px; bottom: 72px; max-width: none;
   flex-wrap: wrap; gap: 5px;
 }
+/* Shut, the picker is one chip and the rest of the map is map. It only needs the full width of
+   the screen while it is open. */
+.layerbar:not(.open) { right: auto; }
+.layerbar-toggle { gap: 5px; }
+.layerbar.open { bottom: 72px; }
 /* Six modes have to be *visible*, not scrollable: a horizontal scroller on a map overlay is a
    row of two chips and no sign the other four exist. Tighter horizontally, full touch height. */
 .layerbar .chip.btn { flex: none; padding: 0 9px; font-size: 10.5px; letter-spacing: 0.08em; }
 .layerbar .chip.btn .icon { margin-right: 1px; }
-.layerkey { bottom: 44px; }
+ /* The ramp key only appears while the menu is open, which is when it started colliding with
+    the end-day button — it is the same band the hint already had to stop short of. */
+.layerkey { bottom: 44px; right: 150px; }
+.layerkey span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* the hint shares the bottom row with the end-day button, and stops short of it */
 .map-hint { left: 12px; right: 150px; bottom: 18px; max-width: none; }
 .fab { bottom: 10px; }
