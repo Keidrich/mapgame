@@ -20,7 +20,7 @@ import { blockName as blockNameOf, isHere, legworkFor, npcBlockIds, npcIsHere, r
 import { petition, seatReason } from './commission';
 import { claimedByPlayer } from './abandoned';
 import { isHeld, resolveHostage, roomFor } from './hostages';
-import { PLAYER_NOTE_MAX, opLocked } from './select';
+import { PLAYER_NOTE_MAX, opCost, opLocked } from './select';
 import { EQUIP_MAX, buyPrice, equipSlotsLeft, isMarket, marketStock, ownedCount, sellPrice } from './items';
 import { activeConfrontation, confrontOptions, confrontations, resolveConfrontation } from './combat';
 import { cardById, dumpCards, endTap, liveCards, runCard, scrubPower, scrubTrail, secrets, sellDirt } from './cyber';
@@ -282,11 +282,14 @@ export function can(w: World, a: Action): Affordance {
     case 'plan_op': {
       const def = OP_DEFS[a.kind];
       // the per-target gate (wire fraud) is keyed to the mark, not to the empire
-      const locked = opLocked(w, a.kind, { npcId: a.targetNpcId }); if (locked) return no(locked);
+      const locked = opLocked(w, a.kind, { npcId: a.targetNpcId, businessId: a.targetBusinessId, caseId: a.targetCaseId }); if (locked) return no(locked);
       if (a.crewIds.length < def.minCrew) return no(`Needs at least ${def.minCrew} crew.`);
       if (a.crewIds.length > def.maxCrew) return no(`Too many. Max ${def.maxCrew}.`);
       for (const id of a.crewIds) { const n = npc(id); if (!n?.crew || n.crew.status !== 'idle') return no(`${n?.name ?? 'Someone'} is not available.`); }
-      if (def.cost) { const r = cash(def.cost); if (r) return no(r); }
+      // law-facing work costs what the posture says it costs, so the planner's quote and the
+      // charge come from one function and cannot drift apart
+      const price = opCost(w, a.kind, { npcId: a.targetNpcId, caseId: a.targetCaseId });
+      if (price) { const r = cash(price); if (r) return no(r); }
       if (def.target === 'business') {
         const b = a.targetBusinessId ? biz(a.targetBusinessId) : undefined; if (!b) return no('Pick a target.');
         if (def.ownBusiness && b.ownedBy !== 'player') return no('Must be a place you own.');
@@ -297,6 +300,7 @@ export function can(w: World, a: Action): Affordance {
         if (def.ownRacket && !b.racketIds.some(id => w.rackets[id]?.owner === PLAYER)) return no('You do not run anything there.');
       }
       if (def.target === 'npc' && !a.targetNpcId) return no('Pick a target.');
+      if (def.target === 'case' && !a.targetCaseId) return no('Pick a file.');
       if (def.requires?.stance?.length) {
         // war work is aimed at somebody in particular, and they have to be the ones at war
         const at = a.targetFactionId ?? (a.targetNpcId ? npc(a.targetNpcId)?.faction : undefined)
@@ -326,7 +330,14 @@ export function can(w: World, a: Action): Affordance {
         if (!s || s.owner !== PLAYER) return no('You need a safehouse to put them in.');
         if (roomFor(s, SAFEHOUSE_TIERS[s.tier - 1].crewBeds) <= 0) return no(`${s.name} has nowhere to put anyone else.`);
       }
-      if (def.target === 'npc') { const n = npc(a.targetNpcId!); if (!n?.alive) return no('Already gone.'); if (n.official) return no('Going after an official ends careers. Not available.'); if (a.kind === 'frame' && !(n.faction && w.factions[n.faction] && (n.role === 'boss' || n.role === 'lieutenant'))) return no('A frame only sticks on a faction boss or lieutenant.'); }
+      if (def.target === 'npc') {
+        const n = npc(a.targetNpcId!); if (!n?.alive) return no('Already gone.');
+        // Violence against an official is still off the table. Sitting down with one and paying
+        // for their attention is the entire point of an officialTarget op, so it is exempt —
+        // the gate is about what you do to them, not about whether they may be a target at all.
+        if (n.official && !def.requires?.officialTarget) return no('Going after an official ends careers. Not available.');
+        if (a.kind === 'frame' && !(n.faction && w.factions[n.faction] && (n.role === 'boss' || n.role === 'lieutenant'))) return no('A frame only sticks on a faction boss or lieutenant.');
+      }
       // The inside route normally means somebody at a targeted business opening a door.
       // `claim_abandoned` has its own: a councillor moving a file, checked above.
       if (a.approach === 'inside' && a.kind !== 'claim_abandoned') {
@@ -643,9 +654,9 @@ export function dispatch(prev: World, a: Action): World {
     }
 
     case 'plan_op': {
-      const def = OP_DEFS[a.kind]; if (def.cost) takeCash(w, def.cost);
+      const def = OP_DEFS[a.kind]; const price = opCost(w, a.kind, { npcId: a.targetNpcId, caseId: a.targetCaseId }); if (price) takeCash(w, price);
       const insider = a.approach === 'inside' ? insidersFor(w, a.targetBusinessId)[0] : undefined;
-      const o: Op = { id: nid(w, 'o'), kind: a.kind, approach: a.approach, mode: a.mode ?? OP_DEFS[a.kind].modes?.[0]?.id, insideId: insider?.id, targetBusinessId: a.targetBusinessId, targetNpcId: a.targetNpcId, targetFactionId: a.targetFactionId, targetBlockId: a.targetBlockId, targetDistrictId: a.targetDistrictId, safehouseId: a.safehouseId ?? (a.kind === 'kidnap' ? p.safehouseIds[0] : undefined), crewIds: a.crewIds.slice(), planDays: def.planDays, daysLeft: def.planDays, status: def.planDays === 0 ? 'ready' : 'planning', createdDay: w.day };
+      const o: Op = { id: nid(w, 'o'), kind: a.kind, approach: a.approach, mode: a.mode ?? OP_DEFS[a.kind].modes?.[0]?.id, insideId: insider?.id, targetBusinessId: a.targetBusinessId, targetNpcId: a.targetNpcId, targetFactionId: a.targetFactionId, targetBlockId: a.targetBlockId, targetDistrictId: a.targetDistrictId, targetCaseId: a.targetCaseId, safehouseId: a.safehouseId ?? (a.kind === 'kidnap' ? p.safehouseIds[0] : undefined), crewIds: a.crewIds.slice(), planDays: def.planDays, daysLeft: def.planDays, status: def.planDays === 0 ? 'ready' : 'planning', createdDay: w.day };
       w.ops[o.id] = o; p.opIds.push(o.id);
       for (const id of a.crewIds) { const n = npc(id); n.crew!.assignment = { kind: 'op', opId: o.id }; n.crew!.status = 'assigned'; }
       log(w, `${def.label}${a.approach ? ` (${OP_APPROACHES[a.approach].label.toLowerCase()}${insider ? `, ${insider.name} inside` : ''})` : ''} is ${o.status === 'ready' ? 'ready to go' : `in planning (${def.planDays} days)`}.`, 'info', { opId: o.id });

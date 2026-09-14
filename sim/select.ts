@@ -8,9 +8,11 @@ export { lieutenants, lieutenantOf, districtsRunnable, districtIncome, promoteRe
 export { nearPolice } from './tick';
 export { brokerReason } from './politics';
 export { route, travelCost, isHere, npcIsHere, npcBlockIds, npcReachBlock, currentBlock, yourTurf, footholdBlocks, legworkFor, FOOTHOLD } from './travel';
+import { openCases } from './cases';
 export { openCases, caseWitnessOf } from './cases';
 export { connectionsOf, familyOf, backingOf } from './connections';
 export { ownedItems, equippedItems, isEquipped, ownedCount, equippedCount, equipSlotsLeft, kitSkillBoost, kitApproachBias, kitHeatMult, kitMods, isMarket, marketStock, buyPrice, sellPrice, EQUIP_MAX } from './items';
+import { authorityDifficulty, buyCaseCost, buyDownCost } from './authority-ops';
 import { equippedItems, kitApproachBias, kitSkillBoost } from './items';
 export { confrontations, activeConfrontation, confrontOptions, confrontChance, backupCrew, CONFRONT_AS } from './combat';
 export { cards, liveCards, cardById, cardValue, runOdds, dumpValue, tapped, daysTapped, tapRisk, secrets, secretsAbout, unsoldSecrets, dirtPrice, scrubPower, cyberHeat } from './cyber';
@@ -67,8 +69,13 @@ export function crewSkillSum(w: World, ids: Id[]): Record<string, number> {
   for (const id of ids) { const n = w.npcs[id]; if (!n) continue; for (const k of Object.keys(s)) s[k] += n.skills[k as keyof typeof n.skills]; }
   return s;
 }
-export function opChance(w: World, kind: OpKind, crewIds: Id[], approach?: OpApproach, targetBusinessId?: Id): number {
+export interface OpTarget { businessId?: Id; npcId?: Id; caseId?: Id }
+/** Old call sites pass a business id; newer ops need a person or a file, so both are accepted. */
+function asTarget(t?: Id | OpTarget): OpTarget { return typeof t === 'string' ? { businessId: t } : (t ?? {}); }
+
+export function opChance(w: World, kind: OpKind, crewIds: Id[], approach?: OpApproach, target?: Id | OpTarget): number {
   const d = OP_DEFS[kind]; const s = crewSkillSum(w, crewIds); const ap = approach ? OP_APPROACHES[approach] : undefined;
+  const tgt = asTarget(target); const targetBusinessId = tgt.businessId;
   // On a job you can do alone, you are one of the hands. Without this a minCrew-0 op with no crew
   // on it has a skill sum of zero and floors at 3% — the tree says "solo ok" and the game says no.
   // It matters most on the wire, where the skill the job wants (tech) is the player's own and
@@ -84,7 +91,11 @@ export function opChance(w: World, kind: OpKind, crewIds: Id[], approach?: OpApp
   ratio = n ? ratio / n : 1;
   // a place you have walked in the last few days is a place you know the back of
   const cased = targetBusinessId && (w.businesses[targetBusinessId]?.casedUntil ?? 0) >= w.day ? CASE_JOINT.difficulty : 0;
-  const base = 50 + (ratio - 1) * 70 - (d.difficulty + (ap?.difficulty ?? 0) + cased - 50) * 0.6 - w.player.heat * 0.15;
+  // Work aimed at the law is harder the harder the law is already looking, and harder again on
+  // ground they are standing on — the same way every other op reads its target's state.
+  const authority = d.target === 'case' || d.requires?.officialTarget || d.requires?.jailedTarget
+    ? authorityDifficulty(w, tgt) : 0;
+  const base = 50 + (ratio - 1) * 70 - (d.difficulty + (ap?.difficulty ?? 0) + cased + authority - 50) * 0.6 - w.player.heat * 0.15;
   return Math.max(3, Math.min(97, Math.round(base)));
 }
 /** People at a target who trust you enough to be an inside man (best first). */
@@ -145,7 +156,7 @@ export function controlShare(w: World): number {
 
 // ---------------------------------------------------------------- op progression
 /** Why this op is not on the table yet, or undefined when it is. Same shape as availableRackets. */
-export function opLocked(w: World, kind: OpKind, target?: { npcId?: Id }): string | undefined {
+export function opLocked(w: World, kind: OpKind, target?: { npcId?: Id; businessId?: Id; caseId?: Id }): string | undefined {
   const req = OP_DEFS[kind].requires; if (!req) return undefined;
   const p = w.player;
   if (req.crewCount !== undefined && p.crewEver < req.crewCount) return `Needs ${req.crewCount} ${req.crewCount === 1 ? 'person' : 'people'} to have joined your crew. You have had ${p.crewEver}.`;
@@ -166,6 +177,29 @@ export function opLocked(w: World, kind: OpKind, target?: { npcId?: Id }): strin
     return `War work. Nobody is at ${req.stance.join(' or ')} with you${req.stance.includes('beef') ? ' yet' : ''}.`;
   }
   if (req.weapon && !equippedItems(w).some(i => i.category === 'weapon')) return 'You do not walk into this one empty-handed. Carry a weapon.';
+  // The per-target family, all cut from the same template as rattedTarget below: each asks about
+  // *this mark* rather than about the empire, so each takes the op's own target. With no target
+  // in hand (browsing the tree) they ask only whether any valid mark exists at all.
+  if (req.officialTarget) {
+    const n = target?.npcId ? w.npcs[target.npcId] : undefined;
+    if (n) { if (!n.official?.authorityId) return `${n.name} does not answer to anybody worth reaching.`; }
+    else if (!Object.values(w.npcs).some(x => x.official?.authorityId && x.alive)) return 'Nobody inside a precinct or city hall to sit down with.';
+  }
+  if (req.jailedTarget) {
+    const n = target?.npcId ? w.npcs[target.npcId] : undefined;
+    if (n) { if (n.crew?.status !== 'jailed') return `${n.name} is not in a cell.`; }
+    else if (!w.player.crewIds.some(id => w.npcs[id]?.crew?.status === 'jailed')) return 'Nobody of yours is inside. This one is for getting your own people out.';
+  }
+  if (req.casedTarget) {
+    const b = target?.businessId ? w.businesses[target.businessId] : undefined;
+    if (b) { if ((b.casedUntil ?? 0) < w.day) return `You have not walked ${b.name}. Case the joint first — this one needs the room in your head.`; }
+    else if (!Object.values(w.businesses).some(x => (x.casedUntil ?? 0) >= w.day)) return 'Nothing you have cased recently. Walk the place first.';
+  }
+  if (req.caseTarget) {
+    const c = target?.caseId ? (w.cases ?? []).find(x => x.id === target.caseId) : undefined;
+    if (c) { if (c.status !== 'open') return 'That file is already closed.'; }
+    else if (!openCases(w).length) return 'No open investigation to reach into. Nothing to kill yet.';
+  }
   if (req.rattedTarget) {
     // The only per-target requirement in the game: it asks about this mark, not about you. With a
     // target in hand that is the whole check. Without one — the ops tree, browsing — the honest
@@ -182,7 +216,7 @@ export function factionsAt(w: World, stances: Stance[]): Faction[] {
 }
 
 /** Ops whose requirements are met right now. */
-export function opsAvailable(w: World, target?: { npcId?: Id }): OpKind[] {
+export function opsAvailable(w: World, target?: { npcId?: Id; businessId?: Id; caseId?: Id }): OpKind[] {
   return (Object.keys(OP_DEFS) as OpKind[]).filter(k => !opLocked(w, k, target));
 }
 /** The player's rackets of one kind — the carding racket a card dump needs, for instance. */
@@ -200,3 +234,18 @@ export {
   pressureOn, boughtRelief, postureFor, topPosture, raidPressure,
 } from './authority';
 export { presenceBlocks, revealable, isFogged, withinReach, distanceToChunk, nearestFoggedDistance, REVEAL_M } from './fog';
+
+/**
+ * What an op costs upfront. Most are a constant; the law-facing ones scale with how hard the
+ * building is already looking. `can()` and the dispatch both read this, so the number quoted in
+ * the planner and the number taken out of your pocket can never drift apart.
+ */
+export function opCost(w: World, kind: OpKind, target?: { npcId?: Id; caseId?: Id }): number {
+  const d = OP_DEFS[kind];
+  if (d.costScales !== 'authority') return d.cost ?? 0;
+  return (d.cost ?? 0) + (kind === 'buy_case' ? buyCaseCost(w, target?.caseId) : buyDownCost(w, target?.npcId));
+}
+export {
+  targetAuthority, authorityDifficulty, buyDownCost, buyCaseCost, buyDownAmount,
+  jailedCrew, isJailedCrew, openCaseById, lawJobPrice, rungOf,
+} from './authority-ops';

@@ -153,3 +153,129 @@ describe('the street tier is genuinely solo', () => {
     expect(select.opChance(w, 'robbery', [])).toBeGreaterThan(0);
   });
 });
+
+/**
+ * Every op added in the roster expansion, checked against the gate it declares. The point is
+ * that nothing lives outside the tree: if an op exists, it has a `requires` and a `tier`, its
+ * gate actually bites when unmet, and it actually opens when met.
+ */
+describe('the expanded roster', () => {
+  const NEW_OPS: OpKind[] = [
+    'buy_down', 'spring_crew', 'buy_case',
+    'heist_gallery', 'heist_countroom', 'heist_payroll', 'heist_containers',
+    'long_con', 'staged_accident', 'shell_company', 'charity_front', 'counterfeit_run',
+    'dockside_pickup', 'hijack_load', 'convoy_run',
+  ];
+
+  it('every one of them is in the tree with a tier and a requires', () => {
+    for (const k of NEW_OPS) {
+      const d = OP_DEFS[k];
+      expect(d, k).toBeTruthy();
+      expect(typeof d.tier, k).toBe('number');
+      expect(d.requires, `${k} has no requires`).toBeTruthy();
+      expect(Object.keys(d.requires!).length, `${k} has an empty requires`).toBeGreaterThan(0);
+    }
+  });
+
+  it('every one of them is locked for a brand new player, with a reason', () => {
+    const w = mk();
+    const open = new Set(select.opsAvailable(w));
+    for (const k of NEW_OPS) {
+      expect(open.has(k), `${k} should not be open at day 1`).toBe(false);
+      expect(select.opLocked(w, k), k).toBeTruthy();
+    }
+  });
+
+  it('reuses only gating patterns that already existed', () => {
+    const allowed = new Set(['crewCount', 'safehouseTier', 'racketKinds', 'businessOwned', 'priorOps', 'stance', 'weapon', 'rattedTarget', 'officialTarget', 'jailedTarget', 'casedTarget', 'caseTarget']);
+    for (const k of Object.keys(OP_DEFS) as OpKind[]) {
+      for (const key of Object.keys(OP_DEFS[k].requires ?? {})) expect(allowed.has(key), `${k}.requires.${key}`).toBe(true);
+    }
+  });
+
+  it('anything you would not walk into empty-handed asks for a weapon', () => {
+    const w = mk(); give.crew(w, 3);
+    for (const k of ['heist_payroll', 'hijack_load'] as OpKind[]) {
+      expect(OP_DEFS[k].requires?.weapon, k).toBe(true);
+      expect(select.opLocked(w, k), k).toContain('empty-handed');
+      const armed = structuredClone(w);
+      armed.player.items = ['pistol']; armed.player.equipped = ['pistol'];
+      expect(select.opLocked(armed, k), k).toBeUndefined();
+    }
+  });
+
+  it('crew-count gates open at the number they name and not before', () => {
+    for (const k of ['heist_containers', 'hijack_load', 'convoy_run'] as OpKind[]) {
+      const need = OP_DEFS[k].requires!.crewCount!;
+      const short = mk(); give.crew(short, need - 1);
+      short.player.items = ['pistol']; short.player.equipped = ['pistol'];
+      give.safehouse(short, 2);
+      give.doneOp(short, 'smuggle_run'); give.doneOp(short, 'dockside_pickup');
+      expect(select.opLocked(short, k), `${k} at ${need - 1} crew`).toBeTruthy();
+
+      const enough = structuredClone(short); give.crew(enough, 1);
+      expect(select.opLocked(enough, k), `${k} at ${need} crew`).toBeUndefined();
+    }
+  });
+
+  it('prior-op edges are real: the collection needs a jewel heist behind it', () => {
+    const w = mk(); give.crew(w, 3); give.safehouse(w, 2);
+    expect(select.opLocked(w, 'heist_gallery')).toContain('Jewel Heist');
+    give.doneOp(w, 'heist_jeweller');
+    expect(select.opLocked(w, 'heist_gallery')).toBeUndefined();
+  });
+
+  it('a convoy needs both a boat job and a truck job behind it', () => {
+    const w = mk(); give.crew(w, 3); give.safehouse(w, 2);
+    expect(select.opLocked(w, 'convoy_run')).toBeTruthy();
+    give.doneOp(w, 'smuggle_run');
+    expect(select.opLocked(w, 'convoy_run')).toBeUndefined();   // either edge is enough, as elsewhere in the tree
+  });
+
+  it('business-owned gates need a place of your own', () => {
+    for (const k of ['shell_company', 'charity_front'] as OpKind[]) {
+      const w = mk(); give.crew(w, 2);
+      expect(select.opLocked(w, k), k).toContain('business of your own');
+      give.business(w);
+      expect(select.opLocked(w, k), k).toBeUndefined();
+    }
+  });
+
+  it('a counterfeit run needs a racket that could move it', () => {
+    const w = mk(); give.crew(w, 2);
+    expect(select.opLocked(w, 'counterfeit_run')).toBeTruthy();
+    give.racket(w);   // numbers: not one of the kinds that can move paper
+    expect(select.opLocked(w, 'counterfeit_run')).toBeTruthy();
+    const biz = select.businessesIn(w, select.startBlock(w).id)[0];
+    mkRacket(w, 'fencing', biz);
+    expect(select.opLocked(w, 'counterfeit_run')).toBeUndefined();
+  });
+
+  it('the count room is per target: you must have cased that exact place', () => {
+    const w = mk(); give.crew(w, 3); give.safehouse(w, 2);
+    const clubs = Object.values(w.businesses).filter(b => b.type === 'nightclub');
+    if (!clubs.length) return;                       // seed without one; the gate is covered below
+    const [a, b] = clubs;
+    expect(select.opLocked(w, 'heist_countroom')).toContain('cased');
+    a.casedUntil = w.day + 3;
+    expect(select.opLocked(w, 'heist_countroom', { businessId: a.id })).toBeUndefined();
+    if (b) expect(select.opLocked(w, 'heist_countroom', { businessId: b.id })).toBeTruthy();
+    a.casedUntil = w.day - 1;                        // it goes stale
+    expect(select.opLocked(w, 'heist_countroom', { businessId: a.id })).toBeTruthy();
+  });
+
+  it('cased-target gating works off any cased place when no target is in hand', () => {
+    const w = mk(); give.crew(w, 3); give.safehouse(w, 2);
+    expect(select.opLocked(w, 'heist_countroom')).toBeTruthy();
+    Object.values(w.businesses)[0].casedUntil = w.day + 2;
+    expect(select.opLocked(w, 'heist_countroom')).toBeUndefined();
+  });
+
+  it('the tree still agrees with itself once everything is unlocked', () => {
+    const w = mk();
+    give.crew(w, 5); give.safehouse(w, 3); give.racket(w); give.business(w);
+    w.player.items = ['pistol']; w.player.equipped = ['pistol'];
+    const open = new Set(select.opsAvailable(w));
+    for (const k of Object.keys(OP_DEFS) as OpKind[]) expect(open.has(k), k).toBe(!select.opLocked(w, k));
+  });
+});

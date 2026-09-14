@@ -478,6 +478,72 @@ robbery, insurance fraud (torch an insured business you own), check-kiting fraud
 skill requirements, success roll from crew skills vs difficulty and heat, payout
 as cash/loot, consequences as heat/injury/jail/faction anger.
 
+### 4.11 Complications: a big job that stops and asks
+
+A tier-2+ op can interrupt itself partway and put a question to the player, and it does that
+through the **existing** confrontation machinery rather than anything new: a complication *is* a
+`Confrontation` with `kind: 'op'`, raised by `queueConfrontation`, answered through
+`resolve_confrontation`, priced by the same `kitSkillBoost`/`kitApproachBias`, shown by the same
+modal, and swept up by the same "unanswered lands at End Day" line in the tick. There is no
+second pending-action system and there must never be one — `sim/complications.test.ts` asserts
+that `sim/complications.ts` never touches `w.confrontations` directly and that the only
+pending-answer queue on the world is that one.
+
+The three answers stay `fight` / `flee` / `backup` so the kit layer reads them unchanged; what
+changes per complication is what those three words *mean* on this job (`COMPLICATIONS[k].options`)
+and how well each does (`bias`). Handling it well swings the op's own roll by +18, fumbling it by
+−16, and never answering by −30 — never answering is deliberately the worst of the three, which
+is what earns the modal the right to block the rest of the day. The answer also moves heat: going
+through people is louder (×1.35) than talking your way out (×0.85).
+
+**The tier gate is load-bearing.** Tier 0 and 1 stay one fast roll. The chance starts at 34% at
+tier 2 and climbs 7 points per tier (measured: 0% / 37% / 45% / 51% for stick-up, warehouse,
+jeweller, bank). If a street job ever raises one, the difference between a stick-up and a bank
+job has been thrown away.
+
+A complication queued during End Day's op resolution waits until the player is next at the
+controls, so you wake up to the crew asking a question — and the op resolves a day late, which
+is correct rather than a bug.
+
+### 4.12 Working on the law
+
+Three ops (`buy_down`, `spring_crew`, `buy_case`) exist because an `Authority` previously only
+escalated: `bribe_official` moves an official's trust and buries paper, and never touches
+`Authority.attention`, which is the number the building decides its posture from. A crackdown was
+weather you waited out.
+
+All three are ordinary entries in `OP_DEFS` with a `requires` and a `tier`, and all three read
+`authorityDifficulty()` — the target building's rung (0 at routine, 36 at crackdown), the
+`effectivePolice()` of the ground it stands on, and its current attention. The two that cost
+money scale that cost the same way: `buyDownCost` multiplies ×2.35 per rung, `buyCaseCost` ×2.1
+per rung and by how far the file has already got. Buying down a routine precinct is a few
+thousand; buying down a crackdown is more than eight times that. **The cheap time to do this is
+before you need to**, and that is the whole design.
+
+`select.opCost()` is the single source of that number — `can()` checks against it and the
+reducer charges it — so the planner's quote and the bill can never drift apart.
+
+One existing guard needed narrowing: `plan_op` refused any npc-targeted op against an official.
+Violence against one is still refused; an op that declares `requires.officialTarget` is exempt,
+because sitting down and paying for their attention is the entire point of it.
+
+### 4.13 The per-target gating family
+
+`rattedTarget` is now the template for four more, all asking about *this mark* rather than about
+the empire, all taking the op's own target, and all falling back to "does any valid mark exist at
+all" when the tree is being browsed with nothing selected:
+
+| key | asks |
+|---|---|
+| `rattedTarget` | you have been inside this person's business |
+| `officialTarget` | the mark is an official who answers to an Authority |
+| `jailedTarget` | the mark is one of your own, in a cell right now |
+| `casedTarget` | you have cased *this place* recently (`Business.casedUntil`) |
+| `caseTarget` | the job is aimed at a specific open file |
+
+Anything that should unlock against a specific mark rather than globally belongs here. Do not
+invent a sixth gating mechanism.
+
 ## 5.5 The law, the map, and the edge of the map
 
 ### 5.5.1 Authority — not a faction

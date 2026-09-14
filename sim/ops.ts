@@ -3,10 +3,14 @@ import { successionOrDeath } from './politics';
 import { caseWitnessOf, openCase, silenceWitness } from './cases';
 import { addProduct, knownRecipes, unlockRecipe } from './production';
 import { addCard, cyberHeat, learnSecret, rollCard, startTap } from './cyber';
+import { authorityOf } from './authority';
+import { POSTURES } from '@content/authority';
+import { buyDownAttention, killCase, openCaseById, springFrom } from './authority-ops';
 import { CARD_TIERS } from '@content/cyber';
 import { OP_APPROACHES, OP_DEFS } from '@content/rackets';
 import type { Rng } from './rng';
 import { opChance } from './select';
+import { complicationHeat, complicationSwing, maybeComplicate } from './complications';
 import { kitHeatMult } from './items';
 import { PLAYER, type Op, type World } from './types';
 import { addHeat, addInfluence, adjustRel, clamp, jailDays, log, money, spreadRep } from './util';
@@ -19,7 +23,14 @@ import { take as takeHostage } from './hostages';
 /** Resolve one launched op. Called from the tick. */
 export function resolveOp(w: World, o: Op, rng: Rng) {
   const def = OP_DEFS[o.kind]; const p = w.player; const ap = o.approach ? OP_APPROACHES[o.approach] : undefined;
-  const chance = opChance(w, o.kind, o.crewIds, o.approach, o.targetBusinessId);
+
+  // Big jobs can stop halfway and ask. When one does, the op does not resolve now: it waits for
+  // the answer, and `resolveConfrontation` calls straight back into here with it recorded. Tier
+  // 0 and 1 never get here at all — a street job stays one fast roll, on purpose.
+  if (maybeComplicate(w, o, rng)) return;
+
+  const swing = complicationSwing(o, !!o.complication?.won, o.complication?.answered ?? 'absent');
+  const chance = clamp(opChance(w, o.kind, o.crewIds, o.approach, { businessId: o.targetBusinessId, npcId: o.targetNpcId, caseId: o.targetCaseId }) + swing, 3, 97);
   const roll = rng.int(1, 100);
   const success = roll <= chance;
   const crew = o.crewIds.map(id => w.npcs[id]).filter(Boolean);
@@ -32,7 +43,7 @@ export function resolveOp(w: World, o: Op, rng: Rng) {
     const [lo, hi] = def.payout;
     const value = Math.round(lo + (hi - lo) * rng.float() * (0.7 + Math.min(1, Math.max(0, margin) / 60)) * (ap?.payout ?? 1));
     // the kit you carried changes what the job leaves behind, the same way the approach does
-    res.heat = Math.round(def.heat * (margin > 30 ? 0.6 : 1) * (ap?.heat ?? 1) * kitHeatMult(w));
+    res.heat = Math.round(def.heat * (margin > 30 ? 0.6 : 1) * (ap?.heat ?? 1) * kitHeatMult(w) * complicationHeat(o));
     if (o.insideId && w.npcs[o.insideId]) adjustRel(w.npcs[o.insideId], { trust: 5, respect: 5 });
     switch (o.kind) {
       case 'mugging': {
@@ -129,6 +140,74 @@ export function resolveOp(w: World, o: Op, rng: Rng) {
         if (target) { target.condition = clamp(target.condition - 8); addMemory(w, target.blockId, 'armed', `Somebody showed ${owner?.name ?? 'the owner'} a gun in ${target.name}.`); }
         spreadRep(w, blockId ?? p.currentBlockId, { fear: 6 });
         res.text = `Nobody in ${target?.name ?? 'the place'} is going to forget what was under your coat. ${owner?.name ?? 'The owner'} understood it the first time.`;
+        break;
+      }
+      // ---- the law, pushed back on ----
+      case 'buy_down': {
+        const n = o.targetNpcId ? w.npcs[o.targetNpcId] : undefined;
+        const a = n ? authorityOf(w, n) : undefined;
+        const dropped = n ? buyDownAttention(w, n, true) : 0;
+        if (n) adjustRel(n, { trust: 6 });
+        res.text = dropped
+          ? `${n?.name ?? 'They'} takes the envelope and finds somewhere else to look. ${a?.name ?? 'The building'} eases off — attention down ${dropped}, and they are ${a ? POSTURES[a.posture].label.toLowerCase() : 'quieter'} now.`
+          : `${n?.name ?? 'They'} takes the envelope. Nothing visibly changes, but you have a name inside now.`;
+        break;
+      }
+      case 'spring_crew': {
+        const n = o.targetNpcId ? w.npcs[o.targetNpcId] : undefined;
+        const owed = n ? springFrom(n) : 0;
+        res.text = `${n?.name ?? 'Your man'} walks out ${owed} day${owed === 1 ? '' : 's'} early, blinking. Nobody at the desk can explain it and nobody is going to try. They will not forget who came for them.`;
+        if (n) spreadRep(w, n.homeBlockId, { respect: 3 });
+        break;
+      }
+      case 'buy_case': {
+        const file = openCaseById(w, o.targetCaseId);
+        if (file) killCase(w, file, true, rng);
+        res.text = file
+          ? `The ${file.title} is closed. Not solved — closed. A box goes downstairs and a detective gets a different desk.`
+          : 'Whatever you were reaching for is not there any more.';
+        break;
+      }
+      // ---- paper, patience, and things that should not be moving ----
+      case 'long_con': case 'staged_accident': case 'shell_company': case 'charity_front': {
+        const clean = o.kind === 'shell_company' || o.kind === 'charity_front';
+        if (clean) { p.cash += value; } else { p.dirty += value; }
+        res.cash = value;
+        const mark = o.targetNpcId ? w.npcs[o.targetNpcId] : undefined;
+        if (mark) adjustRel(mark, { trust: -35, fear: 4 });
+        if (o.kind === 'charity_front') { p.respect = clamp(p.respect + 4); spreadRep(w, blockId ?? p.currentBlockId, { respect: 4 }); }
+        res.text = o.kind === 'long_con'
+          ? `${mark?.name ?? 'They'} signs the last of it without reading it. ${money(value)}, and a person who will spend a long time working out what happened.`
+          : o.kind === 'staged_accident' ? `A claim goes in, an adjuster shrugs, and ${money(value)} comes out. Nobody was really hurt, which was the difficult part.`
+          : o.kind === 'shell_company' ? `Invoices go one way and ${money(value)} comes back the other, all of it explainable.`
+          : `The collection does very well. ${money(value)} clean, and the city thinks better of you for it.`;
+        break;
+      }
+      case 'counterfeit_run': case 'dockside_pickup': case 'convoy_run': {
+        const kind2 = def.lootKind ?? 'hot_goods';
+        const units = Math.max(1, Math.round((def.difficulty / 4) * (0.7 + rng.float() * 0.8)));
+        addProduct(p, kind2, units);
+        res.loot = { [kind2]: units };
+        res.text = o.kind === 'counterfeit_run'
+          ? `${units} units off the run, and they look right enough to move.`
+          : o.kind === 'dockside_pickup' ? `The boat is early and gone again inside twenty minutes. ${units} units into the stash.`
+          : `Four vans, one night, nobody stopped. ${units} units through in a single move — a quarter's work in an evening.`;
+        break;
+      }
+      case 'hijack_load': case 'heist_containers': case 'heist_gallery': {
+        const kind3 = def.lootKind ?? 'hot_goods';
+        const units = Math.max(1, Math.round(value / 220));
+        addProduct(p, kind3, units);
+        res.loot = { [kind3]: units };
+        res.text = `${def.label}${target ? ` at ${target.name}` : ''}: away clean with ${units} units. It needs fencing before it is money.`;
+        break;
+      }
+      case 'heist_payroll': case 'heist_countroom': {
+        p.dirty += value; res.cash = value;
+        res.text = o.kind === 'heist_payroll'
+          ? `The bag changes hands in a yard nobody overlooks. ${money(value)}.`
+          : `You were in the count room while it was being counted. ${money(value)}, and everybody in that building knows it was somebody who had been inside before.`;
+        if (o.kind === 'heist_countroom') openCase(w, 'heist', `The count room at ${target?.name ?? 'the club'}`, { businessId: target?.id, opId: o.id, blockId }, o.crewIds, rng);
         break;
       }
       case 'heist_bank': case 'heist_armored': case 'robbery': case 'armed_robbery': case 'raid_rival': case 'check_kiting': {
@@ -252,7 +331,7 @@ export function resolveOp(w: World, o: Op, rng: Rng) {
     p.respect = clamp(p.respect + (def.difficulty >= 60 ? 6 : 2));
     for (const n of crew) if (n.crew) n.crew.loyalty = clamp(n.crew.loyalty + 5);
   } else {
-    res.heat = Math.round(def.heat * 1.4 * (ap?.heat ?? 1) * kitHeatMult(w));
+    res.heat = Math.round(def.heat * 1.4 * (ap?.heat ?? 1) * kitHeatMult(w) * complicationHeat(o));
     const bad = -margin > 30; // badly failed
     if (o.insideId && w.npcs[o.insideId]) { const ins = w.npcs[o.insideId]; ins.rel.trust = -50; ins.notes.push('Burned as an inside man.'); if (target) adjustRel(w.npcs[target.ownerId], { trust: -30, fear: 10 }); }
     if (o.approach === 'loud' && bad && crew.length && rng.chance(0.3)) { const v = rng.pick(crew); if (v.crew && v.crew.status !== 'dead') { v.crew.status = 'dead'; v.crew.assignment = undefined; v.alive = false; } }

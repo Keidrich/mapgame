@@ -14,7 +14,10 @@
  * Territorial pressure (soldiers leaning on a block you hold) is not a confrontation. Nobody
  * is standing in front of you for that one; it stays automatic.
  */
-import type { OpApproach } from '@content/rackets';
+import { OP_DEFS, type OpApproach } from '@content/rackets';
+import { COMPLICATIONS } from '@content/complications';
+import { complicationBias, complicationOptions } from './complications';
+import { resolveOp } from './ops';
 import { kitApproachBias, kitHeatMult, kitSkillBoost } from './items';
 import type { Rng } from './rng';
 import { PLAYER, type Confrontation, type ConfrontApproach, type Faction, type Id, type World } from './types';
@@ -68,11 +71,21 @@ export function confrontChance(w: World, c: Confrontation, approach: ConfrontApp
       base = 26 + (crew.length * 11 + brains * 2 + p.respect * 0.2) * bias - soldiers * 1.2 - (c.war ? 6 : 0);
       break;
   }
-  return Math.max(3, Math.min(97, Math.round(base)));
+  // A complication is the same three answers against a different problem, so it rides the same
+  // maths and only shifts the base: forcing a time-locked door is a bad idea whatever you own.
+  return Math.max(3, Math.min(97, Math.round(base + complicationBias(c, approach))));
 }
 
 export function confrontOptions(w: World, c: Confrontation): ConfrontOption[] {
   const crew = backupCrew(w);
+  if (c.kind === 'op' && c.complication) {
+    const o = complicationOptions(c);
+    return [
+      { id: 'fight', label: o.fight.label, icon: '💥', blurb: o.fight.blurb, good: o.fight.good, bad: o.fight.bad, chance: confrontChance(w, c, 'fight') },
+      { id: 'backup', label: o.backup.label, icon: '📞', blurb: o.backup.blurb, good: o.backup.good, bad: o.backup.bad, chance: confrontChance(w, c, 'backup'), disabled: crew.length ? undefined : 'Nobody to call.' },
+      { id: 'flee', label: o.flee.label, icon: '🚶', blurb: o.flee.blurb, good: o.flee.good, bad: o.flee.bad, chance: confrontChance(w, c, 'flee') },
+    ];
+  }
   return [
     { id: 'fight', label: 'Stand and fight', icon: '💥', blurb: 'You and whatever is in your hands, right here.', good: 'They go home hurt; the street sees it', bad: 'It lands harder, and on you', chance: confrontChance(w, c, 'fight') },
     { id: 'backup', label: 'Call in your people', icon: '📞', blurb: 'Get somebody down here before this finishes.', good: 'Numbers end it with less blood', bad: 'Somebody of yours gets hurt getting here', chance: confrontChance(w, c, 'backup'), disabled: crew.length ? undefined : 'Nobody to call.' },
@@ -94,6 +107,25 @@ export function queueConfrontation(w: World, c: Omit<Confrontation, 'id' | 'day'
  */
 export function resolveConfrontation(w: World, c: Confrontation, approach: ConfrontApproach | 'absent', rng: Rng): boolean {
   w.confrontations = confrontations(w).filter(x => x.id !== c.id);
+
+  // A complication is not an attack: nothing is wrecked and nobody is hurt here. The answer is
+  // recorded on the op and the job then finishes with it counted, through the ordinary resolver.
+  if (c.kind === 'op' && c.opId) {
+    const o = w.ops[c.opId];
+    const won = approach !== 'absent' && rng.int(1, 100) <= confrontChance(w, c, approach);
+    if (o) {
+      if (o.complication) { o.complication.answered = approach; o.complication.won = won; }
+      log(w, approach === 'absent'
+        ? `Nobody made a decision at ${OP_DEFS[o.kind].label}, so the crew made their own. It did not go well.`
+        : won
+          ? `${COMPLICATIONS[c.complication!].label}: handled.`
+          : `${COMPLICATIONS[c.complication!].label}: badly handled.`,
+        approach === 'absent' || !won ? 'bad' : 'good', { opId: o.id });
+      resolveOp(w, o, rng);
+    }
+    return won;
+  }
+
   const f: Faction | undefined = w.factions[c.factionId];
   const short = f?.short ?? 'They';
   const heat = (n: number) => addHeat(w, Math.round(n * kitHeatMult(w)), c.blockId);

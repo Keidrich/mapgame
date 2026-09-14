@@ -58,7 +58,7 @@ export type Action =
   | { type: 'scrub_trail' }                                   // cash and an hour against the heat the wire made
   | { type: 'pull_tap'; npcId: Id }                           // take a tap off before the risk compounds into being found
   // --- ops ---
-  | { type: 'plan_op'; kind: OpKind; crewIds: Id[]; approach?: 'loud' | 'quiet' | 'inside'; mode?: string; targetBusinessId?: Id; targetNpcId?: Id; targetFactionId?: FactionId; targetBlockId?: Id; targetDistrictId?: Id; safehouseId?: Id }
+  | { type: 'plan_op'; kind: OpKind; crewIds: Id[]; approach?: 'loud' | 'quiet' | 'inside'; mode?: string; targetBusinessId?: Id; targetNpcId?: Id; targetFactionId?: FactionId; targetBlockId?: Id; targetDistrictId?: Id; targetCaseId?: Id; safehouseId?: Id }
   | { type: 'launch_op'; opId: Id }
   | { type: 'abort_op'; opId: Id }
   // --- factions / politics ---

@@ -57,12 +57,18 @@ export interface OpDef {
   payout: [number, number];    // cash or loot value range
   lootKind?: ProductKind;
   heat: number;
-  target: 'business' | 'npc' | 'faction' | 'block' | 'district' | 'none';
+  target: 'business' | 'npc' | 'faction' | 'block' | 'district' | 'case' | 'none';
   targetTypes?: string[];      // business types
   ownRacket?: boolean;         // aimed at a place where you run something: yours to defend, not to rob
   modes?: OpMode[];            // op-specific choices, on top of the three approaches
   ownBusiness?: boolean;       // must target your own business
   cost?: number;               // upfront
+  /**
+   * Upfront cost that depends on the world rather than a constant — buying down a crackdown
+   * costs many times what buying down a routine patrol does. `select.opCost()` folds this in
+   * for both the affordability check and the charge, so they can never disagree.
+   */
+  costScales?: 'authority';
   tier?: number;               // where it sits in the ops tree, for layout only
   requires?: OpRequires;       // what the empire must look like before this is on the table
 }
@@ -86,6 +92,14 @@ export interface OpRequires {
    * checked against the op's own target rather than against global history.
    */
   rattedTarget?: boolean;
+  /** Per-target, same template: the mark must be an official who answers to an Authority. */
+  officialTarget?: boolean;
+  /** Per-target: the mark must be one of your own, sitting in a cell right now. */
+  jailedTarget?: boolean;
+  /** Per-target: you must have cased this place recently. `Business.casedUntil` decides. */
+  casedTarget?: boolean;
+  /** Per-target: the job is aimed at an open case file, so there has to be one. */
+  caseTarget?: boolean;
 }
 export const OP_DEFS: Record<OpKind, OpDef> = {
   heist_bank:      { label: 'Bank Job', icon: '🏦', blurb: 'The big one. Vault, hostages, getaway.', planDays: 5, minCrew: 3, maxCrew: 5, needs: { brains: 14, muscle: 10, wheels: 8, tech: 8 }, difficulty: 80, payout: [40000, 120000], heat: 35, target: 'business', targetTypes: ['bank'], tier: 4, requires: { priorOps: ['heist_jeweller', 'heist_armored'] } },
@@ -121,6 +135,33 @@ export const OP_DEFS: Record<OpKind, OpDef> = {
   scout_block:     { label: 'Scout the Edges', icon: '🔦', blurb: 'Walk the dead streets at the edge of a district and find out what is still standing. You may come back with nothing.', planDays: 1, minCrew: 0, maxCrew: 2, needs: { brains: 5, tech: 3, wheels: 3 }, difficulty: 30, payout: [0, 0], heat: 2, target: 'district', tier: 0 },
   claim_abandoned: { label: 'Take the Lot', icon: '🏚️', blurb: 'Move into a derelict block: clear whoever is sleeping there, or buy the paperwork. Nobody collects rent on a place that is not on anyone\'s books.', planDays: 1, minCrew: 0, maxCrew: 3, needs: { muscle: 5, brains: 4 }, difficulty: 35, payout: [0, 0], heat: 6, target: 'block', tier: 1, requires: { priorOps: ['scout_block'] } },
   kidnap:          { label: 'Take Someone', icon: '🕳️', blurb: 'Put somebody in the back of a van and hold them somewhere quiet. You need a safehouse with room, and holding them is its own problem.', planDays: 1, minCrew: 1, maxCrew: 3, needs: { muscle: 8, wheels: 6 }, difficulty: 50, payout: [0, 0], heat: 18, target: 'npc', tier: 2, requires: { crewCount: 1, safehouseTier: 1 } },
+  // ---- the law, pushed back on. Until these existed an Authority only ever escalated: the
+  // player could outrun heat but never reach into the building making the decisions.
+  // All three read the target Authority's posture as difficulty, so pushing back on a
+  // crackdown is a different job from leaning on a routine precinct.
+  buy_down:        { label: 'Buy Down the Heat', icon: '💼', blurb: 'Sit down with somebody inside the building and pay for their attention to go elsewhere. What it costs depends entirely on how hard they are already looking.', planDays: 1, minCrew: 0, maxCrew: 2, needs: { charm: 8, brains: 6 }, difficulty: 45, payout: [0, 0], heat: 3, target: 'npc', tier: 2, costScales: 'authority', requires: { officialTarget: true, crewCount: 1 } },
+  spring_crew:     { label: 'Spring Somebody', icon: '🔓', blurb: 'Get one of your own out before their sentence runs: a signature in the right place, a transfer that goes wrong, a door left unlocked.', planDays: 2, minCrew: 1, maxCrew: 3, needs: { brains: 10, tech: 7, charm: 5 }, difficulty: 58, payout: [0, 0], heat: 14, target: 'npc', tier: 2, cost: 2500, requires: { jailedTarget: true, crewCount: 1 } },
+  buy_case:        { label: 'Kill a File', icon: '🗄️', blurb: 'Reach into one specific open investigation and end it: paper misfiled, an exhibit lost, a detective reassigned. Not the same as frightening a witness — this is the file itself.', planDays: 3, minCrew: 0, maxCrew: 2, needs: { brains: 12, charm: 8 }, difficulty: 62, payout: [0, 0], heat: 6, target: 'case', tier: 3, costScales: 'authority', requires: { caseTarget: true, crewCount: 1 } },
+
+  // ---- more ways into a vault ----
+  heist_payroll:   { label: 'Payroll Snatch', icon: '💼', blurb: 'Somebody carries the week\'s wages across a yard once a week, at the same time, with the same two men.', planDays: 2, minCrew: 1, maxCrew: 3, needs: { muscle: 10, wheels: 7 }, difficulty: 48, payout: [4000, 14000], heat: 16, target: 'business', tier: 2, requires: { weapon: true, crewCount: 1 } },
+  heist_containers:{ label: 'Container Job', icon: '🚢', blurb: 'One box off a stack of thousands, and a manifest that never mentions it.', planDays: 3, minCrew: 2, maxCrew: 4, needs: { wheels: 9, brains: 7, tech: 5 }, difficulty: 55, payout: [9000, 26000], lootKind: 'hot_goods', heat: 14, target: 'business', targetTypes: ['warehouse'], tier: 2, requires: { crewCount: 2 } },
+  heist_gallery:   { label: 'The Collection', icon: '🖼️', blurb: 'Things worth far more than anybody will openly pay for them. A fence takes the difference, and takes their time.', planDays: 4, minCrew: 2, maxCrew: 4, needs: { tech: 12, brains: 11, wheels: 6 }, difficulty: 68, payout: [20000, 55000], lootKind: 'hot_goods', heat: 22, target: 'business', targetTypes: ['jeweller', 'pawn'], tier: 3, requires: { safehouseTier: 2, priorOps: ['heist_jeweller'] } },
+  heist_countroom: { label: 'The Count Room', icon: '🎲', blurb: 'The room behind the floor of a club that takes bets, on the night the week is counted. You need to have walked it first.', planDays: 5, minCrew: 3, maxCrew: 5, needs: { brains: 15, muscle: 11, tech: 10, charm: 6 }, difficulty: 78, payout: [35000, 95000], heat: 32, target: 'business', targetTypes: ['nightclub'], tier: 4, requires: { casedTarget: true, crewCount: 3, safehouseTier: 2 } },
+
+  // ---- paper, patience and somebody else's signature. Abstracted on purpose: there is no
+  // technique in any of these, the same way there is none in the card system.
+  long_con:        { label: 'The Long Con', icon: '🎩', blurb: 'Weeks of being somebody else to one person who has money and wants to believe you.', planDays: 5, minCrew: 0, maxCrew: 2, needs: { charm: 14, brains: 10 }, difficulty: 60, payout: [8000, 26000], heat: 5, target: 'npc', tier: 2, requires: { crewCount: 1 } },
+  staged_accident: { label: 'Staged Accident', icon: '🩹', blurb: 'Somebody slips in a place that is insured, and a claim follows. Nobody is really hurt, which is the hard part.', planDays: 2, minCrew: 1, maxCrew: 2, needs: { charm: 8, brains: 7 }, difficulty: 45, payout: [3000, 9000], heat: 6, target: 'business', tier: 2, requires: { crewCount: 1 } },
+  shell_company:   { label: 'Shell Company', icon: '🏢', blurb: 'A company that exists only on paper, billing a company you own for work nobody did. Slow, dull, and it pays clean.', planDays: 4, minCrew: 0, maxCrew: 2, needs: { brains: 13, charm: 7 }, difficulty: 58, payout: [7000, 20000], heat: 4, target: 'business', ownBusiness: true, tier: 3, requires: { businessOwned: true, crewCount: 1 } },
+  charity_front:   { label: 'Charity Front', icon: '🎗️', blurb: 'A collection for something nobody can argue with, run out of a place you own. The city likes you more afterwards, too.', planDays: 3, minCrew: 0, maxCrew: 2, needs: { charm: 11, brains: 6 }, difficulty: 50, payout: [4000, 12000], heat: 3, target: 'business', ownBusiness: true, tier: 2, requires: { businessOwned: true } },
+  counterfeit_run: { label: 'Counterfeit Run', icon: '🖨️', blurb: 'A print run of something that is not what it says it is, moved through a racket of your own.', planDays: 3, minCrew: 1, maxCrew: 3, needs: { tech: 11, brains: 8 }, difficulty: 55, payout: [0, 0], lootKind: 'counterfeit', heat: 12, target: 'none', cost: 2000, tier: 2, requires: { racketKinds: ['fencing', 'smuggling', 'laundering', 'no_show_jobs', 'carding'], crewCount: 1 } },
+
+  // ---- moving things that should not be moving ----
+  dockside_pickup: { label: 'Dockside Pickup', icon: '⚓', blurb: 'Meet a boat that is not on any schedule and be gone before the shift changes.', planDays: 2, minCrew: 1, maxCrew: 3, needs: { wheels: 9, charm: 5 }, difficulty: 45, payout: [0, 0], lootKind: 'booze', heat: 9, target: 'none', cost: 2200, tier: 2, requires: { crewCount: 1, priorOps: ['smuggle_run'] } },
+  hijack_load:     { label: 'Hijack a Load', icon: '🚛', blurb: 'Somebody else did the smuggling. You do the last mile, and keep it.', planDays: 1, minCrew: 2, maxCrew: 4, needs: { muscle: 12, wheels: 11 }, difficulty: 52, payout: [5000, 16000], lootKind: 'hot_goods', heat: 18, target: 'none', tier: 2, requires: { weapon: true, crewCount: 2 } },
+  convoy_run:      { label: 'Run a Convoy', icon: '🛣️', blurb: 'Not one van but four, on one night, through ground you have to already control. The whole quarter\'s product in one move.', planDays: 4, minCrew: 3, maxCrew: 5, needs: { wheels: 16, brains: 9, muscle: 8 }, difficulty: 66, payout: [0, 0], lootKind: 'green', heat: 20, target: 'none', cost: 6000, tier: 3, requires: { crewCount: 3, safehouseTier: 2, priorOps: ['dockside_pickup', 'smuggle_run'] } },
+
   raid_rival:      { label: 'Raid Rival Racket', icon: '⚔️', blurb: 'Hit a rival racket, take the cash box, wreck the place.', planDays: 1, minCrew: 2, maxCrew: 5, needs: { muscle: 12, wheels: 4 }, difficulty: 50, payout: [1500, 6000], heat: 12, target: 'business', tier: 2, requires: { crewCount: 2, racketKinds: ['protection', 'numbers', 'bookmaking', 'gambling_den', 'loansharking', 'fencing', 'chop_shop', 'dealing', 'laundering', 'smuggling', 'no_show_jobs'] } },
 };
 

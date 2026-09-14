@@ -537,6 +537,16 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
     title: 'Approach',
     body: 'Loud pays 25% more and draws heavy heat; a bad failure means bodies. Quiet halves the heat but is harder. An inside man makes it far easier and burns your contact if it fails.',
   },
+  complication: {
+    title: 'Mid-job',
+    body: 'Big jobs do not always resolve in one roll. Something happens halfway — more people in the room than anybody counted, a door on a delay, a patrol car early — and the crew stop and look at you. The three answers are the same three you would use at your own door, and whatever you are carrying counts the same way.',
+    note: 'Answer well and the job gets meaningfully easier; answer badly and it gets harder. Ignore it until End Day and the crew decide for themselves, which is worse than either.',
+  },
+  lawJob: {
+    title: 'Working on the law',
+    body: 'Buying an Authority\'s attention down, getting one of your own out of a cell, or killing an open file outright. All three get harder and more expensive the harder the building is already looking, so the cheap time to do them is before you need to.',
+    note: 'Killing a file is not the same as frightening its witness: a silenced witness stops the file growing, this closes it.',
+  },
   opChance: {
     title: 'Chance of success',
     body: 'Your crew\'s skills against the job\'s difficulty, weighted by the approach. Add more crew or better skills; an inside man is worth more than either.',

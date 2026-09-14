@@ -95,7 +95,7 @@ function OpCard({ o }: { o: Op }) {
 function Planner() {
   const w = useWorld();
   const [kind, setKind] = useState<OpKind | null>(null);
-  const [target, setTarget] = useState<{ businessId?: Id; npcId?: Id; factionId?: Id; blockId?: Id; districtId?: Id }>({});
+  const [target, setTarget] = useState<{ businessId?: Id; npcId?: Id; factionId?: Id; blockId?: Id; districtId?: Id; caseId?: Id }>({});
   const [safehouseId, setSafehouseId] = useState<Id | undefined>(undefined);
   const [crewIds, setCrewIds] = useState<Id[]>([]);
   const [approach, setApproach] = useState<OpApproach | undefined>(undefined);
@@ -104,17 +104,24 @@ function Planner() {
   const idle = select.idleCrew(w);
   const def = kind ? OP_DEFS[kind] : null;
   const needsTarget = def ? def.target !== 'none' : false;
-  const hasTarget = !!(target.businessId || target.npcId || target.factionId || target.blockId || target.districtId);
+  const hasTarget = !!(target.businessId || target.npcId || target.factionId || target.blockId || target.districtId || target.caseId);
   const step = !kind ? 0 : needsTarget && !hasTarget ? 1 : 2;
-  const chance = kind ? select.opChance(w, kind, crewIds, approach, target.businessId) : 0;
+  const chance = kind ? select.opChance(w, kind, crewIds, approach, target) : 0;
   const insiders = select.insidersFor(w, target.businessId);
   const sums = select.crewSkillSum(w, crewIds);
   const targets = useMemo(() => kind ? select.opTargets(w, kind) : [], [w, kind]);
   // Wire fraud's requirement is per person, so its target list is only the people it can legally
   // run against. Everything else picks from the usual pool.
   const onlyRatted = !!def?.requires?.rattedTarget;
-  const npcs = useMemo(() => (onlyRatted ? select.rattedNpcs(w) : Object.values(w.npcs).filter(n => n.alive && !n.crew && (n.role === 'boss' || n.role === 'lieutenant' || n.role === 'owner' || n.role === 'official' || n.role === 'soldier'))).filter(n => !filter || n.name.toLowerCase().includes(filter.toLowerCase())).slice(0, 40), [w, filter, onlyRatted]);
-  const action = kind ? { type: 'plan_op' as const, kind, crewIds, approach, mode, targetBusinessId: target.businessId, targetNpcId: target.npcId, targetFactionId: target.factionId, targetBlockId: target.blockId, targetDistrictId: target.districtId, safehouseId } : null;
+  const onlyOfficial = !!def?.requires?.officialTarget;
+  const onlyJailed = !!def?.requires?.jailedTarget;
+  const npcs = useMemo(() => (
+    onlyRatted ? select.rattedNpcs(w)
+      : onlyJailed ? select.jailedCrew(w)
+      : onlyOfficial ? Object.values(w.npcs).filter(n => n.alive && n.official?.authorityId)
+      : Object.values(w.npcs).filter(n => n.alive && !n.crew && (n.role === 'boss' || n.role === 'lieutenant' || n.role === 'owner' || n.role === 'official' || n.role === 'soldier'))
+  ).filter(n => !filter || n.name.toLowerCase().includes(filter.toLowerCase())).slice(0, 40), [w, filter, onlyRatted, onlyOfficial, onlyJailed]);
+  const action = kind ? { type: 'plan_op' as const, kind, crewIds, approach, mode, targetCaseId: target.caseId, targetBusinessId: target.businessId, targetNpcId: target.npcId, targetFactionId: target.factionId, targetBlockId: target.blockId, targetDistrictId: target.districtId, safehouseId } : null;
   const reset = () => { setKind(null); setTarget({}); setCrewIds([]); setApproach(undefined); setMode(undefined); setFilter(''); setSafehouseId(undefined); };
   const toggle = (id: Id) => setCrewIds(ids => ids.includes(id) ? ids.filter(x => x !== id) : def && ids.length >= def.maxCrew ? ids : [...ids, id]);
 
@@ -133,7 +140,7 @@ function Planner() {
             <>
               <div className="section-title">Target</div>
               {hasTarget ? (
-                <div className="row between"><span className="chip sel">{target.businessId ? w.businesses[target.businessId]?.name : target.npcId ? w.npcs[target.npcId]?.name : target.factionId ? w.factions[target.factionId]?.name : target.blockId ? w.blocks[target.blockId]?.name : ''}</span><button type="button" className="chip btn" onClick={() => setTarget({})}>Change</button></div>
+                <div className="row between"><span className="chip sel">{target.businessId ? w.businesses[target.businessId]?.name : target.npcId ? w.npcs[target.npcId]?.name : target.factionId ? w.factions[target.factionId]?.name : target.blockId ? w.blocks[target.blockId]?.name : target.caseId ? select.openCaseById(w, target.caseId)?.title ?? 'that file' : ''}</span><button type="button" className="chip btn" onClick={() => setTarget({})}>Change</button></div>
               ) : def.target === 'business' ? (
                 <div className="list" style={{ maxHeight: 260, overflowY: 'auto' }}>
                   {targets.map(b => (
@@ -149,9 +156,22 @@ function Planner() {
                   <input className="input mb8" placeholder="Filter by name…" value={filter} onChange={e => setFilter(e.target.value)} />
                   <div className="list" style={{ maxHeight: 260, overflowY: 'auto' }}>
                     {npcs.map(n => <button type="button" key={n.id} className="listitem" onClick={() => setTarget({ npcId: n.id })}><div className="grow"><div className="title">{n.name}</div><div className="sub">{cap(n.role)}{n.faction ? ` · ${select.factionName(w, n.faction)}` : ''} · {w.blocks[n.homeBlockId]?.name}</div></div></button>)}
-                    {npcs.length === 0 && <p className="small muted">{onlyRatted ? 'Nobody you have been inside of. Run Get Inside Their Business on somebody worth defrauding first — this one is per person, and reading one of their people does nothing for the next.' : 'Nobody by that name.'}</p>}
+                    {npcs.length === 0 && <p className="small muted">{
+                      onlyRatted ? 'Nobody you have been inside of. Run Get Inside Their Business on somebody worth defrauding first — this one is per person, and reading one of their people does nothing for the next.'
+                      : onlyJailed ? 'Nobody of yours is in a cell. This one is only for getting your own people out.'
+                      : onlyOfficial ? 'Nobody inside a precinct or city hall to sit down with.'
+                      : 'Nobody by that name.'}</p>}
                   </div>
                 </>
+              ) : def.target === 'case' ? (
+                <div className="list" style={{ maxHeight: 260, overflowY: 'auto' }}>
+                  {select.openCases(w).map(c => (
+                    <button type="button" key={c.id} className="listitem" onClick={() => setTarget({ caseId: c.id })}>
+                      <div className="grow"><div className="title">{c.title}</div><div className="sub">opened day {c.day} · evidence {Math.round(c.evidence)}/100{c.witnessId ? ` · ${w.npcs[c.witnessId]?.name ?? 'a witness'} is talking` : ' · nobody talking'}</div></div>
+                    </button>
+                  ))}
+                  {select.openCases(w).length === 0 && <p className="small muted">No open investigation to reach into. Nothing to kill yet.</p>}
+                </div>
               ) : def.target === 'district' ? (
                 <div className="list">{Object.values(w.districts).map(d => { const n = select.abandonedBlocks(w, { known: false }).filter(b => b.districtId === d.id).length; return (
                   <button type="button" key={d.id} className="listitem" onClick={() => setTarget({ districtId: d.id })}>
@@ -194,7 +214,7 @@ function Planner() {
                 {(Object.keys(OP_APPROACHES) as OpApproach[]).map(k => { const a = OP_APPROACHES[k]; const on = approach === k; const insideOff = k === 'inside' && (def.target !== 'business' || !insiders.length);
                   return (
                     <button type="button" key={k} className={`opt${on ? ' sel' : ''}`} disabled={insideOff} onClick={() => setApproach(on ? undefined : k)}>
-                      <span className="lbl">{a.icon} {a.label} <span className="odds" style={{ float: 'right' }}>{select.opChance(w, kind!, crewIds, k, target.businessId)}%</span></span>
+                      <span className="lbl">{a.icon} {a.label} <span className="odds" style={{ float: 'right' }}>{select.opChance(w, kind!, crewIds, k, target)}%</span></span>
                       <span className="det">{a.blurb}{k === 'inside' && insiders.length ? ` ${insiders[0].name} would do it.` : ''}</span>
                       <span className="stakes"><b className="green">✓ {a.good}</b> <b className="red">✗ {a.bad}</b></span>
                       {insideOff && <span className="cst">{def.target !== 'business' ? 'Needs a place as the target.' : 'Nobody there trusts you enough yet (trust 35+).'}</span>}
@@ -211,6 +231,7 @@ function Planner() {
                   </div>
                 </>
               )}
+              <LawPrice kind={kind} target={target} />
               <div className="section-title">Crew ({crewIds.length}/{def.maxCrew}, min {def.minCrew})</div>
               <div className="list">
                 {idle.map(n => { const on = crewIds.includes(n.id); return (
@@ -237,6 +258,31 @@ function Planner() {
           )}
         </>
       )}
+    </div>
+  );
+}
+
+/**
+ * What law-facing work costs, and why. The number here is `select.opCost`, which is the same
+ * function `can()` checks against and the reducer charges — the quote and the bill are one
+ * calculation, so they cannot drift.
+ */
+function LawPrice({ kind, target }: { kind: OpKind; target: { npcId?: Id; caseId?: Id } }) {
+  const w = useWorld();
+  if (kind !== 'buy_down' && kind !== 'buy_case') return null;
+  const { cost, posture, why } = select.lawJobPrice(w, kind, target);
+  const a = select.targetAuthority(w, target);
+  return (
+    <div className="card mt8" style={{ borderColor: posture === 'Routine' ? 'var(--blue)' : 'var(--red)' }}>
+      <div className="row between">
+        <b className="small">🚔 {a?.name ?? 'The law'}<Info id="posture" /></b>
+        <span className={`chip ${posture === 'Routine' ? '' : 'red'}`}>{posture}</span>
+      </div>
+      <p className="small muted mt8" style={{ margin: '8px 0 0' }}>{why}</p>
+      <div className="row between mt8">
+        <span className="small">Up front</span>
+        <b className={w.player.cash >= cost ? 'green' : 'red'}>{fmtMoney(cost)} clean</b>
+      </div>
     </div>
   );
 }

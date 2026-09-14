@@ -14,6 +14,91 @@ House rules for an entry (see `CLAUDE.md` → *Leave a trail*):
 
 ---
 
+## 2026-09-14 — Ops overhaul: working on the law, complications, and a much bigger roster
+
+**What.** Fifteen new ops, three of them aimed at the law itself; tier-2+ jobs can now stop
+halfway and ask the player a question; and the per-target gating pattern grew from one key to
+five. No new plumbing: everything rides systems that already existed.
+
+**Why.** Three separate gaps. An `Authority` only ever escalated — `bribe_official` moves an
+official's trust and buries paper but never touches `Authority.attention`, which is the number
+the building decides its posture from, so a crackdown was weather you waited out. A big job was
+one hidden roll, identical in shape to a stick-up, so tiers cost more without *feeling* like
+more. And the ops tree had 25 entries, most of them violence.
+
+**How.**
+
+*Working on the law.* `buy_down` (sit down with somebody inside and pay for their attention to go
+elsewhere), `spring_crew` (get one of your own out before the sentence runs), `buy_case` (kill one
+specific open file — distinct from silencing a witness, which only stops a file *growing*). All
+three are ordinary `OP_DEFS` entries with a `requires` and a `tier`, and all three read
+`authorityDifficulty()`: the target building's rung (0 at routine, 36 at crackdown), the
+`effectivePolice()` where it stands, and its current attention. Cost scales the same way —
+`buyDownCost` ×2.35 per rung, `buyCaseCost` ×2.1 per rung plus how far the file has got. Buying
+down a routine precinct is a few thousand; a crackdown is more than eight times that. The cheap
+time to do this is before you need to, which is the point.
+
+*Complications.* A tier-2+ op can interrupt itself and put a question to the player, through the
+**existing** confrontation machinery and nothing else: a complication *is* a `Confrontation` with
+`kind: 'op'`, raised by `queueConfrontation`, answered through `resolve_confrontation`, priced by
+the same kit functions, shown by the same modal, swept up by the same End Day line. The three
+answers stay fight/flee/backup so `sim/items.ts` reads them unchanged; what varies is what those
+words mean on this job and how well each does. Handled +18 to the op's roll, fumbled −16, never
+answered −30 — never answering is deliberately worst, which is what earns the modal the right to
+block your day. Heat moves too: through people ×1.35, talked out ×0.85.
+
+*The roster.* Four heists (payroll, containers, the collection, the count room), five paper jobs
+(long con, staged accident, shell company, charity front, counterfeit run), three moving jobs
+(dockside pickup, hijack, convoy). Every one has a `requires` and a `tier` and appears in the
+tree. Kept abstract on purpose, the same treatment the card system got: there is no technique in
+any of them.
+
+*The per-target family.* `rattedTarget` became the template for `officialTarget`, `jailedTarget`,
+`casedTarget` (reusing `Business.casedUntil`, which case-the-joint already wrote and nothing read
+for gating) and `caseTarget`. All ask about the mark rather than the empire; all fall back to
+"does any valid mark exist" when the tree is browsed with nothing selected.
+
+**Files.** New: `content/complications.ts`, `sim/complications.ts`, `sim/authority-ops.ts`, and
+four test files (`sim/authority-ops.test.ts`, `sim/complications.test.ts`, `ui/ops-tree.test.tsx`,
+plus an "expanded roster" block added to `sim/ops-progression.test.ts`). Changed:
+`content/rackets.ts` (15 op defs, 4 requires keys, `target: 'case'`, `costScales`),
+`sim/types.ts` (OpKind, `Op.targetCaseId`/`complication`, `ConfrontKind` gains `'op'`),
+`sim/combat.ts` (an `op` branch and complication wording), `sim/ops.ts` (raise, swing, outcomes),
+`sim/select.ts` (`opCost`, the per-target gates, a richer `opChance` target),
+`sim/reducer.ts` (case targets, dynamic cost, a narrowed official guard),
+`ui/components/OpsTab.tsx` (case picker, per-gate mark lists, the price panel),
+`ui/components/ConfrontModal.tsx`, `content/glossary.ts`, `docs/DESIGN.md` §4.11–4.13.
+
+**Watch out.**
+
+- **No `WORLD_VERSION` bump.** `targetCaseId` and `complication` are optional on `Op`, and the
+  new `ConfrontKind` only appears on confrontations created after this ships, so existing saves
+  load unchanged.
+- **One existing guard was narrowed, deliberately.** `plan_op` refused *any* npc-targeted op
+  against an official. Violence against one is still refused; an op declaring
+  `requires.officialTarget` is now exempt, because sitting down with one is the entire point.
+  If a future op wants to hurt an official, it must not use that key.
+- **`buy_down` was unlocked on day one** until my own progression test caught it —
+  `officialTarget` alone is satisfied from world generation. It now also carries `crewCount: 1`,
+  the established "you are somebody now" gate. Any future op whose only gate is a per-target one
+  will have the same problem: per-target keys say *who*, never *when*.
+- **The tier gate on complications is load-bearing.** Measured: 0% at tier 0/1, then 37% / 45% /
+  51% for warehouse, jeweller, bank. If a street job ever raises one, the difference between a
+  stick-up and a bank job has been thrown away.
+- **A complication raised during End Day waits for the next time the player is at the controls**,
+  so the op resolves a day late and you wake up to the crew asking a question. That is intended,
+  not a scheduling bug.
+- **The soak is unchanged and proves nothing here** ($764 dirty on the default seed, identical to
+  before): the bot runs street jobs, never reaches tier 2, never escalates an Authority far
+  enough for law work to matter, and cannot answer a modal. Complication rates were measured with
+  a direct probe instead. Teaching the bot to run a tier-2 job and answer a complication is the
+  obvious next job and is **not done** — until then nothing regression-tests complication balance
+  across a long game.
+- **Deliberately out of scope:** complications cannot chain (one per job, by design); there is no
+  way to *raise* an Authority's attention deliberately; `buy_down` reaches one building at a time
+  rather than the city; and the new paper jobs pay flat cash rather than opening any new economy.
+
+
 ## 2026-09-14 — The law as an entity, map overlays, and fog over unmapped ground
 
 **What.** Three things: police become a real entity (`Authority`) with a visible monitoring

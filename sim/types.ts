@@ -6,6 +6,7 @@
 
 import type { NameGroup } from '@content/names';
 import type { AuthorityKind, AuthorityPosture } from '@content/authority';
+import type { ComplicationKind } from '@content/complications';
 export type { NameGroup };
 
 export type Id = string;
@@ -261,7 +262,15 @@ export type OpKind =
   // the wire: pockets, listening, paper, and sabotage that leaves no bodies
   | 'mugging' | 'rat' | 'wire_fraud' | 'digital_strike'
   // only on the table while a faction is at beef or war with you
-  | 'ambush_soldiers' | 'defend_racket' | 'war_strike';
+  | 'ambush_soldiers' | 'defend_racket' | 'war_strike'
+  // pushing back on the law itself, rather than only outrunning it
+  | 'buy_down' | 'spring_crew' | 'buy_case'
+  // more ways into a vault
+  | 'heist_gallery' | 'heist_countroom' | 'heist_payroll' | 'heist_containers'
+  // paper, patience and somebody else's signature
+  | 'long_con' | 'staged_accident' | 'shell_company' | 'charity_front' | 'counterfeit_run'
+  // moving things that should not be moving
+  | 'dockside_pickup' | 'hijack_load' | 'convoy_run';
 
 export type OpStatus = 'planning' | 'ready' | 'done' | 'failed' | 'aborted';
 
@@ -277,6 +286,13 @@ export interface Op {
   crewIds: Id[];
   approach?: 'loud' | 'quiet' | 'inside';
   mode?: string;   // op-specific choice (OpDef.modes), e.g. one look vs. a standing tap
+  targetCaseId?: Id;  // the open file a buy-off is aimed at
+  /**
+   * Something went sideways mid-job and the player was asked about it. Set when the
+   * complication is queued, so resolution knows not to raise a second one, and carries the
+   * answer back into the roll. See `sim/complications.ts`.
+   */
+  complication?: { kind: ComplicationKind; answered?: ConfrontApproach | 'absent'; won?: boolean };
   insideId?: Id;   // the contact used for an inside job
   planDays: number;
   daysLeft: number;
@@ -452,7 +468,8 @@ export interface Secret {
 }
 
 // ---------- confrontations: somebody came for you, and you are standing there ----------
-export type ConfrontKind = 'racket' | 'business' | 'crew';
+export type ConfrontKind = 'racket' | 'business' | 'crew' | 'op';
+export type { ComplicationKind };
 /** How you meet it. Each maps onto an op approach, so carried kit reads the same way it does on a job. */
 export type ConfrontApproach = 'fight' | 'flee' | 'backup';
 
@@ -467,6 +484,8 @@ export interface Confrontation {
   businessId?: Id;
   npcId?: Id;                // the crew member they came for
   blockId?: Id;
+  opId?: Id;                 // kind 'op': the job this went wrong in the middle of
+  complication?: ComplicationKind;
 }
 
 // ---------- events ----------
