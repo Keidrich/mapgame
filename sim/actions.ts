@@ -80,11 +80,22 @@ export type Action =
   | { type: 'rename'; name: string }
   | { type: 'set_note'; npcId: Id; text: string }   // the player's own note on somebody; free, no AP, never touches notes[]
   // --- testing ---
-  | { type: 'cheat'; what: CheatKind };          // debug only; stamps the save as cheated so nothing is mistaken for real play
+  | { type: 'cheat'; what: CheatKind; amount?: number };  // debug only; stamps the save as cheated so nothing is mistaken for real play
 
 /** The testing tools in the help sheet. Every one of them is an ordinary reducer case, so a cheated world
  *  is still a world the rest of the sim understands. */
-export type CheatKind = 'cash' | 'dirty' | 'ap' | 'legwork' | 'heat' | 'skills' | 'crew' | 'unlock' | 'safehouse' | 'own_block' | 'turf' | 'reveal' | 'stash';
+export type CheatKind =
+  | 'cash' | 'dirty' | 'ap' | 'legwork' | 'heat' | 'skills' | 'crew' | 'unlock'
+  | 'safehouse' | 'own_block' | 'turf' | 'reveal' | 'stash'
+  // set up a specific system so it can actually be exercised, by hand or by the soak bot
+  | 'kit'          // own and carry a weapon, a tool and a car
+  | 'rackets'      // a racket of every kind you could want, on ground you hold
+  | 'war'          // somebody wants you dead, which is what the war ops need
+  | 'attention'    // every Authority is looking hard, which is what the law ops need
+  | 'jail_crew'    // one of yours is in a cell, which is what springing somebody needs
+  | 'open_case'    // an open file, which is what killing one needs
+  | 'cards'        // a pile of lifted cards, a secret and some wire heat
+  | 'ratted';      // you have been inside everybody, which is what wire fraud needs
 
 export type SitDownOffer =
   | { kind: 'truce'; days: number }

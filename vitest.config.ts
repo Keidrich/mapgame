@@ -14,5 +14,5 @@ export default defineConfig({
   },
   // ui tests render components with react-dom/server: a sheet that throws is a black screen,
   // so they run in the same suite as the sim's
-  test: { include: ['sim/**/*.test.ts', 'geo/**/*.test.ts', 'ui/**/*.test.tsx', 'ui/**/*.test.ts'], environment: 'node' },
+  test: { include: ['sim/**/*.test.ts', 'geo/**/*.test.ts', 'ui/**/*.test.tsx', 'ui/**/*.test.ts', 'scripts/**/*.test.ts'], environment: 'node' },
 });

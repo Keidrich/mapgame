@@ -544,6 +544,42 @@ all" when the tree is being browsed with nothing selected:
 Anything that should unlock against a specific mark rather than globally belongs here. Do not
 invent a sixth gating mechanism.
 
+### 4.14 The admin panel and the soak bot
+
+**The admin panel** is the `cheat` action: a list of entries, each of which sets one system up so
+it can be exercised. It is behind a fold in the help sheet for a person, and driven
+programmatically by the soak bot, so there is no test-only path through the sim — the bot reaches
+the late game exactly the way somebody poking at the build would. Every entry stamps
+`w.cheated`, so a boosted world can never be mistaken for an economy curve.
+
+Entries beyond the original money/skills/crew set exist because some systems have prerequisites
+that take many days to assemble honestly: `attention` (an Authority actually looking at you),
+`jail_crew`, `open_case`, `cards`, `ratted`, `war`, `kit`, `rackets`. `amount` parameterises the
+ones where a number makes sense.
+
+**The bot** lives in `scripts/bot/` — `policy.ts` (what it does with a day), `admin.ts`
+(scenarios), `coverage.ts` (what got exercised), `run.ts` (one run). `headless.ts` is only a CLI.
+
+Scenarios:
+
+| scenario | admin panel | ops/day | what it is for |
+|---|---|---|---|
+| `honest` | none | 0 | **frozen.** The economy curve, comparable across passes |
+| `ambitious` | none | 2 | an honest player who takes risks |
+| `boosted` / `law` / `wire` / `war` / `heists` | yes | 3 | one system, set up and hammered |
+| `everything` | yes | 3 | the run that should reach every system |
+
+`honest` is frozen deliberately: its day is ordered exactly as the original bot's was, because
+moving a step changes the RNG stream and the curve with it for no gameplay reason. Coverage comes
+from the other scenarios, never from changing this one.
+
+**Coverage is the point.** Every run reports which of ten systems it touched, how many distinct
+op kinds ran, which complications fired, and what never ran at all. A `✗` means that system had
+no coverage and any conclusion drawn about it from the soak is worthless. `scripts/bot.test.ts`
+fails when `everything` stops reaching every system — so a future pass that ships something the
+bot cannot see breaks the build rather than passing quietly, which is what happened three passes
+running before this existed.
+
 ## 5.5 The law, the map, and the edge of the map
 
 ### 5.5.1 Authority — not a faction

@@ -14,6 +14,79 @@ House rules for an entry (see `CLAUDE.md` → *Leave a trail*):
 
 ---
 
+## 2026-09-14 — An admin panel, and a soak bot that can actually reach the game
+
+**What.** The `cheat` action grew from a money/skills/crew list into a real admin panel that sets
+individual systems up; the soak bot was rebuilt around it with scenarios and a coverage report;
+and the bot immediately found two genuine bugs, both fixed here.
+
+**Why.** Three feature passes in a row shipped with the bot silently unable to reach what had just
+been built — it never got past tier 1, never escalated an Authority, never had a card in its
+pocket. Each time the economy curve came back healthy and meant nothing, and each time I wrote
+"teaching the bot to do this is the obvious next job" in the changelog and did not do it. The
+soak was giving false assurance, which is worse than no soak.
+
+**How.**
+
+*The admin panel.* New cheats — `kit`, `rackets`, `war`, `attention`, `jail_crew`, `open_case`,
+`cards`, `ratted` — each setting up one system's prerequisites, plus `amount` on the ones where a
+number makes sense. They are ordinary `cheat` actions through the ordinary reducer, so there is
+no test-only path into the sim: the bot reaches the late game exactly the way a person poking at
+the build does, and everything stamps `w.cheated`.
+
+*The bot.* Split out of one long loop into `scripts/bot/`: `policy.ts` (a day), `admin.ts`
+(scenarios), `coverage.ts` (what got exercised), `run.ts` (one run). It now plans and launches
+real ops — biased toward kinds this run has not tried and toward the top of the tree — answers
+mid-job complications, works the law, runs and dumps cards, sells dirt, pulls taps and scrubs
+wire heat.
+
+*Coverage.* Every run reports which of ten systems it touched, how many distinct op kinds ran,
+and what never ran at all. The combined sweep now reaches **10/10 systems and 35 of 41 op kinds**,
+with 209 complications and 421 confrontations across the scenarios.
+
+*Two bugs it found.*
+1. **A pending event blocked answering a confrontation.** Both are modal, and the confrontation
+   modal renders on top of the event card — so the player clicked a button they could see and got
+   a refusal about a card they could not. The bot found it by spinning against the refusal 140
+   times in a thirty-day war. `resolve_confrontation` is now exempt from the pending-event gate.
+2. **`flipLieutenant` crashed the game.** It cast `c.assignment` and read `.districtId` off it.
+   The "somebody is courting your lieutenant" card is drawn at End Day and answered the next
+   morning, and in between the tick can jail them or a case can charge them — at which point
+   resolving the card threw and took the whole app down. Guarded, with three regression tests.
+
+**Files.** New: `scripts/bot/{policy,admin,coverage,run}.ts`, `scripts/bot.test.ts`,
+`sim/cheats.test.ts`. Changed: `scripts/headless.ts` (now only a CLI), `sim/actions.ts` +
+`sim/reducer.ts` (the panel, and the confrontation gate fix), `sim/lieutenants.ts` (the crash),
+`sim/index.ts` (exports `CheatKind`), `ui/components/HelpSheet.tsx`, `vitest.config.ts`
+(includes `scripts/`), `sim/combat.test.ts` and `sim/lieutenants.test.ts` (regressions),
+`README.md`, `CLAUDE.md`, `docs/DESIGN.md` §4.14.
+
+**Watch out.**
+
+- **The `honest` scenario is frozen and must stay that way.** It is the only run whose numbers are
+  comparable with earlier passes. Its day is ordered exactly as the original bot's was — during
+  this work I reordered it twice by accident and moved the curve 8% both times, for no gameplay
+  reason. `npm run sim -- 60` still reports $764 dirty on the default seed, byte-identical to
+  before. If you want the bot to do something new, add a scenario.
+- **`npm test` went from ~12s to ~23s.** The bot suite is eight soak runs; they are cached per
+  scenario and capped at 16 days, which was the smallest size that still reached full coverage on
+  six different seeds. Do not raise the day count without checking what it costs.
+- **The roster-coverage floor is 40%, not 50%.** Measured 17–20 of 41 kinds across six seeds; a
+  threshold only the best seed clears is a flaky test pretending to be a standard. Raising it
+  means teaching the bot, not re-rolling.
+- **Six ops still never run**: `heist_warehouse`, `defend_racket`, `takeover`, `claim_abandoned`,
+  `heist_containers`, `heist_countroom`. They need conditions no scenario sets up (a scouted
+  derelict block, a threatened racket, a warehouse or nightclub in that particular city). The
+  sweep names them every run, so this is written down rather than implied — but it is **not
+  fixed**.
+- **Fog is still uncovered and cannot be covered here.** Chunk loading is network work and the
+  headless bot has none, so travel into unmapped ground has no soak coverage at all. That needs a
+  fake chunk source, and it is not done.
+- **`npm run sim -- 60 7 all` is the new habit.** CLAUDE.md now says to run it after building
+  anything and read the table. The default honest run reports 2/10 coverage, by design — it says
+  so and points at the sweep.
+
+
 ## 2026-09-14 — Ops overhaul: working on the law, complications, and a much bigger roster
 
 **What.** Fifteen new ops, three of them aimed at the law itself; tier-2+ jobs can now stop

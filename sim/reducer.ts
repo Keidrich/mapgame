@@ -1,4 +1,4 @@
-import { effectivePolice } from './authority';
+import { authorities, effectivePolice, postureFor } from './authority';
 import { BUSINESS_DEFS } from '@content/businesses';
 import { OP_APPROACHES, OP_DEFS, PRODUCTION_DEFS, PRODUCT_INFO, RACKET_DEFS, RACKET_UPGRADE_COST, SAFEHOUSE_TIERS } from '@content/rackets';
 import { insidersFor } from './select';
@@ -12,10 +12,10 @@ import { AGENDA_LABEL, addGrudge, addMemory } from './people';
 import { standingCap } from './factions';
 import { crewAt, crewOfBoss, parley } from './crews';
 import { endDay } from './tick';
-import { PLAYER, type Business, type Id, type Npc, type Op, type Racket, type Safehouse, type World } from './types';
+import { PLAYER, type Business, type Id, type Npc, type Op, type Racket, type RacketKind, type Safehouse, type World } from './types';
 import { onDemote, promote, promoteReason } from './lieutenants';
 import { backCandidate, broker, brokerReason } from './politics';
-import { buryEvidence, caseWitnessOf, silenceWitness } from './cases';
+import { buryEvidence, caseWitnessOf, openCase, silenceWitness } from './cases';
 import { blockName as blockNameOf, isHere, legworkFor, npcBlockIds, npcIsHere, route, travelCost } from './travel';
 import { petition, seatReason } from './commission';
 import { claimedByPlayer } from './abandoned';
@@ -23,7 +23,7 @@ import { isHeld, resolveHostage, roomFor } from './hostages';
 import { PLAYER_NOTE_MAX, opCost, opLocked } from './select';
 import { EQUIP_MAX, buyPrice, equipSlotsLeft, isMarket, marketStock, ownedCount, sellPrice } from './items';
 import { activeConfrontation, confrontOptions, confrontations, resolveConfrontation } from './combat';
-import { cardById, dumpCards, endTap, liveCards, runCard, scrubPower, scrubTrail, secrets, sellDirt } from './cyber';
+import { addCard, cardById, cyberHeat, dumpCards, endTap, learnSecret, liveCards, rollCard, runCard, scrubPower, scrubTrail, secrets, sellDirt } from './cyber';
 import { SCRUB } from '@content/cyber';
 import { CASE_JOINT } from '@content/rackets';
 import { ITEM_DEFS } from '@content/items';
@@ -41,7 +41,11 @@ export function can(w: World, a: Action): Affordance {
   const p = w.player;
   // bookkeeping (renaming yourself, a note to self, streaming in geometry) is not a move, so it is never blocked
   const freeAlways = ['end_day', 'resolve_event', 'rename', 'set_note', 'populate_chunk'];
-  if (!freeAlways.includes(a.type) && w.pendingEvents.length) return no('Deal with what is in front of you first.');
+  // Answering somebody at the door is never blocked by a pending event. Both are modal, and the
+  // confrontation renders on top of the event card, so blocking it here left the player clicking
+  // a button they could see and getting a refusal about a card they could not — found by the
+  // soak bot spinning against it 140 times in a thirty-day war.
+  if (!freeAlways.includes(a.type) && a.type !== 'resolve_confrontation' && w.pendingEvents.length) return no('Deal with what is in front of you first.');
   // somebody is standing in front of you: nothing else happens until you answer them
   if (!freeAlways.includes(a.type) && a.type !== 'resolve_confrontation' && activeConfrontation(w)) {
     return no(`${w.factions[activeConfrontation(w)!.factionId]?.short ?? 'They'} are in front of you right now. Deal with that first.`);
@@ -795,7 +799,7 @@ export function dispatch(prev: World, a: Action): World {
     case 'end_day': { endPartnerships(w); done(); return endDay(w); }
     case 'populate_chunk': { const added = populateChunk(w, a.chunk, rng); if (added.length) log(w, `You get to know a new part of town: ${added.length} blocks around ${w.blocks[added[0].id].name}.`, 'info', { blockId: added[0].id }); break; }
     case 'rename': p.name = a.name.trim(); break;
-    case 'cheat': { cheat(w, a.what); break; }
+    case 'cheat': { cheat(w, a.what, a.amount, rng); break; }
   }
   done();
   return w;
@@ -826,18 +830,26 @@ export function mkRacket(w: World, kind: Racket['kind'], b: Business): Racket {
 
 /** Testing tools. Ordinary reducer work — no hidden state, no branch anywhere else in the sim reads `cheated`;
  *  it is there so a save that was messed with is never mistaken for a real playthrough. */
-function cheat(w: World, what: CheatKind) {
+/**
+ * The admin panel. Every entry sets a system up so it can actually be exercised — by a person
+ * poking at the build, or by the soak bot, which otherwise cannot reach half the game: it never
+ * escalates an Authority, never gets to tier 2, never has a card in its pocket.
+ *
+ * `amount` overrides the default where a number makes sense. Everything here stamps
+ * `w.cheated`, so a cheated run can never be mistaken for a real economy curve.
+ */
+function cheat(w: World, what: CheatKind, amount?: number, rng?: import('./rng').Rng) {
   const p = w.player; w.cheated = true;
   const here = w.blocks[p.currentBlockId];
   switch (what) {
-    case 'cash': p.cash += 10000; log(w, 'Testing: +$10,000 clean.', 'money'); break;
-    case 'dirty': p.dirty += 10000; log(w, 'Testing: +$10,000 dirty.', 'money'); break;
+    case 'cash': { const n = amount ?? 10000; p.cash += n; log(w, `Testing: +${money(n)} clean.`, 'money'); break; }
+    case 'dirty': { const n = amount ?? 10000; p.dirty += n; log(w, `Testing: +${money(n)} dirty.`, 'money'); break; }
     case 'ap': p.ap = p.apMax; log(w, 'Testing: AP refilled.', 'info'); break;
     case 'legwork': p.legwork = p.legworkMax; log(w, 'Testing: legwork refilled.', 'info'); break;
     case 'heat': p.heat = 0; for (const b of Object.values(w.blocks)) b.heat = 0; log(w, 'Testing: heat cleared.', 'good'); break;
-    case 'skills': for (const k of Object.keys(p.skills) as (keyof typeof p.skills)[]) p.skills[k] = 10; p.legworkMax = legworkFor(p.skills.wheels); log(w, 'Testing: every skill at 10.', 'good'); break;
+    case 'skills': { const n = Math.max(0, Math.min(10, amount ?? 10)); for (const k of Object.keys(p.skills) as (keyof typeof p.skills)[]) p.skills[k] = n; p.legworkMax = legworkFor(p.skills.wheels); p.legwork = p.legworkMax; log(w, `Testing: every skill at ${n}.`, 'good'); break; }
     case 'crew': {
-      const pool = Object.values(w.npcs).filter(n => n.alive && !n.crew && !n.official && ['patron', 'owner'].includes(n.role)).slice(0, 3);
+      const pool = Object.values(w.npcs).filter(n => n.alive && !n.crew && !n.official && ['patron', 'owner'].includes(n.role)).slice(0, Math.max(1, amount ?? 3));
       for (const n of pool) {
         n.crew = { loyalty: 80, cut: 50, status: 'idle', statusDays: 0, joinedDay: w.day };
         n.role = 'crew'; n.known = true; p.crewIds.push(n.id); p.crewEver++;
@@ -873,7 +885,70 @@ function cheat(w: World, what: CheatKind) {
       log(w, 'Testing: everyone is known and every derelict block is on the map.', 'info');
       break;
     }
-    case 'stash': for (const k of Object.keys(p.stash) as (keyof typeof p.stash)[]) p.stash[k] += 50; log(w, 'Testing: +50 of every product.', 'good'); break;
+    case 'stash': { const n = amount ?? 50; for (const k of Object.keys(p.stash) as (keyof typeof p.stash)[]) p.stash[k] += n; log(w, `Testing: +${n} of every product.`, 'good'); break; }
+
+    // ---- set up one system so it can be exercised ----
+    case 'kit': {
+      const want = ['pistol', 'lockpicks', 'sedan'].filter(id => ITEM_DEFS[id]);
+      p.items = [...new Set([...(p.items ?? []), ...want])];
+      p.equipped = want.slice(0, EQUIP_MAX);
+      log(w, `Testing: carrying ${p.equipped.map(id => ITEM_DEFS[id].label).join(', ')}.`, 'good');
+      break;
+    }
+    case 'rackets': {
+      // a racket of each kind the later ops ask about, on whatever you already hold
+      const mine = p.businessIds.map(id => w.businesses[id]).filter(Boolean);
+      const spots = mine.length ? mine : here.businessIds.map(id => w.businesses[id]).filter(Boolean);
+      const kinds: RacketKind[] = ['protection', 'numbers', 'laundering', 'fencing', 'carding'];
+      let made = 0;
+      for (const k of kinds) {
+        const b = spots.find(x => !x.racketIds.some(id => w.rackets[id]?.kind === k));
+        if (!b) continue;
+        if (b.ownedBy !== 'player') { b.ownedBy = 'player'; p.businessIds.push(b.id); }
+        mkRacket(w, k, b); made++;
+      }
+      log(w, `Testing: ${made} racket${made === 1 ? '' : 's'} running, including one that moves cards.`, 'good');
+      break;
+    }
+    case 'war': {
+      const f = Object.values(w.factions).filter(x => x.alive).slice(0, Math.max(1, amount ?? 1));
+      for (const x of f) { x.stance[PLAYER] = 'war'; x.standing[PLAYER] = -90; x.truceUntil[PLAYER] = 0; x.soldiers = Math.max(x.soldiers, 6); }
+      log(w, `Testing: ${f.map(x => x.short).join(', ')} at war with you.`, 'bad');
+      break;
+    }
+    case 'attention': {
+      const at = Math.max(0, Math.min(100, amount ?? 90));
+      for (const a of authorities(w)) { a.attention = at; a.posture = postureFor(at); a.postureSince = w.day; }
+      p.heat = Math.max(p.heat, Math.min(95, at));
+      log(w, `Testing: every precinct and city hall at attention ${at}.`, 'bad');
+      break;
+    }
+    case 'jail_crew': {
+      const free = p.crewIds.map(id => w.npcs[id]).filter(n => n?.crew && n.crew.status !== 'dead' && n.crew.status !== 'jailed');
+      const n = free[0];
+      if (!n?.crew) { log(w, 'Testing: nobody in your crew to put inside.', 'warn'); break; }
+      n.crew.status = 'jailed'; n.crew.statusDays = amount ?? 25; n.crew.assignment = undefined;
+      log(w, `Testing: ${n.name} is inside for ${n.crew.statusDays} days.`, 'bad', { npcId: n.id });
+      break;
+    }
+    case 'open_case': {
+      if (rng) openCase(w, 'heist', `the ${here.name} job`, { blockId: here.id }, p.crewIds.slice(0, 2), rng, amount ?? 35);
+      break;
+    }
+    case 'cards': {
+      if (rng) for (let i = 0; i < (amount ?? 5); i++) addCard(w, rollCard(w, rng));
+      const mark = Object.values(w.npcs).find(n => n.alive && !n.crew && n.agenda && !n.agenda.done);
+      if (mark && rng) learnSecret(w, mark, rng);
+      cyberHeat(w, 25);
+      log(w, `Testing: ${(p.cards ?? []).length} cards in your pocket, something worth selling, and wire heat to clean up.`, 'money');
+      break;
+    }
+    case 'ratted': {
+      let n = 0;
+      for (const x of Object.values(w.npcs)) if (x.alive && !x.crew && (x.role === 'owner' || x.role === 'boss' || x.role === 'lieutenant')) { x.ratted = w.day; n++; }
+      log(w, `Testing: you have been inside ${n} businesses.`, 'info');
+      break;
+    }
   }
 }
 

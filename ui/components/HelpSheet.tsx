@@ -18,6 +18,15 @@ const CHEATS: { what: CheatKind; label: string; icon: string }[] = [
   { what: 'turf', label: 'Make this block your turf', icon: '👑' },
   { what: 'reveal', label: 'Reveal people and derelict blocks', icon: '🗺️' },
   { what: 'stash', label: '+50 of every product', icon: '📦' },
+  // set up one system so it can actually be exercised; the soak bot drives these same entries
+  { what: 'kit', label: 'Carry a weapon, a tool and a car', icon: '🧰' },
+  { what: 'rackets', label: 'A racket of every useful kind', icon: '🎟️' },
+  { what: 'war', label: 'Somebody goes to war with you', icon: '⚔️' },
+  { what: 'attention', label: 'Every precinct looking hard', icon: '🚔' },
+  { what: 'jail_crew', label: 'Put one of yours in a cell', icon: '🔒' },
+  { what: 'open_case', label: 'Open a case file on you', icon: '🗄️' },
+  { what: 'cards', label: 'Cards, a secret and wire heat', icon: '💳' },
+  { what: 'ratted', label: 'You have been inside everybody', icon: '🕳️' },
 ];
 
 /** One-screen "how to play" (the README's first five minutes), opened from the ? in the HUD. */

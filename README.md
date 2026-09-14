@@ -15,7 +15,8 @@ npm install
 npm run dev        # http://localhost:5173 — open on your phone via the LAN URL
 npm run build      # typecheck + production build into dist/ (installable PWA)
 npm test           # sim unit tests
-npm run sim -- 60  # headless: a scripted player plays 60 days, prints the economy
+npm run sim -- 60            # headless: honest play, 60 days, prints the economy curve
+npm run sim -- 60 7 all      # every scenario in turn + a coverage table (uses the admin panel)
 ```
 
 ## Deploy (Cloudflare Workers, static assets)

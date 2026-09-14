@@ -18,6 +18,16 @@ the design authority. `docs/CHANGELOG.md` says what recent sessions changed and 
 prints the economy curve; if income or faction growth looks broken, fix the balance
 before shipping.
 
+The default run is the **honest** scenario: no admin panel, no ops, and its shape is frozen
+because it is the only run whose numbers are comparable with earlier passes. Do not "improve"
+it — add a scenario instead.
+
+**After building anything, run `npm run sim -- 60 7 all` and read the coverage table.** It says
+which systems the bot actually reached and names the ops that never ran. If the thing you just
+built shows `✗`, the soak has told you nothing about it: teach the bot (`scripts/bot/policy.ts`)
+or add a scenario (`scripts/bot/admin.ts`) before you claim it is tested. Three passes shipped
+with the bot silently blind to them, which is why this paragraph exists.
+
 ## Leave a trail
 Whoever works here next — a person or another session — starts with no memory of this
 one. Every change says **what** it did, **why**, and **how**, in the places they will

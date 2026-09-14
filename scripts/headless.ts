@@ -1,96 +1,64 @@
-/** Headless soak: a sensible scripted player plays N days. `npm run sim -- 60 [seed]`. */
-import { PLAYER, can, dispatch, generateWorld, select, type Action, type World } from '@sim/index';
-import { Rng } from '@sim/rng';
+/**
+ * Headless soak.
+ *
+ *   npm run sim -- 60                    60 days, default seed, honest play
+ *   npm run sim -- 60 7                  …on seed 7
+ *   npm run sim -- 60 7 everything       …with the admin panel set up to reach every system
+ *   npm run sim -- 60 7 all              every scenario in turn, with a combined coverage table
+ *
+ * Scenarios other than `honest` use the admin panel (the same `cheat` actions behind the fold in
+ * the help sheet), so the world comes back stamped `cheated`. **Only the honest run's economy
+ * numbers mean anything**; the others exist to reach systems an honest player needs many days to
+ * assemble, which is how three feature passes shipped with the bot unable to see them.
+ */
+import { SCENARIOS, SCENARIO_NAMES, isScenario, type ScenarioName } from './bot/admin';
+import { fullyCovered, missing, neverRan, report, type Coverage, type Counter } from './bot/coverage';
+import { OP_DEFS } from '@content/rackets';
+import { run, summary } from './bot/run';
+import { select } from '@sim/index';
 
-const days = Number(process.argv[2] ?? 40); const seed = Number(process.argv[3] ?? 7);
-let w: World = generateWorld({ origin: { lat: 41.88, lng: -87.63 }, placeName: 'Chicago', playerName: 'Bot', background: 'muscle', seed });
-const rng = new Rng(seed * 7 + 1);
-const tryAct = (a: Action) => { const c = can(w, a); if (c.ok) { w = dispatch(w, a); return true; } return false; };
-const start = select.startBlock(w);
-const nearBiz = () => Object.values(w.blocks).filter(b => select.distanceFromStart(w, b.id) <= 2).flatMap(b => select.businessesIn(w, b.id));
-/** Face-to-face work needs the player on the block: walk there, or give up on this target. */
-const at = (blockId?: string) => !!blockId && w.player.currentBlockId === blockId;
-const goTo = (blockId?: string) => !!blockId && (at(blockId) || tryAct({ type: 'move', toBlockId: blockId }));
-const npcBlock = (id: string) => w.npcs[id]?.homeBlockId;
+const days = Number(process.argv[2] ?? 40);
+const seed = Number(process.argv[3] ?? 7);
+const which = process.argv[4] ?? 'honest';
 
-for (let d = 0; d < days; d++) {
-  // somebody at the door: fight when the odds are decent, otherwise get people down there
-  while (select.activeConfrontation(w)) {
-    const c = select.activeConfrontation(w)!;
-    const best = select.confrontOptions(w, c).filter(o => !o.disabled).sort((a, b) => b.chance - a.chance)[0];
-    w = dispatch(w, { type: 'resolve_confrontation', id: c.id, approach: best.id });
-  }
-  while (w.pendingEvents.length) { const e = w.pendingEvents[0]; const opts = e.options.filter(o => can(w, { type: 'resolve_event', eventId: e.id, optionId: o.id }).ok); const o = opts.length ? rng.pick(opts) : e.options[e.options.length - 1]; w = dispatch(w, { type: 'resolve_event', eventId: e.id, optionId: o.id }); }
-  // promote the best-qualified idle crew member to run a district that has nobody
-  for (const d of select.districtsRunnable(w)) { if (select.lieutenantOf(w, d.id)) continue; const pool = select.crew(w).filter(n => n.crew?.status === 'idle' || n.crew?.assignment?.kind === 'racket'); const pick = pool.find(n => !select.promoteReason(w, n, d.id)); if (pick) tryAct({ type: 'assign', npcId: pick.id, assignment: { kind: 'lieutenant', districtId: d.id } }); }
-  // kit: buy when a market is on the doorstep and there is money spare. A sensible player
-  // does not spend a day's legwork crossing town for a bat — measured across six seeds, that
-  // habit alone cost the bot about a third of its take.
-  if (w.player.cash > 800 && (w.player.equipped ?? []).length < select.EQUIP_MAX) {
-    const shop = Object.values(w.businesses).filter(b => select.isMarket(b) && (select.travelCost(w, b.blockId) ?? 9) <= 1)[0];
-    const want = shop && select.marketStock(shop).filter(i => !(w.player.items ?? []).includes(i.id)).sort((a, b) => b.cost - a.cost).find(i => i.cost < w.player.cash * 0.7);
-    if (shop && want && goTo(shop.blockId)) tryAct({ type: 'buy_item', businessId: shop.id, itemId: want.id });
-  }
-  for (const item of select.ownedItems(w)) if (select.equipSlotsLeft(w) > 0 && !select.isEquipped(w, item.id)) tryAct({ type: 'equip', itemId: item.id, on: true });
-  let guard = 0;
-  while (w.player.ap > 0 && guard++ < 30) {
-    const p = w.player; const biz = nearBiz();
-    const mine = biz.filter(b => b.protection?.factionId === PLAYER || b.ownedBy === 'player');
-    const soft = biz.filter(b => !b.protection && b.ownedBy === 'npc');
-    // 1. recruit anyone willing
-    const willing = biz.flatMap(b => b.patronIds).find(id => { const r = can(w, { type: 'recruit', npcId: id }); return r.ok || (!r.ok && /Walk over first/.test(r.reason)); });
-    if (willing && select.crew(w).length < 6 && goTo(npcBlock(willing))) { tryAct({ type: 'recruit', npcId: willing }); continue; }
-    // 2. lay low if hot
-    if (p.heat > 45) { const captain = select.officials(w).find(o => o.official!.kind === 'captain')!; if (p.cash > 2500 && !tryAct({ type: 'bribe_official', npcId: captain.id, amount: 1000 })) {} const n = rng.pick(biz.flatMap(b => [b.ownerId, ...b.patronIds])); if (goTo(npcBlock(n))) tryAct({ type: 'visit', npcId: n }); continue; }
-    // 3. add rackets to places we hold
-    const spot = mine.find(b => select.availableRackets(w, b).some(k => ['numbers', 'bookmaking', 'laundering'].includes(k)));
-    if (spot && p.cash > 1500) { const k = select.availableRackets(w, spot).find(k => ['numbers', 'bookmaking', 'laundering'].includes(k))!; if (tryAct({ type: 'start_racket', businessId: spot.id, kind: k })) continue; }
-    // 4. expand protection
-    const t = soft.sort((a, b) => (w.npcs[a.ownerId].nerve - w.npcs[a.ownerId].rel.fear) - (w.npcs[b.ownerId].nerve - w.npcs[b.ownerId].rel.fear))[0];
-    if (t) { if (tryAct({ type: 'protect', businessId: t.id, rate: 0.15 })) continue; if (goTo(t.blockId)) { if (tryAct({ type: 'shakedown', businessId: t.id })) continue; if (tryAct({ type: 'threaten', npcId: t.ownerId })) continue; } }
-    // 5. buy a business if rich
-    const buy = biz.find(b => b.ownedBy === 'npc' && can(w, { type: 'buy_business', businessId: b.id, offer: Math.round(b.value * 0.9) }).ok);
-    if (buy && p.cash > buy.value * 1.5) { tryAct({ type: 'buy_business', businessId: buy.id, offer: Math.round(buy.value * 0.9) }); continue; }
-    const n = rng.pick(biz.flatMap(b => [b.ownerId, ...b.patronIds]));
-    if (goTo(npcBlock(n))) tryAct({ type: 'visit', npcId: n }); else break; // out of legwork and nothing to do here
-  }
-  if (!w.player.safehouseIds.length) tryAct({ type: 'rent_safehouse', blockId: start.id });
-  for (const n of select.idleCrew(w)) { const r = w.player.racketIds.map(id => w.rackets[id]).find(r => !r.runnerId); if (r) tryAct({ type: 'assign', npcId: n.id, assignment: { kind: 'racket', racketId: r.id } }); }
-  // production: a still in the first safehouse, a worker on it, and a dealing racket to move the booze
-  for (const sid of w.player.safehouseIds) {
-    const sh = w.safehouses[sid];
-    if (!sh.productionIds.length && w.player.cash > 5000) tryAct({ type: 'start_production', safehouseId: sid, kind: 'still' });
-    for (const pid of sh.productionIds) {
-      const pr = w.productions[pid];
-      if (pr.stock < 2) tryAct({ type: 'restock_production', productionId: pid, days: 7 });
-      if (!pr.workerId) { const free = select.idleCrew(w)[0]; if (free) tryAct({ type: 'assign', npcId: free.id, assignment: { kind: 'production', productionId: pid } }); }
-      if (pr.level < 3 && w.player.cash > 15000) tryAct({ type: 'upgrade_production', productionId: pid });
-      const known = select.recipesForKind(w, pr.kind); if (known.length && !pr.recipe) tryAct({ type: 'set_recipe', productionId: pid, recipe: known[0] });
-    }
-    if (sh.stash.booze > 0) tryAct({ type: 'move_stash', from: sid, to: 'player', product: 'booze', amount: sh.stash.booze });
-  }
-  if (w.player.stash.booze > 10 && !w.player.racketIds.some(id => w.rackets[id]?.kind === 'dealing')) { const spot = nearBiz().find(b => b.protection?.factionId === PLAYER && can(w, { type: 'start_racket', businessId: b.id, kind: 'dealing', product: 'booze' }).ok); if (spot) tryAct({ type: 'start_racket', businessId: spot.id, kind: 'dealing', product: 'booze' }); }
-  if (w.player.dirty > 500) tryAct({ type: 'launder', amount: w.player.dirty });
-  // no capacity of your own yet: the fixer near the start block washes a little at a worse rate
-  if (w.player.dirty > 0 && !w.player.racketIds.some(id => w.rackets[id]?.kind === 'laundering')) {
-    const fx = select.fixersKnown(w)[0];
-    const room = fx ? select.fixerCapLeft(w, fx) : 0;
-    if (fx && room > 0 && goTo(npcBlock(fx.id))) tryAct({ type: 'launder_with_fixer', npcId: fx.id, amount: Math.min(w.player.dirty, room) });
-  }
-  if (w.player.cash > 8000 && !w.player.lawyer) tryAct({ type: 'hire_lawyer' });
-  w = dispatch(w, { type: 'end_day' });
-  const bad = (v: number, what: string) => { if (!Number.isFinite(v)) throw new Error(`NaN in ${what} on day ${w.day}`); };
-  bad(w.player.cash, 'cash'); bad(w.player.dirty, 'dirty'); bad(w.player.heat, 'heat');
-  for (const b of Object.values(w.blocks)) for (const v of Object.values(b.influence)) bad(v, `influence ${b.id}`);
-  for (const r of Object.values(w.rackets)) bad(r.lastIncome, `racket ${r.id}`);
+if (which !== 'all' && !isScenario(which)) {
+  console.error(`Unknown scenario "${which}". Try one of: ${SCENARIO_NAMES.join(', ')}, or "all".`);
+  process.exit(1);
 }
-const p = w.player;
-console.log(`Day ${w.day} | cash ${Math.round(p.cash)} dirty ${Math.round(p.dirty)} heat ${Math.round(p.heat)} respect ${p.respect} fear ${p.fear}`);
-console.log(`productions ${Object.values(w.productions).map(pr => `${pr.kind} L${pr.level} q${pr.quality ?? '-'}${pr.recipe ? ` (${pr.recipe})` : ''} ${pr.lastOutput}/day`).join(', ') || 'none'} | recipes ${(p.recipes ?? []).join(',') || 'none'} | booze q${select.qualityOf(p, 'booze')} x${Math.round(p.stash.booze)}`);
-console.log(`standing on ${w.blocks[p.currentBlockId]?.name ?? '?'} | legwork ${p.legwork}/${p.legworkMax} | kit ${select.equippedItems(w).map(i => i.label).join(', ') || 'none'}${(p.items ?? []).length > (p.equipped ?? []).length ? ` (owns ${(p.items ?? []).length})` : ''}`);
-console.log(`crew ${p.crewIds.length} (${select.crew(w).map(n => n.crew?.status).join(',')}) | businesses ${p.businessIds.length} | rackets ${p.racketIds.length} (${p.racketIds.map(id => w.rackets[id].kind).join(',')}) | safehouses ${p.safehouseIds.length} | control ${(select.controlShare(w) * 100).toFixed(1)}%`);
-for (const f of Object.values(w.factions)) console.log(`${f.name.padEnd(24)} ${f.temperament.padEnd(11)} soldiers ${String(f.soldiers).padStart(2)} cash ${String(Math.round(f.cash)).padStart(7)} blocks ${String(select.blocksOf(w, f.id).length).padStart(3)} stance→player ${f.stance[PLAYER]} (${Math.round(f.standing[PLAYER])})`);
-for (const l of w.log.filter(l => l.text.startsWith('Day ') && l.day % 5 === 0)) console.log(`[${l.day}] ${l.text}`);
-console.log('--- last 12 ---');
-for (const l of w.log.slice(-12)) console.log(`[${l.day}] ${l.tone.padEnd(5)} ${l.text}`);
-console.log(`state size ${(JSON.stringify(w).length / 1024).toFixed(0)} KB; ${Object.keys(w.npcs).length} npcs, ${Object.keys(w.businesses).length} businesses`);
+
+const names: ScenarioName[] = which === 'all' ? SCENARIO_NAMES : [which as ScenarioName];
+const combined: Coverage[] = [];
+
+for (const name of names) {
+  const r = run({ days, seed, scenario: name });
+  combined.push(r.cov);
+  console.log(`\n=== ${name}: ${SCENARIOS[name].blurb} ===`);
+  for (const line of summary(r)) console.log(line);
+  for (const line of report(r.cov)) console.log(line);
+  if (names.length === 1 && !fullyCovered(r.cov)) {
+    console.log(`  → this run never touched: ${missing(r.cov).join(', ')}.`);
+    if (name === 'honest') console.log('  → that is expected: honest play reaches little in 60 days. For coverage run: npm run sim -- 60 7 all');
+  }
+  if (names.length === 1) {
+    for (const l of r.w.log.filter(l => l.text.startsWith('Day ') && l.day % 10 === 0)) console.log(`[${l.day}] ${l.text}`);
+    console.log('--- last 12 ---');
+    for (const l of r.w.log.slice(-12)) console.log(`[${l.day}] ${l.tone.padEnd(5)} ${l.text}`);
+    console.log(`state size ${(JSON.stringify(r.w).length / 1024).toFixed(0)} KB; ${Object.keys(r.w.npcs).length} npcs, ${Object.keys(r.w.businesses).length} businesses, ${select.authorities(r.w).length} authorities`);
+  }
+}
+
+if (names.length > 1) {
+  // one table across every scenario: what did this whole sweep never touch?
+  const merged = combined.reduce((acc, c) => {
+    for (const [k, v] of Object.entries(c.counts)) acc.counts[k as Counter] = (acc.counts[k as Counter] ?? 0) + v;
+    for (const [k, v] of Object.entries(c.opKinds)) acc.opKinds[k] = (acc.opKinds[k] ?? 0) + v;
+    for (const [k, v] of Object.entries(c.complicationKinds)) acc.complicationKinds[k] = (acc.complicationKinds[k] ?? 0) + v;
+    for (const x of c.warnings) if (!acc.warnings.includes(x)) acc.warnings.push(x);
+    return acc;
+  });
+  console.log(`\n=== all scenarios combined ===`);
+  for (const line of report(merged)) console.log(line);
+  const cold = neverRan(merged, Object.keys(OP_DEFS));
+  console.log(`  ops never run (${cold.length}/${Object.keys(OP_DEFS).length}): ${cold.join(', ') || 'none — the whole roster ran'}`);
+  console.log(fullyCovered(merged) ? 'every system was exercised at least once.' : `NEVER EXERCISED: ${missing(merged).join(', ')}`);
+}

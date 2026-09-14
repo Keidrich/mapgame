@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { PLAYER, can, dispatch, generateWorld, select, type World } from './index';
 import { mkRacket } from './reducer';
 import { racketIncome } from './economy';
-import { tickLieutenants } from './lieutenants';
+import { flipLieutenant, tickLieutenants } from './lieutenants';
 import { Rng } from './rng';
 
 const mk = (seed = 5) => generateWorld({ origin: { lat: 51.5, lng: -0.12 }, placeName: 'London', playerName: 'T', background: 'muscle', seed });
@@ -79,5 +79,51 @@ describe('lieutenants', () => {
     const w2 = dispatch(w, { type: 'resolve_event', eventId: e.id, optionId: 'raise' });
     expect(w2.npcs[npcId].crew!.loyalty).toBeGreaterThan(80);
     expect(w2.npcs[npcId].crew!.cut).toBeGreaterThan(90);
+  });
+});
+
+describe('a lieutenant who is not a lieutenant any more', () => {
+  /**
+   * The "somebody is courting your lieutenant" card is drawn at End Day and answered the next
+   * morning. Between those two moments the tick can jail them, a case can charge them, or they
+   * can simply be reassigned — and resolving the card then read `.districtId` off an assignment
+   * that was gone, which crashed the whole game. The soak bot's coverage sweep hit it first run.
+   */
+  const promoted = (seed = 5) => {
+    const { w, npcId, districtId } = setup(seed);
+    const n = w.npcs[npcId];
+    n.crew!.assignment = { kind: 'lieutenant', districtId };
+    n.crew!.status = 'assigned';
+    const f = Object.values(w.factions).find(x => x.alive)!;
+    return { w, n, f, districtId };
+  };
+
+  it('does not throw when the assignment has gone', () => {
+    const { w, n, f } = promoted();
+    n.crew!.assignment = undefined;          // jailed overnight, say
+    expect(() => flipLieutenant(w, n, f)).not.toThrow();
+    expect(w.player.crewIds).not.toContain(n.id);
+    expect(n.faction).toBe(f.id);
+  });
+
+  it('does not throw when they are not crew at all any more', () => {
+    const { w, n, f } = promoted();
+    n.crew = undefined;
+    expect(() => flipLieutenant(w, n, f)).not.toThrow();
+  });
+
+  it('does not throw when the district itself has gone', () => {
+    const { w, n, f } = promoted();
+    n.crew!.assignment = { kind: 'lieutenant', districtId: 'no_such_district' };
+    expect(() => flipLieutenant(w, n, f)).not.toThrow();
+  });
+
+  it('still takes the district with them when the assignment is intact', () => {
+    const { w, n, f, districtId } = promoted();
+    const blockId = w.districts[districtId].blockIds[0];
+    w.blocks[blockId].influence[PLAYER] = 50;
+    flipLieutenant(w, n, f);
+    expect(w.blocks[blockId].influence[PLAYER] ?? 0).toBeLessThan(50);
+    expect(f.lieutenantIds).toContain(n.id);
   });
 });

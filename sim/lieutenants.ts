@@ -121,8 +121,16 @@ function offerEvent(w: World, n: Npc, d: District, f: Faction): GameEvent {
 }
 
 export function flipLieutenant(w: World, n: Npc, f: Faction, quiet = false) {
-  const p = w.player; const c = n.crew!; const a = c.assignment as { kind: 'lieutenant'; districtId: Id };
-  const d = w.districts[a.districtId];
+  const p = w.player;
+  const c = n.crew;
+  // They may not be a lieutenant — or even crew — by the time this runs. The event that offers
+  // them a better job is drawn at End Day and answered the next morning, and plenty can happen in
+  // between: the tick jails them and clears the assignment, a case charges them, the player moves
+  // them. This used to cast `c.assignment` and read `.districtId` off undefined, which crashed
+  // the whole game on resolving the card. Found by the soak bot's coverage sweep.
+  if (!c) { log(w, `${n.name} was never yours to lose.`, 'info', { npcId: n.id }); return; }
+  const a = c.assignment?.kind === 'lieutenant' ? c.assignment : undefined;
+  const d = a ? w.districts[a.districtId] : undefined;
   const taken = c.skim ?? 0;
   p.crewIds = p.crewIds.filter(id => id !== n.id);
   n.crew = undefined; n.role = 'lieutenant'; n.faction = f.id; if (!f.lieutenantIds.includes(n.id)) f.lieutenantIds.push(n.id);

@@ -204,3 +204,32 @@ describe('armed work', () => {
     expect(OP_DEFS.armed_intimidation.heat).toBeGreaterThan(OP_DEFS.intimidate.heat);
   });
 });
+
+describe('a confrontation and an event card at the same time', () => {
+  /**
+   * Both are modal and both arrive from the same End Day. The confrontation modal renders on
+   * top of the event card, so if a pending event blocked answering it the player would click a
+   * button they could see and get a refusal about a card they could not. The soak bot found
+   * this by spinning against it 140 times in a thirty-day war.
+   */
+  it('the door can still be answered while an event card is waiting', () => {
+    const { w, f } = atWar(12);
+    provoke(w, f);
+    const c = select.activeConfrontation(w);
+    if (!c) return;                      // this seed did not provoke one; other tests cover that
+    w.pendingEvents = [{ id: 'e1', day: w.day, kind: 'test', refs: {}, title: 'Something else', text: 'Also happening.', options: [{ id: 'ok', label: 'Fine' }] }];
+
+    const gate = can(w, { type: 'resolve_confrontation', id: c.id, approach: 'fight' });
+    expect(gate.ok, gate.ok ? '' : gate.reason).toBe(true);
+    const next = dispatch(w, { type: 'resolve_confrontation', id: c.id, approach: 'fight' });
+    expect(select.confrontations(next).map(x => x.id)).not.toContain(c.id);
+    expect(next.pendingEvents).toHaveLength(1);   // the card is still there, waiting its turn
+  });
+
+  it('but an event card still blocks ordinary moves', () => {
+    const { w } = atWar(12);
+    w.confrontations = [];
+    w.pendingEvents = [{ id: 'e1', day: w.day, kind: 'test', refs: {}, title: 'Something', text: 'Happening.', options: [{ id: 'ok', label: 'Fine' }] }];
+    expect(can(w, { type: 'move', toBlockId: Object.keys(w.blocks)[1] }).ok).toBe(false);
+  });
+});
