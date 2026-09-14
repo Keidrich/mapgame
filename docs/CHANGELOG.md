@@ -14,6 +14,93 @@ House rules for an entry (see `CLAUDE.md` → *Leave a trail*):
 
 ---
 
+## 2026-09-14 — Rackets diversify, territory finally moves, and two gates that asked the wrong question
+
+**What.** Saturation and synergy give racket kinds a reason to be picked between; influence
+accrual now rewards depth and spreads outward from strongholds; four new racket kinds; ten new
+event cards wired to systems that had no daily presence; and two bugs reported from real play.
+
+**Why.** Protection costs nothing and works anywhere, so nothing else was ever worth buying. And
+city control had sat near the same low percentage since this project's first soak — diagnosed
+repeatedly, never actually fixed.
+
+**How.**
+
+*Saturation.* Per district, per kind, per owner. The first three of a kind are untouched; each one
+past that is worth 0.8× the one before, floored at 25%, ordered oldest-first so a new route
+dilutes itself rather than retroactively punishing what was already running. Applied to income
+and to laundering capacity.
+
+*Synergy.* One-directional pairs — fencing fed by dealing, laundering by carding, dealing by
+smuggling, loansharking by a gambling den, no-show jobs by union dues — paid while the feeder is
+running, unshut, in the same district.
+
+*Territory.* Influence is gathered per block and applied once, so accrual can see the whole depth
+of what you run there: each operation past the first adds half again (cap four), consecutive days
+held add up to half again more, rivals get pushed off ground you run deeply, and — the piece that
+actually mattered — a block you control with depth ≥ 2 bleeds influence into its neighbours.
+
+*Four new kinds:* union dues, counterfeiting, after hours, policy bank. Only worth adding once
+there was a reason to pick between them.
+
+*Ten new events*, each weighting on the state it is about: a wronged mark's family turning up;
+gossip reaching somebody you never spoke to; an officer quietly asking around before the posture
+moves; a tap surfacing something unprompted; a card about to go cold; a one-time price on kit; a
+rival noticing what you carry; a street crew offering terms; somebody asking about a block you
+claimed.
+
+**Two bugs from real play.**
+
+1. **A detective on day one.** `cops_sniffing` weighted purely on owning any racket, so your
+   first protection job could summon a plainclothes cop who had supposedly been watching it for
+   two nights. It now needs real police interest (heat, an escalated Authority, or an open file)
+   *and* a racket at least four days old. `content/events.ts` holds those thresholds so the rule
+   is a constant rather than a habit, and `sim/events-variety.test.ts` draws thousands of cards
+   from worlds lacking each system to prove nothing fires without its state.
+2. **A derelict lot you found yourself could not be taken.** `claim_abandoned` required
+   `priorOps: ['scout_block']` — having scouted *anywhere* — but many derelict blocks are visibly
+   derelict from generation. It uses the per-target family now (`derelictTarget`), and walking
+   onto *or through* a derelict block marks it found.
+
+**Files.** New: `content/territory.ts`, `content/events.ts`, `sim/territory.ts`, and three test
+files (`sim/racket-saturation.test.ts`, `sim/territory-accrual.test.ts`,
+`sim/events-variety.test.ts`). Changed: `sim/economy.ts` (`rawRacketIncome` split out so the
+multiplier applies in exactly one place), `sim/tick.ts`, `sim/types.ts` (four `RacketKind`s,
+`Block.heldSince`), `content/rackets.ts`, `content/businesses.ts`, `sim/events.ts`,
+`sim/select.ts` (`racketOutlook`/`racketsByOutlook`), `sim/reducer.ts`,
+`ui/components/BusinessSheet.tsx` + `BlockSheet.tsx` (both mechanics made visible),
+`content/glossary.ts`, `scripts/bot/policy.ts`, `docs/DESIGN.md` §4.15–4.16.
+
+**Watch out.**
+
+- **No `WORLD_VERSION` bump.** `Block.heldSince` is optional and the new racket kinds only appear
+  in worlds that start them.
+- **The honest scenario's numbers moved, and they were meant to.** Six seeds, 60 days:
+  **control 9.3% → 19.3%** (up on every seed), **rackets 9.2 → 10.2**, **income $1,270 → $746**.
+  The income drop is the mechanic working: that bot ends with ten-plus protection rackets in one
+  district, which is precisely the shape saturation exists to tax. Its escapes — spread to another
+  district, or diversify — are both closed to it, because `nearBiz` confines it to two blocks
+  from start and it never holds clean cash. **That is a bot limitation, not a balance result**;
+  teaching it to expand into a second district is the obvious follow-up and is **not done**.
+- **I changed a shared bot policy branch**, so `honest` is no longer byte-frozen: racket choice
+  now reads `racketsByOutlook` (best affordable yield) instead of a fixed favourites list. Its
+  *ordering* is unchanged, which is what the CLAUDE.md rule protects, but future comparisons
+  should baseline against this pass, not earlier ones.
+- **Tuning history, so nobody re-treads it.** Saturation with no grace cut honest income nearly
+  in half and made the early game strictly worse; `free: 3` and `decay: 0.8` is where it landed.
+  Depth/tenure accrual alone moved control **not at all** — the blocks were already at influence
+  100 — and only spill moved the number. If you are tempted to tune accrual to fix territory,
+  measure how many blocks the player has anything on first.
+- **`sim/events-variety.test.ts` was 60s** until `kindsDrawn` stopped cloning the whole city per
+  draw; it is 4s now. If you add draws, reuse the clone.
+- **Two existing tests changed** because they encoded the old `claim_abandoned` rule. That was
+  deliberate; the new assertions say scouting elsewhere is worth nothing on its own.
+- **Deliberately out of scope:** synergy is one-directional and does not chain; saturation is per
+  district and ignores what rivals run; the bot does not plan for synergy (it scored 3 synergised
+  rackets of 40 in a boosted run), so that pairing is strategy for a human rather than something
+  the soak exercises.
+
+
 ## 2026-09-14 — An admin panel, and a soak bot that can actually reach the game
 
 **What.** The `cheat` action grew from a money/skills/crew list into a real admin panel that sets

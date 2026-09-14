@@ -415,6 +415,21 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
     title: 'Disrupted',
     body: 'Days this earns nothing, after a police raid, a rival hit or sabotage. It restarts on its own.',
   },
+  racketSaturation: {
+    title: 'Flooded with one kind',
+    body: 'The same kind of racket, run over and over in one district, is worth less each time. The first few are untouched; past that each additional one earns a fraction of what the first did, and it never quite reaches zero.',
+    note: 'Two ways out: run it in a different district, or run something different here. Saturation is per district and per kind.',
+  },
+  synergy: {
+    title: 'Feeding each other',
+    body: 'Some rackets make others better when you run both in the same district — the people moving product bring a fence everything else they lift, a wash needs paper to give it shape. The bonus goes to the one being fed.',
+    note: 'It only pays while the feeder is actually running. Shut it down, or let it get raided, and the bonus goes with it.',
+  },
+  blockDepth: {
+    title: 'Depth on a block',
+    body: 'Influence builds faster on a block where you run several things than on one where you run one — each operation past the first adds half again, up to four. Holding a block for a while adds more on top.',
+    note: 'A block you hold with real depth also bleeds influence into the streets around it. That is how territory actually grows: outward from somewhere you are strong, not one door at a time.',
+  },
   dirtyRacket: {
     title: 'Dirty or clean',
     body: 'Most rackets pay in dirty cash. Laundering and no-show jobs pay clean. Orange numbers are dirty, green are clean.',

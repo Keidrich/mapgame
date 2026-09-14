@@ -28,6 +28,11 @@ export const RACKET_DEFS: Record<RacketKind, RacketDef> = {
   smuggling:    { label: 'Smuggling', icon: '🚢', blurb: 'Product comes in cheap through here.', setupCost: 2000, skill: 'wheels', heat: 3, incomeBase: 260, scale: 'block', dirty: true, risk: 0.06 },
   carding:      { label: 'Carding', icon: '💳', blurb: 'Somebody in the back turns stolen cards into clean-looking receipts. Wholesale, no questions.', setupCost: 900, skill: 'tech', heat: 2, incomeBase: 0, scale: 'stash', dirty: true, risk: 0.05 },
   no_show_jobs: { label: 'No-Show Jobs', icon: '🧾', blurb: 'Your guys are on the payroll. They never show.', setupCost: 1200, skill: 'charm', heat: 2, incomeBase: 380, scale: 'business', dirty: false, risk: 0.04 },
+  // ---- kinds worth picking between, now that spreading one thin costs you and stacking pays ----
+  union_dues:     { label: 'Union Dues', icon: '🪧', blurb: 'The local is yours. Dues come in every week and nobody asks where they go.', setupCost: 2200, skill: 'charm', heat: 1, incomeBase: 300, scale: 'business', dirty: false, risk: 0.03 },
+  counterfeiting: { label: 'Counterfeiting', icon: '🖨️', blurb: 'A press in the back room. Worth what somebody will take for it, which is what a fence is for.', setupCost: 1600, skill: 'tech', heat: 3, incomeBase: 0, scale: 'stash', dirty: true, needsProduct: true, risk: 0.06 },
+  after_hours:    { label: 'After Hours', icon: '🌃', blurb: 'The place does not close. Drinks at four in the morning, at four in the morning prices.', setupCost: 1400, skill: 'charm', heat: 3, incomeBase: 340, scale: 'block', dirty: true, risk: 0.07 },
+  policy_bank:    { label: 'Policy Bank', icon: '🏦', blurb: 'Not a numbers route but the bank behind several of them. Somebody else does the walking.', setupCost: 3200, skill: 'brains', heat: 2, incomeBase: 520, scale: 'block', dirty: true, risk: 0.05 },
 };
 
 export interface ProductionDef {
@@ -100,6 +105,14 @@ export interface OpRequires {
   casedTarget?: boolean;
   /** Per-target: the job is aimed at an open case file, so there has to be one. */
   caseTarget?: boolean;
+  /**
+   * Per-target: the block must be a derelict you have actually found and nobody has claimed.
+   * This replaced `priorOps: ['scout_block']`, which asked the wrong question — plenty of
+   * derelict blocks are visibly derelict from the start, and a player who walked onto one and
+   * saw it with their own eyes still could not take it until they had run a scouting op
+   * somewhere else entirely. Reported from real play.
+   */
+  derelictTarget?: boolean;
 }
 export const OP_DEFS: Record<OpKind, OpDef> = {
   heist_bank:      { label: 'Bank Job', icon: '🏦', blurb: 'The big one. Vault, hostages, getaway.', planDays: 5, minCrew: 3, maxCrew: 5, needs: { brains: 14, muscle: 10, wheels: 8, tech: 8 }, difficulty: 80, payout: [40000, 120000], heat: 35, target: 'business', targetTypes: ['bank'], tier: 4, requires: { priorOps: ['heist_jeweller', 'heist_armored'] } },
@@ -133,7 +146,7 @@ export const OP_DEFS: Record<OpKind, OpDef> = {
   takeover:        { label: 'Take the Corner', icon: '🏴', blurb: 'Roll up on a street crew and take their block. Lighter than a faction raid.', planDays: 0, minCrew: 0, maxCrew: 3, needs: { muscle: 8 }, difficulty: 35, payout: [300, 1200], heat: 8, target: 'block', tier: 0 },
   steal_formula:   { label: 'Steal a Formula', icon: '📜', blurb: 'Break into a rival cook, a pharmacy or a print works and leave with something you can use.', planDays: 2, minCrew: 1, maxCrew: 3, needs: { tech: 8, brains: 6 }, difficulty: 50, payout: [0, 0], heat: 10, target: 'none', tier: 2, requires: { crewCount: 2, racketKinds: ['protection', 'numbers', 'bookmaking', 'gambling_den', 'loansharking', 'fencing', 'chop_shop', 'dealing', 'laundering', 'smuggling', 'no_show_jobs'] } },
   scout_block:     { label: 'Scout the Edges', icon: '🔦', blurb: 'Walk the dead streets at the edge of a district and find out what is still standing. You may come back with nothing.', planDays: 1, minCrew: 0, maxCrew: 2, needs: { brains: 5, tech: 3, wheels: 3 }, difficulty: 30, payout: [0, 0], heat: 2, target: 'district', tier: 0 },
-  claim_abandoned: { label: 'Take the Lot', icon: '🏚️', blurb: 'Move into a derelict block: clear whoever is sleeping there, or buy the paperwork. Nobody collects rent on a place that is not on anyone\'s books.', planDays: 1, minCrew: 0, maxCrew: 3, needs: { muscle: 5, brains: 4 }, difficulty: 35, payout: [0, 0], heat: 6, target: 'block', tier: 1, requires: { priorOps: ['scout_block'] } },
+  claim_abandoned: { label: 'Take the Lot', icon: '🏚️', blurb: 'Move into a derelict block: clear whoever is sleeping there, or buy the paperwork. Nobody collects rent on a place that is not on anyone\'s books.', planDays: 1, minCrew: 0, maxCrew: 3, needs: { muscle: 5, brains: 4 }, difficulty: 35, payout: [0, 0], heat: 6, target: 'block', tier: 1, requires: { derelictTarget: true } },
   kidnap:          { label: 'Take Someone', icon: '🕳️', blurb: 'Put somebody in the back of a van and hold them somewhere quiet. You need a safehouse with room, and holding them is its own problem.', planDays: 1, minCrew: 1, maxCrew: 3, needs: { muscle: 8, wheels: 6 }, difficulty: 50, payout: [0, 0], heat: 18, target: 'npc', tier: 2, requires: { crewCount: 1, safehouseTier: 1 } },
   // ---- the law, pushed back on. Until these existed an Authority only ever escalated: the
   // player could outrun heat but never reach into the building making the decisions.

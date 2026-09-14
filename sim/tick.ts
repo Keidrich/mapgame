@@ -2,6 +2,7 @@
 import { legworkFor } from './travel';
 import { PRODUCTION_DEFS, PRODUCT_INFO, RACKET_DEFS, SAFEHOUSE_TIERS } from '@content/rackets';
 import { effectivePolice, raidPressure, tickAuthorities } from './authority';
+import { applyDailyInfluence, updateTenure, yieldMult } from './territory';
 import { launderCapacity, productionOutput, racketIncome, streetPrice } from './economy';
 import { LAUNDER_RATE } from '@content/rackets';
 import { resolveConfrontation } from './combat';
@@ -37,6 +38,12 @@ export function endDay(w: World): World {
   tickTaps(w, rng);
   tickHackCrew(w, rng);
 
+  // Influence is gathered per block and applied once at the end of the day rather than per
+  // asset, so `accrualMult` can see the whole depth of what you run there. Adding it per racket
+  // is what made three rackets on one block worth exactly three on three blocks.
+  const influenceGain: Record<string, number> = {};
+  const gain = (blockId: string, n: number) => { influenceGain[blockId] = (influenceGain[blockId] ?? 0) + n; };
+
   // ---- crew upkeep ----
   for (const id of p.crewIds) {
     const n = w.npcs[id]; const c = n.crew; if (!c) continue;
@@ -46,7 +53,7 @@ export function endDay(w: World): World {
       if (p.cash + p.dirty >= c.cut) { spend(w, c.cut); summary.spent += c.cut; }
       else { c.loyalty = clamp(c.loyalty - 10); log(w, `You could not pay ${n.name}. (−10 loyalty)`, 'bad', { npcId: n.id }); }
     }
-    if (c.assignment?.kind === 'guard') { addInfluence(w, c.assignment.blockId, PLAYER, 3); w.blocks[c.assignment.blockId].heat = clamp(w.blocks[c.assignment.blockId].heat + 0.5); }
+    if (c.assignment?.kind === 'guard') { gain(c.assignment.blockId, 3); w.blocks[c.assignment.blockId].heat = clamp(w.blocks[c.assignment.blockId].heat + 0.5); }
     if (c.loyalty < 15 && rng.chance(0.2)) { p.crewIds = p.crewIds.filter(x => x !== n.id); n.crew = undefined; n.role = 'patron'; n.rel.trust = -30; log(w, `${n.name} walked. Nobody saw them go.`, 'bad', { npcId: n.id }); }
   }
 
@@ -56,7 +63,7 @@ export function endDay(w: World): World {
     const inc = Math.round(b.baseIncome * (b.condition / 100) * (b.flags.includes('owner_dead') ? 0.5 : 1));
     p.cash += inc; summary.clean += inc;
     if (b.condition < 100 && !b.flags.includes('torched')) b.condition = clamp(b.condition + 1);
-    addInfluence(w, b.blockId, PLAYER, 1);
+    gain(b.blockId, 1);
   }
 
   // ---- rackets ----
@@ -70,10 +77,11 @@ export function endDay(w: World): World {
     switch (r.kind) {
       case 'dealing': {
         const prod = r.product ?? 'green'; const have = p.stash[prod];
-        if (have > 0) { const demand = w.blocks[b.blockId].demand[prod] * (1 + (r.level - 1) * 0.5) * (0.6 + b.patronIds.length * 0.15); const sold = Math.min(have, Math.max(0, Math.round(demand))); p.stash[prod] -= sold; income = Math.round(sold * streetPrice(w, b.blockId, prod) * sellMult(w, prod)); addHeat(w, sold * PRODUCT_INFO[prod].heat * 0.3, b.blockId); }
+        if (have > 0) { const demand = w.blocks[b.blockId].demand[prod] * (1 + (r.level - 1) * 0.5) * (0.6 + b.patronIds.length * 0.15); const sold = Math.min(have, Math.max(0, Math.round(demand))); p.stash[prod] -= sold; income = Math.round(sold * streetPrice(w, b.blockId, prod) * sellMult(w, prod) * yieldMult(w, r)); addHeat(w, sold * PRODUCT_INFO[prod].heat * 0.3, b.blockId); }
         break;
       }
-      case 'fencing': { const have = p.stash.hot_goods; if (have > 0) { const sold = Math.min(have, 6 + r.level * 4); p.stash.hot_goods -= sold; income = Math.round(sold * PRODUCT_INFO.hot_goods.price * 0.6 * (1 + (r.level - 1) * 0.15)); } break; }
+      case 'counterfeiting': { const have = p.stash.counterfeit; if (have > 0) { const sold = Math.min(have, 5 + r.level * 4); p.stash.counterfeit -= sold; income = Math.round(sold * PRODUCT_INFO.counterfeit.price * 0.7 * (1 + (r.level - 1) * 0.15) * yieldMult(w, r)); } break; }
+      case 'fencing': { const have = p.stash.hot_goods; if (have > 0) { const sold = Math.min(have, 6 + r.level * 4); p.stash.hot_goods -= sold; income = Math.round(sold * PRODUCT_INFO.hot_goods.price * 0.6 * (1 + (r.level - 1) * 0.15) * yieldMult(w, r)); } break; }
       case 'laundering': { const cap = Math.max(0, launderCapacity(w, r) - p.launderedToday); const amt = Math.min(p.dirty, cap); if (amt > 0) { p.dirty -= amt; const clean = Math.round(amt * LAUNDER_RATE); p.cash += clean; income = clean; summary.clean += clean; p.launderedToday += amt; } break; }
       case 'protection': {
         income = Math.round(racketIncome(w, r) * (1 + Math.min(0.3, collectors(w) * 0.1) + (lt ? 0.1 : 0))); // collectors (and a lieutenant) make sure it all arrives
@@ -100,7 +108,7 @@ export function endDay(w: World): World {
       else { const loss = Math.round(income * 1.5); p.dirty = Math.max(0, p.dirty - loss); log(w, `Somebody robbed the ${def.label.toLowerCase()} at ${b.name}. ${money(loss)} gone.`, 'bad', { businessId: b.id }); }
     }
     // a player business or protected place with rackets pulls influence
-    addInfluence(w, b.blockId, PLAYER, r.kind === 'protection' ? 1.5 : 1);
+    gain(b.blockId, r.kind === 'protection' ? 1.5 : 1);
   }
 
   // ---- productions ----
@@ -128,7 +136,7 @@ export function endDay(w: World): World {
     }
     const rent = s.squatted ? 0 : Math.round(SAFEHOUSE_TIERS[s.tier - 1].rent / 30); // nobody bills you for a place you took
     if (!rent) { /* squatted */ } else if (p.cash + p.dirty >= rent) spend(w, rent); else { addInfluence(w, s.blockId, PLAYER, -4); if (w.day % 5 === 0) log(w, `You are behind on rent at ${s.name}.`, 'warn', { blockId: s.blockId }); }
-    addInfluence(w, s.blockId, PLAYER, 2);
+    gain(s.blockId, 2);
   }
 
   // ---- ops ----
@@ -167,6 +175,11 @@ export function endDay(w: World): World {
     if (n.rel.trust > 0 && !n.crew && w.day % 4 === 0 && n.faction !== PLAYER) n.rel.trust--;
     if (n.rel.trust < 0 && w.day % 3 === 0) n.rel.trust++;
   }
+  // the day's influence, applied once per block so depth and tenure can multiply it, and rivals
+  // pushed off ground you actually run
+  for (const [blockId, base] of Object.entries(influenceGain)) applyDailyInfluence(w, blockId, base);
+  updateTenure(w);
+
   for (const b of Object.values(w.blocks)) {
     const hasAsset = b.safehouseId && w.safehouses[b.safehouseId]?.owner === PLAYER || b.businessIds.some(id => { const z = w.businesses[id]; return z.ownedBy === 'player' || z.protection?.factionId === PLAYER; });
     if (!hasAsset && (b.influence[PLAYER] ?? 0) > 0) addInfluence(w, b.id, PLAYER, -2);

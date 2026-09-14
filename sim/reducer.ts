@@ -286,7 +286,7 @@ export function can(w: World, a: Action): Affordance {
     case 'plan_op': {
       const def = OP_DEFS[a.kind];
       // the per-target gate (wire fraud) is keyed to the mark, not to the empire
-      const locked = opLocked(w, a.kind, { npcId: a.targetNpcId, businessId: a.targetBusinessId, caseId: a.targetCaseId }); if (locked) return no(locked);
+      const locked = opLocked(w, a.kind, { npcId: a.targetNpcId, businessId: a.targetBusinessId, caseId: a.targetCaseId, blockId: a.targetBlockId }); if (locked) return no(locked);
       if (a.crewIds.length < def.minCrew) return no(`Needs at least ${def.minCrew} crew.`);
       if (a.crewIds.length > def.maxCrew) return no(`Too many. Max ${def.maxCrew}.`);
       for (const id of a.crewIds) { const n = npc(id); if (!n?.crew || n.crew.status !== 'idle') return no(`${n?.name ?? 'Someone'} is not available.`); }
@@ -758,6 +758,15 @@ export function dispatch(prev: World, a: Action): World {
       const from = w.blocks[p.currentBlockId]; const to = w.blocks[a.toBlockId];
       p.legwork = Math.max(0, p.legwork - r.cost);
       p.currentBlockId = a.toBlockId;
+      // you are standing in it. Walking onto a derelict block is finding it, and anything you
+      // walked through to get here counts too — you do not need a scouting op to see a ruin.
+      for (const id of [a.toBlockId, ...r.hops]) {
+        const blk = w.blocks[id];
+        if (blk?.abandoned && !blk.abandoned.known) {
+          blk.abandoned.known = true;
+          log(w, `${blk.name} is derelict — boarded up, nobody collecting anything. Nobody would notice if it were yours.`, 'info', { blockId: blk.id });
+        }
+      }
       const far = r.hops.length;
       log(w, `You walk from ${from?.name ?? 'where you were'} to ${to.name}${far > 1 ? ` (${far} blocks)` : ''}. ${r.cost} legwork, ${p.legwork} left.`, 'info', { blockId: to.id });
       break;

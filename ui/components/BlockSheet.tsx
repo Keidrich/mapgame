@@ -56,6 +56,7 @@ export function BlockSheet({ blockId }: { blockId: Id }) {
         <Meter label={<Term id="population">People</Term>} value={b.population} color="var(--purple)" />
         {closeness !== undefined && <Meter label={<Term id="closeness">Close-knit</Term>} value={Math.round(closeness * 100)} color="var(--gold)" />}
       </div>
+      <Depth blockId={b.id} />
       <Watchers blockId={b.id} />
       {b.memory.length > 0 && (
         <>
@@ -246,6 +247,32 @@ function Watchers({ blockId }: { blockId: Id }) {
         })}
       </div>
       <p className="tiny muted mt8">{POSTURES[select.topPosture(w)].blurb} Bribing somebody inside slows them down; it never stops them.</p>
+    </div>
+  );
+}
+
+/**
+ * Why this block is taking hold at the rate it is. Influence used to be a flat trickle per
+ * racket, so there was nothing to explain; now depth and tenure multiply it and a block you hold
+ * deeply pulls its neighbours in, which the player has to be able to see.
+ */
+function Depth({ blockId }: { blockId: Id }) {
+  const w = useWorld();
+  const { depth, days, mult } = select.territoryReading(w, blockId);
+  if (depth === 0) return null;
+  const b = w.blocks[blockId];
+  const spreading = select.blockController(w, blockId) === PLAYER && depth >= 2;
+  return (
+    <div className="card mt12" style={{ borderColor: spreading ? 'var(--gold)' : undefined }}>
+      <div className="row between">
+        <b className="small">🏗️ Your ground here<Info id="blockDepth" /></b>
+        <span className="chip">×{mult.toFixed(2)} influence a day</span>
+      </div>
+      <p className="small muted mt8" style={{ margin: '8px 0 0' }}>
+        {depth} operation{depth === 1 ? '' : 's'} of yours on {b.name}{days > 0 ? `, held ${days} day${days === 1 ? '' : 's'}` : ', not yet held'}.
+        {depth === 1 ? ' One thing on a block is the slow way. Stack another and it builds far faster.' : ' Depth is what makes ground stick.'}
+        {spreading ? ' It is pulling the streets around it in with it.' : ''}
+      </p>
     </div>
   );
 }

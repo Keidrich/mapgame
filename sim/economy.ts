@@ -1,5 +1,6 @@
 /** Income formulas for rackets and productions. Shared by the tick and by estimates. */
 import { FIXER, LIEUTENANT, PRODUCTION_DEFS, PRODUCTION_LEVEL, PRODUCT_INFO, RACKET_DEFS, RECIPES } from '@content/rackets';
+import { yieldMult } from './territory';
 import { coverFor } from './lieutenants';
 import type { Business, Id, Npc, Production, Racket, World } from './types';
 
@@ -46,6 +47,16 @@ export function runnerFactor(w: World, runnerId: string | undefined, skill: keyo
 
 /** Expected daily gross for a racket, before incidents. Product-scaled rackets return 0 here. */
 export function racketIncome(w: World, r: Racket): number {
+  return rawRacketIncome(w, r) * yieldMult(w, r);
+}
+
+/**
+ * The racket's own formula, before the district has its say. Split out so `yieldMult` — the
+ * saturation decay and the synergy bonus from `sim/territory.ts` — is applied in exactly one
+ * place for the formula-driven kinds. The stash-scale kinds return 0 here and are computed
+ * inline in the tick, which applies the same multiplier there; nothing gets it twice.
+ */
+export function rawRacketIncome(w: World, r: Racket): number {
   const def = RACKET_DEFS[r.kind];
   const biz = w.businesses[r.businessId];
   const block = w.blocks[biz.blockId];
@@ -71,7 +82,9 @@ export function racketIncome(w: World, r: Racket): number {
 export function launderCapacity(w: World, r: Racket): number {
   const def = RACKET_DEFS[r.kind]; if (!def.launderCap) return 0;
   const biz = w.businesses[r.businessId];
-  return def.launderCap * (1 + (r.level - 1) * 0.8) * runnerFactor(w, r.runnerId, def.skill, coverFor(w, biz)) * (0.5 + biz.baseIncome / 400);
+  // capacity saturates too: one neighbourhood can only absorb so much washing, however many
+  // machines you put in it
+  return def.launderCap * (1 + (r.level - 1) * 0.8) * runnerFactor(w, r.runnerId, def.skill, coverFor(w, biz)) * (0.5 + biz.baseIncome / 400) * yieldMult(w, r);
 }
 
 /**

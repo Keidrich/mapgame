@@ -8,6 +8,12 @@ import { flipLieutenant, lieutenants } from './lieutenants';
 import { productionCandidates, resolveProductionEvent } from './production';
 import { backCandidate } from './politics';
 import { resolveMeeting } from './commission';
+import { authorities, postureFor } from './authority';
+import { openCases } from './cases';
+import { cardValue, cyberHeat, dropCard, endTap, learnSecret, liveCards, runCard } from './cyber';
+import { CARD_TIERS } from '@content/cyber';
+import { equippedItems, isMarket, marketStock } from './items';
+import { POLICE_NOTICE, RACKET_WATCHABLE_AFTER, CARD_STALE_AT } from '@content/events';
 
 type Candidate = { w: number; make: () => GameEvent | undefined };
 
@@ -22,6 +28,32 @@ export function drawEvents(w: World, rng: Rng) {
   const friendlyPatrons = Object.values(w.npcs).filter(n => n.alive && n.role === 'patron' && n.rel.trust >= 35);
 
   const runners = myRackets.filter(r => r.runnerId && w.npcs[r.runnerId]?.crew);
+
+  // ---- what the police could plausibly have noticed ----
+  // Police-attention events weight on actual police attention: heat, an Authority that has
+  // climbed off `routine`, or an open file. Never on merely existing.
+  const watchers = authorities(w);
+  const escalated = watchers.filter(a => a.posture !== 'routine');
+  const policeInterest = p.heat >= POLICE_NOTICE || escalated.length > 0 || openCases(w).length > 0;
+  /** Rackets old enough for somebody to have sat on them for two nights. */
+  const watchedRackets = myRackets.filter(r => w.day - r.startedDay >= RACKET_WATCHABLE_AFTER);
+  /** An officer who could be the one asking: somebody attached to a building. */
+  const namedOfficers = Object.values(w.npcs).filter(x => x.alive && x.official?.authorityId);
+
+  // ---- the systems that had no day-to-day presence at all ----
+  const known = Object.values(w.npcs).filter(x => x.alive && x.known && !x.crew);
+  const withTies = known.filter(x => (x.connections ?? []).length > 0);
+  const wronged = Object.values(w.npcs).filter(x => x.alive && !x.crew && (x.rel.trust <= -35 || x.grudge) && (x.connections ?? []).length > 0);
+  const tapped = Object.values(w.npcs).filter(x => x.alive && x.tap);
+  const staleCards = liveCards(w).filter(c => c.freshness <= CARD_STALE_AT);
+  const carried = equippedItems(w);
+  const markets = Object.values(w.businesses).filter(b => isMarket(b));
+  const myBlocks = Object.values(w.blocks).filter(b => (b.influence[PLAYER] ?? 0) >= 30);
+  const claimed = Object.values(w.blocks).filter(b => b.abandoned?.claimedBy === PLAYER);
+  const nearbyCrews = Object.values(w.crews ?? {}).filter(c => {
+    const b = w.blocks[c.blockId];
+    return b && (b.neighborIds.some(id => (w.blocks[id]?.influence[PLAYER] ?? 0) >= 20) || (b.influence[PLAYER] ?? 0) > 0);
+  });
   const skimmers = lieutenants(w).filter(n => (n.crew?.skim ?? 0) >= LIEUTENANT.skimEventAt);
   const cands: Candidate[] = [
     { w: skimmers.length ? 3 : 0, make: () => { const n = rng.pick(skimmers); const a = n.crew!.assignment as { kind: 'lieutenant'; districtId: string }; const d = w.districts[a.districtId]; return ev('lt_skim', `The ${d?.name ?? 'district'} book feels light`, `${n.name} runs ${d?.name ?? 'the district'} for you and the numbers have been soft for a while. Could be a slow month. Could be ${n.name}.`, [
@@ -35,7 +67,10 @@ export function drawEvents(w: World, rng: Rng) {
       { id: 'slide', label: 'Let it slide', detail: 'Costs you money; they feel looked after' },
       { id: 'replace', label: 'Pull them off it', detail: 'Racket runs unmanned; −loyalty' },
     ], { npcId: n.id, racketId: r.id, businessId: b.id }); } },
-    { w: myRackets.length ? 3 : 0, make: () => { const r = rng.pick(myRackets); const b = w.businesses[r.businessId]; const ask = 400 + Math.round(r.lastIncome * 2); return ev('cops_sniffing', 'A detective is asking around', `A plainclothes cop has been sitting across from ${b.name} two nights running, watching the ${RACKET_DEFS[r.kind].label.toLowerCase()}.`, [
+    // A detective cannot have been watching a racket that opened this morning, and nobody is
+    // watching a player nobody has noticed. This used to weight purely on owning a racket, which
+    // put a plainclothes cop outside your first protection job on day one.
+    { w: watchedRackets.length && policeInterest ? 3 : 0, make: () => { const r = rng.pick(watchedRackets); const b = w.businesses[r.businessId]; const ask = 400 + Math.round(r.lastIncome * 2); return ev('cops_sniffing', 'A detective is asking around', `A plainclothes cop has been sitting across from ${b.name} two nights running, watching the ${RACKET_DEFS[r.kind].label.toLowerCase()}.`, [
       { id: 'pay', label: `Pay him off (${money(ask)})`, detail: '−heat, he goes away', costCash: ask },
       { id: 'move', label: 'Go dark for two days', detail: 'No income for 2 days; block heat drops' },
       { id: 'ride', label: 'Ride it out', detail: 'Half the time nothing happens. The other half is a raid.' },
@@ -99,6 +134,107 @@ export function drawEvents(w: World, rng: Rng) {
       { id: 'go', label: 'Go', detail: 'Standing improves; they may ask for something', costAp: 2 },
       { id: 'ignore', label: 'Ignore it', detail: '−standing' },
     ], { factionId: f.id }); } },
+
+    // ================= systems that only existed when the player went looking for them =========
+    // Every one of these weights on the state it is about, the way `whale` weights on owning a
+    // bookmaking racket. Nothing here fires for a player who has nothing to do with it.
+
+    // ---- the family and friend web ----
+    { w: wronged.length ? 3 : 0, make: () => {
+      const mark = rng.pick(wronged);
+      const tie = rng.pick(mark.connections);
+      const rel = w.npcs[tie.npcId]; if (!rel) return undefined;
+      const place = rel.favouriteBusinessIds[0] ? w.businesses[rel.favouriteBusinessIds[0]] : undefined;
+      return ev('kin_turns_up', `${rel.name} is asking after you`, `${rel.name} is ${mark.name}'s ${tie.kind === 'family' ? 'family' : 'oldest friend'}, and has been standing outside ${place?.name ?? 'a place of yours'} for an hour. Not doing anything. Just standing.`, [
+        { id: 'talk', label: 'Go and talk to them', detail: 'Charm check. Settle it, or make it worse', costAp: 1 },
+        { id: 'pay', label: 'Send them money', detail: 'Buys quiet from them and their people', costCash: 600 },
+        { id: 'lean', label: 'Have somebody move them on', detail: '+fear, and the whole family hears' },
+      ], { npcId: rel.id, businessId: place?.id, blockId: rel.homeBlockId });
+    } },
+    { w: withTies.length >= 2 ? 2 : 0, make: () => {
+      const a = rng.pick(withTies);
+      const tie = rng.pick(a.connections);
+      const b = w.npcs[tie.npcId]; if (!b) return undefined;
+      return ev('word_travels', `${b.name} already knows`, `You have never said a word to ${b.name}, but they know your name, what you did on ${w.blocks[a.homeBlockId]?.name ?? 'the block'}, and who you did it to. ${a.name} talks to them most days.`, [
+        { id: 'use', label: 'Lean on the reputation', detail: '+fear with them and their people' },
+        { id: 'correct', label: 'Set the story straight', detail: 'Charm check: +trust, or they believe the worse version', costAp: 1 },
+        { id: 'nothing', label: 'Say nothing', detail: 'Let the story do what it does' },
+      ], { npcId: b.id, blockId: b.homeBlockId });
+    } },
+
+    // ---- the law, before the posture moves ----
+    { w: namedOfficers.length && (p.heat >= POLICE_NOTICE / 2 || escalated.length) ? 3 : 0, make: () => {
+      const officer = rng.pick(namedOfficers);
+      const a = w.authorities?.[officer.official!.authorityId!];
+      const where = myBlocks.length ? rng.pick(myBlocks) : w.blocks[p.currentBlockId];
+      return ev('quiet_asking', `Somebody at ${a?.name ?? 'the precinct'} is asking`, `${officer.name} has been on ${where?.name ?? 'your blocks'} twice this week, not in uniform, asking owners questions about you. Nothing official. Not yet.`, [
+        { id: 'meet', label: `Sit down with ${officer.name}`, detail: 'Charm check. Slows them, or confirms what they thought', costAp: 1 },
+        { id: 'pay', label: 'Put something in their hand', detail: 'Buys attention down; costs real money', costCash: 2000 },
+        { id: 'quiet', label: 'Go quiet on those blocks', detail: 'Rackets there earn less for two days; attention cools' },
+        { id: 'ignore', label: 'Let them ask', detail: 'They find something, or they do not' },
+      ], { npcId: officer.id, blockId: where?.id });
+    } },
+
+    // ---- the wire ----
+    { w: tapped.length ? 3 : 0, make: () => {
+      const mark = rng.pick(tapped);
+      return ev('tap_feed', `The tap on ${mark.name} caught something`, `Nothing you went looking for. ${mark.name} spent twenty minutes on a call about money that is moving somewhere it should not be, and said a name twice.`, [
+        { id: 'act', label: 'Act on it tonight', detail: 'Money now, and a little wire heat' },
+        { id: 'keep', label: 'Sit on it', detail: 'Worth more later, if the tap survives' },
+        { id: 'pull', label: 'Take the tap off while you are ahead', detail: 'No more risk from this one' },
+      ], { npcId: mark.id, blockId: mark.homeBlockId });
+    } },
+    { w: staleCards.length ? 3 : 0, make: () => {
+      const card = rng.pick(staleCards);
+      const worth = cardValue(card, 0.7);
+      return ev('card_expiring', 'One of the cards is nearly cold', `The ${CARD_TIERS[card.tier].label} in your pocket is at ${Math.round(card.freshness)} and falling. Tomorrow it is worth noticeably less; in three days it is paper.`, [
+        { id: 'burn', label: `Run it hard tonight (${money(worth)})`, detail: 'Most of what is left, and it probably dies' },
+        { id: 'quiet', label: 'One small run', detail: 'Less money, it might last another day' },
+        { id: 'drop', label: 'Throw it away', detail: 'No money, no exposure' },
+      ], {});
+    } },
+
+    // ---- kit ----
+    { w: markets.length && p.cash > 600 ? 2 : 0, make: () => {
+      const shop = rng.pick(markets);
+      const stock = marketStock(shop).filter(i => !(p.items ?? []).includes(i.id));
+      if (!stock.length) return undefined;
+      const item = rng.pick(stock);
+      const price = Math.round(item.cost * 0.6);
+      return ev('kit_offer', `A one-time price on ${item.label}`, `Somebody at ${shop.name} has a ${item.label.toLowerCase()} they want gone by the weekend. ${money(price)}, which is well under what it is worth, and the offer is tonight only.`, [
+        { id: 'buy', label: `Take it (${money(price)})`, detail: 'Yours, at a price you will not see again', costCash: price },
+        { id: 'pass', label: 'Pass', detail: 'Nothing gained, nothing spent' },
+      ], { businessId: shop.id });
+    } },
+    { w: carried.length && hostile.length ? 2 : 0, make: () => {
+      const item = rng.pick(carried);
+      const f = rng.pick(hostile);
+      return ev('kit_noticed', 'Somebody noticed what you carry', `Word got to ${f.short} about the ${item.label.toLowerCase()} you have been walking around with. ${w.npcs[f.bossId]?.name ?? 'Their boss'} apparently found it funny. Their soldiers did not.`, [
+        { id: 'flaunt', label: 'Let them talk', detail: '+fear, +standing loss with them' },
+        { id: 'stash', label: 'Leave it at home a while', detail: 'Unequip it; they lose interest' },
+      ], { factionId: f.id });
+    } },
+
+    // ---- street crews and ground you have claimed ----
+    { w: nearbyCrews.length ? 3 : 0, make: () => {
+      const c = rng.pick(nearbyCrews);
+      const boss = w.npcs[c.bossId]; if (!boss) return undefined;
+      const b = w.blocks[c.blockId];
+      return ev('crew_peace', `The ${c.name} want an arrangement`, `${boss.name} sends a kid with a message rather than coming himself. "We are on ${b?.name ?? 'this block'}, you are all round it. We do not want a thing. Say a number."`, [
+        { id: 'tribute', label: 'Take a cut and leave them be', detail: 'Small daily income; they stay' },
+        { id: 'absorb', label: 'Offer to take them in', detail: 'Charm check: their block becomes yours' },
+        { id: 'refuse', label: 'Tell them no', detail: 'They dig in; the block gets harder' },
+      ], { npcId: boss.id, blockId: c.blockId });
+    } },
+    { w: claimed.length ? 2 : 0, make: () => {
+      const b = rng.pick(claimed);
+      return ev('claim_questions', `Somebody is asking about ${b.name}`, `A man with a clipboard has been walking ${b.name}, taking notes on the building you took. Nobody collects rent on a place that is not on anyone's books, which cuts both ways.`, [
+        { id: 'pay', label: 'Make the paperwork go away', detail: 'Costs money; the claim is solid', costCash: 1800 },
+        { id: 'scare', label: 'Have a word with him', detail: 'Muscle check: he stops, or he files something' },
+        { id: 'abandon', label: 'Walk away from it', detail: 'You lose the block, and the attention with it' },
+      ], { blockId: b.id });
+    } },
+
     { w: 1, make: () => { const b = w.blocks[rng.pick(Object.keys(w.blocks))]; const biz = b.businessIds.length ? w.businesses[rng.pick(b.businessIds)] : undefined; if (!biz) return undefined; return ev('opportunity', 'An opening', `${w.npcs[biz.ownerId].name} at ${biz.name} is in debt to the wrong people and is desperate for a partner. A gift now would go a long way.`, [
       { id: 'gift', label: 'Send $800', detail: 'big trust boost', costCash: 800 },
       { id: 'pass', label: 'Pass' },
@@ -127,6 +263,42 @@ export function resolveEventOption(w: World, e: GameEvent, opt: string, rng: Rng
   if (resolveProductionEvent(w, e, opt, rng)) return;
   if (e.kind === 'commission') { resolveMeeting(w, opt, rng); return; }
   switch (key) {
+    // ---- the family and friend web ----
+    case 'kin_turns_up:talk': if (n) { if (charmCheck()) { adjustRel(n, { trust: 20, fear: -5 }); for (const t of n.connections ?? []) { const rel = w.npcs[t.npcId]; if (rel) adjustRel(rel, { trust: 6 }); } log(w, `${n.name} says their piece and you let them. They go home, and they tell their people you listened.`, 'good', e.refs); } else { adjustRel(n, { trust: -20, fear: 10 }); spreadRep(w, n.homeBlockId, { fear: 3 }); log(w, `It does not go well. ${n.name} leaves angrier than they arrived, and they are not quiet about it.`, 'bad', e.refs); } } break;
+    case 'kin_turns_up:pay': if (n) { adjustRel(n, { trust: 14 }); for (const t of n.connections ?? []) { const rel = w.npcs[t.npcId]; if (rel) adjustRel(rel, { trust: 4 }); } log(w, `${n.name} takes it without a word. The standing outside stops.`, 'money', e.refs); } break;
+    case 'kin_turns_up:lean': if (n) { adjustRel(n, { fear: 25, trust: -30 }); spreadRep(w, n.homeBlockId, { fear: 6, trust: -3 }); for (const t of n.connections ?? []) { const rel = w.npcs[t.npcId]; if (rel) adjustRel(rel, { trust: -12, fear: 8 }); } p.fear = clamp(p.fear + 3); log(w, `${n.name} is moved along. Everyone they are related to hears about it by the evening.`, 'warn', e.refs); } break;
+    case 'word_travels:use': if (n) { adjustRel(n, { fear: 15, trust: -5 }); spreadRep(w, n.homeBlockId, { fear: 4 }); log(w, `You do not correct the story. ${n.name} treats you exactly the way the story says to.`, 'info', e.refs); } break;
+    case 'word_travels:correct': if (n) { if (charmCheck()) { adjustRel(n, { trust: 18, respect: 8 }); log(w, `${n.name} hears you out and decides the version they had was somebody else's.`, 'good', e.refs); } else { adjustRel(n, { trust: -12, fear: 8 }); log(w, `${n.name} nods politely and believes the worse version anyway.`, 'bad', e.refs); } } break;
+    case 'word_travels:nothing': log(w, 'The story goes on being told without you in the room.', 'info', e.refs); break;
+
+    // ---- the law, before the posture moves ----
+    case 'quiet_asking:meet': if (n) { if (charmCheck()) { adjustRel(n, { trust: 12 }); const a = w.authorities?.[n.official?.authorityId ?? '']; if (a) { a.attention = clamp(a.attention - 12, 0, 100); a.posture = postureFor(a.attention); } log(w, `${n.name} has a drink with you and decides you are not the interesting one. (attention −12)`, 'good', e.refs); } else { addHeat(w, 6); const a = w.authorities?.[n.official?.authorityId ?? '']; if (a) { a.attention = clamp(a.attention + 8, 0, 100); a.posture = postureFor(a.attention); } log(w, `${n.name} asks three questions you answer badly. (+6 heat, attention +8)`, 'bad', e.refs); } } break;
+    case 'quiet_asking:pay': if (n) { adjustRel(n, { trust: 10 }); const a = w.authorities?.[n.official?.authorityId ?? '']; if (a) { a.attention = clamp(a.attention - 20, 0, 100); a.posture = postureFor(a.attention); } log(w, `${n.name} puts it in a pocket without looking at it. They ask their questions somewhere else now. (attention −20)`, 'money', e.refs); } break;
+    case 'quiet_asking:quiet': { for (const id of p.racketIds) { const r = w.rackets[id]; if (r && e.refs.blockId && w.businesses[r.businessId]?.blockId === e.refs.blockId) r.disrupted = Math.max(r.disrupted, 2); } p.heat = clamp(p.heat - 8); for (const a of Object.values(w.authorities ?? {})) { a.attention = clamp(a.attention - 6, 0, 100); a.posture = postureFor(a.attention); } log(w, 'Everything on those blocks goes quiet for a couple of days. So does the asking. (−8 heat)', 'info', e.refs); break; }
+    case 'quiet_asking:ignore': { if (rng.chance(0.5)) { addHeat(w, 10); for (const a of Object.values(w.authorities ?? {})) { a.attention = clamp(a.attention + 14, 0, 100); a.posture = postureFor(a.attention); } log(w, 'They found somebody who would talk. (+10 heat, and the building is paying attention now)', 'bad', e.refs); } else log(w, 'Nobody tells them anything. The asking stops on its own.', 'good', e.refs); break; }
+
+    // ---- the wire ----
+    case 'tap_feed:act': if (n) { const take = 900 + Math.round(p.skills.tech * 140) + rng.int(0, 600); p.dirty += take; cyberHeat(w, 4, n.homeBlockId); log(w, `You get there first. ${money(take)}, and nobody has worked out how you knew.`, 'money', e.refs); } break;
+    case 'tap_feed:keep': if (n) { learnSecret(w, n, rng); log(w, `You let it run. Whatever that call was about, you now know enough about ${n.name} to sell it.`, 'good', e.refs); } break;
+    case 'tap_feed:pull': if (n) { endTap(w, n, false, rng); } break;
+    case 'card_expiring:burn': { const card = liveCards(w).sort((a, b) => a.freshness - b.freshness)[0]; if (card) runCard(w, card, 'big', rng); break; }
+    case 'card_expiring:quiet': { const card = liveCards(w).sort((a, b) => a.freshness - b.freshness)[0]; if (card) runCard(w, card, 'small', rng); break; }
+    case 'card_expiring:drop': { const card = liveCards(w).sort((a, b) => a.freshness - b.freshness)[0]; if (card) { dropCard(w, card.id); log(w, 'It goes in a drain on the way home. Nothing gained and nothing to find.', 'info', e.refs); } break; }
+
+    // ---- kit ----
+    case 'kit_offer:buy': { const shop = biz; const stock = shop ? marketStock(shop).filter(i => !(p.items ?? []).includes(i.id)) : []; const item = stock[0]; if (item) { p.items = [...(p.items ?? []), item.id]; log(w, `The ${item.label.toLowerCase()} is yours, well under what anybody else would pay.`, 'money', e.refs); } break; }
+    case 'kit_offer:pass': log(w, 'You leave it. It will be gone by Monday.', 'info', e.refs); break;
+    case 'kit_noticed:flaunt': if (f) { f.standing[PLAYER] = clamp(f.standing[PLAYER] - 6, -100, 100); p.fear = clamp(p.fear + 5); spreadRep(w, p.currentBlockId, { fear: 5 }); log(w, `You carry it anyway, openly. ${f.short} stop finding it funny.`, 'warn', e.refs); } break;
+    case 'kit_noticed:stash': { const item = equippedItems(w)[0]; if (item) { p.equipped = (p.equipped ?? []).filter(id => id !== item.id); log(w, `The ${item.label.toLowerCase()} stays at home for a while. The talk dies down.`, 'info', e.refs); } break; }
+
+    // ---- street crews and claimed ground ----
+    case 'crew_peace:tribute': { const c = Object.values(w.crews ?? {}).find(x => x.bossId === e.refs.npcId); if (c) { c.mood = clamp(c.mood + 30); if (n) adjustRel(n, { trust: 15 }); if (e.refs.blockId) addInfluence(w, e.refs.blockId, PLAYER, 8); p.dirty += 200; log(w, `${n?.name ?? 'They'} agree a number. Small money, and one less block to worry about.`, 'money', e.refs); } break; }
+    case 'crew_peace:absorb': { const c = Object.values(w.crews ?? {}).find(x => x.bossId === e.refs.npcId); if (c && n) { if (charmCheck()) { if (e.refs.blockId) addInfluence(w, e.refs.blockId, PLAYER, 35); c.mood = clamp(c.mood + 50); adjustRel(n, { trust: 25, respect: 15 }); log(w, `The ${c.name} work for you now, more or less. ${w.blocks[c.blockId]?.name ?? 'The block'} comes with them.`, 'good', e.refs); } else { c.mood = clamp(c.mood - 30); adjustRel(n, { trust: -20 }); log(w, `${n.name} hears the offer as an insult. That block just got harder.`, 'bad', e.refs); } } break; }
+    case 'crew_peace:refuse': { const c = Object.values(w.crews ?? {}).find(x => x.bossId === e.refs.npcId); if (c) { c.strength = Math.min(10, c.strength + 1); c.mood = clamp(c.mood - 25); log(w, `The ${c.name} were expecting a number. They dig in instead.`, 'warn', e.refs); } break; }
+    case 'claim_questions:pay': if (e.refs.blockId) { const b = w.blocks[e.refs.blockId]; if (b?.abandoned) { addInfluence(w, b.id, PLAYER, 10); log(w, `A file is closed somewhere and ${b.name} stops being interesting. It is properly yours now.`, 'money', e.refs); } } break;
+    case 'claim_questions:scare': if (e.refs.blockId) { const b = w.blocks[e.refs.blockId]; if (muscleCheck()) { p.fear = clamp(p.fear + 3); log(w, `The clipboard goes away and does not come back.`, 'good', e.refs); } else { addHeat(w, 8, b?.id); log(w, `He files something. Somebody at the city now has ${b?.name ?? 'that block'} on a list. (+8 heat)`, 'bad', e.refs); } } break;
+    case 'claim_questions:abandon': if (e.refs.blockId) { const b = w.blocks[e.refs.blockId]; if (b?.abandoned) { b.abandoned.claimedBy = undefined; delete b.influence[PLAYER]; b.heldSince = undefined; log(w, `You let ${b.name} go. Whoever wants it can have the paperwork too.`, 'info', e.refs); } } break;
+
     case 'owner_favour:help': if (n && biz) { adjustRel(n, { trust: 15, respect: 10 }); spreadRep(w, biz.blockId, { respect: 4, trust: 2 }); addInfluence(w, biz.blockId, PLAYER, 5); log(w, `You sort out ${n.name}'s problem. The block notices.`, 'good', e.refs); } break;
     case 'owner_favour:ignore': if (n && biz) { adjustRel(n, { trust: -20 }); spreadRep(w, biz.blockId, { respect: -3 }); log(w, `${n.name} stops paying with a smile.`, 'bad', e.refs); } break;
     case 'patron_tip:hit': { const idle = p.crewIds.map(id => w.npcs[id]).find(c => c.crew?.status === 'idle'); if (!idle) { log(w, 'Nobody free to do it. The truck leaves.', 'warn'); break; } if (idle.skills.wheels + idle.skills.muscle + rng.int(0, 10) > 9) { const units = rng.int(6, 14); p.stash.hot_goods += units; addHeat(w, 5, e.refs.blockId); if (n) adjustRel(n, { trust: 5, respect: 5 }); log(w, `${idle.name} takes the truck. ${units} crates of hot goods.`, 'good', e.refs); } else { idle.crew!.status = 'injured'; idle.crew!.statusDays = 3; addHeat(w, 8, e.refs.blockId); log(w, `The driver had a gun. ${idle.name} is hurt and the truck is gone.`, 'bad', e.refs); } break; }

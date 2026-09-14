@@ -580,6 +580,71 @@ fails when `everything` stops reaching every system — so a future pass that sh
 bot cannot see breaks the build rather than passing quietly, which is what happened three passes
 running before this existed.
 
+### 4.15 Why rackets diversify, and why territory finally moves
+
+Two problems that had been diagnosed and left alone for a long time.
+
+**Nothing diversified.** Protection costs nothing to set up and works on any business in the
+city, so once it worked there was no reason to pay for anything else — every other kind was
+flavour nobody had a reason to touch. Two forces now make the choice real:
+
+- **Saturation** (`content/territory.ts`). Per district, per kind, per owner. The first
+  `SATURATION.free` (3) of a kind are untouched; each one past that is worth `0.8×` the one
+  before, floored at 25%. Ordered oldest-first, so opening a fifth numbers route dilutes the
+  *new* one rather than retroactively punishing the four already running. The grace exists
+  because the first cut had none, and saturation then punished exactly the player who could not
+  yet afford to diversify: the early game is cash-starved, every racket it can afford is
+  protection, and decaying the second one made the escape *harder*.
+- **Synergy.** One-directional pairs: fencing is fed by dealing, laundering by carding, dealing
+  by smuggling, loansharking by a gambling den, no-show jobs by union dues. The bonus pays to the
+  dependent kind while the feeder is running, unshut, in the same district.
+
+So the profitable shape stops being "protection everywhere" and becomes "a few blocks you
+actually own, running several things each". Both are visible in the UI — the business sheet
+quotes what a kind would really pay *here*, with the flooding and the synergy named — because an
+invisible mechanic is a bad mechanic.
+
+**Territory never moved.** Influence accrued at a flat +1/day per racket wherever it sat, so
+three rackets on one block did exactly what three rackets on three blocks did. City control sat
+near the same low percentage from this project's first soak onward.
+
+Measuring rather than assuming found the real cause, and it was not what the diagnosis assumed.
+Accrual speed was never the constraint: a bot sixty days in had **every block it ran anything on
+already at influence 100 — and there were three of them, out of forty-five.** What was missing
+was any way for holding ground to *spread*. So:
+
+- **Depth compounds accrual.** Influence is now gathered per block and applied once, so
+  `accrualMult` can see the whole of what you run there: each operation past the first adds half
+  again, to a cap of four.
+- **Tenure settles it.** Consecutive days held (`Block.heldSince`) add up to half again more.
+- **Spill is the actual lever.** A block you *control* with depth ≥ 2 bleeds influence into its
+  neighbours, the way `spreadRep` bleeds reputation. An empire grows outward from strongholds
+  instead of stopping at the doors it owns.
+- **Rivals get pushed**, not merely out-added, so a contested block resolves instead of both
+  sides adding forever.
+
+Measured across six seeds, honest bot, 60 days: **city control 9.3% → 19.3%**, up on every seed.
+
+### 4.16 Two rules the event deck and the ops tree had wrong
+
+Both reported from real play, both the same shape of mistake — a gate asking the wrong question.
+
+**An event about a system may only surface when that system is in play for this player.** The
+deck already did this for money (`whale` needs a bookmaking racket, `debtor` needs a float) but
+not for the police: `cops_sniffing` weighted purely on owning *any* racket, so a player's first
+protection job on day one could summon a plainclothes cop who had supposedly been watching it for
+two nights. It now needs `POLICE_NOTICE` heat, an Authority off `routine`, or an open file — and
+a racket at least `RACKET_WATCHABLE_AFTER` days old, because nobody watched a racket that opened
+this morning for two nights. `content/events.ts` holds those thresholds so the rule is a constant
+rather than a habit.
+
+**`claim_abandoned` asked about your history instead of the ground.** It required
+`priorOps: ['scout_block']` — having scouted *anywhere*. But plenty of derelict blocks are
+visibly derelict from generation, and walking onto one reveals it, so a player who had found a
+ruin with their own eyes could not take it until they had scouted a different district entirely.
+It uses `derelictTarget: true` now — the per-target family — and walking onto or through a
+derelict block marks it found.
+
 ## 5.5 The law, the map, and the edge of the map
 
 ### 5.5.1 Authority — not a faction

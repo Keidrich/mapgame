@@ -69,6 +69,7 @@ export interface Block {
   memory: BlockMemory[];        // what people here remember (capped)
   tags: ('school' | 'police' | 'home')[];
   abandoned?: Abandoned;        // derelict: no businesses, nobody watching, nobody to testify
+  heldSince?: number;           // day the player took control; cleared when lost. Tenure feeds accrual.
 }
 
 export interface BlockMemory { day: number; kind: string; text: string }
@@ -203,7 +204,12 @@ export type Stash = Record<ProductKind, number>;
 export type RacketKind =
   | 'protection' | 'numbers' | 'bookmaking' | 'gambling_den' | 'loansharking'
   | 'fencing' | 'chop_shop' | 'dealing' | 'laundering' | 'smuggling' | 'no_show_jobs'
-  | 'carding';   // moves stolen cards wholesale, the way fencing moves hot goods
+  | 'carding'          // moves stolen cards wholesale, the way fencing moves hot goods
+  // kinds that only make sense once saturation and synergy give you a reason to pick between them
+  | 'union_dues'       // the payroll is yours to write; feeds no-show jobs
+  | 'counterfeiting'   // paper that is not what it says it is; needs a fence
+  | 'after_hours'      // a bar that never closes and never buys legally
+  | 'policy_bank';     // the numbers game run as a bank, not a route
 
 export interface Racket {
   id: Id;

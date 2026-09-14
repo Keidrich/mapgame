@@ -9,10 +9,13 @@ export { nearPolice } from './tick';
 export { brokerReason } from './politics';
 export { route, travelCost, isHere, npcIsHere, npcBlockIds, npcReachBlock, currentBlock, yourTurf, footholdBlocks, legworkFor, FOOTHOLD } from './travel';
 import { openCases } from './cases';
+import { abandonedBlocks } from './abandoned';
 export { openCases, caseWitnessOf } from './cases';
 export { connectionsOf, familyOf, backingOf } from './connections';
 export { ownedItems, equippedItems, isEquipped, ownedCount, equippedCount, equipSlotsLeft, kitSkillBoost, kitApproachBias, kitHeatMult, kitMods, isMarket, marketStock, buyPrice, sellPrice, EQUIP_MAX } from './items';
 import { authorityDifficulty, buyCaseCost, buyDownCost } from './authority-ops';
+import { saturationMult, synergyFor } from './territory';
+import { rawRacketIncome } from './economy';
 import { equippedItems, kitApproachBias, kitSkillBoost } from './items';
 export { confrontations, activeConfrontation, confrontOptions, confrontChance, backupCrew, CONFRONT_AS } from './combat';
 export { cards, liveCards, cardById, cardValue, runOdds, dumpValue, tapped, daysTapped, tapRisk, secrets, secretsAbout, unsoldSecrets, dirtPrice, scrubPower, cyberHeat } from './cyber';
@@ -27,7 +30,7 @@ export { fixerRate, fixerDailyCap, fixerUsedToday, fixerCapToday, fixerCapLeft, 
 export { knownRecipes, recipesForKind, restockCost, qualityOf, sellMult, shortageActive, saturationActive, productionQuality } from './production';
 import { distanceM } from '@geo/project';
 import { STEP_M } from './populate';
-import { PLAYER, type Block, type Business, type Faction, type FactionId, type Id, type Npc, type OpKind, type RacketKind, type Stance, type World } from './types';
+import { PLAYER, type Block, type Business, type Racket, type Faction, type FactionId, type Id, type Npc, type OpKind, type RacketKind, type Stance, type World } from './types';
 
 export { controller, stanceFor };
 
@@ -156,7 +159,7 @@ export function controlShare(w: World): number {
 
 // ---------------------------------------------------------------- op progression
 /** Why this op is not on the table yet, or undefined when it is. Same shape as availableRackets. */
-export function opLocked(w: World, kind: OpKind, target?: { npcId?: Id; businessId?: Id; caseId?: Id }): string | undefined {
+export function opLocked(w: World, kind: OpKind, target?: { npcId?: Id; businessId?: Id; caseId?: Id; blockId?: Id }): string | undefined {
   const req = OP_DEFS[kind].requires; if (!req) return undefined;
   const p = w.player;
   if (req.crewCount !== undefined && p.crewEver < req.crewCount) return `Needs ${req.crewCount} ${req.crewCount === 1 ? 'person' : 'people'} to have joined your crew. You have had ${p.crewEver}.`;
@@ -200,6 +203,16 @@ export function opLocked(w: World, kind: OpKind, target?: { npcId?: Id; business
     if (c) { if (c.status !== 'open') return 'That file is already closed.'; }
     else if (!openCases(w).length) return 'No open investigation to reach into. Nothing to kill yet.';
   }
+  if (req.derelictTarget) {
+    const b = target?.blockId ? w.blocks[target.blockId] : undefined;
+    if (b) {
+      if (!b.abandoned) return `${b.name} is not derelict.`;
+      if (!b.abandoned.known) return `You have not found anything on ${b.name}.`;
+      if (b.abandoned.claimedBy) return `${b.name} is already claimed.`;
+    } else if (!abandonedBlocks(w, { known: true, unclaimed: true }).length) {
+      return 'No derelict ground you have found. Walk the quiet edges of a district, or run Scout the Edges.';
+    }
+  }
   if (req.rattedTarget) {
     // The only per-target requirement in the game: it asks about this mark, not about you. With a
     // target in hand that is the whole check. Without one — the ops tree, browsing — the honest
@@ -216,7 +229,7 @@ export function factionsAt(w: World, stances: Stance[]): Faction[] {
 }
 
 /** Ops whose requirements are met right now. */
-export function opsAvailable(w: World, target?: { npcId?: Id; businessId?: Id; caseId?: Id }): OpKind[] {
+export function opsAvailable(w: World, target?: { npcId?: Id; businessId?: Id; caseId?: Id; blockId?: Id }): OpKind[] {
   return (Object.keys(OP_DEFS) as OpKind[]).filter(k => !opLocked(w, k, target));
 }
 /** The player's rackets of one kind — the carding racket a card dump needs, for instance. */
@@ -249,3 +262,29 @@ export {
   targetAuthority, authorityDifficulty, buyDownCost, buyCaseCost, buyDownAmount,
   jailedCrew, isJailedCrew, openCaseById, lawJobPrice, rungOf,
 } from './authority-ops';
+
+/**
+ * What a racket of this kind would actually be worth on this business today, with the district's
+ * saturation and any synergy already folded in. This is the number that makes diversifying a
+ * decision rather than flavour: a fifth protection in a flooded district reads visibly worse
+ * than a first fencing next to your dealing.
+ */
+export function racketOutlook(w: World, biz: Business, kind: RacketKind): { income: number; saturation: number; synergy?: { bonus: number; why: string; needs: RacketKind } } {
+  const probe: Racket = { id: '__probe', kind, businessId: biz.id, owner: PLAYER, startedDay: w.day + 1, level: 1, lastIncome: 0, disrupted: 0 };
+  const saturation = saturationMult(w, probe);
+  const synergy = synergyFor(w, probe);
+  const def = RACKET_DEFS[kind];
+  // stash-scale kinds earn from stock rather than a formula, so quote their base as a stand-in
+  const raw = def.scale === 'stash' ? def.incomeBase || 150 : rawRacketIncome(w, probe);
+  return { income: Math.round(raw * saturation * (1 + (synergy?.bonus ?? 0))), saturation, synergy };
+}
+/** The kinds you could start here, best first by what they would actually pay. */
+export function racketsByOutlook(w: World, biz: Business): { kind: RacketKind; income: number; saturation: number; synergy?: { bonus: number; why: string; needs: RacketKind } }[] {
+  return availableRackets(w, biz)
+    .map(kind => ({ kind, ...racketOutlook(w, biz, kind) }))
+    .sort((a, b) => b.income - a.income);
+}
+export {
+  saturationMult, synergyMult, synergyFor, yieldMult, blockDepth, heldDays, accrualMult,
+  territoryReading, racketReading, sameKindInDistrict,
+} from './territory';

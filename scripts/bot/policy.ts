@@ -11,7 +11,7 @@
  * scenario will still spend most of its days shaking down bars, which is correct.
  */
 import { PLAYER, can, dispatch, select, type Action, type Id, type OpKind, type World } from '@sim/index';
-import { OP_DEFS } from '@content/rackets';
+import { OP_DEFS, RACKET_DEFS } from '@content/rackets';
 import type { Rng } from '@sim/rng';
 import { bump, bumpComplication, bumpOp, warn, type Coverage } from './coverage';
 
@@ -269,10 +269,17 @@ export function workTheStreet(c: Ctx) {
       if (goTo(c, npcBlock(c, n))) tryAct(c, { type: 'visit', npcId: n });
       continue;
     }
-    const spot = mine.find(b => select.availableRackets(w, b).some(k => ['numbers', 'bookmaking', 'laundering'].includes(k)));
-    if (spot && p.cash > 1500) {
-      const k = select.availableRackets(w, spot).find(k => ['numbers', 'bookmaking', 'laundering'].includes(k))!;
-      if (tryAct(c, { type: 'start_racket', businessId: spot.id, kind: k })) { bump(c.cov, 'rackets_started'); continue; }
+    // Which racket to put where is a real decision now: saturation decays the fifth of a kind in
+    // a district and synergy pays kinds that feed each other. `racketsByOutlook` is the same
+    // ranking the block sheet shows a player, so the bot picks the way a reader of that panel
+    // would — best actual yield first, not a fixed favourite list.
+    // …but only among kinds it can actually pay for. Ranking on yield alone made the bot keep
+    // choosing a policy bank it could not afford and install nothing at all, which halved its
+    // racket count on three of six seeds before this filter went in.
+    const affordable = (b: typeof mine[number]) => select.racketsByOutlook(w, b).filter(x => RACKET_DEFS[x.kind].setupCost <= p.cash - 200)[0];
+    const ranked = mine.map(b => ({ b, best: affordable(b) })).filter(x => x.best).sort((x, y) => y.best.income - x.best.income)[0];
+    if (ranked && p.cash > 1500) {
+      if (tryAct(c, { type: 'start_racket', businessId: ranked.b.id, kind: ranked.best.kind })) { bump(c.cov, 'rackets_started'); continue; }
     }
     const t = soft.sort((a, b) => (w.npcs[a.ownerId].nerve - w.npcs[a.ownerId].rel.fear) - (w.npcs[b.ownerId].nerve - w.npcs[b.ownerId].rel.fear))[0];
     if (t) {

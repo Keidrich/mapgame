@@ -103,10 +103,16 @@ describe('opsAvailable', () => {
     expect(select.opLocked(w3, 'heist_bank')).toBeTruthy();
   });
 
-  it('claim_abandoned chains off a scout, and kidnap needs a crew and somewhere to put them', () => {
+  it('claim_abandoned asks about the ground, not about your history, and kidnap needs a crew and somewhere to put them', () => {
     const w = mk();
-    expect(select.opLocked(w, 'claim_abandoned')).toMatch(/Scout the Edges/);
+    // it used to chain off `priorOps: ['scout_block']`, which asked whether you had scouted
+    // *anywhere*. It asks about the block now: a derelict you have found is enough, however
+    // you found it, and scouting somewhere else is worth nothing on its own.
+    for (const b of Object.values(w.blocks)) b.abandoned = undefined;
+    expect(select.opLocked(w, 'claim_abandoned')).toMatch(/derelict/i);
     give.doneOp(w, 'scout_block');
+    expect(select.opLocked(w, 'claim_abandoned'), 'scouting elsewhere should not unlock it').toMatch(/derelict/i);
+    Object.values(w.blocks)[0].abandoned = { known: true };
     expect(select.opLocked(w, 'claim_abandoned')).toBeUndefined();
 
     const k = mk();
@@ -187,7 +193,7 @@ describe('the expanded roster', () => {
   });
 
   it('reuses only gating patterns that already existed', () => {
-    const allowed = new Set(['crewCount', 'safehouseTier', 'racketKinds', 'businessOwned', 'priorOps', 'stance', 'weapon', 'rattedTarget', 'officialTarget', 'jailedTarget', 'casedTarget', 'caseTarget']);
+    const allowed = new Set(['crewCount', 'safehouseTier', 'racketKinds', 'businessOwned', 'priorOps', 'stance', 'weapon', 'rattedTarget', 'officialTarget', 'jailedTarget', 'casedTarget', 'caseTarget', 'derelictTarget']);
     for (const k of Object.keys(OP_DEFS) as OpKind[]) {
       for (const key of Object.keys(OP_DEFS[k].requires ?? {})) expect(allowed.has(key), `${k}.requires.${key}`).toBe(true);
     }

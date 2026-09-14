@@ -128,18 +128,23 @@ describe('claiming', () => {
     expect(can(w, { type: 'plan_op', kind: 'claim_abandoned', crewIds: [], targetBlockId: plain.id }).ok).toBe(false);
     const r = can(w, { type: 'plan_op', kind: 'claim_abandoned', crewIds: [], targetBlockId: hidden.id });
     expect(r.ok).toBe(false);
-    expect(r.ok === false && r.reason).toMatch(/Scout the edges/i);
+    expect(r.ok === false && r.reason).toMatch(/have not found/i);
     hidden.abandoned!.known = true;
     expect(can(w, { type: 'plan_op', kind: 'claim_abandoned', crewIds: [], targetBlockId: hidden.id }).ok).toBe(true);
     hidden.abandoned!.claimedBy = 'f1';
     expect(can(w, { type: 'plan_op', kind: 'claim_abandoned', crewIds: [], targetBlockId: hidden.id }).ok).toBe(false);
   });
 
-  it('is locked until you have scouted at least once', () => {
-    const w = mk(); const b = derelict(w);
+  it('is locked on a derelict you have not found, and scouting is one way to find it', () => {
+    // The gate used to be `priorOps: ['scout_block']` — having scouted *anywhere*. It asks about
+    // this block now, so a lot you found by walking past it counts and a lot you have never seen
+    // does not, however many districts you have scouted.
+    const w = mk(); const b = derelict(w, { known: false });
     const r = can(w, { type: 'plan_op', kind: 'claim_abandoned', crewIds: [], targetBlockId: b.id });
     expect(r.ok).toBe(false);
-    expect(r.ok === false && r.reason).toMatch(/Scout the Edges/);
+    expect(r.ok === false && r.reason).toMatch(/have not found/i);
+    revealOne(w, b.districtId, new Rng(1));
+    if (b.abandoned!.known) expect(can(w, { type: 'plan_op', kind: 'claim_abandoned', crewIds: [], targetBlockId: b.id }).ok).toBe(true);
   });
 
   it('the inside approach needs a councillor who takes your calls', () => {
@@ -197,5 +202,63 @@ describe('claiming', () => {
     for (const e of w.pendingEvents.slice()) w = dispatch(w, { type: 'resolve_event', eventId: e.id, optionId: e.options.at(-1)!.id });
     const plain = select.startBlock(w);
     expect((can(w, { type: 'rent_safehouse', blockId: plain.id }) as { cost?: { cash?: number } }).cost?.cash).toBe(SAFEHOUSE_TIERS[0].rent);
+  });
+});
+
+describe('finding a derelict lot yourself is enough to take it', () => {
+  /**
+   * `claim_abandoned` used to require `priorOps: ['scout_block']`. But plenty of derelict blocks
+   * are visibly derelict from generation, and walking onto one reveals it — so a player who had
+   * found a ruin with their own eyes still could not take it until they had run a scouting op
+   * somewhere else entirely. Reported from real play. The gate asks about the block now.
+   */
+  it('a known unclaimed derelict unlocks the op with no scouting op behind it', () => {
+    const w = mk();
+    const lot = derelict(w, { known: true });
+    expect(Object.values(w.ops).some(o => o.kind === 'scout_block' && o.status === 'done')).toBe(false);
+    expect(select.opLocked(w, 'claim_abandoned', { blockId: lot.id })).toBeUndefined();
+    expect(can(w, { type: 'plan_op', kind: 'claim_abandoned', crewIds: [], targetBlockId: lot.id }).ok).toBe(true);
+  });
+
+  it('a derelict you have not found yet does not', () => {
+    const w = mk();
+    const hidden = derelict(w, { known: false });
+    expect(select.opLocked(w, 'claim_abandoned', { blockId: hidden.id })).toBeTruthy();
+  });
+
+  it('nor does one somebody already claimed', () => {
+    const w = mk();
+    const lot = derelict(w, { known: true });
+    lot.abandoned!.claimedBy = Object.values(w.factions)[0].id;
+    expect(select.opLocked(w, 'claim_abandoned', { blockId: lot.id })).toContain('already claimed');
+  });
+
+  it('with nothing derelict found anywhere, the tree says so', () => {
+    const w = mk();
+    for (const b of Object.values(w.blocks)) b.abandoned = undefined;
+    expect(select.opLocked(w, 'claim_abandoned')).toContain('derelict');
+  });
+
+  it('walking onto a derelict block is finding it', () => {
+    let w = mk();
+    const here = w.blocks[w.player.currentBlockId];
+    const next = here.neighborIds.map(id => w.blocks[id]).find(Boolean)!;
+    next.abandoned = { known: false };
+    w.player.legwork = 8;
+    expect(select.isKnownAbandoned(w.blocks[next.id])).toBe(false);
+    w = dispatch(w, { type: 'move', toBlockId: next.id });
+    expect(select.isKnownAbandoned(w.blocks[next.id])).toBe(true);
+    expect(select.opLocked(w, 'claim_abandoned', { blockId: next.id })).toBeUndefined();
+  });
+
+  it('and so is walking through one on the way somewhere else', () => {
+    let w = mk();
+    const here = w.blocks[w.player.currentBlockId];
+    const mid = here.neighborIds.map(id => w.blocks[id]).find(Boolean)!;
+    const far = mid.neighborIds.map(id => w.blocks[id]).find(b => b && b.id !== here.id)!;
+    mid.abandoned = { known: false };
+    w.player.legwork = 8;
+    w = dispatch(w, { type: 'move', toBlockId: far.id });
+    expect(select.isKnownAbandoned(w.blocks[mid.id])).toBe(true);
   });
 });

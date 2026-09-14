@@ -24,6 +24,7 @@ export function BusinessSheet({ businessId }: { businessId: Id }) {
   const patrons = select.patronsOf(w, biz);
   const rackets = select.racketsAt(w, biz);
   const available = select.availableRackets(w, biz);
+  const outlook = select.racketsByOutlook(w, biz);
   const [gift, setGift] = useState(500);
   const [rate, setRate] = useState(0.2);
   const [offer, setOffer] = useState(biz.value);
@@ -113,12 +114,21 @@ export function BusinessSheet({ businessId }: { businessId: Id }) {
       {available.length > 0 && (
         <Disclosure label="Start a racket" icon="➕" kind="primary">
           <div className="list">
-            {available.map(k => {
+            {outlook.map(({ kind: k, income, saturation, synergy }) => {
               const d = RACKET_DEFS[k];
               const needsProduct = k === 'dealing';
               return (
                 <div key={k} className="card offer" style={{ padding: 10 }}>
                   <div><b>{d.icon} {d.label}</b> <span className="muted small">{d.setupCost ? fmtMoney(d.setupCost) : 'free'}</span><div className="small muted">{d.blurb} Runner skill: {d.skill}.</div></div>
+                  {/* what it would actually pay here, with the district's saturation and any
+                      synergy folded in — otherwise both mechanics are invisible to the player */}
+                  <div className="row wrap mt8" style={{ gap: 4 }}>
+                    {income > 0 && <span className="chip">≈{fmtMoney(income)}/day here</span>}
+                    {saturation < 1 && <TermChip id="racketSaturation" tone="var(--orange)">Flooded ·{'\u00A0'}{Math.round(saturation * 100)}%</TermChip>}
+                    {synergy && <TermChip id="synergy" tone="var(--green)">+{Math.round(synergy.bonus * 100)}% with your {RACKET_DEFS[synergy.needs].label.toLowerCase()}</TermChip>}
+                  </div>
+                  {synergy && <p className="tiny muted" style={{ margin: '4px 0 0' }}>{synergy.why}.</p>}
+                  {saturation < 1 && <p className="tiny muted" style={{ margin: '4px 0 0' }}>You already run {RACKET_DEFS[k].label.toLowerCase()} elsewhere in this district. Another one here is worth less than the first was — spread out, or run something different.</p>}
                   {needsProduct && <div className="chips">{PRODUCTS.map(p => <button type="button" key={p} className={`chip btn${dealProduct === p ? ' sel' : ''}`} onClick={() => setDealProduct(p)}>{PRODUCT_INFO[p].icon} {PRODUCT_INFO[p].label}</button>)}</div>}
                   <Act action={{ type: 'start_racket', businessId, kind: k, product: needsProduct ? dealProduct : undefined }} label={`Start ${d.label}`} block />
                 </div>
@@ -134,6 +144,18 @@ export function BusinessSheet({ businessId }: { businessId: Id }) {
         {patrons.length === 0 && <p className="small muted">Nobody hangs around here.</p>}
       </div>
     </Sheet>
+  );
+}
+
+/** Why a running racket earns what it earns: the district either dilutes it or feeds it. */
+export function RacketYield({ w, r }: { w: World; r: Racket }) {
+  const { saturation, rank, synergy } = select.racketReading(w, r);
+  if (saturation >= 1 && !synergy) return null;
+  return (
+    <div className="row wrap mt8" style={{ gap: 4 }}>
+      {saturation < 1 && <TermChip id="racketSaturation" tone="var(--orange)">#{rank + 1} of this kind in the district · {Math.round(saturation * 100)}%</TermChip>}
+      {synergy && <TermChip id="synergy" tone="var(--green)">+{Math.round(synergy.bonus * 100)}% · {synergy.why}</TermChip>}
+    </div>
   );
 }
 
@@ -155,6 +177,7 @@ export function RacketCard({ w, r, showBiz }: { w: World; r: Racket; showBiz?: b
         {r.float !== undefined && <> · <Term id="float">float</Term> {fmtMoney(r.float)}</>}
         {r.disrupted > 0 && <span className="red"> · <Term id="disrupted">disrupted</Term> {r.disrupted}d</span>}
       </div>
+      {yours && <RacketYield w={w} r={r} />}
       {yours && (
         <div className="row wrap mt8" style={{ gap: 6 }}>
           <Act action={{ type: 'upgrade_racket', racketId: r.id }} label={r.level >= 3 ? 'Max level' : `Upgrade (${fmtMoney(upgradeCost)})`} small />
