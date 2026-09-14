@@ -65,7 +65,7 @@ export function maybeComplicate(w: World, o: Op, rng: Rng): ComplicationKind | u
     factionId: target?.protection?.factionId ?? PLAYER,
     kind: 'op',
     war: false,
-    text: `${def.icon} ${OP_DEFS[o.kind].label}, halfway through: ${def.text.replace('%s', where)}`,
+    text: `${OP_DEFS[o.kind].label}, halfway through: ${def.text.replace('%s', where)}`,
     opId: o.id,
     complication: kind,
     businessId: target?.id,

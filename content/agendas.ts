@@ -36,39 +36,39 @@ export interface AgendaMove {
 
 export const AGENDA_MOVES: Record<AgendaKind, AgendaMove[]> = {
   debt: [{
-    mode: 'settle', label: 'Pay off what they owe', icon: '💵',
+    mode: 'settle', label: 'Pay off what they owe', icon: 'cash',
     blurb: 'Clear the book yourself. No roll on the money — it either covers it or it does not.',
     good: 'The debt is gone and they know who did it', bad: 'You are out the cash and they are still frightened',
     scaled: true, base: 78, skill: 'charm',
   }],
   leave: [
     {
-      mode: 'settle', label: 'Help them get out', icon: '🚪',
+      mode: 'settle', label: 'Help them get out', icon: 'spring_crew',
       blurb: 'Vouch for them somewhere else, cover the gap, put them on a bus. Charm.',
       good: 'They go, and they tell people who made it possible', bad: 'The arrangement falls through and they blame you',
       cash: 1200, base: 62, skill: 'charm',
     },
     {
-      mode: 'trap', label: 'Make sure they cannot', icon: '🕸️',
+      mode: 'trap', label: 'Make sure they cannot', icon: 'social',
       blurb: 'They want out, so the way out is what you own. Quiet word in the right places. Brains.',
       good: 'They stay, and they do what you say', bad: 'They work out who closed the door',
       base: 58, skill: 'brains',
     },
   ],
   revenge: [{
-    mode: 'settle', label: 'Settle it for them', icon: '⚖️',
+    mode: 'settle', label: 'Settle it for them', icon: 'lawyer',
     blurb: 'Go and have the conversation they cannot have. Muscle, and it makes noise.',
     good: 'Their score is settled and it was you who settled it', bad: 'You made an enemy and got nothing for it',
     base: 55, skill: 'muscle',
   }],
   ambition: [{
-    mode: 'settle', label: 'Put your name behind them', icon: '👍',
+    mode: 'settle', label: 'Put your name behind them', icon: 'check',
     blurb: 'Vouch for them where it counts. Costs you standing if they are no good. Charm.',
     good: 'They get their shot, and they know who gave it', bad: 'You backed somebody who could not carry it',
     base: 66, skill: 'charm',
   }],
   family: [{
-    mode: 'settle', label: 'Put somebody on them', icon: '👀',
+    mode: 'settle', label: 'Put somebody on them', icon: 'watching',
     blurb: 'Whoever they are frightened for, make it known they are not to be touched. Muscle.',
     good: 'The person they are scared for is safe, and they know why', bad: 'Word gets out you are watching that house',
     base: 64, skill: 'muscle',

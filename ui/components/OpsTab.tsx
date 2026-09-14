@@ -202,7 +202,7 @@ function Planner() {
               <div className="col">
                 {def.modes.map(m => { const on = (mode ?? def.modes![0].id) === m.id; return (
                   <button type="button" key={m.id} className={`opt${on ? ' sel' : ''}`} onClick={() => setMode(m.id)}>
-                    <span className="lbl">{m.icon} {m.label}</span>
+                    <span className="lbl"><Icon name={m.icon} size={14} /> {m.label}</span>
                     <span className="det">{m.blurb}</span>
                     <span className="stakes"><b className="green"><Icon name="check" size={11} /> {m.good}</b> <b className="red"><Icon name="cross" size={11} /> {m.bad}</b></span>
                   </button>
@@ -217,7 +217,7 @@ function Planner() {
                 {(Object.keys(OP_APPROACHES) as OpApproach[]).map(k => { const a = OP_APPROACHES[k]; const on = approach === k; const insideOff = k === 'inside' && (def.target !== 'business' || !insiders.length);
                   return (
                     <button type="button" key={k} className={`opt${on ? ' sel' : ''}`} disabled={insideOff} onClick={() => setApproach(on ? undefined : k)}>
-                      <span className="lbl">{a.icon} {a.label} <span className="odds" style={{ float: 'right' }}>{select.opChance(w, kind!, crewIds, k, target)}%</span></span>
+                      <span className="lbl"><Icon name={a.icon} size={14} /> {a.label} <span className="odds" style={{ float: 'right' }}>{select.opChance(w, kind!, crewIds, k, target)}%</span></span>
                       <span className="det">{a.blurb}{k === 'inside' && insiders.length ? ` ${insiders[0].name} would do it.` : ''}</span>
                       <span className="stakes"><b className="green"><Icon name="check" size={11} /> {a.good}</b> <b className="red"><Icon name="cross" size={11} /> {a.bad}</b></span>
                       {insideOff && <span className="cst">{def.target !== 'business' ? 'Needs a place as the target.' : 'Nobody there trusts you enough yet (trust 35+).'}</span>}

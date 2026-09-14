@@ -14,6 +14,10 @@ import { BUSINESS_DEFS } from '@content/businesses';
 import { OP_DEFS, PRODUCTION_DEFS, PRODUCT_INFO, RACKET_DEFS } from '@content/rackets';
 import { ITEM_DEFS } from '@content/items';
 import { AUTHORITY_KINDS, POSTURES } from '@content/authority';
+import { APPROACHES } from '@content/lines';
+import { AGENDA_MOVES } from '@content/agendas';
+import { COMPLICATIONS } from '@content/complications';
+import { OP_APPROACHES } from '@content/rackets';
 import { ALL_ICONS, OP_ICON_PATHS, hasIcon, iconName, iconMarkup } from './icons';
 
 const ids = (o: object) => Object.keys(o);
@@ -48,6 +52,43 @@ describe('every content table is drawn', () => {
     expect(iconName('business', 'a_type_that_does_not_exist')).toBe('corner_store');
     expect(iconName('op', undefined)).toBe('ops');
     expect(hasIcon(iconName('racket', 'nope'))).toBe(true);
+  });
+});
+
+/**
+ * Two different contracts share the field name `icon`, and mixing them up is how a screen ends up
+ * drawing the fallback glyph for every option on it:
+ *
+ *  - on a **content table** (a business type, a racket kind, an op) `icon` is an emoji. It is
+ *    data — a log line, a share card — and the UI never draws it: it resolves its own drawing
+ *    from the row's id.
+ *  - on an **option** (a way to answer a confrontation, an approach to a job, a move in a
+ *    conversation) `icon` is the name of a drawing, because there is no id to resolve from.
+ *
+ * The second kind has to be a real name or `<Icon>` quietly falls back and every option on the
+ * screen gets the same glyph. That is exactly what happened, and this is the check for it.
+ */
+describe('an option names its drawing, rather than carrying an emoji', () => {
+  const tables: [string, { icon: string; label?: string }[]][] = [
+    ['scene approaches', Object.values(APPROACHES).flat()],
+    ['op approaches', Object.values(OP_APPROACHES)],
+    ['agenda moves', Object.values(AGENDA_MOVES).flat()],
+    ['complications', Object.values(COMPLICATIONS)],
+  ];
+  for (const [label, rows] of tables) {
+    it(label, () => {
+      expect(rows.length, `${label} is empty, so this checked nothing`).toBeGreaterThan(0);
+      for (const row of rows) {
+        expect(row.icon, `${label}: ${row.label ?? '?'} has no icon`).toBeTruthy();
+        expect(hasIcon(row.icon), `${label}: ${row.label ?? '?'} asks for "${row.icon}", which is not a drawing`).toBe(true);
+      }
+    });
+  }
+
+  it('and the op modes, which sit inside the op table but are options', () => {
+    for (const d of Object.values(OP_DEFS)) {
+      for (const m of d.modes ?? []) expect(hasIcon(m.icon), `${d.label} mode "${m.label}" asks for ${m.icon}`).toBe(true);
+    }
   });
 });
 

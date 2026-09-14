@@ -73,7 +73,7 @@ interface TalkOpt { id: TalkMove; label: string; icon: string; blurb: string; go
 function Move({ o, onPick }: { o: TalkOpt; onPick: (id: TalkMove) => void }) {
   return (
     <button type="button" className="opt scene-opt" disabled={!!o.disabled} onClick={() => onPick(o.id)}>
-      <span className="lbl">{o.icon} {o.label} <span className={`odds ${o.chance >= 65 ? 'good' : o.chance >= 40 ? 'mid' : 'bad'}`}>{o.chance}%</span></span>
+      <span className="lbl"><Icon name={o.icon} size={14} /> {o.label} <span className={`odds ${o.chance >= 65 ? 'good' : o.chance >= 40 ? 'mid' : 'bad'}`}>{o.chance}%</span></span>
       <span className="det">{o.blurb}</span>
       <span className="stakes"><b className="green"><Icon name="check" size={11} /> {o.good}</b> <b className="red"><Icon name="cross" size={11} /> {o.bad}</b></span>
       {(o.disabled || o.costCash) && <span className="cst">{o.disabled ?? fmtMoney(o.costCash!)}</span>}

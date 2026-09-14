@@ -134,6 +134,22 @@ describe('the tactical chrome is on', () => {
   });
 });
 
+describe('nothing the sim writes to the player carries an emoji', () => {
+  /**
+   * The log is a screen too — it is most of the recap and a third of the empire tab — and five
+   * log lines were prefixing themselves with the emoji off a content table. Component tests
+   * cannot see that, because the text arrives from `/sim` already assembled.
+   */
+  it('a played day writes a log with no emoji in it', () => {
+    let world = playable();
+    for (let i = 0; i < 3; i++) { world.pendingEvents = []; world = dispatch(world, { type: 'end_day' }); }
+    const lines = world.log.map(e => e.text);
+    expect(lines.length, 'nothing was logged, so this checked nothing').toBeGreaterThan(5);
+    const bad = lines.filter(t => EMOJI.test(t));
+    expect(bad, `log lines still carrying emoji: ${bad.slice(0, 3).join(' | ')}`).toEqual([]);
+  });
+});
+
 describe('the map markers draw rather than print', () => {
   /**
    * The bug this exists for: markers were set with `textContent`, which was right while they were

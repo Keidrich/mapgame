@@ -348,9 +348,8 @@ export function MapView() {
   return (
     <>
       <div ref={el} className="map" role="application" aria-label="City map" />
-      {/* under the legend rather than beside it: the legend is top-left and up to 60% wide, and a
-          centred chip at the same height lands on top of it on a phone */}
-      {loadingCount > 0 && <div className="map-loading" role="status" style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', top: 58, zIndex: 5, padding: '6px 12px', borderRadius: 2, background: 'rgba(7,10,16,0.92)', border: '1px solid var(--line-2)', fontFamily: 'var(--font-mono)', fontSize: 10.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--muted)', pointerEvents: 'none' }}>Mapping new streets…</div>}
+      {/* top-right, because the legend owns the top-left and can be 60% of the width when open */}
+      {loadingCount > 0 && <div className="map-loading" role="status" style={{ position: 'absolute', right: 10, top: 10, zIndex: 5, padding: '6px 12px', borderRadius: 2, background: 'rgba(7,10,16,0.92)', border: '1px solid var(--line-2)', fontFamily: 'var(--font-mono)', fontSize: 10.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--muted)', pointerEvents: 'none' }}>Mapping new streets…</div>}
     </>
   );
 }

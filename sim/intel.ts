@@ -44,7 +44,7 @@ export function openIntel(w: World, n: Npc, rng: Rng): IntelKind | undefined {
   n.intel = { kind: src.kind, since: w.day, businessId: src.biz.id };
   n.ratted = w.day;
   const def = INTEL[src.kind];
-  log(w, `${def.icon} ${n.name} works at ${src.biz.name}, and now you know what they know. ${def.blurb}`, 'good', { npcId: n.id, businessId: src.biz.id });
+  log(w, `${n.name} works at ${src.biz.name}, and now you know what they know. ${def.blurb}`, 'good', { npcId: n.id, businessId: src.biz.id });
   void rng;
   return src.kind;
 }

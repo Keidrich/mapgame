@@ -5,6 +5,7 @@ import { fmtMoney } from '@ui/derive';
 import { useWorld } from '@ui/store';
 import { Act } from './Act';
 import { Info, Term, TermChip } from './Info';
+import { IconTile } from '@ui/icons';
 
 /**
  * Kit: what you own and what you are carrying. Equipment, not stock — the Stash is bulk
@@ -37,7 +38,7 @@ function KitRow({ item }: { item: ItemDef }) {
   const on = select.equippedCount(w, item.id);
   return (
     <div className={`shelfitem${on ? ' sel' : ''}`}>
-      <span className="ico">{item.icon}</span>
+      <IconTile of="item" id={item.id} size={32} tone={on ? 'gold' : undefined} />
       <div className="shelf-body">
         <div className="shelf-head">
           <b className="shelf-name">{item.label}{have > 1 && <span className="muted"> ×{have}</span>}</b>
@@ -67,7 +68,7 @@ export function MarketSection({ businessId }: { businessId: Id }) {
       <div className="col" style={{ gap: 6 }}>
         {stock.map(item => (
           <div key={item.id} className="shelfitem">
-            <span className="ico">{item.icon}</span>
+            <IconTile of="item" id={item.id} size={32} />
             <div className="shelf-body">
               <div className="shelf-head">
                 <b className="shelf-name">{item.label}</b>
@@ -90,7 +91,7 @@ export function MarketSection({ businessId }: { businessId: Id }) {
           <div className="col" style={{ gap: 6 }}>
             {mine.map(item => (
               <div key={item.id} className="shelfitem">
-                <span className="ico">{item.icon}</span>
+                <IconTile of="item" id={item.id} size={32} />
                 <div className="shelf-body">
                   <div className="shelf-head">
                     <b className="shelf-name">{item.label}</b>

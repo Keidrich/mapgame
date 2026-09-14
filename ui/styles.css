@@ -2,20 +2,24 @@
 :root {
   /* The ground is navy rather than neutral black: at night, on a phone, a blue-black reads as
      a screen you are looking *at* and a grey-black reads as a screen that is off. */
-  --bg: #070a10;
-  --bg-2: #0c1119;
-  --bg-3: #111926;
-  --bg-4: #1a2534;
-  --line: #1e2a3a;
-  --line-2: #2b3a4d;
-  --text: #dfe6f0;
-  --muted: #7d8a9d;
+  --bg: #05070c;
+  --bg-2: #0e141f;
+  --bg-3: #151d2b;
+  --bg-4: #1f2a3b;
+  --line: #263447;
+  --line-2: #3a4c63;
+  --text: #e4e9f2;
+  /* Secondary prose. Cool, but lifted: at #7d8a9d half the words on a screen were the same
+     low-contrast grey and the whole app read as grey rather than as amber-on-navy. */
+  --muted: #949dad;
+  --faint: #6c788a;                     /* genuinely third-rank: hints, empty states */
   --gold: #f5c542;
   --gold-2: rgba(245, 197, 66, 0.55);   /* corner brackets, rules, hairlines */
+  --gold-3: rgba(245, 197, 66, 0.72);   /* tactical labels: the structural type is amber */
   --gold-dim: rgba(245, 197, 66, 0.14);
-  --green: #45d489;
-  --orange: #f0954c;
-  --red: #e5484d;
+  --green: #3fdd8c;
+  --orange: #ff9f4a;
+  --red: #ff5257;
   --blue: #58a6f0;
   --purple: #b07cf0;
   --hud-h: 96px;
@@ -561,7 +565,7 @@ h1, h2, h3, h4, .sheet-title, .panel h2, .modal h2 {
 .chip, .tinychip { font-family: var(--font-mono); letter-spacing: 0.04em; border-radius: var(--radius); gap: 5px; }
 /* Chips are not all labels: half of them carry a sentence ("+25% the same runners, the same
    slips"). Mono yes, upper-case no, and they wrap rather than running off the card. */
-.chip { font-size: 11px; white-space: normal; overflow-wrap: anywhere; }
+.chip { font-size: 11px; white-space: normal; overflow-wrap: break-word; }
 .tinychip { font-size: 10px; white-space: normal; gap: 4px; }
 .chip.btn { white-space: nowrap; letter-spacing: 0.1em; text-transform: uppercase; }
 .iconbtn { border-radius: var(--radius); border: 1px solid var(--line-2); }
@@ -668,7 +672,9 @@ h1, h2, h3, h4, .sheet-title, .panel h2, .modal h2 {
 
 /* ---------------------------------------------------------------- dense readouts */
 .kv { gap: 4px 12px; }
-.kv dt { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; }
+/* Not uppercased: half of these are sentences ("Clean income"), and the ones that are single
+   words ended up shouting next to them. Mono and amber is enough to mark them as labels. */
+.kv dt { font-family: var(--font-mono); font-size: 11.5px; letter-spacing: 0.04em; }
 .meter .lbl { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase; }
 .meter-bar, .meter-fill, .heatbar, .heatbar > div, .skill .bar, .steps > div { border-radius: 0; }
 .skill { font-family: var(--font-mono); letter-spacing: 0.08em; }
@@ -685,3 +691,93 @@ h1, h2, h3, h4, .sheet-title, .panel h2, .modal h2 {
 .btn > .icon { margin-right: 2px; }
 .sheet-ico { display: flex; align-items: center; justify-content: center; width: 26px; height: 26px; flex: none; border: 1px solid var(--gold-2); color: var(--gold); }
 .icon.rot90 { transform: rotate(90deg); }
+
+
+/* ---------------------------------------------------------------- fixes from the bot walkthrough
+   Everything below came out of looking at real screens with a played save in them, rather than at
+   a component in isolation. Each one is a thing that only shows up with content in it. */
+
+/* A shelf row is name-first: the controls on the right take what they need and no more, and the
+   name column keeps enough width that "Lockpick Set" does not break into "Lockpi / ck Set". */
+.shelfitem > .shelf-body { flex: 1 1 auto; min-width: 0; }
+.shelfitem > .col, .shelfitem > .actwrap { flex: 0 0 auto; max-width: 42%; }
+.shelf-name { overflow-wrap: break-word; }
+.shelf-detail { overflow-wrap: break-word; }
+
+/* A meter's value column was 36px, which is three characters. Standing runs to -100. */
+.meter { grid-template-columns: 78px 1fr 44px; }
+.grid2 .meter { grid-template-columns: 58px 1fr 38px; }
+.meter .val { white-space: nowrap; }
+/* "Close-knit" does not fit a tracked-out label column, and was being cut off mid-word rather
+   than shortened. Tighter tracking here, and an ellipsis if a longer one ever turns up. */
+.meter .lbl { letter-spacing: 0.02em; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* A disclosure's caret is not a word and must not wrap onto its own line. */
+.btn > .icon:last-child { flex: none; margin-left: auto; }
+
+/* The furniture on the map had all been placed against the same corner independently, and with a
+   phone-width screen and six overlay modes they landed on top of each other: the hint printed
+   over the second row of layer chips, and the end-day button covered the right-hand end of them.
+   One stack now, bottom up: layer bar, then the ramp key, then the hint — and the layer bar ends
+   short of the button rather than running under it. */
+.layerbar {
+  left: 8px; right: 8px; bottom: 72px; max-width: none;
+  flex-wrap: wrap; gap: 5px;
+}
+/* Six modes have to be *visible*, not scrollable: a horizontal scroller on a map overlay is a
+   row of two chips and no sign the other four exist. Tighter horizontally, full touch height. */
+.layerbar .chip.btn { flex: none; padding: 0 9px; font-size: 10.5px; letter-spacing: 0.08em; }
+.layerbar .chip.btn .icon { margin-right: 1px; }
+.layerkey { bottom: 44px; }
+/* the hint shares the bottom row with the end-day button, and stops short of it */
+.map-hint { left: 12px; right: 150px; bottom: 18px; max-width: none; }
+.fab { bottom: 10px; }
+
+
+/* ---------------------------------------------------------------- amber, where it means something
+   The pass shipped with the structure drawn in grey and amber saved for a handful of accents,
+   which is how a tactical HUD turns into a grey app with a yellow button on it. The rule now:
+   **labels and the things that are yours are amber; prose is grey; trouble is red.** */
+
+/* the label layer — every piece of type that names a thing rather than saying something */
+.section-title, .tac, .hud-cell .k, .kv dt, .meter .lbl, .brief > .brief-head,
+.optier-n, .skill, .field, label.field { color: var(--gold-3); }
+.section-title::after { background: linear-gradient(90deg, var(--gold-2), transparent); }
+.optier-rule { background: linear-gradient(90deg, var(--gold-2), transparent); }
+.hud-cell .k { opacity: 0.9; }
+
+/* icons carry the same rule: an icon in a row is a thing of yours until told otherwise */
+.listitem .icon, .shelfitem .icon, .icontile .icon { color: var(--gold-3); }
+.icontile { border-color: var(--line-2); background: linear-gradient(160deg, rgba(245, 197, 66, 0.07), transparent 70%), var(--bg-3); }
+.icontile-muted, .icontile-muted .icon { color: var(--faint); }
+.listitem.locked .icon, .opnode.locked .icon { color: var(--faint); }
+
+/* panels read as panels: a little more ground under them, and a keyline along the top */
+.card, .brief, .modal {
+  background-color: var(--bg-2);
+  box-shadow: inset 0 1px 0 rgba(245, 197, 66, 0.1), 0 1px 0 rgba(0, 0, 0, 0.5);
+}
+.card.gold, .brief { box-shadow: inset 0 1px 0 rgba(245, 197, 66, 0.22), 0 1px 0 rgba(0, 0, 0, 0.5); }
+.listitem, .shelfitem, .opnode-btn, .opt, .check, .result, .bg-opt { background: var(--bg-3); }
+.listitem::before { background: var(--line-2); }
+
+/* the ops tree was the greyest screen in the game: every node the same dark box. A job you can
+   actually do now gets the amber keyline and an amber glyph; a locked one goes quiet. */
+.opnode-btn { border-left: 2px solid var(--gold-2); }
+.opnode-btn .ico .icon, .opnode-btn > .ico > .icon { color: var(--gold); }
+.opnode.locked .opnode-btn { border-left-color: var(--line); background: var(--bg-2); }
+.opnode.locked .opnode-btn .icon { color: var(--faint); }
+.opnode.done .opnode-btn { border-left-color: var(--green); }
+.opnode.sel .opnode-btn { border-left-color: var(--gold); box-shadow: inset 0 0 0 1px var(--gold-dim); }
+
+/* skill bars were the one blue thing on the screen, and read as a placeholder */
+.skill .bar > div { background: linear-gradient(180deg, var(--gold), #c79a2b); }
+.skill b { color: var(--text); }
+
+/* status colour, now that the ground is darker: these have to read at a glance on a phone */
+.chip.s-idle, .green { color: var(--green); }
+.tinychip.own { color: var(--gold); border-color: var(--gold-2); background: rgba(245, 197, 66, 0.08); }
+.tinychip.warn { color: var(--orange); border-color: rgba(255, 159, 74, 0.45); }
+.chip.red, .chip.orange, .chip.green { border-color: currentColor; background: rgba(255, 255, 255, 0.03); }
+.small.muted, .tiny.muted, .shelf-detail, .map-hint { color: var(--faint); }
+.sub, .listitem .sub { color: var(--muted); }

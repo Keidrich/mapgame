@@ -14,6 +14,75 @@ House rules for an entry (see `CLAUDE.md` → *Leave a trail*):
 
 ---
 
+## 2026-09-14 — What the bot walkthrough found: too grey, and four things still drawing emoji
+
+**What.** Let the soak bot play 23 days, then rendered every screen off that save and looked at
+them one at a time. Nine fixes, most of which only show up with a played world in them: four
+surfaces still drawing emoji, three overlapping bits of map furniture, two places where text was
+cut mid-word, and a palette pass — the look had come out grey with amber accents rather than amber
+on navy.
+
+**Why.** The visual pass shipped with component tests that render screens in isolation against a
+hand-built world. An empty screen looks fine: no kit, no options on a confrontation, no log to
+read. Everything below was invisible to those tests and obvious in a screenshot of a real save.
+
+**The emoji that were left.**
+
+- **The kit rows** — three sites in `Kit.tsx` still rendered `item.icon`. They passed the
+  no-emoji test because the test world carries no kit.
+- **Every option icon.** Two different things share the field name `icon`: on a content table it
+  is an emoji (data, never drawn), on an *option* it is the name of a drawing, because there is no
+  id to resolve from. Confrontation answers, scene approaches, op approaches, conversation moves,
+  agenda moves, complications and the two rat modes were all still emoji, which `<Icon>` silently
+  resolved to the fallback — so every option on a screen drew the same glyph. ~45 of them, now
+  names, with `ui/icons.test.tsx` asserting each resolves.
+- **The log.** Five lines in `/sim` prefixed themselves with an emoji off a content table
+  (`${AUTHORITY_KINDS[a.kind].icon} ${a.name}: crackdown`). The log is a screen — it is most of the
+  recap and a third of the empire tab. Prefixes removed; the tone colour already carried it.
+
+**Too grey.** The pass had drawn the structure in grey and saved amber for accents, which is how a
+tactical HUD turns into a grey app with a yellow button on it. The rule now: **labels and the
+things that are yours are amber; prose is grey; trouble is red.** Section titles, `kv` keys, meter
+and HUD labels, and icons inside rows are amber; the ground went darker (`#05070c`) and panels
+lighter so they read as panels; secondary prose lifted from `#7d8a9d` to `#949dad` with a separate
+`--faint` for genuinely third-rank text; the ops tree gives an available job an amber keyline and
+glyph and dims a locked one; skill bars went from blue — the one off-palette colour in the app —
+to amber.
+
+**Overlaps and cuts.**
+
+- The map hint printed over the second row of layer chips and the end-day button covered their
+  right-hand end. One stack now: layer chips, then the ramp key, then the hint, with the button
+  beside the hint rather than on top of anything. All six overlay modes stay visible — the first
+  attempt made the bar a scroller, which showed two chips and no sign the other four existed.
+- The "mapping new streets" chip moved to the top *right*: the legend owns the top left and is 60%
+  wide when open.
+- A meter's value column was 36px — three characters — so a standing of −100 wrapped onto its own
+  line, and `Close-knit` was cut mid-word in the narrow two-column meters.
+- Shelf rows let the controls take half the width, so `Lockpick Set` broke into `Lockpi / ck Set`.
+- `kv` keys were uppercased, which shouted `RENT` next to sentence-case `Clean income`.
+
+**Files.** `ui/styles.css`, `ui/components/{Kit,Map,SceneSheet,OpsTab}.tsx`,
+`content/{lines,agendas,complications,rackets}.ts`, `sim/{combat,conversation,authority,
+complications,cyber,intel,reducer}.ts` (text only), `ui/icons.test.tsx`, `ui/visual.test.tsx`,
+and a new `scripts/shot/walk.tsx` + `shots.sh` — the harness that plays the bot and renders every
+screen off the result.
+
+**Watch out.**
+
+- **Nothing in `/sim` changed behaviour.** The text edits are log strings and option labels; the
+  honest 60-day soak is identical again, down to the last dollar.
+- **The walkthrough harness lies in four ways**, all now pinned in its own header: headless Chrome
+  clamps the window to 500px (so `--window-size=390` silently crops and reads exactly like an
+  overflow bug), `100dvh`/`env()` collapse the app frame, sheets are `position: fixed` so they size
+  to the window rather than the frame, and a screenshot lands mid-animation, which reads as "the
+  whole sheet is dimmed". Every one of those cost time before it was ruled out. Check the harness
+  before believing a bug it shows you.
+- **Still open, deliberately:** the holdings sort chips take three rows before you reach any data,
+  and kit rows are tall because the same disabled-button caption repeats under every item.
+
+---
+
 ## 2026-09-14 — The tactical HUD: a custom icon set, and chrome to match
 
 **What.** The visual pass. Every emoji in the game is gone from every screen, replaced by a

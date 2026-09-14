@@ -76,7 +76,7 @@ export function runCard(w: World, c: Card, mode: 'small' | 'big', rng: Rng): { t
     c.flagged = true;
   }
   if (dead) { dropCard(w, c.id); }
-  log(w, `${CARD_TIERS[c.tier].icon} ${mode === 'big' ? 'One big run' : 'A quiet little run'} on the ${CARD_TIERS[c.tier].label}: ${money(took)}.${dead ? ' It died on the last swipe.' : flagged ? ' Somebody is looking at it now.' : ''}`, dead || flagged ? 'warn' : 'money');
+  log(w, `${mode === 'big' ? 'One big run' : 'A quiet little run'} on the ${CARD_TIERS[c.tier].label}: ${money(took)}.${dead ? ' It died on the last swipe.' : flagged ? ' Somebody is looking at it now.' : ''}`, dead || flagged ? 'warn' : 'money');
   return { took, dead, flagged };
 }
 

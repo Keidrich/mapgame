@@ -92,15 +92,15 @@ export function confrontOptions(w: World, c: Confrontation): ConfrontOption[] {
   if (c.kind === 'op' && c.complication) {
     const o = complicationOptions(c);
     return [
-      { id: 'fight', label: o.fight.label, icon: '💥', blurb: o.fight.blurb, good: o.fight.good, bad: o.fight.bad, chance: confrontChance(w, c, 'fight') },
-      { id: 'backup', label: o.backup.label, icon: '📞', blurb: o.backup.blurb, good: o.backup.good, bad: o.backup.bad, chance: confrontChance(w, c, 'backup'), disabled: crew.length ? undefined : 'Nobody to call.' },
-      { id: 'flee', label: o.flee.label, icon: '🚶', blurb: o.flee.blurb, good: o.flee.good, bad: o.flee.bad, chance: confrontChance(w, c, 'flee') },
+      { id: 'fight', label: o.fight.label, icon: 'fist', blurb: o.fight.blurb, good: o.fight.good, bad: o.fight.bad, chance: confrontChance(w, c, 'fight') },
+      { id: 'backup', label: o.backup.label, icon: 'crew', blurb: o.backup.blurb, good: o.backup.good, bad: o.backup.bad, chance: confrontChance(w, c, 'backup'), disabled: crew.length ? undefined : 'Nobody to call.' },
+      { id: 'flee', label: o.flee.label, icon: 'legwork', blurb: o.flee.blurb, good: o.flee.good, bad: o.flee.bad, chance: confrontChance(w, c, 'flee') },
     ];
   }
   return [
-    { id: 'fight', label: 'Stand and fight', icon: '💥', blurb: 'You and whatever is in your hands, right here.', good: 'They go home hurt; the street sees it', bad: 'It lands harder, and on you', chance: confrontChance(w, c, 'fight') },
-    { id: 'backup', label: 'Call in your people', icon: '📞', blurb: 'Get somebody down here before this finishes.', good: 'Numbers end it with less blood', bad: 'Somebody of yours gets hurt getting here', chance: confrontChance(w, c, 'backup'), disabled: crew.length ? undefined : 'Nobody to call.' },
-    { id: 'flee', label: 'Walk away', icon: '🚶', blurb: 'Let them have this one and keep your teeth.', good: 'Nobody of yours is hurt', bad: 'They do what they came to do, and they tell people', chance: confrontChance(w, c, 'flee') },
+    { id: 'fight', label: 'Stand and fight', icon: 'fist', blurb: 'You and whatever is in your hands, right here.', good: 'They go home hurt; the street sees it', bad: 'It lands harder, and on you', chance: confrontChance(w, c, 'fight') },
+    { id: 'backup', label: 'Call in your people', icon: 'crew', blurb: 'Get somebody down here before this finishes.', good: 'Numbers end it with less blood', bad: 'Somebody of yours gets hurt getting here', chance: confrontChance(w, c, 'backup'), disabled: crew.length ? undefined : 'Nobody to call.' },
+    { id: 'flee', label: 'Walk away', icon: 'legwork', blurb: 'Let them have this one and keep your teeth.', good: 'Nobody of yours is hurt', bad: 'They do what they came to do, and they tell people', chance: confrontChance(w, c, 'flee') },
   ];
 }
 

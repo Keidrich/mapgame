@@ -146,7 +146,7 @@ export function tickAuthority(w: World, a: Authority) {
   if (next === a.posture) return;
   const climbing = POSTURE_ORDER.indexOf(next) > POSTURE_ORDER.indexOf(a.posture);
   a.posture = next; a.postureSince = w.day;
-  log(w, `${AUTHORITY_KINDS[a.kind].icon} ${a.name}: ${POSTURES[next].label.toLowerCase()}. ${POSTURES[next].blurb}`, climbing ? 'bad' : 'good', { blockId: a.blockId });
+  log(w, `${a.name}: ${POSTURES[next].label.toLowerCase()}. ${POSTURES[next].blurb}`, climbing ? 'bad' : 'good', { blockId: a.blockId });
 }
 
 export function tickAuthorities(w: World) {

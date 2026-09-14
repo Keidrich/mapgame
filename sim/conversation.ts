@@ -126,7 +126,7 @@ export function talkOptions(w: World, c: Confrontation): TalkOption[] {
       if (t.used.includes(id)) continue;
       const tie = n.connections.find(x => x.npcId === o.id)?.label ?? 'somebody you both know';
       out.push({
-        id, label: `Mention ${o.name}`, icon: '🗣️',
+        id, label: `Mention ${o.name}`, icon: 'social',
         blurb: `Their ${tie}. ${o.crew ? 'Works for you.' : 'Thinks well of you.'} Say the name and see what it buys.`,
         good: 'They warm up; better odds on whatever you ask next', bad: 'Wrong name, wrong day; they cool off',
         chance: nameChance(w, n, o), closes: false,
@@ -143,7 +143,7 @@ export function talkOptions(w: World, c: Confrontation): TalkOption[] {
       const good = kind === 'favour' || kind === 'deal';
       out.push({
         id, label: good ? 'Remind them what you did' : kind === 'owed' ? 'Call in what they owe you' : 'Bring up what happened',
-        icon: '📓',
+        icon: 'accountant',
         blurb: `Day ${e.day}: ${e.text}`,
         good: good ? 'They remember it the way you do' : 'They would rather move past it, and will pay to',
         bad: good ? 'They remember it differently' : 'You have reopened something',
@@ -162,7 +162,7 @@ export function talkOptions(w: World, c: Confrontation): TalkOption[] {
     });
   }
 
-  out.push({ id: 'leave', label: 'Leave it', icon: '🚶', blurb: 'Nothing said, nothing spent.', good: 'You keep the time', bad: '—', chance: 100, closes: true });
+  out.push({ id: 'leave', label: 'Leave it', icon: 'legwork', blurb: 'Nothing said, nothing spent.', good: 'You keep the time', bad: '—', chance: 100, closes: true });
   return out;
 }
 

@@ -955,9 +955,29 @@ pixels apart is what makes an edge read as a controlled zone rather than as a co
 Markers are the same icon set, through `iconMarkup()`, because MapLibre builds them from HTML and
 they were the one place the old look would have survived.
 
-`ui/visual.test.tsx` holds the line: no emoji on any screen, every `data-icon` a real drawing, the
-HUD's three bands, briefing heads where they belong, and skeleton snapshots (class structure with
-the text stripped) so a screen that quietly loses its treatment fails rather than ships.
+**Two things share the field name `icon`, and they are different contracts.** On a content table
+(a business type, a racket kind, an op) it is an emoji: data, used by a log line or a share card,
+never drawn. On an *option* — an answer to a confrontation, an approach to a job, a move in a
+conversation — it is the *name* of a drawing, because there is no id to resolve from. The second
+kind has to be a real name or `<Icon>` falls back and every option on the screen draws the same
+glyph; `ui/icons.test.tsx` asserts every option table resolves.
+
+**Amber is the label layer, not an accent.** Section titles, `kv` keys, meter and HUD labels and
+the icons inside rows are amber; prose is grey; trouble is red; money is green. Drawn the other way
+round — structure in grey, amber saved for highlights — it reads as a grey app with a yellow button
+on it, which is what the first cut of this pass did.
+
+`ui/visual.test.tsx` holds the line: no emoji on any screen *or in anything the sim logs*, every
+`data-icon` a real drawing, the HUD's three bands, briefing heads where they belong, map markers
+drawn rather than printed, and skeleton snapshots (class structure with the text stripped) so a
+screen that quietly loses its treatment fails rather than ships.
+
+**Looking at it is part of the job.** `scripts/shot/walk.tsx` lets the soak bot play, then renders
+every screen off that save for screenshots — an empty screen looks fine, and most of what was wrong
+with the first cut only appeared with a played world in it. Its header lists the four ways the
+headless harness lies (window clamped to 500px, `100dvh`/`env()` unresolved, fixed-position sheets
+sizing to the window, screenshots landing mid-animation); check those before believing a bug it
+shows you.
 
 ### 4.18 Production: recipes, foremen and standing orders
 

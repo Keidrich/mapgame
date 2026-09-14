@@ -55,7 +55,7 @@ export const COMPLICATION = {
 export const COMPLICATIONS: Record<ComplicationKind, ComplicationDef> = {
   not_alone: {
     label: 'They are not alone',
-    icon: '👥',
+    icon: 'crew',
     text: 'There are more people inside %s than anybody counted. Somebody in the back room stands up.',
     options: {
       fight: { label: 'Put them all on the floor', blurb: 'Nobody in the room is a problem if nobody in the room is standing.', good: 'It stays your job', bad: 'Somebody outside hears it' },
@@ -66,7 +66,7 @@ export const COMPLICATIONS: Record<ComplicationKind, ComplicationDef> = {
   },
   time_lock: {
     label: 'It is on a timer',
-    icon: '⏱️',
+    icon: 'clock',
     text: 'The door at %s is on a delay nobody mentioned. It opens when it opens, and not before.',
     options: {
       fight: { label: 'Force it', blurb: 'Whatever is in your hands against whatever is in the wall.', good: 'You are through and moving', bad: 'Noise, and a door that still is not open' },
@@ -77,7 +77,7 @@ export const COMPLICATIONS: Record<ComplicationKind, ComplicationDef> = {
   },
   beat_cop: {
     label: 'A uniform, early',
-    icon: '🚔',
+    icon: 'precinct',
     text: 'A patrol car pulls up outside %s. Whoever is in it is not expected for another hour.',
     options: {
       fight: { label: 'Go through them', blurb: 'The worst option, available anyway.', good: 'The job continues', bad: 'You have just made this a much bigger file' },
@@ -88,7 +88,7 @@ export const COMPLICATIONS: Record<ComplicationKind, ComplicationDef> = {
   },
   inside_wobble: {
     label: 'Your inside man is losing it',
-    icon: '😰',
+    icon: 'fear',
     text: 'Whoever let you into %s has gone grey and quiet, and is looking at the door.',
     options: {
       fight: { label: 'Make them more afraid of you', blurb: 'They hold it together for the wrong reason.', good: 'They do their part', bad: 'They do it badly, and hate you after' },
@@ -99,7 +99,7 @@ export const COMPLICATIONS: Record<ComplicationKind, ComplicationDef> = {
   },
   wrong_load: {
     label: 'It is the wrong load',
-    icon: '📦',
+    icon: 'hot_goods',
     text: 'What is actually in there is not what you were told would be in there. Somebody sold you a list from last month.',
     options: {
       fight: { label: 'Take it anyway', blurb: 'Whatever it is, it is worth something to somebody.', good: 'You do not leave empty', bad: 'Heavy, slow, and half of it is junk' },
@@ -110,7 +110,7 @@ export const COMPLICATIONS: Record<ComplicationKind, ComplicationDef> = {
   },
   second_crew: {
     label: 'Somebody else had the same idea',
-    icon: '🎭',
+    icon: 'long_con',
     text: 'There is another crew already inside %s. They are as surprised as you are.',
     options: {
       fight: { label: 'It is yours', blurb: 'Settle whose job this is, in the room.', good: 'They leave, you finish', bad: 'Two crews fighting is a siren magnet' },

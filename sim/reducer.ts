@@ -868,7 +868,7 @@ function apply(w: World, a: Action, rng: Rng, done: () => void, bonus = 0): Worl
       takeCash(w, price);                                  // clean cash, like every other purchase
       p.items = [...(p.items ?? []), item.id];
       adjustRel(w, npc(b.ownerId), { trust: 2, respect: 1 }); // a paying customer is a customer
-      log(w, `${item.icon} ${item.label} — ${money(price)} at ${b.name}.`, 'money', { businessId: b.id });
+      log(w, `${item.label} — ${money(price)} at ${b.name}.`, 'money', { businessId: b.id });
       break;
     }
     case 'sell_item': {

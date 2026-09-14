@@ -162,8 +162,8 @@ export const OP_DEFS: Record<OpKind, OpDef> = {
   mugging:         { label: 'Mugging', icon: '🌙', blurb: 'Follow somebody off a lit street and take what is on them. Cash, a watch, whatever is in the wallet.', planDays: 0, minCrew: 0, maxCrew: 2, needs: { muscle: 5, wheels: 3 }, difficulty: 28, payout: [120, 900], heat: 7, target: 'npc', tier: 0 },
   rat:             { label: 'Get Inside Their Business', icon: '🕳️', blurb: 'Their post, their calls, their standing arrangements. Learn what they are hiding — once, or for as long as you can keep it up.', family: 'wire', planDays: 1, minCrew: 0, maxCrew: 2, needs: { tech: 9, brains: 7 }, difficulty: 45, payout: [0, 0], heat: 4, target: 'npc', tier: 1,
     modes: [
-      { id: 'read', label: 'One good look', icon: '👁️', blurb: 'Everything they are sitting on, once.', good: 'A secret you can use or sell', bad: 'One shot; nothing after it' },
-      { id: 'tap', label: 'Leave it running', icon: '📻', blurb: 'Keep listening, day after day.', good: 'They keep telling you things', bad: 'The longer it runs, the likelier they find it' },
+      { id: 'read', label: 'One good look', icon: 'watching', blurb: 'Everything they are sitting on, once.', good: 'A secret you can use or sell', bad: 'One shot; nothing after it' },
+      { id: 'tap', label: 'Leave it running', icon: 'rat', blurb: 'Keep listening, day after day.', good: 'They keep telling you things', bad: 'The longer it runs, the likelier they find it' },
     ] },
   wire_fraud:      { label: 'Wire Fraud', icon: '🏧', blurb: 'Their arrangements, in your name, moved somewhere quiet. Only possible against somebody whose business you have already been inside.', family: 'wire', planDays: 3, minCrew: 0, maxCrew: 2, needs: { tech: 14, brains: 12 }, difficulty: 65, payout: [9000, 30000], heat: 16, target: 'npc', tier: 3, requires: { rattedTarget: true } },
   digital_strike:  { label: 'Pull Their Wires', icon: '🔌', blurb: 'Their tills stop ringing and their book stops balancing. Nobody gets hurt and nobody sees you.', family: 'wire', planDays: 1, minCrew: 0, maxCrew: 2, needs: { tech: 11, brains: 8 }, difficulty: 50, payout: [200, 1200], heat: 6, target: 'business', tier: 2, requires: { stance: ['beef', 'war'] } },
@@ -394,7 +394,7 @@ export const CASE_JOINT = {
 export type OpApproach = 'loud' | 'quiet' | 'inside';
 export interface OpApproachDef { label: string; icon: string; blurb: string; good: string; bad: string; skillWeight: Partial<Skills>; difficulty: number; payout: number; heat: number }
 export const OP_APPROACHES: Record<OpApproach, OpApproachDef> = {
-  loud:   { label: 'Go in loud', icon: '💥', blurb: 'Muscle and wheels. Fast, brutal, unforgettable.', good: '+25% take', bad: 'Heat ×1.6; failure means bodies', skillWeight: { muscle: 1.3, wheels: 1.2, tech: 0.6, brains: 0.8 }, difficulty: -4, payout: 1.25, heat: 1.6 },
-  quiet:  { label: 'Quiet job', icon: '🔇', blurb: 'Brains and tech. In and out with nobody the wiser.', good: 'Heat ×0.5', bad: 'Harder; a slip means arrests', skillWeight: { tech: 1.3, brains: 1.3, muscle: 0.6, wheels: 0.9 }, difficulty: 6, payout: 1, heat: 0.5 },
-  inside: { label: 'Inside man', icon: '🕵️', blurb: 'Someone at the target who trusts you opens the door. They take a cut.', good: 'Much easier', bad: 'Fail and your contact is burned', skillWeight: { brains: 1.1 }, difficulty: -22, payout: 0.85, heat: 0.7 },
+  loud:   { label: 'Go in loud', icon: 'crackdown', blurb: 'Muscle and wheels. Fast, brutal, unforgettable.', good: '+25% take', bad: 'Heat ×1.6; failure means bodies', skillWeight: { muscle: 1.3, wheels: 1.2, tech: 0.6, brains: 0.8 }, difficulty: -4, payout: 1.25, heat: 1.6 },
+  quiet:  { label: 'Quiet job', icon: 'watching', blurb: 'Brains and tech. In and out with nobody the wiser.', good: 'Heat ×0.5', bad: 'Harder; a slip means arrests', skillWeight: { tech: 1.3, brains: 1.3, muscle: 0.6, wheels: 0.9 }, difficulty: 6, payout: 1, heat: 0.5 },
+  inside: { label: 'Inside man', icon: 'lockpicks', blurb: 'Someone at the target who trusts you opens the door. They take a cut.', good: 'Much easier', bad: 'Fail and your contact is burned', skillWeight: { brains: 1.1 }, difficulty: -22, payout: 0.85, heat: 0.7 },
 };

@@ -64,35 +64,35 @@ export const OPENING: Record<SceneKind, Lines> = {
 
 export const APPROACHES: Record<SceneKind, { id: string; label: string; icon: string; blurb: string; good: string; bad: string }[]> = {
   shakedown: [
-    { id: 'lean', label: 'Lean on them', icon: '👊', blurb: 'Muscle. Make it clear what happens if they don\'t pay.', good: 'Big envelope, +fear', bad: 'They dig in; heat, and word gets around' },
-    { id: 'reason', label: 'Talk business', icon: '👥', blurb: 'Charm. Protection is a service; you are the provider.', good: 'Steady envelope, a little trust', bad: 'Laughed off; −respect' },
-    { id: 'wreck', label: 'Break something first', icon: '🔨', blurb: 'Crew. Smash the place up, then ask. Loud.', good: 'Biggest envelope, +fear on the block', bad: 'Cops, and an owner who hates you' },
+    { id: 'lean', label: 'Lean on them', icon: 'fist', blurb: 'Muscle. Make it clear what happens if they don\'t pay.', good: 'Big envelope, +fear', bad: 'They dig in; heat, and word gets around' },
+    { id: 'reason', label: 'Talk business', icon: 'crew', blurb: 'Charm. Protection is a service; you are the provider.', good: 'Steady envelope, a little trust', bad: 'Laughed off; −respect' },
+    { id: 'wreck', label: 'Break something first', icon: 'intimidate', blurb: 'Crew. Smash the place up, then ask. Loud.', good: 'Biggest envelope, +fear on the block', bad: 'Cops, and an owner who hates you' },
   ],
   threaten: [
-    { id: 'stare', label: 'Quiet word', icon: '😠', blurb: 'Muscle. No witnesses, no mess.', good: '+fear', bad: 'They shrug it off' },
-    { id: 'crew', label: 'Bring the crew', icon: '👥', blurb: 'Show up with your people. Needs at least one active crew member.', good: '++fear, block notices', bad: 'Heat, and they still say no' },
-    { id: 'family', label: 'Mention what you know', icon: '🗣️', blurb: 'Brains. Their debts, their kid, where they park.', good: '+fear, −trust', bad: 'An honest owner goes to the cops' },
+    { id: 'stare', label: 'Quiet word', icon: 'watching', blurb: 'Muscle. No witnesses, no mess.', good: '+fear', bad: 'They shrug it off' },
+    { id: 'crew', label: 'Bring the crew', icon: 'crew', blurb: 'Show up with your people. Needs at least one active crew member.', good: '++fear, block notices', bad: 'Heat, and they still say no' },
+    { id: 'family', label: 'Mention what you know', icon: 'social', blurb: 'Brains. Their debts, their kid, where they park.', good: '+fear, −trust', bad: 'An honest owner goes to the cops' },
   ],
   visit: [
-    { id: 'drinks', label: 'Buy a round', icon: '🍻', blurb: 'Charm, and $50. Everybody\'s friend.', good: '+trust', bad: '+trust, but less' },
-    { id: 'business', label: 'Talk business', icon: '💼', blurb: 'Brains. Who runs what, who owes whom.', good: '+respect and a useful tip', bad: '+respect, no tip' },
-    { id: 'listen', label: 'Just listen', icon: '👂', blurb: 'Let them talk. Cheap and slow.', good: '+trust, maybe a rumour', bad: '+trust, a little' },
+    { id: 'drinks', label: 'Buy a round', icon: 'bar', blurb: 'Charm, and $50. Everybody\'s friend.', good: '+trust', bad: '+trust, but less' },
+    { id: 'business', label: 'Talk business', icon: 'collect', blurb: 'Brains. Who runs what, who owes whom.', good: '+respect and a useful tip', bad: '+respect, no tip' },
+    { id: 'listen', label: 'Just listen', icon: 'rat', blurb: 'Let them talk. Cheap and slow.', good: '+trust, maybe a rumour', bad: '+trust, a little' },
   ],
   broker: [
-    { id: 'split', label: 'Sweeten it', icon: '💰', blurb: 'Charm and cash. $2,000 to each side to make sitting down worth their while.', good: 'Truce between them; both owe you', bad: 'They take the money and keep shooting' },
-    { id: 'lean', label: 'Bang heads', icon: '😤', blurb: 'Fear and crew. Tell both sides the shooting stops because you say so.', good: 'Truce; everybody remembers who ended it', bad: 'Both sides decide you are the problem' },
-    { id: 'favour', label: 'Call in a favour', icon: '👥', blurb: 'Standing. Ask the side that likes you to give a little first.', good: 'Truce; costs you nothing', bad: 'They feel used; standing drops' },
+    { id: 'split', label: 'Sweeten it', icon: 'cash', blurb: 'Charm and cash. $2,000 to each side to make sitting down worth their while.', good: 'Truce between them; both owe you', bad: 'They take the money and keep shooting' },
+    { id: 'lean', label: 'Bang heads', icon: 'fist', blurb: 'Fear and crew. Tell both sides the shooting stops because you say so.', good: 'Truce; everybody remembers who ended it', bad: 'Both sides decide you are the problem' },
+    { id: 'favour', label: 'Call in a favour', icon: 'crew', blurb: 'Standing. Ask the side that likes you to give a little first.', good: 'Truce; costs you nothing', bad: 'They feel used; standing drops' },
   ],
   parley: [
-    { id: 'tribute', label: 'Put them on the payroll', icon: '💸', blurb: 'Charm and respect. They keep the corner, pay you weekly, and the block is yours.', good: 'Block turns yours; weekly cash', bad: 'Laughed off; they dig in' },
-    { id: 'join', label: 'Bring them in', icon: '👥', blurb: 'Trust. Their boss joins your crew; their people become yours to recruit.', good: 'A made crew member and recruits', bad: 'They want to see more first' },
-    { id: 'fund', label: 'Stake them', icon: '💼', blurb: 'Cash. Pay for a shop on their corner. They own it and run it; you take a share and do none of the work.', good: 'A racket you never have to stand in', bad: 'They hear an offer and remember you made it' },
-    { id: 'warn', label: 'Run them off', icon: '😤', blurb: 'Muscle. Make them small. No body, no cops.', good: 'They lie low; +fear on the block', bad: 'They come back at you tonight' },
+    { id: 'tribute', label: 'Put them on the payroll', icon: 'cash', blurb: 'Charm and respect. They keep the corner, pay you weekly, and the block is yours.', good: 'Block turns yours; weekly cash', bad: 'Laughed off; they dig in' },
+    { id: 'join', label: 'Bring them in', icon: 'crew', blurb: 'Trust. Their boss joins your crew; their people become yours to recruit.', good: 'A made crew member and recruits', bad: 'They want to see more first' },
+    { id: 'fund', label: 'Stake them', icon: 'collect', blurb: 'Cash. Pay for a shop on their corner. They own it and run it; you take a share and do none of the work.', good: 'A racket you never have to stand in', bad: 'They hear an offer and remember you made it' },
+    { id: 'warn', label: 'Run them off', icon: 'fist', blurb: 'Muscle. Make them small. No body, no cops.', good: 'They lie low; +fear on the block', bad: 'They come back at you tonight' },
   ],
   recruit: [
-    { id: 'cut', label: 'Offer a real cut', icon: '💵', blurb: 'Pay above the going rate. Loyal from day one.', good: 'Joins, high loyalty, +40% wage', bad: 'Joins anyway if they trust you' },
-    { id: 'promise', label: 'Sell the dream', icon: '✨', blurb: 'Charm. Respect, money, a name on the block.', good: 'Joins at normal wage', bad: 'Not convinced; try again later' },
-    { id: 'lean', label: 'Lean on them', icon: '😤', blurb: 'Fear. Cowards fold. Everyone else remembers.', good: 'Joins cheap, low loyalty', bad: '−trust, they avoid you' },
+    { id: 'cut', label: 'Offer a real cut', icon: 'cash', blurb: 'Pay above the going rate. Loyal from day one.', good: 'Joins, high loyalty, +40% wage', bad: 'Joins anyway if they trust you' },
+    { id: 'promise', label: 'Sell the dream', icon: 'respect', blurb: 'Charm. Respect, money, a name on the block.', good: 'Joins at normal wage', bad: 'Not convinced; try again later' },
+    { id: 'lean', label: 'Lean on them', icon: 'fist', blurb: 'Fear. Cowards fold. Everyone else remembers.', good: 'Joins cheap, low loyalty', bad: '−trust, they avoid you' },
   ],
 };
 
