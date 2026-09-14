@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { select } from '@sim/index';
 import type { OpKind } from '@sim/types';
-import { OP_DEFS } from '@content/rackets';
+import { OP_DEFS, OP_FAMILIES } from '@content/rackets';
 import { fmtMoney } from '@ui/derive';
 import { useWorld } from '@ui/store';
 import { Info } from './Info';
@@ -20,6 +20,15 @@ export function OpTree({ selected, onPick }: { selected?: OpKind; onPick: (k: Op
       const t = OP_DEFS[k].tier ?? 0;
       if (!byTier.has(t)) byTier.set(t, []);
       byTier.get(t)!.push(k);
+    }
+    // Inside a tier, the families sit together and lead the row. "Get Inside Their Business",
+    // "Wire Fraud" and "Pull Their Wires" are one lane — get in, use it, switch them off — and
+    // scattered among the street jobs by tier alone, nothing said so.
+    for (const [, list] of byTier) {
+      list.sort((a, b) => {
+        const fa = OP_DEFS[a].family ?? '~'; const fb = OP_DEFS[b].family ?? '~';
+        return fa === fb ? 0 : fa.localeCompare(fb);
+      });
     }
     return [...byTier.entries()].sort((a, b) => a[0] - b[0]);
   }, []);
@@ -43,8 +52,17 @@ export function OpTree({ selected, onPick }: { selected?: OpKind; onPick: (k: Op
               if (d.requires?.safehouseTier) badges.push(`🏠 T${d.requires.safehouseTier}`);
               if (d.requires?.businessOwned) badges.push('🏪 own');
               if (d.requires?.racketKinds?.length) badges.push('🎟️ racket');
+              const fam = d.family ? OP_FAMILIES[d.family] : undefined;
+              // the first node of a family in this tier carries the group heading
+              const leads = !!d.family && kinds.findIndex(x => OP_DEFS[x].family === d.family) === kinds.indexOf(k);
               return (
-                <div key={k} className={`opnode${why ? ' locked' : ''}${selected === k ? ' sel' : ''}${done.has(k) ? ' done' : ''}`}>
+                <div key={k} className={`opnode${why ? ' locked' : ''}${selected === k ? ' sel' : ''}${done.has(k) ? ' done' : ''}${fam ? ' opfam' : ''}`}>
+                  {leads && fam && (
+                    <div className="opfam-head">
+                      <span className="opfam-n">{fam.icon} {fam.label}</span>
+                      <Info title={fam.label} body={fam.blurb} className="opnode-q" />
+                    </div>
+                  )}
                   {prior.length > 0 && (
                     <div className="opedge" aria-hidden>
                       <span className="opedge-line" />
@@ -55,7 +73,12 @@ export function OpTree({ selected, onPick }: { selected?: OpKind; onPick: (k: Op
                     <span className="ico">{why ? '🔒' : d.icon}</span>
                     <b>{d.label}</b>
                     <span className="sub">{d.planDays}d · {d.minCrew === 0 ? 'solo ok' : `${d.minCrew}–${d.maxCrew} crew`}{d.cost ? ` · ${fmtMoney(d.cost)}` : ''}</span>
-                    {badges.length > 0 && <span className="opbadges">{badges.map(b => <span key={b} className="opbadge">{b}</span>)}</span>}
+                    {(badges.length > 0 || fam) && (
+                      <span className="opbadges">
+                        {fam && <span className="opbadge fam">{fam.icon} {fam.label}</span>}
+                        {badges.map(b => <span key={b} className="opbadge">{b}</span>)}
+                      </span>
+                    )}
                   </button>
                   {why
                     ? <Info id="opLocked" title={`${d.label}: not yet`} body={why} note={d.blurb} className="opnode-q" />

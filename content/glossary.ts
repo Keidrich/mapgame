@@ -42,8 +42,8 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
   },
   ap: {
     title: 'Action points',
-    body: 'What you can do today. Eight a day. Visits, threats, shakedowns and scenes cost one; a sit-down or brokering peace costs two.',
-    note: 'End Day gives them all back. Unspent points do not carry over.',
+    body: 'What you can do today. Eight a day. Most face-to-face moves cost one — a conversation, a threat, a shakedown, settling somebody\'s problem, turning them, asking for an introduction. A sit-down, brokering peace, or asking a lieutenant to walk out on their own people costs two.',
+    note: 'Opening a conversation is free; the point goes on how you close it. End Day gives them all back, and unspent points do not carry over.',
   },
   legwork: {
     title: 'Legwork',
@@ -57,7 +57,7 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
   },
   presence: {
     title: 'You have to be there',
-    body: 'Visits, threats, shakedowns, recruiting, reading someone and parleys are face to face: you have to be standing on the block. Walk over first.',
+    body: 'Anything you do to somebody\'s face is face to face: a conversation, a threat, a shakedown, recruiting, reading them, a parley — and since they arrived, settling what they want, turning them into an informant, asking for an introduction, and asking somebody\'s lieutenant to walk. You have to be standing on the block. Walk over first.',
     note: 'Paperwork is not: assigning and firing crew, auditing a lieutenant, bribing an official and buying a business all work from anywhere.',
   },
   respect: {
@@ -162,6 +162,11 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
     title: 'Home turf',
     body: 'The block where you started. People here begin warmer, gain extra trust from visits, and your noise draws a fifth less heat.',
   },
+  bizTier: {
+    title: 'How far up the city it sits',
+    body: 'Street places have a counter and somebody who has to open tomorrow — a raised voice can be enough. Established ones have books and a lawyer, and their owners have been leaned on before: talk will not move them, a broken window might. Institutions are not frightened of you at all.',
+    note: 'An institution never pays protection at any amount of fear. The way in is inside their books, or a real turn done for the owner — the same door a bank always had.',
+  },
   holdings: {
     title: 'The ledger',
     body: 'Every business, racket and production you have, in one place: what each takes a day, whether your own kind are crowding it out of its district, whether something next door is feeding it, and whether anybody is actually running it.',
@@ -228,6 +233,7 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
   muscle: {
     title: 'Muscle',
     body: 'Violence and the threat of it. Drives threats, strongarm shakedowns, protection collections, guarding a block, and loud ops.',
+    note: 'It does not open an institution. No amount of it makes a bank or an accountant pay you — that door is leverage or a favour, never a threat.'
   },
   brains: {
     title: 'Brains',
@@ -430,7 +436,8 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
   // ---------------------------------------------------------------- a business
   bizIncome: {
     title: 'Income',
-    body: 'What this place honestly takes in each day. Protection is a cut of it, and it scales what rackets running here earn.',
+    body: 'What this place honestly takes in each day. Protection is a cut of it where protection is possible at all, and it scales what rackets running here earn.',
+    note: 'An institution takes in plenty and pays you none of it. What it is worth to you is what you can do with the owner, not a percentage.'
   },
   bizValue: {
     title: 'Value',

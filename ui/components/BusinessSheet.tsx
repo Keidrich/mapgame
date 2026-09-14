@@ -32,11 +32,13 @@ export function BusinessSheet({ businessId }: { businessId: Id }) {
   const [offer, setOffer] = useState(biz.value);
   const [dealProduct, setDealProduct] = useState<ProductKind>('green');
   const prot = protectionLabel(w, biz);
+  const tier = select.tierOf(biz);
 
   return (
     <Sheet title={biz.name} subtitle={`${bizTypeLabel(biz)} · ${block?.name ?? ''}`} icon={bizIcon(biz)} accent={yours ? '#f2c94c' : biz.protection ? select.factionColor(w, biz.protection.factionId) : undefined}>
       <div className="row wrap" style={{ gap: 6 }}>
         <span className="chip" style={yours ? { color: 'var(--gold)' } : undefined}>{yours ? 'Yours' : `Owner: ${ownerLabel(w, biz)}`}</span>
+        <TermChip id="bizTier" tone={tier === 3 ? 'var(--purple)' : tier === 2 ? 'var(--blue)' : undefined}>{select.tierInfo(biz).label}</TermChip>
         {prot && <TermChip id={biz.protection!.partner ? 'partner' : 'protection'} tone={select.factionColor(w, biz.protection!.factionId)}>{biz.protection!.partner ? '👥' : '💪'} {prot}</TermChip>}
         {biz.insured && <TermChip id="insured">Insured</TermChip>}
         {biz.flags.map(f => <span key={f} className="chip red">{f}</span>)}
@@ -69,6 +71,7 @@ export function BusinessSheet({ businessId }: { businessId: Id }) {
         </>
       )}
 
+      <InstitutionHint businessId={businessId} />
       <AwayNotice blockId={biz.blockId} what={biz.name} />
       <MarketSection businessId={businessId} />
       <div className="section-title">Actions<Info id="odds" /></div>
@@ -253,6 +256,41 @@ export function RacketStock({ w, r }: { w: World; r: Racket }) {
           ))}
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * What to do with a place no threat opens.
+ *
+ * A tier-3 business has no patrons to work through and no shakedown button, so the sheet used to
+ * be a dead end: a bank with one name on it and nothing to press. The way in has always existed —
+ * get inside their books, or do the owner a real turn — and nothing on screen said so. This says
+ * it, and says it differently once the player actually has the hold, so the hint stops being
+ * advice and starts being a prompt.
+ */
+function InstitutionHint({ businessId }: { businessId: Id }) {
+  const w = useWorld();
+  const biz = w.businesses[businessId]; if (!biz) return null;
+  if (select.tierInfo(biz).extort || biz.ownedBy === 'player') return null;
+  const owner = w.npcs[biz.ownerId];
+  const thin = biz.patronIds.length <= 1;
+  const got = select.hasWayIn(w, owner);
+  return (
+    <div className="card mt8" style={{ borderColor: got ? 'var(--green)' : 'var(--line)' }}>
+      <b className="small">{got ? '🔓 You have a way in' : '🔒 Nobody here is frightened of you'}</b>
+      <p className="small muted" style={{ margin: '4px 0 0' }}>
+        {select.tierInfo(biz).blurb}{' '}
+        {thin && owner
+          ? <>There is barely anybody in here to work through, so it is {owner.name} or nothing.</>
+          : <>Work through the people in here, or go at the owner directly.</>}
+        {' '}{select.wayIn()}
+      </p>
+      {owner && (
+        <div className="actions mt8">
+          <button type="button" className="btn" onClick={() => openSheet({ kind: 'npc', npcId: owner.id })}>👤 {owner.name}</button>
+        </div>
+      )}
     </div>
   );
 }

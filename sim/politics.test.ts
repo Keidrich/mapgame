@@ -18,9 +18,13 @@ function withLieutenants(w: World) {
 describe('succession crises', () => {
   it('two lieutenants means a contest the player can back, and the winner owes you', () => {
     let w = mk(); w.player.cash = 20000; w.day = 10;
-    const { f, a } = withLieutenants(w);
+    const { f } = withLieutenants(w);
     w.npcs[f.bossId].alive = false; successionOrDeath(w, f);
     expect(f.crisis).toBeDefined(); expect(f.crisis!.candidateIds.length).toBe(2);
+    // read the shortlist rather than assuming it is `lieutenantIds` in order: since the nemesis
+    // pass `candidatesFor` ranks by the case each of them can actually make, so option 'a' is
+    // whoever the faction put forward first, not whoever happens to be first in the array
+    const a = w.npcs[f.crisis!.candidateIds[0]];
     const ev = w.pendingEvents.find(e => e.kind === 'succession')!; expect(ev).toBeDefined();
     w = dispatch(w, { type: 'resolve_event', eventId: ev.id, optionId: 'a' });
     expect(w.factions[f.id].crisis!.backing).toBe(a.id);

@@ -294,11 +294,23 @@ export function workTheStreet(c: Ctx) {
     if (ranked && p.cash > 1500) {
       if (tryAct(c, { type: 'start_racket', businessId: ranked.b.id, kind: ranked.best.kind })) { bump(c.cov, 'rackets_started'); continue; }
     }
-    const t = soft.sort((a, b) => (w.npcs[a.ownerId].nerve - w.npcs[a.ownerId].rel.fear) - (w.npcs[b.ownerId].nerve - w.npcs[b.ownerId].rel.fear))[0];
+    // Only places that can be leaned on at all. Since the tier pass a third of the city cannot:
+    // an institution refuses a shakedown at any amount of fear, and the bot used to pick one as
+    // its "softest" target, fail all three moves, and spend the legwork walking there anyway.
+    // Honest income fell from about $14,000 to $63 on one seed before this filter went in.
+    const t = soft.filter(b => !select.extortReason(b))
+      .sort((a, b) => (w.npcs[a.ownerId].nerve - w.npcs[a.ownerId].rel.fear) - (w.npcs[b.ownerId].nerve - w.npcs[b.ownerId].rel.fear))[0];
     if (t) {
       if (tryAct(c, { type: 'protect', businessId: t.id, rate: 0.15 })) continue;
       if (goTo(c, t.blockId)) {
+        // Escalate to what the owner actually needs. An established owner's nerve sits above what
+        // a raised voice can reach, so talking at them for ever is wasted AP; breaking something
+        // is a `property` act and clears it. A street owner still folds to the cheap version.
+        const owner = w.npcs[t.ownerId];
+        const hard = owner.nerve * 0.6 > 35;
+        if (hard && tryAct(c, { type: 'shakedown', businessId: t.id, approach: 'wreck' })) continue;
         if (tryAct(c, { type: 'shakedown', businessId: t.id })) continue;
+        if (hard && tryAct(c, { type: 'threaten', npcId: t.ownerId, approach: 'crew' })) continue;
         if (tryAct(c, { type: 'threaten', npcId: t.ownerId })) continue;
       }
     }

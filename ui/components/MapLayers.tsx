@@ -4,6 +4,7 @@ import { POSTURES } from '@content/authority';
 import { select } from '@sim/index';
 import { PLAYER, type ProductKind } from '@sim/types';
 import { setLayer, useStore, useWorld, type MapLayer } from '@ui/store';
+import { Info } from './Info';
 
 /**
  * Overlays for the map. Every mode shades a per-block field the sim already keeps — nothing
@@ -42,6 +43,7 @@ export function MapLayers() {
         </div>
       )}
       <div className="layerbar">
+        <Info id="mapLayer" className="layerbar-q" />
         {LAYERS.map(l => (
           <button type="button" key={l.id} className={`chip btn${layer === l.id ? ' sel' : ''}`} onClick={() => setLayer(l.id)} aria-pressed={layer === l.id}>
             {l.icon} {l.label}

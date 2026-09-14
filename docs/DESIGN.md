@@ -200,6 +200,39 @@ Phase 2, not built: leverage plays on top of the graph (threatening a named rela
 friend-referral recruiting, turning a rival's brother into an inside man). A first piece of
 it landed with §3.7: somebody you are holding counts as a hold over everyone they are tied to.
 
+### 3.6b Business tiers: what a place is, and whether fear is a door
+
+Every `BusinessDef` carries a `tier`, and it is not a label — it decides three things at once.
+
+| tier | what it is | rackets | nerve floor | fear as a way in |
+|---|---|---|---|---|
+| 1 street | a counter and somebody who has to open tomorrow | its own list | none | ordinary rules |
+| 2 established | books, a lawyer on call, an owner leaned on before | its own list | 72 | talk will not; a broken window will |
+| 3 institutional | a bank, an accountant, an import firm | **none** | 90 | never, at any amount |
+
+**Tier 2 is the interesting one, and it is arithmetic rather than a rule.** Nothing refuses an
+established owner's shakedown by name. `PROTECT_NERVE` is 0.6, so a floor of 72 wants fear +
+respect of 43 — above `STAKES.words.ceiling` (35) always, and above `STAKES.backed.ceiling` (50)
+unless respect is doing work. Talk stops being enough because of where the number sits; a
+`property` act (ceiling 80) opens the same `protectRoute` it always did, and so does a settled
+favour. The rules did not change, the ground did.
+
+**Tier 3 is `rackets: []` generalised.** The bank and the armoured depot already lived under
+exactly this rule and it was written twice by hand; `TIER_EXCLUDES[3] = 'all'` means the six
+institutions added since are covered without a third name in the check. `extortReason` refuses
+both shakedown and protect outright and names the door that *is* open — get inside their books,
+or do the owner a real turn — which is §3.7's leverage and reciprocity, unchanged.
+
+`racketsAllowed` is the **intersection** of the type's own list and the tier's, never a
+replacement: a bar is still a bar. `select.availableRackets` reads the same function `can` does,
+so the block sheet can never offer a racket the reducer then refuses. `setupCost` scales with the
+tier, because everything inside an established place costs more.
+
+**Income and value are not multiplied at generation.** `TIERS[n].income` documents the shape and
+the defs are written to it — a test asserts tier-2 income midpoints exceed tier-1's and tier-3's
+exceed tier-2's. Stapling a multiplier on top of already-tuned ranges would have re-balanced the
+whole economy silently; the real mechanical scaling is setup cost and the nerve floor.
+
 ### 3.7 Standing: fear, trust, familiarity and word of mouth
 
 The four numbers every social system reads, and for a long time the four that were flat. One

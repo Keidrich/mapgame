@@ -54,6 +54,13 @@ export const PRODUCT_INFO: Record<ProductKind, { label: string; icon: string; pr
   counterfeit: { label: 'Counterfeit', icon: '💵', price: 40, heat: 1.5 },
 };
 
+export type OpFamily = 'wire';
+
+/** What a family is called and what it is, for the badge and the tree's grouping line. */
+export const OP_FAMILIES: Record<OpFamily, { label: string; icon: string; blurb: string }> = {
+  wire: { label: 'The wire', icon: '📡', blurb: 'Get inside somebody, use what you found, and switch them off. One lane, three jobs, in that order.' },
+};
+
 export interface OpDef {
   label: string; icon: string; blurb: string;
   planDays: number; minCrew: number; maxCrew: number;
@@ -75,6 +82,13 @@ export interface OpDef {
    */
   costScales?: 'authority';
   tier?: number;               // where it sits in the ops tree, for layout only
+  /**
+   * A family of jobs that belong together and do not read that way from their names alone.
+   * "Get Inside Their Business", "Wire Fraud" and "Pull Their Wires" are one lane — you get in,
+   * you use what you found, you switch it off — and nothing in the tree said so. Layout and a
+   * badge only; nothing mechanical reads this.
+   */
+  family?: OpFamily;
   requires?: OpRequires;       // what the empire must look like before this is on the table
 }
 
@@ -136,13 +150,13 @@ export const OP_DEFS: Record<OpKind, OpDef> = {
   war_strike:      { label: 'War Strike', icon: '⚔️', blurb: 'Take one of their lieutenants off the board while the shooting is already started. An act of war, and read as one.', planDays: 2, minCrew: 2, maxCrew: 4, needs: { muscle: 12, wheels: 6, brains: 4 }, difficulty: 55, payout: [0, 0], heat: 20, target: 'npc', tier: 3, requires: { stance: ['war'], crewCount: 2 } },
   // ---- the wire ----
   mugging:         { label: 'Mugging', icon: '🌙', blurb: 'Follow somebody off a lit street and take what is on them. Cash, a watch, whatever is in the wallet.', planDays: 0, minCrew: 0, maxCrew: 2, needs: { muscle: 5, wheels: 3 }, difficulty: 28, payout: [120, 900], heat: 7, target: 'npc', tier: 0 },
-  rat:             { label: 'Get Inside Their Business', icon: '🕳️', blurb: 'Their post, their calls, their standing arrangements. Learn what they are hiding — once, or for as long as you can keep it up.', planDays: 1, minCrew: 0, maxCrew: 2, needs: { tech: 9, brains: 7 }, difficulty: 45, payout: [0, 0], heat: 4, target: 'npc', tier: 1,
+  rat:             { label: 'Get Inside Their Business', icon: '🕳️', blurb: 'Their post, their calls, their standing arrangements. Learn what they are hiding — once, or for as long as you can keep it up.', family: 'wire', planDays: 1, minCrew: 0, maxCrew: 2, needs: { tech: 9, brains: 7 }, difficulty: 45, payout: [0, 0], heat: 4, target: 'npc', tier: 1,
     modes: [
       { id: 'read', label: 'One good look', icon: '👁️', blurb: 'Everything they are sitting on, once.', good: 'A secret you can use or sell', bad: 'One shot; nothing after it' },
       { id: 'tap', label: 'Leave it running', icon: '📻', blurb: 'Keep listening, day after day.', good: 'They keep telling you things', bad: 'The longer it runs, the likelier they find it' },
     ] },
-  wire_fraud:      { label: 'Wire Fraud', icon: '🏧', blurb: 'Their arrangements, in your name, moved somewhere quiet. Only possible against somebody whose business you have already been inside.', planDays: 3, minCrew: 0, maxCrew: 2, needs: { tech: 14, brains: 12 }, difficulty: 65, payout: [9000, 30000], heat: 16, target: 'npc', tier: 3, requires: { rattedTarget: true } },
-  digital_strike:  { label: 'Pull Their Wires', icon: '🔌', blurb: 'Their tills stop ringing and their book stops balancing. Nobody gets hurt and nobody sees you.', planDays: 1, minCrew: 0, maxCrew: 2, needs: { tech: 11, brains: 8 }, difficulty: 50, payout: [200, 1200], heat: 6, target: 'business', tier: 2, requires: { stance: ['beef', 'war'] } },
+  wire_fraud:      { label: 'Wire Fraud', icon: '🏧', blurb: 'Their arrangements, in your name, moved somewhere quiet. Only possible against somebody whose business you have already been inside.', family: 'wire', planDays: 3, minCrew: 0, maxCrew: 2, needs: { tech: 14, brains: 12 }, difficulty: 65, payout: [9000, 30000], heat: 16, target: 'npc', tier: 3, requires: { rattedTarget: true } },
+  digital_strike:  { label: 'Pull Their Wires', icon: '🔌', blurb: 'Their tills stop ringing and their book stops balancing. Nobody gets hurt and nobody sees you.', family: 'wire', planDays: 1, minCrew: 0, maxCrew: 2, needs: { tech: 11, brains: 8 }, difficulty: 50, payout: [200, 1200], heat: 6, target: 'business', tier: 2, requires: { stance: ['beef', 'war'] } },
   takeover:        { label: 'Take the Corner', icon: '🚩', blurb: 'Roll up on a street crew and take their block. Lighter than a faction raid.', planDays: 0, minCrew: 0, maxCrew: 3, needs: { muscle: 8 }, difficulty: 35, payout: [300, 1200], heat: 8, target: 'block', tier: 0 },
   steal_formula:   { label: 'Steal a Formula', icon: '📜', blurb: 'Break into a rival cook, a pharmacy or a print works and leave with something you can use.', planDays: 2, minCrew: 1, maxCrew: 3, needs: { tech: 8, brains: 6 }, difficulty: 50, payout: [0, 0], heat: 10, target: 'none', tier: 2, requires: { crewCount: 2, racketKinds: ['protection', 'numbers', 'bookmaking', 'gambling_den', 'loansharking', 'fencing', 'chop_shop', 'dealing', 'laundering', 'smuggling', 'no_show_jobs'] } },
   scout_block:     { label: 'Scout the Edges', icon: '🔦', blurb: 'Walk the dead streets at the edge of a district and find out what is still standing. You may come back with nothing.', planDays: 1, minCrew: 0, maxCrew: 2, needs: { brains: 5, tech: 3, wheels: 3 }, difficulty: 30, payout: [0, 0], heat: 2, target: 'district', tier: 0 },

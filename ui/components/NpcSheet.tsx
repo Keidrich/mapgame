@@ -41,6 +41,7 @@ export function NpcSheet({ npcId }: { npcId: Id }) {
             {n.crew ? `Knows ${RECIPES[n.recipe].label}` : `Knows a recipe: ${RECIPES[n.recipe].label}`}
           </TermChip>
         )}
+        {select.isNemesis(n) && <TermChip id="nemesis" tone="var(--red)">Has had the better of you {n.nemesis!.wins}×</TermChip>}
         {n.official && <TermChip id="corruption">Corruption {n.official.corruption}</TermChip>}
         {n.official?.boughtBy && <TermChip id="boughtBy" tone={select.factionColor(w, n.official.boughtBy)}>Bought by {select.factionName(w, n.official.boughtBy)}</TermChip>}
       </div>

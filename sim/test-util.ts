@@ -11,7 +11,9 @@
  * Not shipped to the player: nothing outside `*.test.ts` imports this.
  */
 import { FAMILIARITY } from '@content/standing';
-import type { Npc, World } from './types';
+import { BUSINESS_DEFS } from '@content/businesses';
+import { canHost } from './tiers';
+import type { Business, Id, Npc, RacketKind, World } from './types';
 
 /** Somebody you have dealt with properly. `favours` is what they owe you — reciprocity. */
 export function known(w: World, n: Npc, opts: { trust?: number; days?: number; contacts?: number; favours?: number } = {}): Npc {
@@ -33,4 +35,22 @@ export function owes(w: World, n: Npc, trust = 60): Npc { return known(w, n, { t
 export function unknown(n: Npc): Npc {
   n.rel.metDay = undefined; n.rel.contacts = undefined; n.rel.lastContactDay = undefined; n.rel.favours = undefined;
   return n;
+}
+
+
+/**
+ * A business the player could actually lean on: tier 1, so its owner's nerve has no floor and the
+ * ordinary shakedown/protect rules apply. Since the tier pass, picking "a business" at random gets
+ * you an accountant's office as often as a diner, and a test about protection that lands on one is
+ * asserting the wrong thing.
+ */
+export function softBiz(w: World, blockId?: Id): Business | undefined {
+  const pool = Object.values(w.businesses).filter(b =>
+    (!blockId || b.blockId === blockId) && b.ownedBy === 'npc' && BUSINESS_DEFS[b.type].tier === 1 && BUSINESS_DEFS[b.type].rackets.includes('protection'));
+  return pool[0];
+}
+
+/** A business that can host this racket kind, for tests about rackets rather than about tiers. */
+export function hostFor(w: World, kind: RacketKind, blockId?: Id): Business | undefined {
+  return Object.values(w.businesses).find(b => (!blockId || b.blockId === blockId) && canHost(b, kind));
 }

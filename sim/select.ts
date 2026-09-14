@@ -17,6 +17,7 @@ export { ownedItems, equippedItems, isEquipped, ownedCount, equippedCount, equip
 import { authorityDifficulty, buyCaseCost, buyDownCost } from './authority-ops';
 import { saturationMult, synergyFor } from './territory';
 import { coverFor } from './lieutenants';
+import { racketsAllowed } from './tiers';
 import { foremanOf, supplyReading, SUPPLY_LABELS } from './automation';
 import { productionOutput } from './economy';
 import { routeDiscount } from './intel';
@@ -42,6 +43,8 @@ export { daysKnown, familiar, familiarReason, favours, leverageOver, concessionR
 // the personal history screen, and what a conversation can do with it
 export { dossier, ledgerOf, owedToThem, LEDGER_MAX } from './ledger';
 export { personalPull } from './commission';
+// business tiers: what a place can host, what it costs, and whether fear is a door at all
+export { racketsAllowed, setupCost, tierOf, tierInfo, extortReason, wayIn, hasWayIn, canHost } from './tiers';
 export { agendaKnown, agendaMoves, agendaCost, agendaChance, agendaReason, agendaTargetName, sharedConnections } from './agendas';
 export { talkOptions, isTalk, TALK } from './conversation';
 export { fixerRate, fixerDailyCap, fixerUsedToday, fixerCapToday, fixerCapLeft, fixersKnown } from './economy';
@@ -73,7 +76,9 @@ export function stanceWithPlayer(w: World, f: FactionId): Stance { return w.fact
 export function racketsAt(w: World, biz: Business) { return biz.racketIds.map(id => w.rackets[id]); }
 export function availableRackets(w: World, biz: Business): RacketKind[] {
   const present = new Set(racketsAt(w, biz).map(r => r.kind));
-  return BUSINESS_DEFS[biz.type].rackets.filter(k => !present.has(k) && !(k === 'protection' && biz.ownedBy === 'player'));
+  // `racketsAllowed`, not the type's raw list: the tier gate has to be the same one `can` uses or
+  // the block sheet offers a racket the reducer then refuses.
+  return racketsAllowed(biz).filter(k => !present.has(k) && !(k === 'protection' && biz.ownedBy === 'player'));
 }
 export function opTargets(w: World, kind: OpKind): Business[] {
   const d = OP_DEFS[kind];

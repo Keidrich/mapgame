@@ -113,6 +113,15 @@ export const BUSINESS_NAME_PARTS = {
   jeweller: [['Goldstein','Royal','Diamond','Crown','Fine','Antique'], ['Jewelers','Gold & Gems','Jewelry','Watches']],
   armored_depot: [['Iron','Titan','Secure','Brinkley','Fortress'], ['Armored','Security','Transport','Vault Services']],
   black_market: [['Back Room','The Lot','Night','Iron','Cut-Rate','Surplus','Cousin'], ['Trading Post','Exchange','Lock-Up','Outfitters','Supply','Sundries']],
+  // the second bench. Same shape: a first half and a second half, joined at generation.
+  scrapyard: [['Iron','Sullivan','Riverside','Yard','Metro','Union','Cut-Rate'], ['Scrap','Salvage','Metals','Auto Parts','Wrecking','Yard']],
+  electronics: [['City','Quick','Star','Dial','Bright','Corner','Global'], ['Phones','Electronics','Wireless','Repairs','Cellular']],
+  boutique: [['Maison','Vera','Bella','Ivory','Grace','The Blue','Rue'], ['Boutique','Atelier','Couture','Fashions','Style House']],
+  tow_yard: [['Rapid','All-City','Hook','Sullivan','Metro','Midnight'], ['Towing','Recovery','Tow & Storage','Impound','Wrecker Service']],
+  gallery: [['Meridian','Vance','The White','Kestrel','Blackwood','Aurora'], ['Gallery','Fine Art','Auction House','Collection','Salon']],
+  pharmacy: [['Corner','Rexall','Standard','Keystone','Bright','Union'], ['Pharmacy','Drugs','Chemists','Apothecary','Dispensary']],
+  accountant: [['Whitlock','Ferris','Crane','Abbott','Sterling','Pike'], ['& Associates','Accountancy','Tax Services','Bookkeeping','CPA']],
+  importer: [['Transpacific','Meridian','Halvorsen','Dockside','Kestrel','Continental'], ['Import/Export','Trading Co.','Shipping','Freight','Forwarding']],
 } as const;
 
 export const FACTION_ARCHETYPES = [

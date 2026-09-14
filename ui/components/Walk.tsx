@@ -1,7 +1,7 @@
 import { select } from '@sim/index';
 import type { Id } from '@sim/types';
 import { act, useWorld } from '@ui/store';
-import { Term } from './Info';
+import { Info, Term } from './Info';
 
 /**
  * "Walk here". Shows what the trip costs in legwork and why it is not possible when it
@@ -38,7 +38,7 @@ export function AwayNotice({ blockId, what }: { blockId?: Id; what: string }) {
   if (!blockId || !w.blocks[blockId] || select.isHere(w, blockId)) return null;
   return (
     <div className="card mt8" style={{ borderColor: 'var(--orange)' }}>
-      <b>🚶 You are not there.</b>
+      <b>🚶 You are not there.<Info id="presence" /></b>
       <p className="small muted mt8">
         Face-to-face business needs you on the block. {what} is on {w.blocks[blockId].name}; you are on {select.currentBlock(w)?.name ?? 'another block'}.
         {' '}<Term id="legwork">Legwork</Term> is separate from AP and refills every day.

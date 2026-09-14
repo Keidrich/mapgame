@@ -6,6 +6,7 @@ import { RECIPES } from '@content/rackets';
 import { addAuthority, attachOfficials, authorities } from './authority';
 import { abandonChance, makeAbandoned } from './abandoned';
 import { BUSINESS_DEFS, DISTRICT_DEFS, type DistrictDef } from '@content/businesses';
+import { nerveFloorFor } from './tiers';
 import { BUSINESS_NAME_PARTS, FACTION_ARCHETYPES, NAME_GROUPS, NAME_GROUP_IDS, NICKNAMES, STYLE_GROUP, STYLE_LAST, type NameGroup } from '@content/names';
 import type { GeoChunk } from '@geo/chunks';
 import { distanceM } from '@geo/project';
@@ -104,7 +105,9 @@ export function populateChunk(w: World, chunk: GeoChunk, rng: Rng, opts: Populat
     let guard = 0;
     while (b.businessIds.length < Math.round(target) && guard++ < 12) {
       let type = rng.weighted(mix);
-      if ((type === 'bank' || type === 'armored_depot') && (b.wealth < 55 || b.businessIds.some(id => w.businesses[id].type === type))) type = 'restaurant';
+      // Institutions are rare and want money around them. This was a named check on two types;
+      // it is the tier now, so the six that came later are covered without a third name in it.
+      if (BUSINESS_DEFS[type].tier === 3 && (b.wealth < 55 || b.businessIds.some(id => w.businesses[id].type === type))) type = 'restaurant';
       // Back rooms are uncommon but not unique: roughly one per fifteen blocks of a
       // district, and never where the police are thick. Beyond that the slot becomes the
       // pawn shop such a place fronts as.
@@ -288,7 +291,9 @@ function shortStreet(n: string): string {
 export function addBusiness(rng: Rng, w: World, nid: (p: string) => string, b: Block, type: BusinessType, used: Set<string>, realName?: string): Business {
   const bd = BUSINESS_DEFS[type];
   const income = Math.round(rng.int(bd.income[0], bd.income[1]) * (0.6 + b.wealth / 125));
-  const owner = mkNpc(rng, w, nid, { role: 'owner', homeBlockId: b.id, nerveBias: bd.nerve });
+  // an established owner has been leaned on before and did not fold; an institutional one was
+  // never going to be. The floor is the tier's, and it is what makes talk stop working there.
+  const owner = mkNpc(rng, w, nid, { role: 'owner', homeBlockId: b.id, nerveBias: Math.max(bd.nerve, nerveFloorFor(type)) });
   let name = realName && !used.has(realName) ? realName : bizName(rng, type, owner, used);
   used.add(name);
   if (name.length > 34) name = name.slice(0, 32) + '…';

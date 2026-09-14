@@ -21,8 +21,16 @@ export const NEMESIS = {
   perLoss: 6,
   /** Below this they are just a name on a card; at or above it the sheet says what they are. */
   known: 20,
-  /** How much of their notoriety counts toward the chair when their boss goes down. */
-  successionWeight: 0.08,
+  /**
+   * How much of their notoriety counts toward the chair when their boss goes down.
+   *
+   * 0.18 puts a maxed record at 18, against `weight()`'s muscle + charm + brains/2, which tops out
+   * near 25 — so a lieutenant who has been beating the player in public genuinely competes with a
+   * better-skilled rival without simply outranking them. It was 0.08, which capped the whole arc
+   * at eight points and meant a nemesis never actually moved the shortlist; the test that asserts
+   * they do is what caught it.
+   */
+  successionWeight: 0.18,
 };
 
 export interface Milestone {

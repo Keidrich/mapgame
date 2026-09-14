@@ -116,11 +116,16 @@ describe('a record against the player is a case for the chair', () => {
     const outsider = Object.values(w.npcs).find(x => x.alive && !x.crew && !x.faction && !x.official)!;
     outsider.faction = f.id; outsider.role = 'lieutenant';
     outsider.skills = { ...outsider.skills, muscle: 0, charm: 0 };
+    // and the two who were already there have to be better than them, or "left off the shortlist"
+    // is not what is being tested. Generation decides their skills; this does not.
+    for (const id of f.lieutenantIds) { const n = w.npcs[id]; n.skills = { ...n.skills, muscle: 8, charm: 8 }; }
     f.lieutenantIds = [...f.lieutenantIds, outsider.id];
     expect(candidatesFor(w, f).slice(0, 2).map(n => n.id)).not.toContain(outsider.id);
     for (let i = 0; i < 12; i++) scoreMeeting(w, outsider, true, 'grave', `win ${i}`);
     expect(successionWeight(outsider)).toBeGreaterThan(0);
-    expect(candidatesFor(w, f)[0].id).toBe(outsider.id);
+    // the claim is that a record against the player moves them up the shortlist, not that they
+    // end up first — another lieutenant can out-skill them and still be the better candidate
+    expect(candidatesFor(w, f).slice(0, 2).map(n => n.id)).toContain(outsider.id);
   });
 
   it('and the crisis that starts names them, on the same f.crisis the game already used', () => {

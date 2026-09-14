@@ -92,7 +92,10 @@ export type BusinessType =
   | 'bar' | 'diner' | 'restaurant' | 'laundromat' | 'pawn' | 'garage'
   | 'nightclub' | 'corner_store' | 'barbershop' | 'gym' | 'cab_company'
   | 'construction' | 'warehouse' | 'motel' | 'bank' | 'jeweller' | 'armored_depot'
-  | 'black_market';   // a back room that trades in kit; see content/items.ts
+  | 'black_market'   // a back room that trades in kit; see content/items.ts
+  // the second bench: street trades the city actually has, and the offices above them
+  | 'scrapyard' | 'electronics' | 'boutique' | 'tow_yard'
+  | 'gallery' | 'pharmacy' | 'accountant' | 'importer';
 
 export interface Protection {
   factionId: FactionId;

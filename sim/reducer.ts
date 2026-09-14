@@ -16,6 +16,8 @@ import { DEFECT } from '@content/nemesis';
 import { REFERRAL } from '@content/informants';
 import { defect, defectReason } from './defect';
 import { familyOf } from './connections';
+import { canHost, extortReason, setupCost, tierOf } from './tiers';
+import { TIERS } from '@content/businesses';
 import { distanceFromStart } from './select';
 import { emptyStash, stanceFor } from './generate';
 import { populateChunk } from './populate';
@@ -246,7 +248,7 @@ function gate(w: World, a: Action): Affordance {
     case 'shakedown': {
       const b = biz(a.businessId); if (!b) return no('No such place.');
       if (b.ownedBy === 'player') return no('You own it. Shake yourself down?');
-      if (!BUSINESS_DEFS[b.type].rackets.includes('protection')) return no('Nothing to shake here.');
+      const why0 = extortReason(b); if (why0) return no(why0);
       const h = hereBiz(b); if (h) return no(h);
       if (b.lastShakedownDay !== undefined && w.day - b.lastShakedownDay < 3) return no('You were just here. Give it a few days.');
       if (a.approach === 'wreck' && activeCrewCount(w) === 0) return no('Needs crew to wreck the place.');
@@ -255,7 +257,7 @@ function gate(w: World, a: Action): Affordance {
     case 'protect': {
       const b = biz(a.businessId); if (!b) return no('No such place.');
       if (b.ownedBy === 'player') return no('You own it already.');
-      if (!BUSINESS_DEFS[b.type].rackets.includes('protection')) return no('Not the kind of place that pays protection.');
+      const why0 = extortReason(b); if (why0) return no(why0);
       if (b.protection?.factionId === PLAYER) return no('Already paying you.');
       if (a.rate < 0.05 || a.rate > 0.4) return no('Rate must be 5–40%.');
       const r = ap(1); if (r) return no(r);
@@ -310,13 +312,20 @@ function gate(w: World, a: Action): Affordance {
       const b = biz(a.businessId); if (!b) return no('No such place.');
       const def = RACKET_DEFS[a.kind];
       if (a.kind === 'protection') return no('Use Protect for that.');
-      if (!BUSINESS_DEFS[b.type].rackets.includes(a.kind)) return no(`A ${BUSINESS_DEFS[b.type].label.toLowerCase()} cannot host ${def.label.toLowerCase()}.`);
+      // The type's own list and the tier's, intersected. A bar is still a bar; what changed is
+      // that an established place will not run a corner operation out of the front of house, and
+      // an institution runs nothing at all.
+      if (!canHost(b, a.kind)) return no(BUSINESS_DEFS[b.type].rackets.includes(a.kind)
+        ? `${TIERS[tierOf(b)].label.toLowerCase()} places like ${b.name} do not run ${def.label.toLowerCase()} out of the front.`
+        : `A ${BUSINESS_DEFS[b.type].label.toLowerCase()} cannot host ${def.label.toLowerCase()}.`);
       if (b.racketIds.some(id => w.rackets[id].kind === a.kind)) return no('Already running here.');
       if (b.ownedBy !== 'player' && b.protection?.factionId !== PLAYER) return no('You need to own the place or have it under your protection.');
       if (a.kind === 'dealing' && !a.product) return no('Pick a product to move.');
-      const r = cash(def.setupCost); if (r) return no(r);
+      // setting up inside an established place costs what everything there costs
+      const cost = setupCost(b, a.kind);
+      const r = cash(cost); if (r) return no(r);
       const r2 = ap(1); if (r2) return no(r2);
-      return yes({ cash: def.setupCost, ap: 1 });
+      return yes({ cash: cost, ap: 1 });
     }
     case 'upgrade_racket': { const r = w.rackets[a.racketId]; if (r?.owner !== PLAYER) return no('Not yours.'); if (r.level >= 3) return no('Maxed out.'); const c = RACKET_UPGRADE_COST[r.level]; const rr = cash(c); return rr ? no(rr) : yes({ cash: c }); }
     case 'close_racket': { const r = w.rackets[a.racketId]; if (r?.owner !== PLAYER) return no('Not yours.'); return yes(); }
@@ -746,7 +755,7 @@ function apply(w: World, a: Action, rng: Rng, done: () => void, bonus = 0): Worl
     case 'repair': { const b = w.businesses[a.businessId]; takeCash(w, repairCost(b)); b.condition = 100; b.flags = b.flags.filter(f => f !== 'torched'); log(w, `${b.name} repaired.`, 'info', { businessId: b.id }); break; }
 
     case 'start_racket': {
-      const b = w.businesses[a.businessId]; takeCash(w, RACKET_DEFS[a.kind].setupCost);
+      const b = w.businesses[a.businessId]; takeCash(w, setupCost(b, a.kind));
       const r = mkRacket(w, a.kind, b); if (a.product) r.product = a.product;
       addHeat(w, 1, b.blockId); addInfluence(w, b.blockId, PLAYER, 5);
       log(w, `${RACKET_DEFS[a.kind].label} set up at ${b.name}. Assign someone to run it.`, 'good', { businessId: b.id, racketId: r.id });

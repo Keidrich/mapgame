@@ -96,7 +96,12 @@ function FactionCard({ f }: { f: Faction }) {
             </div>))}</div>
         </div>
       )}
-      {boss && !f.crisis && <div className="mt8"><NpcRow w={w} npc={boss} sub={`Boss · ${select.relLabel(boss)}${f.owed ? ` · owes you ${f.owed}` : ''} · lieutenants: ${f.lieutenantIds.map(id => w.npcs[id]?.name.split(' ')[0]).join(', ')}`} /></div>}
+      {boss && !f.crisis && (
+        <div className="mt8">
+          <NpcRow w={w} npc={boss} sub={`Boss · ${select.relLabel(boss)} · lieutenants: ${f.lieutenantIds.map(id => w.npcs[id]?.name.split(' ')[0]).join(', ')}`} />
+          {!!f.owed && <div className="chips mt4"><TermChip id="owed" tone="var(--green)">Owes you {f.owed}</TermChip></div>}
+        </div>
+      )}
       {f.alive && voice && fights.length > 0 && (
         <div className="mt8">
           <div className="small muted mb8">At {fights.map(o => `${f.stance[o.id]} with ${o.short}`).join(', ')}. <Term id="broker">A truce brokered by you</Term> earns standing on both sides and a fee.</div>

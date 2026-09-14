@@ -15,9 +15,21 @@ import { dispatch, generateWorld, sceneFor, select } from './index';
 import { addMemory } from './people';
 import { connect } from './connections';
 import type { Business, Npc, World } from './types';
+import { BUSINESS_DEFS } from '@content/businesses';
 
 const mk = (seed = 91) => generateWorld({ origin: { lat: 41.88, lng: -87.63 }, placeName: 'Chicago', playerName: 'T', background: 'muscle', seed });
-const local = (w: World): Business[] => select.businessesIn(w, select.startBlock(w).id).filter(b => b.ownedBy === 'npc');
+/**
+ * Three or more leanable places on one block. Tier 1 only, because a wreck test needs somewhere
+ * that can actually be wrecked for protection money, and the start block does not always have
+ * three of those — so this walks out to the first block that does rather than skipping the test.
+ */
+const local = (w: World): Business[] => {
+  const soft = (id: string) => select.businessesIn(w, id)
+    .filter(b => b.ownedBy === 'npc' && BUSINESS_DEFS[b.type].tier === 1 && BUSINESS_DEFS[b.type].rackets.includes('protection'));
+  const blocks = [select.startBlock(w).id, ...Object.keys(w.blocks)];
+  for (const id of blocks) { const hit = soft(id); if (hit.length >= 3) return hit; }
+  throw new Error('no block in this world has three leanable places');
+};
 const line = (w: World, n: Npc) => sceneFor(w, 'visit', n.id).line;
 const STORY = (n: Npc) => `Somebody put ${n.name} against a wall and went through their pockets.`;
 

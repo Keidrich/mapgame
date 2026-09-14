@@ -394,6 +394,12 @@ label.field { display: block; font-size: 12px; color: var(--muted); margin-botto
 .opnode-q { position: absolute; top: 7px; right: 7px; margin: 0; }
 .opbadges { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 3px; }
 .opbadge { font-size: 9.5px; padding: 1px 5px; border-radius: 999px; background: var(--bg-4); border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+/* A family of ops that belong together: "the wire" is get in, use it, switch them off. The tint
+   and the heading are the only thing that says so, since the names alone do not read as one lane. */
+.opbadge.fam { color: var(--blue); border-color: rgba(86,156,214,0.45); }
+.opnode.opfam { border-color: rgba(86,156,214,0.35); }
+.opfam-head { display: flex; align-items: center; gap: 6px; margin: 2px 0 4px; }
+.opfam-n { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--blue); }
 .opedge { display: flex; align-items: center; gap: 5px; padding: 0 2px 3px; }
 .opedge-line { width: 12px; height: 1px; background: var(--gold); opacity: 0.6; flex: none; }
 .opedge-lbl { font-size: 9.5px; color: var(--gold); opacity: 0.85; line-height: 1.1; }

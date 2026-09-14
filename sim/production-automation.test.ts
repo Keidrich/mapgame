@@ -13,6 +13,7 @@ import { PLAYER, can, dispatch, generateWorld, select, type Id, type Production,
 import { bestRecipeFor, foremanOf, runForeman, supplyRacket, supplyRule } from './automation';
 import { emptyStash } from './generate';
 import { mkRacket } from './reducer';
+import { canHost } from './tiers';
 
 const mk = (seed = 5) => { const w = generateWorld({ origin: { lat: 51.5, lng: -0.12 }, placeName: 'London', playerName: 'T', background: 'tech', seed }); w.pendingEvents = []; w.player.cash = 300000; return w; };
 
@@ -205,7 +206,10 @@ describe('distribution: where a racket draws its stock', () => {
 
   it('end to end: a foreman upstairs and a dealer downstairs run themselves', () => {
     let w = mk(); const [id] = hire(w);
-    const biz = Object.values(w.businesses).find(b => b.patronIds.length > 0)!;
+    // A place that can host dealing, with nobody else already collecting from it. Both halves
+    // matter: the tier gate means not every business can host it, and a business under a rival's
+    // protection earns the rival, not you — which looks exactly like the delivery never arriving.
+    const biz = Object.values(w.businesses).find(b => b.patronIds.length > 0 && canHost(b, 'dealing') && !b.protection)!;
     biz.ownedBy = 'player'; w.player.businessIds.push(biz.id);
     const r = mkRacket(w, 'dealing', biz); r.product = 'booze';
     const s = house(w, biz.blockId);
@@ -213,8 +217,13 @@ describe('distribution: where a racket draws its stock', () => {
     w.player.recipes = ['sugar_shine'];
     w = dispatch(w, { type: 'assign', npcId: id, assignment: { kind: 'foreman', productionId: pr.id } });
 
-    for (let d = 0; d < 5; d++) { w.pendingEvents = []; w = dispatch(w, { type: 'end_day' }); }
+    // Best day rather than the last one: `lastIncome` is a snapshot, and a racket that takes an
+    // incident reads zero for the few days it is disrupted however well the pipeline works. The
+    // claim is that stock made upstairs reaches the corner and sells, not that day five was good.
+    let best = 0;
+    for (let d = 0; d < 5; d++) { w.pendingEvents = []; w = dispatch(w, { type: 'end_day' }); best = Math.max(best, w.rackets[r.id].lastIncome); }
     expect(w.productions[pr.id].recipe, 'the foreman never picked a recipe').toBe('sugar_shine');
-    expect(w.rackets[r.id].lastIncome, 'nothing ever reached the corner').toBeGreaterThan(0);
+    expect(w.safehouses[s.id].stash.booze, 'the foreman never made anything').toBeGreaterThan(0);
+    expect(best, 'nothing ever reached the corner').toBeGreaterThan(0);
   });
 });

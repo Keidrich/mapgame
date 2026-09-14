@@ -1,11 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { PLAYER, approachChance, can, dispatch, generateWorld, select, type World } from './index';
 import { known, owes } from './test-util';
+import { BUSINESS_DEFS } from '@content/businesses';
 
 const mk = (seed = 5) => generateWorld({ origin: { lat: 51.5, lng: -0.12 }, placeName: 'London', playerName: 'T', background: 'muscle', seed });
 const startBlock = (w: World) => select.startBlock(w);
 const softTarget = (w: World) => select.businessesIn(w, startBlock(w).id).concat(...Object.values(w.blocks).filter(b => select.distanceFromStart(w, b.id) <= 1).map(b => select.businessesIn(w, b.id)))
-  .filter(b => !b.protection && b.ownedBy === 'npc' && b.type !== 'bank' && b.type !== 'armored_depot').sort((a, b) => w.npcs[a.ownerId].nerve - w.npcs[b.ownerId].nerve)[0];
+  // tier 1 only: since the tier pass an arbitrary business is as likely to be an accountant's
+  // office as a diner, and a protection test that lands on one is asserting the wrong thing
+  .filter(b => !b.protection && b.ownedBy === 'npc' && BUSINESS_DEFS[b.type].tier === 1 && BUSINESS_DEFS[b.type].rackets.includes('protection'))
+  .sort((a, b) => w.npcs[a.ownerId].nerve - w.npcs[b.ownerId].nerve)[0];
 
 describe('reducer', () => {
   it('never mutates the previous world', () => {

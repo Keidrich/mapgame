@@ -14,6 +14,111 @@ House rules for an entry (see `CLAUDE.md` → *Leave a trail*):
 
 ---
 
+## 2026-09-14 — Business tiers, eight new types, and a tooltip audit that found five unreachable entries
+
+**What.** Every business type now carries a tier, and the tier decides what it can host, what
+setting up inside it costs, and whether fear is a way in at all. Eight new types slotted across the
+three. Plus the clarity work: the wire ops read as one lane, an institution's sheet points at the
+owner instead of dead-ending, and the whole tooltip set got a real audit.
+
+**Why.** Foundation for the crime pass. Everything in the city was equally leanable — a raised
+voice worked on an accountant's office the same way it worked on a diner — and the only exceptions
+were two hand-written `rackets: []` entries on the bank and the armoured depot.
+
+**How.**
+
+*Tiers.* Three, and the middle one is the interesting one because it is **arithmetic rather than a
+rule**. Nothing refuses an established owner's shakedown by name: `PROTECT_NERVE` is 0.6, so a
+nerve floor of 72 wants fear + respect of 43, which is above `STAKES.words.ceiling` (35) always and
+above `STAKES.backed.ceiling` (50) unless respect is doing work. Talk stops being enough because of
+where the number sits — and a `property` act (ceiling 80) opens the very same `protectRoute`, as
+does a settled favour. The rules did not change, the ground did.
+
+Tier 3 is `rackets: []` generalised: `TIER_EXCLUDES[3] = 'all'` covers the six institutions added
+since without a third name in the check, and `extortReason` refuses outright while naming the door
+that *is* open. `racketsAllowed` is an **intersection** with the type's own list, never a
+replacement, and `select.availableRackets` reads the same function `can` does — so the block sheet
+can never offer a racket the reducer then refuses.
+
+*The eight.* Scrapyard, phone shop and tow yard at tier 1; boutique and pharmacy at tier 2;
+gallery, accountant's office and import/export at tier 3, beside the banks. Name pools, district
+mixes and rarity all wired; no crime-specific racket kinds, which is next prompt's job.
+
+*Clarity.* `OpFamily` groups the three wire ops, which sit together in their tier with a heading
+and a badge — the names alone never read as one lane. Tier-3 sheets get a card that names the owner
+and changes its wording once the player actually has a hold, so the hint stops being advice and
+becomes a prompt.
+
+**Three real bugs the work turned up.**
+
+- **`availableRackets` used the raw type list**, so once the tier gate went into `can`, the block
+  sheet would have offered rackets the reducer refused. Now both read `racketsAllowed`.
+- **A maxed nemesis was worth 8 points toward the chair against skills worth 20**, so a record
+  against the player never actually moved the succession shortlist — the arc shipped last pass was
+  decorative at the top end. `NEMESIS.successionWeight` 0.08 → 0.18. The test that asserts a
+  nemesis becomes a candidate is what caught it.
+- **Five glossary entries were unreachable from any screen**: `nemesis`, `presence`, `mapLayer`,
+  `owed`, `lawJob` — all written, all accurate, none linked. Wired to the NPC sheet, the "you are
+  not there" card, the layer bar, the faction row and the law-op price card. `ui/clarity.test.tsx`
+  now fails on an orphan, so the audit is a standing rule rather than a one-off sweep.
+
+Four tooltips also said things the tier pass made false — `bizIncome` claimed protection is a cut
+of any business's income, `muscle` implied strongarm work opens anything, `ap` and `presence` had
+not heard of the actions added over the last three passes. All rewritten.
+
+**Numbers.** `npm run sim -- 60 <seed> honest` at day 61, and this one needs reading carefully:
+
+| seed | before (cash / dirty / rackets) | after |
+|---|---|---|
+| 3 | 7,265 / 1,178 / 5 | 11,632 / 1,096 / **9** |
+| 7 | 14,562 / 2,238 / 10 | 20 / 17,945 / **4** |
+| 11 | −2,437 / 40,226 / 7 | 0 / 3,027 / **9** |
+| 19 | −813 / 15,972 / 8 | 11 / 1,251 / **9** |
+
+Rackets and control are up on three seeds of four and cash is down on three — **the bot is
+reinvesting rather than earning less**, and seeds 11 and 19 in particular converted stuck dirty
+piles into holdings. Seed 7 is a genuine loss: it went 10 rackets to 4, because that world's soft
+targets were disproportionately types that are now tier 2 or 3. That is the pass working as
+specified — a third of the city is no longer free protection income — but it is a real cost and
+worth watching if the crime pass leans on early protection income.
+
+`npm run sim -- 60 7 all` still reports **19/19 systems**, but distinct op kinds fell **33 → 27**
+and ops-never-run went 8 → 14. That is downstream of the same thing: fewer extortable places means
+fewer rackets, and several ops gate on `requires.racketKinds`. It is not the AP squeeze the last
+two passes hit — the sixteen-day bot test still clears its 40% bar untouched — so the fix is not a
+longer day. The crime pass adds racket kinds to the eight new types, which should put the target
+pool back; **if it does not, this is the number to chase.**
+
+**Watch out.**
+
+- **The bot had to be taught the rule, and the diagnosis is worth keeping.** Before the policy fix
+  it picked institutions as its "softest" targets, failed all three moves, and walked there anyway:
+  honest income on seed 7 fell to **$63**. It now filters on `extortReason` and escalates to
+  `wreck` / `threaten:crew` when the owner's nerve is above what talk can reach.
+- **No `WORLD_VERSION` bump.** `tier` lives on the definition, not the save.
+- **Seven existing tests picked "a business" at random** and assumed it was leanable. They pick
+  tier 1 explicitly now — `softBiz` and `hostFor` in `sim/test-util.ts` are the shared way to do
+  that. Two of them found real fragility while being fixed: one asserted a racket's income on the
+  *last* day (zero for the several days a disrupted racket reads zero, however well the pipeline
+  works) and one compared laundering capacity across *different* businesses, whose base incomes now
+  differ enough to swamp the effect being measured.
+- **`jeweller` moved to tier 3** and lost `protection` and `fencing`, per the spec. It is still
+  buyable and still a heist target.
+- **Income and value are not multiplied at generation.** `TIERS[n].income` documents the shape and
+  the defs are written to it, with a test asserting the bands actually climb. Stapling a multiplier
+  on already-tuned ranges would have re-balanced the whole economy silently; the real mechanical
+  scaling is setup cost and the nerve floor. Called out because it is a deliberate reading of
+  "scale up by tier", not an omission.
+
+**Files.** New: `sim/tiers.ts`, `sim/business-tiers.test.ts`, `sim/new-business-types.test.ts`,
+`ui/clarity.test.tsx`. Changed: `content/businesses.ts`, `content/names.ts`, `content/rackets.ts`
+(`OpFamily`), `content/nemesis.ts`, `content/glossary.ts`, `sim/types.ts`, `sim/reducer.ts`,
+`sim/select.ts`, `sim/populate.ts`, `sim/test-util.ts`, `ui/components/OpTree.tsx`,
+`ui/components/BusinessSheet.tsx`, `ui/components/{Walk,MapLayers,FactionsTab,NpcSheet,OpsTab}.tsx`,
+`ui/styles.css`, `scripts/bot/policy.ts`, `docs/DESIGN.md` §3.6b.
+
+---
+
 ## 2026-09-14 — Nobody tells you their own mugging as neighbourhood gossip
 
 **What.** Block memory now knows who each story is about, and the person it happened to stops

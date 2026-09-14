@@ -13,7 +13,7 @@ import { can, generateWorld, select } from './index';
 import { contacts, daysKnown, familiar, familiarReason, fearGain, makeContact, trustGain } from './standing';
 import { promoteReason } from './lieutenants';
 import { adjustRel } from './util';
-import { known, owes, unknown } from './test-util';
+import { known, owes, softBiz, unknown } from './test-util';
 import type { World } from './types';
 
 const mk = (seed = 8) => generateWorld({ origin: { lat: 41.88, lng: -87.63 }, placeName: 'Chicago', playerName: 'T', background: 'muscle', seed });
@@ -78,7 +78,7 @@ describe('the familiarity floor, in the shape the lieutenant check already had',
 
   it('every deep gate sits on it: protection, crew, and a friendly price all refuse a stranger', () => {
     const w = mk();
-    const t = select.businessesIn(w, select.startBlock(w).id).find(b => b.ownedBy === 'npc' && !b.protection)!;
+    const t = softBiz(w, select.startBlock(w).id)!;
     const owner = unknown(w.npcs[t.ownerId]);
     owner.rel.trust = 90; owner.rel.favours = 3; owner.rel.fear = 0; owner.rel.respect = 0; owner.nerve = 90;
     owner.traits = [];

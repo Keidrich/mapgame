@@ -13,12 +13,13 @@ import { describe, expect, it } from 'vitest';
 import { PLAYER, dispatch, generateWorld, type World } from './index';
 import { mkRacket } from './reducer';
 import { emptyStash } from './generate';
+import { canHost } from './tiers';
 
 const mk = (seed = 5) => { const w = generateWorld({ origin: { lat: 51.5, lng: -0.12 }, placeName: 'London', playerName: 'T', background: 'brains', seed }); w.pendingEvents = []; w.player.cash = 200000; return w; };
 
 /** A dealing racket, and a safehouse holding product either on its block or elsewhere. */
 function setUp(w: World, where: 'same block' | 'elsewhere') {
-  const biz = Object.values(w.businesses).find(b => b.patronIds.length > 0)!;
+  const biz = Object.values(w.businesses).find(b => b.patronIds.length > 0 && canHost(b, 'dealing'))!;
   biz.ownedBy = 'player'; w.player.businessIds.push(biz.id);
   const r = mkRacket(w, 'dealing', biz);
   r.product = 'green';
@@ -36,7 +37,7 @@ function setUp(w: World, where: 'same block' | 'elsewhere') {
 describe('a dealer with an empty pocket', () => {
   it('sells nothing when there is no product anywhere — the rule itself is unchanged', () => {
     const w = mk();
-    const biz = Object.values(w.businesses).find(b => b.patronIds.length > 0)!;
+    const biz = Object.values(w.businesses).find(b => b.patronIds.length > 0 && canHost(b, 'dealing'))!;
     biz.ownedBy = 'player'; w.player.businessIds.push(biz.id);
     const r = mkRacket(w, 'dealing', biz); r.product = 'green';
     w.player.stash.green = 0;

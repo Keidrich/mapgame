@@ -13,13 +13,17 @@ import { generateWorld, select, type Business, type Racket, type RacketKind, typ
 import { racketIncome, launderCapacity } from './economy';
 import { mkRacket } from './reducer';
 import { sameKindInDistrict, saturationMult, synergyFor, yieldMult } from './territory';
+import { BUSINESS_DEFS } from '@content/businesses';
 
 const mk = (seed = 5) => { const w = generateWorld({ origin: { lat: 51.5, lng: -0.12 }, placeName: 'London', playerName: 'T', background: 'brains', seed }); w.pendingEvents = []; w.player.cash = 500000; return w; };
 
 /** Businesses in one district, so "same district" is not an accident of the seed. */
 function inOneDistrict(w: World, n: number): Business[] {
   const byDistrict = new Map<string, Business[]>();
+  // tier 1 and 2 only: an institution hosts no rackets at all, so a saturation test that lands on
+  // one is measuring nothing. Saturation is about crowding a district with your own kind.
   for (const b of Object.values(w.businesses)) {
+    if (BUSINESS_DEFS[b.type].tier === 3) continue;
     const d = w.blocks[b.blockId]?.districtId; if (!d) continue;
     (byDistrict.get(d) ?? byDistrict.set(d, []).get(d)!).push(b);
   }
@@ -105,11 +109,15 @@ describe('saturation', () => {
 
   it('saturates laundering capacity too, not only income', () => {
     const w = mk();
-    const places = inOneDistrict(w, 4);
-    const first = install(w, places[0], 'laundering', 10);
-    const caps = [launderCapacity(w, first)];
-    for (const [i, b] of places.slice(1).entries()) caps.push(launderCapacity(w, install(w, b, 'laundering', 11 + i)));
-    expect(caps[caps.length - 1]).toBeLessThan(caps[0]);
+    const places = inOneDistrict(w, 5);
+    // measured on one racket as the district fills around it, not by comparing different
+    // businesses: since the tier pass those differ in base income, which swamps the effect
+    // Started last, so it is the one saturation dilutes — the grace protects what you have run
+    // longest, which is the whole shape of `saturationMult`.
+    const mine = install(w, places[places.length - 1], 'laundering', 30);
+    const alone = launderCapacity(w, mine);
+    for (const [i, b] of places.slice(0, -1).entries()) install(w, b, 'laundering', 10 + i);
+    expect(launderCapacity(w, mine)).toBeLessThan(alone);
   });
 });
 

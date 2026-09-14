@@ -275,7 +275,7 @@ function LawPrice({ kind, target }: { kind: OpKind; target: { npcId?: Id; caseId
   return (
     <div className="card mt8" style={{ borderColor: posture === 'Routine' ? 'var(--blue)' : 'var(--red)' }}>
       <div className="row between">
-        <b className="small">🚔 {a?.name ?? 'The law'}<Info id="posture" /></b>
+        <b className="small">🚔 {a?.name ?? 'The law'}<Info id="lawJob" /><Info id="posture" /></b>
         <span className={`chip ${posture === 'Routine' ? '' : 'red'}`}>{posture}</span>
       </div>
       <p className="small muted mt8" style={{ margin: '8px 0 0' }}>{why}</p>
