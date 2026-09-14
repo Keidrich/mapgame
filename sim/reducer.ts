@@ -1,3 +1,4 @@
+import { SUPPLY_LABELS } from './automation';
 import { authorities, effectivePolice, postureFor } from './authority';
 import { BUSINESS_DEFS } from '@content/businesses';
 import { OP_APPROACHES, OP_DEFS, PRODUCTION_DEFS, PRODUCT_INFO, RACKET_DEFS, RACKET_UPGRADE_COST, SAFEHOUSE_TIERS } from '@content/rackets';
@@ -115,9 +116,16 @@ export function can(w: World, a: Action): Affordance {
       if (a.assignment.kind === 'racket') { const r = w.rackets[a.assignment.racketId]; if (!r || r.owner !== PLAYER) return no('Not your racket.'); if (r.runnerId && r.runnerId !== n.id) return no('Someone already runs it.'); }
       if (a.assignment.kind === 'production') { const pr = w.productions[a.assignment.productionId]; if (!pr) return no('No such production.'); if (pr.workerId && pr.workerId !== n.id) return no('Someone already works it.'); }
       if (a.assignment.kind === 'op') { const o = w.ops[a.assignment.opId]; if (!o || o.status !== 'planning') return no('That op is not being planned.'); }
+      if (a.assignment.kind === 'foreman') {
+        const pr = w.productions[a.assignment.productionId];
+        if (!pr || !p.safehouseIds.includes(pr.safehouseId)) return no('Not a production of yours.');
+        const other = p.crewIds.map(id => w.npcs[id]).find(x => x.id !== n.id && x.crew?.assignment?.kind === 'foreman' && x.crew.assignment.productionId === pr.id);
+        if (other) return no(`${other.name} already runs that one.`);
+      }
       if (a.assignment.kind === 'lieutenant') { const why = promoteReason(w, n, a.assignment.districtId); if (why) return no(why); const r = ap(LIEUTENANT.ap); return r ? no(r) : yes({ ap: LIEUTENANT.ap }); }
       return yes();
     }
+    case 'set_supply': { const r = w.rackets[a.racketId]; if (r?.owner !== PLAYER) return no('Not your racket.'); return yes(); }
     case 'audit': { const n = npc(a.npcId); if (!n?.crew) return no('Not your crew.'); if (n.crew.assignment?.kind !== 'lieutenant') return no('Only lieutenants keep a book.'); const r = ap(1); return r ? no(r) : yes({ ap: 1 }); }
     case 'bribe_official': { const n = npc(a.npcId); if (!n?.official) return no('Not an official.'); if (a.amount < 500) return no('Officials do not get out of bed for less than $500.'); const r = cash(a.amount); return r ? no(r) : yes({ cash: a.amount }); }
 
@@ -489,10 +497,13 @@ export function dispatch(prev: World, a: Action): World {
         if (a.assignment.kind === 'racket') w.rackets[a.assignment.racketId].runnerId = n.id;
         if (a.assignment.kind === 'production') w.productions[a.assignment.productionId].workerId = n.id;
         if (a.assignment.kind === 'op') { const o = w.ops[a.assignment.opId]; if (!o.crewIds.includes(n.id)) o.crewIds.push(n.id); }
+        // a foreman is the worker too — nobody runs a still from a desk
+        if (a.assignment.kind === 'foreman') { const pr = w.productions[a.assignment.productionId]; if (pr && !pr.workerId) pr.workerId = n.id; }
         if (a.assignment.kind === 'lieutenant') promote(w, n, a.assignment.districtId);
       }
       break;
     }
+    case 'set_supply': { const r = w.rackets[a.racketId]; r.supply = a.rule; log(w, `${RACKET_DEFS[r.kind].label} now draws stock: ${SUPPLY_LABELS[a.rule].label.toLowerCase()}.`, 'info', { racketId: r.id }); break; }
     case 'audit': {
       const n = npc(a.npcId); const c = n.crew!; const d = c.assignment?.kind === 'lieutenant' ? w.districts[c.assignment.districtId] : undefined;
       const sharp = p.skills.brains * 8 + rng.int(0, 40) > 35;

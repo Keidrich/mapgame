@@ -3,7 +3,7 @@
  * `sim/reducer.ts` validates and applies them; `sim/affordances.ts` tells the UI
  * which are currently possible and why not.
  */
-import type { Id, FactionId, RacketKind, ProductionKind, OpKind, ProductKind, Assignment } from './types';
+import type { Id, FactionId, RacketKind, ProductionKind, OpKind, ProductKind, Assignment, SupplyRule } from './types';
 import type { GeoChunk } from '@geo/chunks';
 
 export type Action =
@@ -47,6 +47,7 @@ export type Action =
   | { type: 'close_production'; productionId: Id }
   | { type: 'upgrade_production'; productionId: Id }              // cash: level 1→3, more output and quality, more heat
   | { type: 'set_recipe'; productionId: Id; recipe?: string }     // switch a production to a recipe you know
+  | { type: 'set_supply'; racketId: Id; rule: SupplyRule }        // where a product racket draws its stock from
   | { type: 'move_stash'; from: 'player' | Id; to: 'player' | Id; product: ProductKind; amount: number }
   | { type: 'sell_product'; product: ProductKind; amount: number; blockId: Id } // 1 AP street sale
   | { type: 'launder'; amount: number } // via laundering rackets capacity (auto at tick too)

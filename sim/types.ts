@@ -7,6 +7,8 @@
 import type { NameGroup } from '@content/names';
 import type { AuthorityKind, AuthorityPosture } from '@content/authority';
 import type { ComplicationKind } from '@content/complications';
+import type { SupplyRule } from './automation';
+import type { IntelKind } from '@content/intel';
 export type { NameGroup };
 
 export type Id = string;
@@ -154,6 +156,7 @@ export type Assignment =
   | { kind: 'guard'; blockId: Id }
   | { kind: 'collect' }
   | { kind: 'hack' }                         // works the card pile without being asked
+  | { kind: 'foreman'; productionId: Id }    // runs one production properly: recipe, ingredients, output
   | { kind: 'lieutenant'; districtId: Id };  // runs a district for you
 
 export type OfficialKind = 'captain' | 'councillor' | 'judge';
@@ -178,6 +181,7 @@ export interface Npc {
   hint?: string;              // the coarse read you get from casing the place: a feel, not a file
   tap?: { since: number };    // you are listening to this one; risk compounds daily (sim/cyber.ts)
   ratted?: number;            // the day you last got inside their business; wire fraud needs this
+  intel?: { kind: IntelKind; since: number; businessId: Id };  // a standing skim or a route, off a bank or depot employee
   recipe?: string;            // a specialist: recruiting them unlocks this RECIPES id
   hostage?: { safehouseId: Id; since: number }; // held by you: alive, but out of their own life
   fixer?: { day: number; amount: number; cap: number }; // role 'fixer': today's window, and what is left of it
@@ -224,6 +228,7 @@ export interface Racket {
   lastIncome: number;
   disrupted: number;     // days remaining disrupted (raid/sabotage)
   threatened?: number;   // a faction has it in their sights until this day; 'defend_racket' answers that
+  supply?: SupplyRule;   // where a product racket draws its stock from; defaults to its own block
 }
 
 // ---------- safehouses & production ----------
@@ -352,6 +357,8 @@ export interface SuccessionCrisis { since: number; resolvesDay: number; candidat
  * you, on its own ladder, from how much trouble you are making. See `content/authority.ts`.
  */
 export type { AuthorityKind, AuthorityPosture };
+export type { SupplyRule };
+export type { IntelKind };
 
 export interface Authority {
   id: Id;

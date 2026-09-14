@@ -3,6 +3,8 @@ import { legworkFor } from './travel';
 import { PRODUCTION_DEFS, PRODUCT_INFO, RACKET_DEFS, SAFEHOUSE_TIERS } from '@content/rackets';
 import { effectivePolice, raidPressure, tickAuthorities } from './authority';
 import { applyDailyInfluence, updateTenure, yieldMult } from './territory';
+import { foremanOf, haulHeat, tickAutomation } from './automation';
+import { tickIntel } from './intel';
 import { launderCapacity, productionOutput, racketIncome, streetPrice } from './economy';
 import { LAUNDER_RATE } from '@content/rackets';
 import { resolveConfrontation } from './combat';
@@ -24,8 +26,14 @@ import { tickCommission } from './commission';
 import { heldIds, tickHostages } from './hostages';
 import { PRODUCTION_LEVEL } from '@content/rackets';
 
-/** Units a dealing racket pulls per day from a safehouse of yours on the same block. */
-const RESTOCK_FROM_SAFEHOUSE = 40;
+
+/** Which product a racket sells, for the standing orders. Undefined for the ones that sell nothing. */
+function productOf(r: import('./types').Racket): import('./types').ProductKind | undefined {
+  if (r.kind === 'dealing') return r.product ?? 'green';
+  if (r.kind === 'fencing') return 'hot_goods';
+  if (r.kind === 'counterfeiting') return 'counterfeit';
+  return undefined;
+}
 
 export function endDay(w: World): World {
   const { rng, done } = rngOf(w);
@@ -40,6 +48,7 @@ export function endDay(w: World): World {
   tickCards(w);
   tickTaps(w, rng);
   tickHackCrew(w, rng);
+  tickIntel(w, rng);
 
   // Influence is gathered per block and applied once at the end of the day rather than per
   // asset, so `accrualMult` can see the whole depth of what you run there. Adding it per racket
@@ -69,6 +78,13 @@ export function endDay(w: World): World {
     gain(b.blockId, 1);
   }
 
+  // ---- standing orders: foremen, then deliveries to the corners ----
+  // Runs before the rackets so what arrived this morning is what sells today. This generalises
+  // the same-block restock the dealing fix shipped with: every product racket now has a rule
+  // saying where it may draw from, and `block` is the default that behaviour became.
+  const hauled = tickAutomation(w, r => productOf(r));
+  if (hauled > 0) addHeat(w, haulHeat(hauled));
+
   // ---- rackets ----
   const districtTake: Record<string, number> = {};
   for (const id of p.racketIds.slice()) {
@@ -80,15 +96,6 @@ export function endDay(w: World): World {
     switch (r.kind) {
       case 'dealing': {
         const prod = r.product ?? 'green';
-        // A dealing racket sells what *you* are carrying, not a stock of its own. That is fine
-        // until you notice product piles up in safehouses, which is where production puts it —
-        // so a still upstairs and a dealer downstairs silently sold nothing, forever, with
-        // nothing on screen explaining why. A safehouse on the same block restocks the corner.
-        const houseHere = p.safehouseIds.map(id => w.safehouses[id]).find(s2 => s2 && s2.blockId === b.blockId && s2.stash[prod] > 0);
-        if (houseHere) {
-          const pull = Math.min(houseHere.stash[prod], RESTOCK_FROM_SAFEHOUSE);
-          houseHere.stash[prod] -= pull; p.stash[prod] += pull;
-        }
         const have = p.stash[prod];
         if (have > 0) { const demand = w.blocks[b.blockId].demand[prod] * (1 + (r.level - 1) * 0.5) * (0.6 + b.patronIds.length * 0.15); const sold = Math.min(have, Math.max(0, Math.round(demand))); p.stash[prod] -= sold; income = Math.round(sold * streetPrice(w, b.blockId, prod) * sellMult(w, prod) * yieldMult(w, r)); addHeat(w, sold * PRODUCT_INFO[prod].heat * 0.3, b.blockId); }
         break;
@@ -133,7 +140,7 @@ export function endDay(w: World): World {
       pr.stock--;
       const recipe = recipeFor(pr);
       let out = Math.round(productionOutput(w, pr));
-      const worker = pr.workerId ? w.npcs[pr.workerId] : undefined;
+      const worker = pr.workerId ? w.npcs[pr.workerId] : foremanOf(w, pr.id);
       if (worker?.crew && worker.notes.includes('skims product')) out = Math.max(0, out - Math.ceil(out * 0.12)); // the ones you let get away with it
       const room = Math.max(0, s.capacity - stashTotal(s.stash));
       const made = Math.min(out, room);

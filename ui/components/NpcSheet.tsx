@@ -203,6 +203,12 @@ function CrewSection({ npcId }: { npcId: Id }) {
   for (const b of select.playerBlocks(w)) options.push({ label: `💪 Guard ${b.name}`, a: { kind: 'guard', blockId: b.id } });
   options.push({ label: '💰 Collect', a: { kind: 'collect' } });
   options.push({ label: '💻 On the wire (work the cards)', a: { kind: 'hack' } });
+  // a foreman is the production assignment with its head up: recipe, ingredients and output
+  for (const sh of playerSafehouses(w)) for (const pid of sh.productionIds) {
+    const pr = w.productions[pid]; if (!pr) continue;
+    const taken = select.foremanOf(w, pid);
+    if (!taken || taken.id === npcId) options.push({ label: `⚙️ Run the ${PRODUCTION_DEFS[pr.kind].label.toLowerCase()} at ${sh.name}`, a: { kind: 'foreman', productionId: pid } });
+  }
   for (const d of select.districtsRunnable(w)) { const cur = select.lieutenantOf(w, d.id); if (!cur || cur.id === npcId) options.push({ label: `⭐ Run ${d.name}`, a: { kind: 'lieutenant', districtId: d.id } }); }
   const [pick, setPick] = useState(0);
   const picked = options[pick]?.a;
@@ -232,6 +238,7 @@ function CrewSection({ npcId }: { npcId: Id }) {
               {options.map((o, i) => <option key={i} value={i}>{o.label}</option>)}
             </select>
             {picked?.kind === 'lieutenant' && <p className="small muted mt8">Needs loyalty 50, five days in the crew, and some muscle, brains and charm between them. Their cut goes up by half.</p>}
+            {picked?.kind === 'foreman' && <p className="small muted mt8">They keep it on the best recipe you know, buy ingredients when it runs dry, and move the output somewhere with room — without being asked. They count as the worker too.</p>}
             {picked?.kind === 'hack' && <p className="small muted mt8">They work the card pile all day and hand over most of what it makes — nothing in your handwriting, but a little wire heat every day. They will not bother unless you are holding at least three live cards. Tech is what makes them worth it.</p>}
             <div className="row mt8">
               <div className="grow"><Act action={{ type: 'assign', npcId, assignment: options[pick]?.a }} label="Assign" kind="primary" block /></div>

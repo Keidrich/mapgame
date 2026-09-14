@@ -1,6 +1,6 @@
 /** Read-only helpers for the UI. Never mutate. */
 import { BUSINESS_DEFS } from '@content/businesses';
-import { CASE_JOINT, OP_APPROACHES, OP_DEFS, RACKET_DEFS, type OpApproach } from '@content/rackets';
+import { CASE_JOINT, OP_APPROACHES, OP_DEFS, PRODUCTION_DEFS, RACKET_DEFS, RECIPES, qualityMult, type OpApproach } from '@content/rackets';
 import { controller, stanceFor } from './generate';
 import { CREW_COLOR, crewAt } from './crews';
 export { crewAt };
@@ -15,7 +15,9 @@ export { connectionsOf, familyOf, backingOf } from './connections';
 export { ownedItems, equippedItems, isEquipped, ownedCount, equippedCount, equipSlotsLeft, kitSkillBoost, kitApproachBias, kitHeatMult, kitMods, isMarket, marketStock, buyPrice, sellPrice, EQUIP_MAX } from './items';
 import { authorityDifficulty, buyCaseCost, buyDownCost } from './authority-ops';
 import { saturationMult, synergyFor } from './territory';
-import { rawRacketIncome } from './economy';
+import { routeDiscount } from './intel';
+import { rawRacketIncome, streetPrice } from './economy';
+import { qualityOf, sellMult } from './production';
 import { equippedItems, kitApproachBias, kitSkillBoost } from './items';
 export { confrontations, activeConfrontation, confrontOptions, confrontChance, backupCrew, CONFRONT_AS } from './combat';
 export { cards, liveCards, cardById, cardValue, runOdds, dumpValue, tapped, daysTapped, tapRisk, secrets, secretsAbout, unsoldSecrets, dirtPrice, scrubPower, cyberHeat } from './cyber';
@@ -30,7 +32,7 @@ export { fixerRate, fixerDailyCap, fixerUsedToday, fixerCapToday, fixerCapLeft, 
 export { knownRecipes, recipesForKind, restockCost, qualityOf, sellMult, shortageActive, saturationActive, productionQuality } from './production';
 import { distanceM } from '@geo/project';
 import { STEP_M } from './populate';
-import { PLAYER, type Block, type Business, type Racket, type Faction, type FactionId, type Id, type Npc, type OpKind, type RacketKind, type Stance, type World } from './types';
+import { PLAYER, type Block, type Business, type ProductKind, type Racket, type Faction, type FactionId, type Id, type Npc, type OpKind, type RacketKind, type Stance, type World } from './types';
 
 export { controller, stanceFor };
 
@@ -94,11 +96,13 @@ export function opChance(w: World, kind: OpKind, crewIds: Id[], approach?: OpApp
   ratio = n ? ratio / n : 1;
   // a place you have walked in the last few days is a place you know the back of
   const cased = targetBusinessId && (w.businesses[targetBusinessId]?.casedUntil ?? 0) >= w.day ? CASE_JOINT.difficulty : 0;
+  // a current route off a depot employee is the same kind of discount as having walked the place
+  const route = kind === 'heist_armored' ? -routeDiscount(w, targetBusinessId) : 0;
   // Work aimed at the law is harder the harder the law is already looking, and harder again on
   // ground they are standing on — the same way every other op reads its target's state.
   const authority = d.target === 'case' || d.requires?.officialTarget || d.requires?.jailedTarget
     ? authorityDifficulty(w, tgt) : 0;
-  const base = 50 + (ratio - 1) * 70 - (d.difficulty + (ap?.difficulty ?? 0) + cased + authority - 50) * 0.6 - w.player.heat * 0.15;
+  const base = 50 + (ratio - 1) * 70 - (d.difficulty + (ap?.difficulty ?? 0) + cased + route + authority - 50) * 0.6 - w.player.heat * 0.15;
   return Math.max(3, Math.min(97, Math.round(base)));
 }
 /** People at a target who trust you enough to be an inside man (best first). */
@@ -288,3 +292,42 @@ export {
   saturationMult, synergyMult, synergyFor, yieldMult, blockDepth, heldDays, accrualMult,
   territoryReading, racketReading, sameKindInDistrict,
 } from './territory';
+export {
+  bestRecipeFor, foremanOf, supplyRule, supplyReading, SUPPLY_LABELS, moveProduct,
+} from './automation';
+export {
+  intelCandidates, intelSourceFor, intelReading, skimmers, routeHolders, routeFor, anyRoute,
+  routeDiscount, skimTake, skimRisk, daysRunning as intelDays,
+} from './intel';
+
+// ---------------------------------------------------------------- what you are holding
+/** Every unit of every product, wherever it is: on you and in every safehouse you own. */
+export function stashTotals(w: World): Record<ProductKind, number> {
+  const out: Record<ProductKind, number> = { booze: 0, green: 0, pills: 0, hot_goods: 0, counterfeit: 0 };
+  for (const k of Object.keys(out) as ProductKind[]) {
+    out[k] = w.player.stash[k] ?? 0;
+    for (const id of w.player.safehouseIds) out[k] += w.safehouses[id]?.stash[k] ?? 0;
+  }
+  return out;
+}
+/** What one unit fetches where the player is standing, at the quality they are actually holding. */
+export function unitPrice(w: World, product: ProductKind): number {
+  const base = streetPrice(w, w.player.currentBlockId, product);
+  return Math.round(base * sellMult(w, product) * qualityMult(qualityOf(w.player, product)));
+}
+/** Everything you hold, valued at what it would fetch. The one number worth putting at the top. */
+export function stashValue(w: World): number {
+  const totals = stashTotals(w);
+  return Math.round((Object.keys(totals) as ProductKind[]).reduce((n, p) => n + totals[p] * unitPrice(w, p), 0));
+}
+/**
+ * The named style the player is mostly holding of a product, if any production of theirs is
+ * making one. Identity lives on the production that makes it — the stash is a bare count by
+ * design and stays that way — so this reports rather than stores.
+ */
+export function styleOf(w: World, product: ProductKind): string | undefined {
+  const making = Object.values(w.productions)
+    .filter(pr => w.player.safehouseIds.includes(pr.safehouseId) && PRODUCTION_DEFS[pr.kind].product === product && pr.recipe && RECIPES[pr.recipe])
+    .sort((a, b) => b.lastOutput - a.lastOutput);
+  return making[0]?.recipe;
+}

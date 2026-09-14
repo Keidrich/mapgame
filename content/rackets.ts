@@ -192,15 +192,39 @@ export const PRODUCTION_LEVEL = { output: 0.7, quality: 8, heat: 0.4 }; // per l
 export interface RecipeDef { label: string; kind: ProductionKind; blurb: string; quality: number; output: number; heat: number; risk: number }
 /** Recipes change what a production makes. Unlocked by the Steal a Formula op or by recruiting a specialist who knows one. */
 export const RECIPES: Record<string, RecipeDef> = {
-  aged:        { label: 'Barrel-aged', kind: 'still', blurb: 'Slower, but people ask for it by name.', quality: 25, output: 0.8, heat: 1, risk: 1 },
-  sugar_shine: { label: 'Sugar shine', kind: 'still', blurb: 'Volume over taste.', quality: -10, output: 1.4, heat: 1, risk: 1.1 },
-  hydro:       { label: 'Hydroponics', kind: 'grow_op', blurb: 'More lamps, more yield, more on the power bill.', quality: 5, output: 1.3, heat: 1.25, risk: 1 },
-  import_cut:  { label: 'Import cut', kind: 'grow_op', blurb: 'A strain nobody else in town has.', quality: 25, output: 0.9, heat: 1, risk: 1 },
-  clean_synth: { label: 'Clean synthesis', kind: 'lab', blurb: 'Fewer fumes, fewer fires, a better product.', quality: 20, output: 1, heat: 0.8, risk: 0.7 },
-  bulk_press:  { label: 'Bulk press', kind: 'lab', blurb: 'Press them fast and cut them hard.', quality: -10, output: 1.5, heat: 1.3, risk: 1.2 },
-  intaglio:    { label: 'Intaglio plates', kind: 'print_shop', blurb: 'Real plates. Passes at a bank.', quality: 30, output: 0.85, heat: 1, risk: 1 },
-  bleach_wash: { label: 'Bleached bills', kind: 'print_shop', blurb: 'Wash ones, print hundreds. Fast and ugly.', quality: -15, output: 1.4, heat: 1.2, risk: 1.1 },
+  // ---- the still: what you are actually pouring ----
+  aged:         { label: 'Barrel-aged rye', kind: 'still', blurb: 'Slower, but people ask for it by name.', quality: 25, output: 0.8, heat: 1, risk: 1 },
+  sugar_shine:  { label: 'Sugar shine', kind: 'still', blurb: 'Volume over taste. It burns going down and nobody minds.', quality: -10, output: 1.4, heat: 1, risk: 1.1 },
+  copper_pot:   { label: 'Copper pot batch', kind: 'still', blurb: 'A small pot, run slow, vented properly. Half the smell of anything else.', quality: 14, output: 0.95, heat: 0.7, risk: 0.75 },
+  overproof:    { label: 'Overproof white', kind: 'still', blurb: 'Straight off the still at strength. Quick money, and the fire risk is not theoretical.', quality: 5, output: 1.6, heat: 1.5, risk: 1.5 },
+  bonded:       { label: 'Bonded label', kind: 'still', blurb: 'Real bottles, real labels, real revenue stamps that are not real. Sells like the genuine article.', quality: 32, output: 0.7, heat: 0.6, risk: 0.8 },
+
+  // ---- the grow op: what is actually in the bag ----
+  hydro:        { label: 'Hydroponic', kind: 'grow_op', blurb: 'More lamps, more yield, more on the power bill — and the bill is what gets noticed.', quality: 5, output: 1.3, heat: 1.25, risk: 1 },
+  import_cut:   { label: 'Import cut', kind: 'grow_op', blurb: 'A strain nobody else in town has. They pay for the name alone.', quality: 25, output: 0.9, heat: 1, risk: 1 },
+  soil_cure:    { label: 'Soil-grown, slow cure', kind: 'grow_op', blurb: 'Dirt, patience and a long hang. No lamps to draw power, nothing to smell from the street.', quality: 18, output: 0.85, heat: 0.65, risk: 0.7 },
+  sea_of_green: { label: 'Sea of green', kind: 'grow_op', blurb: 'Every inch under light, harvested fast and often. Everything about it is loud.', quality: -5, output: 1.7, heat: 1.4, risk: 1.35 },
+  greenhouse:   { label: 'Back-lot greenhouse', kind: 'grow_op', blurb: 'Glass, sunlight and a fence nobody looks over twice.', quality: 8, output: 1.1, heat: 0.9, risk: 0.85 },
+
+  // ---- the lab: what is actually in the pill ----
+  clean_synth:  { label: 'Clean synthesis', kind: 'lab', blurb: 'Fewer fumes, fewer fires, a better product.', quality: 20, output: 1, heat: 0.8, risk: 0.7 },
+  bulk_press:   { label: 'Bulk press', kind: 'lab', blurb: 'Press them fast and cut them hard.', quality: -10, output: 1.5, heat: 1.3, risk: 1.2 },
+  micro_batch:  { label: 'Micro-batch', kind: 'lab', blurb: 'Small runs, weighed properly, nothing wasted and nothing vented. Expensive patience.', quality: 30, output: 0.7, heat: 0.55, risk: 0.6 },
+  kitchen_run:  { label: 'Kitchen run', kind: 'lab', blurb: 'A stove, a bucket and no ventilation at all. The fastest money in the game and the likeliest to end in a fire.', quality: -18, output: 1.8, heat: 1.7, risk: 1.8 },
+  binder_cut:   { label: 'Binder cut', kind: 'lab', blurb: 'Stretch it with filler nobody can taste. More of them, none of them special.', quality: 0, output: 1.25, heat: 1.05, risk: 1 },
+
+  // ---- the print shop: what the paper actually is ----
+  intaglio:     { label: 'Intaglio plates', kind: 'print_shop', blurb: 'Real plates, cut by somebody who used to do it legally. Passes at a bank.', quality: 30, output: 0.85, heat: 1, risk: 1 },
+  bleach_wash:  { label: 'Bleached bills', kind: 'print_shop', blurb: 'Wash ones, print hundreds. Fast and ugly.', quality: -15, output: 1.4, heat: 1.2, risk: 1.1 },
+  cotton_stock: { label: 'Cotton stock', kind: 'print_shop', blurb: 'The right paper first, everything else second. Slow, quiet, and it feels correct in a hand.', quality: 22, output: 0.8, heat: 0.7, risk: 0.75 },
+  offset_run:   { label: 'Offset run', kind: 'print_shop', blurb: 'A commercial press doing a job it was not booked for. Good enough at a distance.', quality: 0, output: 1.3, heat: 1.15, risk: 1.1 },
+  night_press:  { label: 'Night press', kind: 'print_shop', blurb: 'The machine runs all night and the ink is barely dry. Volume, and a lot of noise for whoever lives above.', quality: -8, output: 1.65, heat: 1.55, risk: 1.6 },
 };
+
+/** Every recipe for one production kind, for pickers and for the automation's "best known". */
+export function recipesOfKind(kind: ProductionKind): string[] {
+  return Object.keys(RECIPES).filter(id => RECIPES[id].kind === kind);
+}
 /** What a unit of product sells for relative to average quality (50). */
 export const qualityMult = (q: number) => 0.7 + q / 200;
 

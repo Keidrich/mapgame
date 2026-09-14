@@ -9,6 +9,7 @@ import { productionCandidates, resolveProductionEvent } from './production';
 import { backCandidate } from './politics';
 import { resolveMeeting } from './commission';
 import { authorities, postureFor } from './authority';
+import { intelCandidates, openIntel, routeHolders } from './intel';
 import { openCases } from './cases';
 import { cardValue, cyberHeat, dropCard, endTap, learnSecret, liveCards, runCard } from './cyber';
 import { CARD_TIERS } from '@content/cyber';
@@ -235,6 +236,25 @@ export function drawEvents(w: World, rng: Rng) {
       ], { blockId: b.id });
     } },
 
+    // ---- what the bank and the depot are worth on an ordinary day ----
+    { w: intelCandidates(w).length ? 3 : 0, make: () => {
+      const { npc: n, biz, kind } = rng.pick(intelCandidates(w));
+      return ev('intel_offer', `${n.name} has had enough of ${biz.name}`, kind === 'skim'
+        ? `You have been inside ${n.name}'s affairs, and they work at ${biz.name}. Over a drink it turns out they have thought about moving a little, often, for a long time. They have just never had anyone to move it to.`
+        : `${n.name} drives out of ${biz.name} three mornings a week and is very tired of it. They will tell you which morning, which road, and which two men — for a price, and not in writing.`, [
+        { id: 'take', label: kind === 'skim' ? 'Set up the skim' : 'Buy the route', detail: kind === 'skim' ? 'A small drip, every day, until somebody notices' : 'The next armoured job goes far better', costCash: kind === 'skim' ? 800 : 1500 },
+        { id: 'pass', label: 'Not worth the exposure' },
+      ], { npcId: n.id, businessId: biz.id });
+    } },
+    { w: routeHolders(w).length ? 2 : 0, make: () => {
+      const n = rng.pick(routeHolders(w));
+      const biz = w.businesses[n.intel!.businessId];
+      return ev('route_update', 'The rota moved', `Word from ${n.name}: the schedule out of ${biz?.name ?? 'the depot'} shifts next week. What you have is good until then, and then it is not.`, [
+        { id: 'press', label: 'Get the new one now', detail: 'Costs money; the route stays current', costCash: 1200 },
+        { id: 'use', label: 'Use what you have while it lasts', detail: 'Nothing spent; the clock keeps running' },
+      ], { npcId: n.id, businessId: biz?.id });
+    } },
+
     { w: 1, make: () => { const b = w.blocks[rng.pick(Object.keys(w.blocks))]; const biz = b.businessIds.length ? w.businesses[rng.pick(b.businessIds)] : undefined; if (!biz) return undefined; return ev('opportunity', 'An opening', `${w.npcs[biz.ownerId].name} at ${biz.name} is in debt to the wrong people and is desperate for a partner. A gift now would go a long way.`, [
       { id: 'gift', label: 'Send $800', detail: 'big trust boost', costCash: 800 },
       { id: 'pass', label: 'Pass' },
@@ -299,6 +319,10 @@ export function resolveEventOption(w: World, e: GameEvent, opt: string, rng: Rng
     case 'claim_questions:scare': if (e.refs.blockId) { const b = w.blocks[e.refs.blockId]; if (muscleCheck()) { p.fear = clamp(p.fear + 3); log(w, `The clipboard goes away and does not come back.`, 'good', e.refs); } else { addHeat(w, 8, b?.id); log(w, `He files something. Somebody at the city now has ${b?.name ?? 'that block'} on a list. (+8 heat)`, 'bad', e.refs); } } break;
     case 'claim_questions:abandon': if (e.refs.blockId) { const b = w.blocks[e.refs.blockId]; if (b?.abandoned) { b.abandoned.claimedBy = undefined; delete b.influence[PLAYER]; b.heldSince = undefined; log(w, `You let ${b.name} go. Whoever wants it can have the paperwork too.`, 'info', e.refs); } } break;
 
+    case 'intel_offer:take': if (n) { openIntel(w, n, rng); adjustRel(n, { trust: 10 }); } break;
+    case 'intel_offer:pass': log(w, 'You let it go. Some money is not worth the person who brings it.', 'info', e.refs); break;
+    case 'route_update:press': if (n?.intel) { n.intel.since = w.day; adjustRel(n, { trust: 5 }); log(w, `The new rota, before it is the rota. ${n.name} is getting comfortable with this.`, 'money', e.refs); } break;
+    case 'route_update:use': log(w, 'You run with what you have. It will keep for a while.', 'info', e.refs); break;
     case 'owner_favour:help': if (n && biz) { adjustRel(n, { trust: 15, respect: 10 }); spreadRep(w, biz.blockId, { respect: 4, trust: 2 }); addInfluence(w, biz.blockId, PLAYER, 5); log(w, `You sort out ${n.name}'s problem. The block notices.`, 'good', e.refs); } break;
     case 'owner_favour:ignore': if (n && biz) { adjustRel(n, { trust: -20 }); spreadRep(w, biz.blockId, { respect: -3 }); log(w, `${n.name} stops paying with a smile.`, 'bad', e.refs); } break;
     case 'patron_tip:hit': { const idle = p.crewIds.map(id => w.npcs[id]).find(c => c.crew?.status === 'idle'); if (!idle) { log(w, 'Nobody free to do it. The truck leaves.', 'warn'); break; } if (idle.skills.wheels + idle.skills.muscle + rng.int(0, 10) > 9) { const units = rng.int(6, 14); p.stash.hot_goods += units; addHeat(w, 5, e.refs.blockId); if (n) adjustRel(n, { trust: 5, respect: 5 }); log(w, `${idle.name} takes the truck. ${units} crates of hot goods.`, 'good', e.refs); } else { idle.crew!.status = 'injured'; idle.crew!.statusDays = 3; addHeat(w, 8, e.refs.blockId); log(w, `The driver had a gun. ${idle.name} is hurt and the truck is gone.`, 'bad', e.refs); } break; }

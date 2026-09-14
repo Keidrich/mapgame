@@ -81,6 +81,7 @@ export function assignmentLabel(w: World, a?: Assignment): string {
     case 'guard': return `Guarding ${w.blocks[a.blockId]?.name ?? '?'}`;
     case 'collect': return 'Collecting';
     case 'hack': return 'On the wire, working the cards';
+    case 'foreman': { const pr = w.productions[a.productionId]; const sh = pr ? w.safehouses[pr.safehouseId] : undefined; return pr ? `Running the ${PRODUCTION_DEFS[pr.kind].label.toLowerCase()} at ${sh?.name ?? 'a safehouse'}` : 'Running a production'; }
     case 'lieutenant': return `Running ${w.districts[a.districtId]?.name ?? 'a district'}`;
   }
 }

@@ -14,6 +14,80 @@ House rules for an entry (see `CLAUDE.md` → *Leave a trail*):
 
 ---
 
+## 2026-09-14 — Production overhaul: the icon bug's real cause, an inventory worth reading, foremen, recipes with names, and two buildings that did nothing
+
+**What.** Five pieces. The icon bug turned out to have one root cause behind three separate
+reports. Then: a rebuilt inventory screen, production automation, twenty recipes with identity,
+and a use for banks and armoured depots on days you are not robbing them.
+
+**Why.** Reported from play, all of it.
+
+**How.**
+
+*The icon bug, and its real size.* Booze rendered as a placeholder in the stash; the Back-Room
+Market and several item listings were "fucked up on phone and desktop". One cause: **Booze was the
+only product whose icon came from Unicode 9.0** — every other one is Unicode 6.0. Post-6.0 glyphs
+tofu on older Android and Windows font packs, and a tofu box in a 28px icon slot next to text
+reads exactly like a broken listing. An audit found **24 across the codebase**, newest from Unicode
+14.0 (2021): the Back-Room Market was a toolbox, the suppressed pistol a shushing face, union dues
+a placard, the nightclub a disco ball. All replaced with Unicode 6.0 equivalents.
+`sim/emoji-support.test.ts` walks the real source and fails on anything newer.
+
+*The market listings had a second problem behind the tofu.* The buy row crammed a bold name, a
+small grey price and a pill onto one wrapping line; the sell row truncated two-word item names with
+an ellipsis. Both rebuilt as a shelf row: icon, then a stack that owns its own line breaks, then the
+action. Nothing truncated, nothing mixed on a line that wraps.
+
+*The inventory.* Identity, quantity, value and flow travel together at every level of zoom. Per
+product: what it is (the recipe's name where a production gives it one), how much, what a unit
+fetches, what the lot is worth, and which locations hold it. Empty safehouses collapse behind a
+count. Move controls are generated from what is present — two units offers "move both", not 5/10/25.
+Automation is stated inline, naming the foreman and what is being made.
+
+*Automation.* A **foreman** assignment keeps a production on the best recipe you know, buys
+ingredients when it runs dry, and moves output somewhere with room. **Standing orders** generalise
+the same-block restock from the dealing fix: every product racket has a `supply` rule — this block,
+anywhere you own, or by hand.
+
+*Recipes.* Twenty, five per kind, each naming a thing you actually make, with a third axis: heat
+and risk. Every kind has a genuinely quiet method and a genuinely loud one.
+
+*Banks and depots.* Getting inside an employee (the existing `ratted` per-target unlock) opens a
+**skim** out of a bank — small, daily, compounding discovery risk — or a **route** out of a depot,
+which pays nothing but takes 22 difficulty and a fifth of the heat off the next armoured-car job.
+Both also surface as opportunity event cards.
+
+**Files.** New: `content/intel.ts`, `content/events.ts` additions, `sim/automation.ts`,
+`sim/intel.ts`, `ui/components/Inventory.tsx`, and five test files (`sim/emoji-support.test.ts`,
+`sim/recipes-expanded.test.ts`, `sim/production-automation.test.ts`, `sim/bank-depot-intel.test.ts`,
+`ui/inventory.test.tsx`). Changed: 18 files for the emoji sweep, `content/rackets.ts` (recipes),
+`sim/types.ts` (`foreman` assignment, `Racket.supply`, `Npc.intel`), `sim/tick.ts`, `sim/ops.ts`,
+`sim/select.ts`, `sim/events.ts`, `ui/components/Kit.tsx` + `BusinessSheet.tsx` + `EmpireTab.tsx` +
+`NpcSheet.tsx`, `ui/styles.css`, `docs/DESIGN.md` §4.17–4.20.
+
+**Watch out.**
+
+- **No `WORLD_VERSION` bump.** `Racket.supply`, `Npc.intel` and the `foreman` assignment are all
+  optional additions; existing saves load and default to the old behaviour.
+- **Volume beats premium on raw revenue, and that is deliberate.** Measured: with a tech-8 worker a
+  still makes 1.08 rev/day on the house standard, 1.76 on overproof, and **0.96 on barrel-aged**.
+  Output multipliers reach 1.6× while `qualityMult` spans only 0.7–1.2, so a 20% output cut can
+  never be repaid on price alone. Rather than inflate quality globally, `bestRecipeFor` blends value
+  per day with value per unit by how full the safehouse is — with room, volume wins; with the
+  shelves full, the premium methods do. Without that term the careful recipes were dead weight at
+  every moment of the game, which the automation tests would not have caught.
+- **My own emoji guard caught me** mid-pass: I had quoted the broken glyph inside a code comment
+  describing the bug. Working as intended, but worth knowing the test reads comments too.
+- **The foreman counts as the worker.** Assigning one sets `workerId` if empty, so a production does
+  not need both. Two people cannot run the same one.
+- **Deliberately out of scope:** the stash stays a bare count per product — style identity is
+  *reported* from whichever production is making that product, not stored per unit, so mixed stock
+  of two styles shows the dominant one. Per-batch provenance would mean changing the data model.
+- **Still not done:** the soak bot never assigns a foreman, never sets a supply rule, and never
+  rats a bank employee, so none of this pass has automated coverage in the sweep — only in its unit
+  tests. Teaching the bot to use the automation is the obvious follow-up.
+
+
 ## 2026-09-14 — Rackets diversify, territory finally moves, and two gates that asked the wrong question
 
 **What.** Saturation and synergy give racket kinds a reason to be picked between; influence

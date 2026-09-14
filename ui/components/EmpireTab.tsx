@@ -1,14 +1,14 @@
 import { useMemo, useRef, useState } from 'react';
 import { select } from '@sim/index';
-import type { ProductKind } from '@sim/types';
-import { LAUNDER_RATE, PRODUCT_INFO, SAFEHOUSE_TIERS } from '@content/rackets';
-import { PRODUCTS, fmtMoney, pct, playerBusinesses, playerRackets, playerSafehouses, stashLine, stashTotals } from '@ui/derive';
+import { LAUNDER_RATE, SAFEHOUSE_TIERS } from '@content/rackets';
+import { fmtMoney, pct, playerBusinesses, playerRackets, playerSafehouses } from '@ui/derive';
 import { focus, getState, importWorld, openSheet, resetGame, toast, useWorld } from '@ui/store';
 import { Act, AmountPicker, Disclosure } from './Act';
 import { BizRow } from './Rows';
 import { RacketCard } from './BusinessSheet';
 import { Meter } from './Meter';
-import { Info, Term, TermChip } from './Info';
+import { Info, Term } from './Info';
+import { Inventory } from './Inventory';
 import { WireSection } from './Wire';
 
 export function EmpireTab() {
@@ -18,7 +18,6 @@ export function EmpireTab() {
   const biz = playerBusinesses(w);
   const rackets = playerRackets(w);
   const safes = playerSafehouses(w);
-  const totals = stashTotals(w);
   const net = est.clean + est.dirty - est.wages - est.rent;
   return (
     <div className="panel-inner">
@@ -35,17 +34,8 @@ export function EmpireTab() {
         <div className="small muted mt8">{select.playerBlocks(w).length} of {Object.keys(w.blocks).length} blocks · own 60% to take the city.</div>
       </div>
 
-      <div className="section-title"><Term id="stash">Stash</Term> · {stashLine(totals)}</div>
-      <div className="card">
-        <dl className="kv">
-          <dt>On you</dt><dd>{stashLine(w.player.stash)}{PRODUCTS.filter(p => w.player.stash[p] > 0 && p !== 'hot_goods').map(p => <TermChip key={p} id="quality" style={{ marginLeft: 4 }}>{PRODUCT_INFO[p].icon} q{select.qualityOf(w.player, p)}</TermChip>)}</dd>
-          {safes.map(s => <SafeLine key={s.id} id={s.id} />)}
-        </dl>
-        <div className="actions mt8">
-          <MoveStash />
-          <Launder />
-        </div>
-      </div>
+      <Inventory />
+      <div className="actions mt8"><Launder /></div>
 
       <div className="section-title">Businesses ({biz.length})</div>
       <div className="list">{biz.map(b => <BizRow key={b.id} w={w} biz={b} />)}{biz.length === 0 && <p className="small muted">You own nothing yet. Buy a business or protect one.</p>}</div>
@@ -96,34 +86,6 @@ function Cases() {
           </div>); })}
       </div>
     </>
-  );
-}
-
-function SafeLine({ id }: { id: string }) {
-  const w = useWorld(); const s = w.safehouses[id]; if (!s) return null;
-  return <><dt>{s.name}</dt><dd>{stashLine(s.stash)} <span className="muted">· {fmtMoney(s.cash)}</span></dd></>;
-}
-
-function MoveStash() {
-  const w = useWorld();
-  const places = [{ id: 'player', label: 'On you' }, ...playerSafehouses(w).map(s => ({ id: s.id, label: s.name }))];
-  const [from, setFrom] = useState('player');
-  const [to, setTo] = useState(places[1]?.id ?? 'player');
-  const [product, setProduct] = useState<ProductKind>('booze');
-  const [amount, setAmount] = useState(10);
-  const avail = from === 'player' ? w.player.stash[product] : (w.safehouses[from]?.stash[product] ?? 0);
-  return (
-    <Disclosure label="Move stash" icon="🚚">
-      {places.length < 2 && <p className="small muted">Rent a safehouse to have somewhere to move product.</p>}
-      <div className="grid2 mb8">
-        <div><label className="field">From</label><select className="select" value={from} onChange={e => setFrom(e.target.value)}>{places.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}</select></div>
-        <div><label className="field">To</label><select className="select" value={to} onChange={e => setTo(e.target.value)}>{places.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}</select></div>
-      </div>
-      <div className="chips mb8">{PRODUCTS.map(p => <button type="button" key={p} className={`chip btn${product === p ? ' sel' : ''}`} onClick={() => setProduct(p)}>{PRODUCT_INFO[p].icon} {PRODUCT_INFO[p].label}</button>)}</div>
-      <label className="field">Amount (available {Math.round(avail)})</label>
-      <AmountPicker presets={[5, 10, 25, Math.max(1, Math.floor(avail))]} prefix="" value={amount} onChange={setAmount} min={1} />
-      <div className="mt8"><Act action={{ type: 'move_stash', from, to, product, amount }} label={`Move ${amount} ${PRODUCT_INFO[product].label}`} kind="primary" block /></div>
-    </Disclosure>
   );
 }
 

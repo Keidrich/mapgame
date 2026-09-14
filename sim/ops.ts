@@ -4,6 +4,8 @@ import { caseWitnessOf, openCase, silenceWitness } from './cases';
 import { addProduct, knownRecipes, unlockRecipe } from './production';
 import { addCard, cyberHeat, learnSecret, rollCard, startTap } from './cyber';
 import { authorityOf } from './authority';
+import { openIntel, routeFor } from './intel';
+import { ROUTE } from '@content/intel';
 import { POSTURES } from '@content/authority';
 import { buyDownAttention, killCase, openCaseById, springFrom } from './authority-ops';
 import { CARD_TIERS } from '@content/cyber';
@@ -43,7 +45,8 @@ export function resolveOp(w: World, o: Op, rng: Rng) {
     const [lo, hi] = def.payout;
     const value = Math.round(lo + (hi - lo) * rng.float() * (0.7 + Math.min(1, Math.max(0, margin) / 60)) * (ap?.payout ?? 1));
     // the kit you carried changes what the job leaves behind, the same way the approach does
-    res.heat = Math.round(def.heat * (margin > 30 ? 0.6 : 1) * (ap?.heat ?? 1) * kitHeatMult(w) * complicationHeat(o));
+    res.heat = Math.round(def.heat * (margin > 30 ? 0.6 : 1) * (ap?.heat ?? 1) * kitHeatMult(w) * complicationHeat(o)
+      * (o.kind === 'heist_armored' && routeFor(w, o.targetBusinessId) ? ROUTE.heatMult : 1));
     if (o.insideId && w.npcs[o.insideId]) adjustRel(w.npcs[o.insideId], { trust: 5, respect: 5 });
     switch (o.kind) {
       case 'mugging': {
@@ -63,6 +66,10 @@ export function resolveOp(w: World, o: Op, rng: Rng) {
         const n = o.targetNpcId ? w.npcs[o.targetNpcId] : undefined;
         if (!n) { res.text = 'Nothing there to get into.'; break; }
         n.ratted = w.day;
+        // a bank teller or a depot driver is worth more than a secret: what they know is a
+        // standing skim or a route, and that is what these two buildings are for on every other day
+        const opened = openIntel(w, n, rng);
+        if (opened) { res.text = `Inside ${n.name}'s business, and it turns out to be worth rather more than a look.`; cyberHeat(w, 2, n.homeBlockId); break; }
         if (o.mode === 'tap') {
           startTap(w, n);
           res.text = `You are inside ${n.name}'s business and you are staying there. Every day it runs is a day something useful comes back — and a day closer to them finding it.`;

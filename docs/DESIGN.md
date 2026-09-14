@@ -645,6 +645,72 @@ ruin with their own eyes could not take it until they had scouted a different di
 It uses `derelictTarget: true` now — the per-target family — and walking onto or through a
 derelict block marks it found.
 
+### 4.17 Every glyph has to render
+
+Unicode 6.0 (2010) is the bar for any emoji in the game, enforced by
+`sim/emoji-support.test.ts` walking the real source. Post-6.0 glyphs fall back to tofu on older
+Android and Windows font packs, and a tofu box in a 28px icon slot beside text reads exactly like
+a broken listing — which is how it was reported, three times, before the cause was spotted: Booze
+showed a placeholder in the stash, and the Back-Room Market and several items were "fucked up on
+phone and desktop". Booze was the only product whose icon came from Unicode 9.0. An audit found
+24 across the codebase, the newest from Unicode 14.0 (2021).
+
+### 4.18 Production: recipes, foremen and standing orders
+
+**Recipes are things you make, not a quality slider.** Five per production kind (20 total), each
+naming an actual style — barrel-aged rye, sea of green, micro-batch, cotton stock. Three axes, not
+two: the existing quality/output tradeoff, plus **heat and risk**, so a slow quiet method is a real
+choice when the police are already looking at you and a fast dangerous one is a real choice when
+they are not.
+
+A measured consequence worth knowing: **volume beats premium on raw revenue**, because output
+multipliers reach 1.6× while `qualityMult` spans only 0.7–1.2. That is not a bug. Premium methods
+win on the two axes the game actually models — heat, and *capacity*. `bestRecipeFor` blends value
+per day with value per unit by how full the safehouse is (`qualityMult(q) × output^(1−fullness)`):
+with room to spare, more units is more money; with the shelves full, every unit you make displaces
+one you already have, so it had better be worth more. Without that term the careful recipes were
+dead weight at every moment of the game.
+
+**A foreman** (`{ kind: 'foreman', productionId }`) is the production assignment with its head up:
+it keeps the production on the best recipe currently known, buys ingredients when the tin runs dry,
+and moves output to a safehouse with room. It counts as the worker too.
+
+**Standing orders** generalise the same-block restock that shipped with the dealing fix. Every
+product racket carries a `supply` rule — `block` (a safehouse on its own block, the default and
+the old behaviour), `empire` (anywhere you own, at a little heat for the driving), or `manual`
+(nothing arrives unless you carry it). Bounded per day, so it is people driving rather than
+teleportation.
+
+### 4.19 The inventory: identity, quantity, value and flow together
+
+The rule, taken from City of Gangsters' warehouse view rather than its layout: **a quantity never
+appears without the thing it counts, at any level of zoom.** Every number on the stash screen sits
+beside the product it counts, what that product currently fetches on the street, and where it can
+go next. Empty locations are collapsed behind a count rather than listed as dead lines. The move
+controls are generated from what is actually present — somebody holding two units is offered "move
+both", not a form with 5/10/25 presets that cannot be satisfied. Automation state is stated inline,
+naming the foreman and what the production is making, so a self-running empire is legible rather
+than invisible.
+
+Identity comes from `styleOf`, which *reports* rather than stores: the stash stays a bare count by
+design, and the named style is read off whichever production of yours is making that product.
+
+### 4.20 The bank and the depot
+
+Both ship `income: [0,0]`, `valueMult: 0`, `rackets: []` — pure heist targets, inert on every other
+day. Nobody extorts a bank teller for protection money, so the fix is not a racket bolted onto
+them: it is the wire. Getting inside an employee (the existing `Npc.ratted` per-target unlock, not
+a new mechanism) opens one of two things:
+
+- **A skim**, out of a bank: small, daily, dirty, growing with your tech, with a discovery risk
+  that compounds and a 40-day life. Deliberately under a tenth of one wire fraud over ten days —
+  it is the standing version of that job, not a replacement for it.
+- **A route**, out of an armoured depot: pays nothing at all by itself, and takes 22 difficulty
+  and a fifth of the heat off the next `heist_armored` against that depot. 25-day life, because a
+  rota is perishable.
+
+Both surface as event cards in the opportunity category as well as through a deliberate rat.
+
 ## 5.5 The law, the map, and the edge of the map
 
 ### 5.5.1 Authority — not a faction

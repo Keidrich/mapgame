@@ -4,7 +4,7 @@ import { PLAYER, type Id, type ProductKind, type Racket, type World } from '@sim
 import { PRODUCT_INFO, RACKET_DEFS, RACKET_UPGRADE_COST, TRAIT_LABELS } from '@content/rackets';
 import { BUSINESS_DEFS } from '@content/businesses';
 import { PRODUCTS, bizIcon, bizTypeLabel, conditionTone, crewName, fmtMoney, ownerLabel, pct, protectionLabel } from '@ui/derive';
-import { openSheet, useWorld } from '@ui/store';
+import { act, openSheet, useWorld } from '@ui/store';
 import { Sheet } from './Sheet';
 import { Meter, RelMeters } from './Meter';
 import { Act, AmountPicker, Disclosure, SceneAct } from './Act';
@@ -221,6 +221,8 @@ export function RacketStock({ w, r }: { w: World; r: Racket }) {
   const carrying = Math.round(w.player.stash[product] ?? 0);
   const here = w.player.safehouseIds.map(id => w.safehouses[id]).find(s => s && s.blockId === w.businesses[r.businessId]?.blockId && (s.stash[product] ?? 0) > 0);
   const elsewhere = w.player.safehouseIds.map(id => w.safehouses[id]).filter(s => s && (s.stash[product] ?? 0) > 0);
+  const rule = select.supplyRule(r);
+  const supply = select.supplyReading(w, r, product);
   return (
     <div className="mt8">
       <p className="small" style={{ margin: 0, color: carrying > 0 ? 'var(--green)' : 'var(--orange)' }}>
@@ -230,13 +232,25 @@ export function RacketStock({ w, r }: { w: World; r: Racket }) {
       </p>
       {carrying === 0 && (
         <p className="tiny muted" style={{ margin: '4px 0 0' }}>
-          {here
-            ? `${here.name} is on this block and has some — it will restock the corner itself, starting tomorrow.`
-            : elsewhere.length
-              ? `${elsewhere[0].name} has ${Math.round(elsewhere[0].stash[product])}. Move it to yourself on the Empire tab, or put a safehouse on this block and it restocks itself.`
-              : 'Make it, buy it or steal it first — a production in a safehouse is the usual way.'}
+          {supply.available > 0
+            ? `${supply.where} has ${supply.available} — your standing order brings it in from tomorrow.`
+            : here
+              ? `${here.name} is on this block and has some.`
+              : elsewhere.length
+                ? `${elsewhere[0].name} has ${Math.round(elsewhere[0].stash[product])}, but this racket only draws from ${select.SUPPLY_LABELS[rule].label.toLowerCase()}. Widen the standing order, or carry it over yourself.`
+                : 'Make it, buy it or steal it first — a production in a safehouse is the usual way.'}
         </p>
       )}
+      <div className="mt8">
+        <p className="tiny muted" style={{ margin: '0 0 4px' }}>Standing order — where it draws stock from:</p>
+        <div className="chips">
+          {(['block', 'empire', 'manual'] as const).map(k => (
+            <button type="button" key={k} className={`chip btn${rule === k ? ' sel' : ''}`} onClick={() => act({ type: 'set_supply', racketId: r.id, rule: k })} title={select.SUPPLY_LABELS[k].blurb}>
+              {select.SUPPLY_LABELS[k].label}
+            </button>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
