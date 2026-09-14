@@ -171,6 +171,22 @@ function blocksAreBig(m: MLMap, w: World): boolean {
 interface Want { html: string; lng: number; lat: number; cls: string; click?: () => void }
 type Kept = { mk: maplibregl.Marker; sig: string };
 
+/**
+ * Put a marker's content into its element.
+ *
+ * Markers carry one of two things: a drawing from our own icon set, which is SVG markup and has
+ * to be parsed, or a plain string like a business count, which must not be. This used to be a
+ * bare `textContent`, which was right when every marker was an emoji and became very wrong the
+ * day they became SVG — the whole map filled up with amber path data, printed as text.
+ *
+ * Markup is only ever our own (`iconMarkup` builds it from the registry); anything from the map
+ * data or from a name goes down the `textContent` branch and stays escaped.
+ */
+export function paintMarker(el: { innerHTML: string; textContent: string | null }, content: string) {
+  if (content.startsWith('<svg')) el.innerHTML = content;
+  else el.textContent = content;
+}
+
 /** Fullscreen MapLibre map: basemap, all block polygons as one GeoJSON source, DOM markers for what is in view. */
 export function MapView() {
   const world = useStore(s => s.world);
@@ -320,9 +336,9 @@ export function MapView() {
       const sig = `${d.cls}|${d.html}`;
       const kept = markers.current.get(key);
       // MapLibre positions the marker element with its own transform, so all styling lives on an inner node.
-      if (kept) { if (kept.sig !== sig) { const inner = kept.mk.getElement().firstElementChild as HTMLElement; inner.className = d.cls; inner.textContent = d.html; kept.sig = sig; } kept.mk.setLngLat([d.lng, d.lat]); continue; }
+      if (kept) { if (kept.sig !== sig) { const inner = kept.mk.getElement().firstElementChild as HTMLElement; inner.className = d.cls; paintMarker(inner, d.html); kept.sig = sig; } kept.mk.setLngLat([d.lng, d.lat]); continue; }
       const node = document.createElement('div'); node.className = 'mk'; if (!d.click) node.style.pointerEvents = 'none';
-      const inner = document.createElement('div'); inner.className = d.cls; inner.textContent = d.html; node.appendChild(inner);
+      const inner = document.createElement('div'); inner.className = d.cls; paintMarker(inner, d.html); node.appendChild(inner);
       if (d.click) { const fn = d.click; node.addEventListener('click', ev => { ev.stopPropagation(); fn(); }); }
       const mk = new maplibregl.Marker({ element: node, anchor: 'center' }).setLngLat([d.lng, d.lat]).addTo(m);
       markers.current.set(key, { mk, sig });
@@ -332,7 +348,9 @@ export function MapView() {
   return (
     <>
       <div ref={el} className="map" role="application" aria-label="City map" />
-      {loadingCount > 0 && <div className="map-loading" role="status" style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', top: 10, zIndex: 5, padding: '6px 12px', borderRadius: 2, background: 'rgba(7,10,16,0.92)', border: '1px solid var(--line-2)', fontFamily: 'var(--font-mono)', fontSize: 10.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--muted)', pointerEvents: 'none' }}>Mapping new streets…</div>}
+      {/* under the legend rather than beside it: the legend is top-left and up to 60% wide, and a
+          centred chip at the same height lands on top of it on a phone */}
+      {loadingCount > 0 && <div className="map-loading" role="status" style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', top: 58, zIndex: 5, padding: '6px 12px', borderRadius: 2, background: 'rgba(7,10,16,0.92)', border: '1px solid var(--line-2)', fontFamily: 'var(--font-mono)', fontSize: 10.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--muted)', pointerEvents: 'none' }}>Mapping new streets…</div>}
     </>
   );
 }

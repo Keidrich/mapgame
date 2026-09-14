@@ -20,7 +20,8 @@ import { renderToString } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { PLAYER, dispatch, generateWorld, type World } from '@sim/index';
 import { mkRacket } from '@sim/reducer';
-import { hasIcon } from './icons';
+import { hasIcon, iconMarkup } from './icons';
+import { paintMarker } from './components/Map';
 import { newGame } from './store';
 import { plain } from './test-util';
 import { Hud } from './components/Hud';
@@ -130,6 +131,45 @@ describe('the tactical chrome is on', () => {
     const html = render(SCREENS[2][1]);
     expect(html).toContain('data-icon="lock"');
     expect(html).toMatch(/crew|a place of yours|a racket|house T/);
+  });
+});
+
+describe('the map markers draw rather than print', () => {
+  /**
+   * The bug this exists for: markers were set with `textContent`, which was right while they were
+   * emoji and filled the whole map with amber path data the day they became SVG. It got through
+   * every test in this file because nothing here renders MapLibre — so the check is on the one
+   * function that decides, which is the whole of the decision.
+   */
+  const el = () => ({ innerHTML: '', textContent: null as string | null });
+
+  it('an icon goes in as markup', () => {
+    const node = el();
+    paintMarker(node, iconMarkup('bank', { size: 16 }));
+    expect(node.innerHTML, 'the marker printed its own source instead of drawing').toContain('<svg');
+    expect(node.innerHTML).toContain('data-icon="bank"');
+    expect(node.textContent).toBeNull();
+  });
+
+  it('a plain label still goes in as text, and stays escaped', () => {
+    const node = el();
+    paintMarker(node, '12');
+    expect(node.textContent).toBe('12');
+    expect(node.innerHTML).toBe('');
+    const sneaky = el();
+    paintMarker(sneaky, '<b>not markup</b>');
+    expect(sneaky.innerHTML, 'anything that is not our own icon must not be parsed').toBe('');
+    expect(sneaky.textContent).toBe('<b>not markup</b>');
+  });
+
+  it('every marker the map builds is one of those two things', () => {
+    // the marker kinds the map can ask for, by name — all from the registry, all real drawings
+    for (const name of ['start', 'you', 'heat', 'safehouse', 'precinct', 'city_hall', 'watching', 'crackdown']) {
+      expect(hasIcon(name), `the map asks for a ${name} marker and there is no such drawing`).toBe(true);
+      const node = el();
+      paintMarker(node, iconMarkup(name, { size: 16 }));
+      expect(node.innerHTML).toContain('<path');
+    }
   });
 });
 

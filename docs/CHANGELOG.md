@@ -67,6 +67,14 @@ chip turned a sentence-carrying chip into shouting and pushed it off the card.
 chrome appended), `ui/components/*` (every emoji site), `ui/derive.ts`, `sim/select.ts` (one
 read-only field: `Holding.typeId`).
 
+**Fixed straight after shipping, from a screenshot on a real phone.** The map markers printed
+their own SVG source as text across the whole map: `paintMarker` sets an icon with `innerHTML` and
+anything else with `textContent`, and the marker code had been a bare `textContent` since the day
+every marker was an emoji. Nothing in the suite renders MapLibre, so the check is on the one
+function that makes the decision — including that a plain label still goes in escaped. The "mapping
+new streets" chip also moved down 48px: it is centred at the top and the legend is top-left and up
+to 60% wide, so on a phone they sat on top of each other.
+
 **Watch out.**
 
 - **`Act`, `Disclosure` and `SceneAct` take an icon *name* now, not a glyph.** `icon="👥"` became
