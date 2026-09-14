@@ -6,16 +6,22 @@ import { insidersFor } from './select';
 import { RECRUIT_LEAN_FEAR, type Stake } from '@content/standing';
 import { concessionReason, doFavour, factionLeverage, familiar, familiarReason, favours, leverageOver } from './standing';
 import type { Action, Affordance, CheatKind, SitDownOffer } from './actions';
+import type { Rng } from './rng';
+import { agendaCost, agendaReason, resolveAgenda } from './agendas';
+import { resolveTalk, startConversation } from './conversation';
+import { oweThem, remember } from './ledger';
+import { familyOf } from './connections';
+import { distanceFromStart } from './select';
 import { emptyStash, stanceFor } from './generate';
 import { populateChunk } from './populate';
-import { PARTNER_RATE, businessesOwnedBy, fixerCapLeft, fixerCapToday, fixerDailyCap, fixerRate, fixerUsedToday, launderCapacity, protectReason, protectRoute, streetPrice } from './economy';
+import { PARTNER_RATE, businessesOwnedBy, fixerCapLeft, fixerCapToday, fixerDailyCap, fixerRate, fixerUsedToday, insureCost, launderCapacity, protectReason, protectRoute, repairCost, streetPrice } from './economy';
 import { resolveEventOption } from './events';
 import { approachChance, resultLine } from './scenes';
 import { AGENDA_LABEL, addGrudge, addMemory } from './people';
 import { standingCap } from './factions';
 import { crewAt, crewOfBoss, parley } from './crews';
 import { endDay } from './tick';
-import { PLAYER, type Business, type Id, type Npc, type Op, type Racket, type RacketKind, type Safehouse, type World } from './types';
+import { PLAYER, type AgendaKind, type Business, type Confrontation, type Id, type Npc, type Op, type Racket, type RacketKind, type Safehouse, type TalkMove, type World } from './types';
 import { onDemote, promote, promoteReason } from './lieutenants';
 import { backCandidate, broker, brokerReason } from './politics';
 import { buryEvidence, caseWitnessOf, openCase, silenceWitness } from './cases';
@@ -39,20 +45,59 @@ const no = (reason: string): Affordance => ({ ok: false, reason });
 const yes = (cost?: { ap?: number; cash?: number }): Affordance => ({ ok: true, cost });
 
 // ---------------------------------------------------------------- can()
+/**
+ * The scene action a conversation stands for. One place, used three times — gating a closing
+ * move, gating the conversation itself before it opens, and running the scene when it closes —
+ * so a conversation can never be a way round a shakedown's cash cost or a visit's AP.
+ */
+function sceneAction(c: { npcId?: Id; talk?: Confrontation['talk'] }, approach?: string): Action {
+  const t = c.talk!; const npcId = c.npcId!;
+  switch (t.scene) {
+    case 'shakedown': return { type: 'shakedown', businessId: t.businessId!, approach };
+    case 'threaten': return { type: 'threaten', npcId, approach };
+    case 'recruit': return { type: 'recruit', npcId, approach };
+    case 'parley': return { type: 'parley', npcId, approach };
+    case 'broker': return { type: 'broker', npcId, otherFactionId: t.otherFactionId!, approach };
+    default: return { type: 'visit', npcId, approach };
+  }
+}
+
+/**
+ * Can the player do this, and what does it cost?
+ *
+ * Two layers, split so one action can ask about another. `can` is the public answer and includes
+ * the modal gates — a card on the table, somebody in front of you. `gate` is the action's own
+ * rules with those skipped, which is what a conversation needs when it asks "could this closing
+ * move actually run?": the conversation *is* the thing in front of you, so asking through `can`
+ * has it refuse itself, and for an afternoon it did.
+ */
 export function can(w: World, a: Action): Affordance {
+  const blocked = pendingBlock(w, a);
+  return blocked ?? gate(w, a);
+}
+
+function pendingBlock(w: World, a: Action): Affordance | undefined {
   if (w.gameOver) return no('The game is over.');
-  const p = w.player;
   // bookkeeping (renaming yourself, a note to self, streaming in geometry) is not a move, so it is never blocked
   const freeAlways = ['end_day', 'resolve_event', 'rename', 'set_note', 'populate_chunk'];
+  if (freeAlways.includes(a.type) || a.type === 'resolve_confrontation') return undefined;
   // Answering somebody at the door is never blocked by a pending event. Both are modal, and the
   // confrontation renders on top of the event card, so blocking it here left the player clicking
   // a button they could see and getting a refusal about a card they could not — found by the
   // soak bot spinning against it 140 times in a thirty-day war.
-  if (!freeAlways.includes(a.type) && a.type !== 'resolve_confrontation' && w.pendingEvents.length) return no('Deal with what is in front of you first.');
+  if (w.pendingEvents.length) return no('Deal with what is in front of you first.');
   // somebody is standing in front of you: nothing else happens until you answer them
-  if (!freeAlways.includes(a.type) && a.type !== 'resolve_confrontation' && activeConfrontation(w)) {
-    return no(`${w.factions[activeConfrontation(w)!.factionId]?.short ?? 'They'} are in front of you right now. Deal with that first.`);
-  }
+  const open = activeConfrontation(w);
+  if (!open) return undefined;
+  // a conversation names the person, not their outfit: "Jade Circle are in front of you" is a
+  // baffling thing to read when you are the one who walked into somebody's shop
+  return no(open.kind === 'talk'
+    ? `You are in the middle of talking to ${w.npcs[open.npcId ?? '']?.name ?? 'somebody'}. Finish that first.`
+    : `${w.factions[open.factionId]?.short ?? 'They'} are in front of you right now. Deal with that first.`);
+}
+
+function gate(w: World, a: Action): Affordance {
+  const p = w.player;
   const ap = (n: number) => (p.ap >= n ? null : `Needs ${n} AP. You are out of time today.`);
   const cash = (n: number) => (p.cash >= n ? null : `Needs ${money(n)} clean cash.`);
   const npc = (id: Id) => w.npcs[id];
@@ -86,7 +131,32 @@ export function can(w: World, a: Action): Affordance {
       const c = confrontations(w).find(x => x.id === a.id); if (!c) return no('That is over.');
       const opt = confrontOptions(w, c).find(o => o.id === a.approach);
       if (opt?.disabled) return no(opt.disabled);
+      // A closing move runs the scene it came from, so it has to satisfy that scene's own gate —
+      // otherwise a conversation would be a way round the AP and cash checks on a shakedown.
+      if (c.kind === 'talk' && typeof a.approach === 'string' && a.approach.startsWith('approach:')) {
+        return gate(w, sceneAction(c, a.approach.slice('approach:'.length)));
+      }
       return yes();
+    }
+    case 'talk': {
+      const n = npc(a.npcId); if (!n?.alive) return no('They are gone.');
+      if (activeConfrontation(w)) return no('You are already in the middle of something.');
+      // Opening a conversation is free; the AP goes on whatever you close it with. But there is
+      // no point opening one you could not possibly close, so the scene's own gate is checked
+      // here too — a player out of AP is told that at the door, not three moves in. Its *cost*
+      // is deliberately dropped: inheriting it charged the AP twice, once at the door and again
+      // on the way out.
+      const why = gate(w, sceneAction({ npcId: a.npcId, talk: { scene: a.scene, businessId: a.businessId, otherFactionId: a.otherFactionId, beat: 0, bonus: 0, used: [] } }));
+      return why.ok ? yes() : why;
+    }
+    case 'resolve_agenda': {
+      const n = npc(a.npcId); if (!n?.alive) return no('They are gone.');
+      const why = agendaReason(w, n, a.mode); if (why) return no(why);
+      const h = hereNpc(n); if (h) return no(h);
+      const r = ap(1); if (r) return no(r);
+      const cost = agendaCost(w, n, a.mode);
+      if (cost) { const c2 = cash(cost); if (c2) return no(c2); }
+      return yes({ ap: 1, cash: cost });
     }
     case 'case_joint': {
       const b = biz(a.businessId); if (!b) return no('No such place.');
@@ -185,8 +255,8 @@ export function can(w: World, a: Action): Affordance {
       return yes({ cash: a.offer });
     }
     case 'sell_business': { const b = biz(a.businessId); if (b?.ownedBy !== 'player') return no('Not yours.'); return yes(); }
-    case 'insure': { const b = biz(a.businessId); if (b?.ownedBy !== 'player') return no('Not yours.'); if (b.insured) return no('Already insured.'); const c = Math.round(b.value * 0.08); const r = cash(c); return r ? no(r) : yes({ cash: c }); }
-    case 'repair': { const b = biz(a.businessId); if (b?.ownedBy !== 'player') return no('Not yours.'); if (b.condition >= 95) return no('Nothing to fix.'); const c = Math.round((100 - b.condition) * b.value / 400); const r = cash(c); return r ? no(r) : yes({ cash: c }); }
+    case 'insure': { const b = biz(a.businessId); if (b?.ownedBy !== 'player') return no('Not yours.'); if (b.insured) return no('Already insured.'); const c = insureCost(b); const r = cash(c); return r ? no(r) : yes({ cash: c }); }
+    case 'repair': { const b = biz(a.businessId); if (b?.ownedBy !== 'player') return no('Not yours.'); if (b.condition >= 95) return no('Nothing to fix.'); const c = repairCost(b); const r = cash(c); return r ? no(r) : yes({ cash: c }); }
 
     case 'buy_item': {
       const b = biz(a.businessId); if (!b) return no('No such place.');
@@ -416,20 +486,37 @@ export function dispatch(prev: World, a: Action): World {
   const check = can(prev, a);
   if (!check.ok) { const w = structuredClone(prev); log(w, check.reason, 'warn'); return w; }
   const w: World = structuredClone(prev);
-  const p = w.player;
-  if (check.cost?.ap) p.ap -= check.cost.ap;
+  if (check.cost?.ap) w.player.ap -= check.cost.ap;
   const { rng, done } = rngOf(w);
+  const next = apply(w, a, rng, done);
+  if (next) return next;          // end_day replaces the world and has already written the rng back
+  done();
+  return w;
+}
+
+/**
+ * What an action actually does, on an already-cloned world with the costs already charged.
+ *
+ * Split out of `dispatch` so one action can run another on the *same* world — which is what a
+ * conversation needs: its closing move is one of the scene's own approaches, and that scene has
+ * to run here rather than being re-dispatched into a fresh clone. `bonus` is what the openers in
+ * that conversation bought, and it rides on the closing approach's odds and nowhere else.
+ *
+ * Returns a world only for `end_day`, which replaces it wholesale.
+ */
+function apply(w: World, a: Action, rng: Rng, done: () => void, bonus = 0): World | undefined {
+  const p = w.player;
   const npc = (id: Id) => w.npcs[id];
 
   switch (a.type) {
     case 'visit': {
       const n = npc(a.npcId); const ap_ = a.approach ?? 'listen'; n.known = true;
       if (a.approach === 'drinks') takeCash(w, 50);
-      const chance = approachChance(w, 'visit', ap_, n); const ok = rng.int(1, 100) <= chance;
+      const chance = approachChance(w, 'visit', ap_, n, undefined, undefined, bonus); const ok = rng.int(1, 100) <= chance;
       const biz = n.favouriteBusinessIds[0] ? w.businesses[n.favouriteBusinessIds[0]] : undefined;
       let gain = 0, respect = 0, extra = '';
       if (ap_ === 'drinks') { gain = ok ? 8 + Math.round(p.skills.charm / 2) : 4; }
-      else if (ap_ === 'business') { respect = ok ? 6 : 3; gain = 2; if (ok) { const tip = patronTip(w, n, rng); if (tip) extra = ` ${tip}`; } }
+      else if (ap_ === 'business') { respect = ok ? 6 : 3; gain = 2; if (ok) { const tip = patronTip(w, n, rng); if (tip) { extra = ` ${tip}`; oweThem(w, n, 'They told you something they did not have to.'); } } }
       else { gain = ok ? 5 + Math.round(p.skills.charm / 3) : 2; if (ok && n.role === 'patron' && rng.chance(0.5)) { const tip = patronTip(w, n, rng); if (tip) extra = ` ${tip}`; } }
       if (n.traits.includes('quiet')) gain = Math.max(1, gain - 1);
       if (n.homeBlockId === p.homeBlockId) gain += 1; // home turf
@@ -441,7 +528,7 @@ export function dispatch(prev: World, a: Action): World {
     case 'read': {
       const n = npc(a.npcId);
       const chance = 40 + p.skills.charm * 5 + p.skills.tech * 2 + (n.traits.includes('quiet') ? -15 : 0);
-      if (rng.int(1, 100) <= chance) { n.known = true; log(w, `You size up ${n.name}: ${n.traits.join(', ')}. Nerve ${n.nerve}.${n.agenda ? ` They ${agendaText(n)}.` : ''}${n.recipe && RECIPES[n.recipe] ? ` They know ${RECIPES[n.recipe].label}; worth having in the crew.` : ''}`, 'good', { npcId: n.id }); }
+      if (rng.int(1, 100) <= chance) { n.known = true; remember(w, n, 'read', `You sized them up: ${n.traits.join(', ') || 'nothing much showing'}, nerve ${n.nerve}.`); log(w, `You size up ${n.name}: ${n.traits.join(', ')}. Nerve ${n.nerve}.${n.agenda ? ` They ${agendaText(n)}.` : ''}${n.recipe && RECIPES[n.recipe] ? ` They know ${RECIPES[n.recipe].label}; worth having in the crew.` : ''}`, 'good', { npcId: n.id }); }
       else { adjustRel(w, n, { trust: -2 }); log(w, `${n.name} notices you watching and clams up.`, 'info', { npcId: n.id }); }
       break;
     }
@@ -450,13 +537,14 @@ export function dispatch(prev: World, a: Action): World {
       const greedy = n.traits.includes('greedy') ? 1.5 : n.traits.includes('honest') ? 0.5 : 1;
       const gain = Math.round(Math.min(30, Math.sqrt(a.amount) / 2) * greedy);
       adjustRel(w, n, { trust: gain, respect: Math.round(gain / 3) });
+      remember(w, n, 'deal', `You gave them ${money(a.amount)}.`);
       log(w, `${n.name} takes your ${money(a.amount)}. (+${gain} trust)`, 'money', { npcId: n.id });
       if (a.amount >= 500 && caseWitnessOf(w, n.id) && (n.rel.trust >= 30 || n.traits.includes('greedy'))) silenceWitness(w, n.id, 'paid');
       break;
     }
     case 'threaten': {
       const n = npc(a.npcId); const ap_ = a.approach ?? 'stare'; n.known = true;
-      const chance = approachChance(w, 'threaten', ap_, n); const ok = rng.int(1, 100) <= chance;
+      const chance = approachChance(w, 'threaten', ap_, n, undefined, undefined, bonus); const ok = rng.int(1, 100) <= chance;
       if (ok) {
         // What the threat actually put on the table is what decides how far it can go. A stare
         // costs you nothing and is worth accordingly little; bringing four people to somebody's
@@ -469,6 +557,7 @@ export function dispatch(prev: World, a: Action): World {
         const before = n.rel.fear;
         adjustRel(w, n, { fear: asked, trust: ap_ === 'family' ? -15 : -8 }, stake); p.fear = clamp(p.fear + 1);
         const fear = Math.round(n.rel.fear - before);
+        remember(w, n, 'threat', ap_ === 'crew' ? 'You brought people to their door.' : ap_ === 'family' ? 'You said their family out loud.' : 'You leaned on them, quietly.');
         addHeat(w, ap_ === 'crew' ? 2 : 1, n.homeBlockId);
         if (ap_ === 'crew') spreadRep(w, n.homeBlockId, { fear: 3 }, 1, 'backed');
         log(w, `${resultLine('threaten', ap_, true, rng)} ${n.name}: +${fear} fear.`, 'info', { npcId: n.id });
@@ -484,7 +573,7 @@ export function dispatch(prev: World, a: Action): World {
     }
     case 'recruit': {
       const n = npc(a.npcId); const ap_ = a.approach ?? 'promise'; n.known = true;
-      const chance = approachChance(w, 'recruit', ap_, n); const ok = rng.int(1, 100) <= chance;
+      const chance = approachChance(w, 'recruit', ap_, n, undefined, undefined, bonus); const ok = rng.int(1, 100) <= chance;
       if (!ok) {
         if (ap_ === 'lean') { adjustRel(w, n, { trust: -15, fear: 5 }); log(w, `${resultLine('recruit', ap_, false, rng)} ${n.name} wants nothing to do with you for a while.`, 'bad', { npcId: n.id }); }
         else { adjustRel(w, n, { trust: 2 }); log(w, `${resultLine('recruit', ap_, false, rng)} ${n.name} is not ready. (trust ${n.rel.trust})`, 'info', { npcId: n.id }); }
@@ -497,6 +586,7 @@ export function dispatch(prev: World, a: Action): World {
       n.crew = { loyalty, cut, status: 'idle', statusDays: 0, joinedDay: w.day };
       n.role = 'crew'; p.crewIds.push(n.id); p.crewEver++;
       for (const bid of n.favouriteBusinessIds) { const b = w.businesses[bid]; b.patronIds = b.patronIds.filter(id => id !== n.id); }
+      remember(w, n, 'deal', `They came to work for you at ${money(cut)}/day.`);
       log(w, `${resultLine('recruit', ap_, true, rng)} ${n.name} joins your crew at ${money(cut)}/day (loyalty ${Math.round(loyalty)}).`, 'good', { npcId: n.id });
       onJoin(w, n);
       // an owner does not leave their place behind: it comes in with them, at a partner's cut, minded by them
@@ -568,8 +658,8 @@ export function dispatch(prev: World, a: Action): World {
     case 'shakedown': {
       const b = w.businesses[a.businessId]; const owner = npc(b.ownerId); const ap_ = a.approach ?? 'lean'; owner.known = true;
       b.lastShakedownDay = w.day;
-      const chance = approachChance(w, 'shakedown', ap_, owner, b); const ok = rng.int(1, 100) <= chance;
-      if (ap_ === 'wreck') { b.condition = clamp(b.condition - 15); addHeat(w, 4, b.blockId); spreadRep(w, b.blockId, { fear: 4 }, 1, 'property'); adjustRel(w, owner, { fear: 10, trust: -15 }, 'property'); addMemory(w, b.blockId, 'wreck', `Somebody smashed up ${b.name} in broad daylight.`); }
+      const chance = approachChance(w, 'shakedown', ap_, owner, b, undefined, bonus); const ok = rng.int(1, 100) <= chance;
+      if (ap_ === 'wreck') { b.condition = clamp(b.condition - 15); addHeat(w, 4, b.blockId); spreadRep(w, b.blockId, { fear: 4 }, 1, 'property'); adjustRel(w, owner, { fear: 10, trust: -15 }, 'property'); remember(w, owner, 'harm', `You had ${b.name} smashed up in front of them.`); addMemory(w, b.blockId, 'wreck', `Somebody smashed up ${b.name} in broad daylight.`); }
       const rival = b.protection && b.protection.factionId !== PLAYER ? w.factions[b.protection.factionId] : undefined;
       if (ok) {
         const mult = ap_ === 'wreck' ? 1.6 : ap_ === 'reason' ? 0.9 : 1.2;
@@ -600,10 +690,12 @@ export function dispatch(prev: World, a: Action): World {
       if (route === 'friend') {
         // nobody was leaned on, so nobody is frightened and nobody resents it
         adjustRel(w, owner, { trust: 5, respect: 3 });
+        remember(w, owner, 'deal', `They asked you to look after ${b.name}. ${Math.round(a.rate * 100)}%, between friends.`);
         addInfluence(w, b.blockId, PLAYER, 10); addHeat(w, 1, b.blockId);
         log(w, `${owner.name} would rather you looked after ${b.name} than anyone else. ${Math.round(a.rate * 100)}%, between friends.`, 'good', { businessId: b.id, racketId: r.id, npcId: owner.id });
       } else {
         adjustRel(w, owner, { fear: 5, trust: a.rate <= 0.15 ? 3 : -5 });
+        remember(w, owner, a.rate <= 0.15 ? 'deal' : 'threat', `${b.name} started paying you ${Math.round(a.rate * 100)}%.`);
         addInfluence(w, b.blockId, PLAYER, 8); addHeat(w, 1, b.blockId);
         log(w, `${b.name} now pays you ${Math.round(a.rate * 100)}%.`, 'good', { businessId: b.id, racketId: r.id });
       }
@@ -626,8 +718,8 @@ export function dispatch(prev: World, a: Action): World {
       log(w, `Sold ${b.name} for ${money(price)}.`, 'money', { businessId: b.id });
       break;
     }
-    case 'insure': { const b = w.businesses[a.businessId]; takeCash(w, check.cost!.cash!); b.insured = true; log(w, `${b.name} is insured.`, 'info', { businessId: b.id }); break; }
-    case 'repair': { const b = w.businesses[a.businessId]; takeCash(w, check.cost!.cash!); b.condition = 100; b.flags = b.flags.filter(f => f !== 'torched'); log(w, `${b.name} repaired.`, 'info', { businessId: b.id }); break; }
+    case 'insure': { const b = w.businesses[a.businessId]; takeCash(w, insureCost(b)); b.insured = true; log(w, `${b.name} is insured.`, 'info', { businessId: b.id }); break; }
+    case 'repair': { const b = w.businesses[a.businessId]; takeCash(w, repairCost(b)); b.condition = 100; b.flags = b.flags.filter(f => f !== 'torched'); log(w, `${b.name} repaired.`, 'info', { businessId: b.id }); break; }
 
     case 'start_racket': {
       const b = w.businesses[a.businessId]; takeCash(w, RACKET_DEFS[a.kind].setupCost);
@@ -720,7 +812,7 @@ export function dispatch(prev: World, a: Action): World {
 
     case 'parley': {
       const n = npc(a.npcId); const c = crewOfBoss(w, n.id)!; const ap_ = a.approach ?? 'tribute'; n.known = true;
-      const chance = approachChance(w, 'parley', ap_, n); const ok = rng.int(1, 100) <= chance;
+      const chance = approachChance(w, 'parley', ap_, n, undefined, undefined, bonus); const ok = rng.int(1, 100) <= chance;
       const tone = parley(w, c, n, ap_, ok, rng);
       log(w, resultLine('parley', ap_, ok, rng), tone, { npcId: n.id, blockId: c.blockId });
       break;
@@ -783,7 +875,32 @@ export function dispatch(prev: World, a: Action): World {
     }
     case 'resolve_confrontation': {
       const c = confrontations(w).find(x => x.id === a.id)!;
+      // A conversation is driven here rather than inside `resolveConfrontation`, because a
+      // closing move has to run a real scene and running actions is reducer work. Openers leave
+      // the entry queued and the player answers again; closers drop it and, if it was one of the
+      // scene's own approaches, the scene runs with whatever the openers bought on its odds.
+      if (c.kind === 'talk') {
+        const res = resolveTalk(w, c, a.approach as TalkMove | 'absent', rng);
+        if (res.closed) w.confrontations = confrontations(w).filter(x => x.id !== c.id);
+        if (res.approach) {
+          // No cost charged here: `can` for this very action already reported the closing scene's
+          // cost, and `dispatch` deducted it on the way in. Charging again took the AP twice.
+          const act = sceneAction(c, res.approach);
+          const g = gate(w, act);
+          if (g.ok) apply(w, act, rng, done, res.bonus ?? 0);
+          else log(w, g.reason, 'warn');
+        }
+        break;
+      }
       resolveConfrontation(w, c, a.approach, rng);
+      break;
+    }
+    case 'talk': { startConversation(w, a.scene, a.npcId, a.businessId, a.otherFactionId); break; }
+    case 'resolve_agenda': {
+      const n = npc(a.npcId);
+      const cost = agendaCost(w, n, a.mode);
+      if (cost) takeCash(w, cost);
+      resolveAgenda(w, n, a.mode, rng);
       break;
     }
     case 'case_joint': {
@@ -823,7 +940,7 @@ export function dispatch(prev: World, a: Action): World {
     case 'sit_down': sitDown(w, a.factionId, a.offer, rng); break;
     case 'broker': {
       const n = npc(a.npcId); const ap_ = a.approach ?? 'split'; n.known = true;
-      const chance = approachChance(w, 'broker', ap_, n, undefined, a.otherFactionId); const ok = rng.int(1, 100) <= chance;
+      const chance = approachChance(w, 'broker', ap_, n, undefined, a.otherFactionId, bonus); const ok = rng.int(1, 100) <= chance;
       const tone = broker(w, n, a.otherFactionId, ap_, ok, rng);
       log(w, resultLine('broker', ap_, ok, rng), tone, { npcId: n.id, factionId: n.faction });
       break;
@@ -859,8 +976,7 @@ export function dispatch(prev: World, a: Action): World {
     case 'rename': p.name = a.name.trim(); break;
     case 'cheat': { cheat(w, a.what, a.amount, rng); break; }
   }
-  done();
-  return w;
+  return undefined;
 }
 
 // ---------------------------------------------------------------- helpers
@@ -999,6 +1115,25 @@ function cheat(w: World, what: CheatKind, amount?: number, rng?: import('./rng')
       if (mark && rng) learnSecret(w, mark, rng);
       cyberHeat(w, 25);
       log(w, `Testing: ${(p.cards ?? []).length} cards in your pocket, something worth selling, and wire heat to clean up.`, 'money');
+      break;
+    }
+    case 'agendas': {
+      // The agenda moves are only reachable against somebody who has an agenda you know about,
+      // and generation is thin on those near the start: seed 7 produces no `leave` agenda within
+      // two blocks at all, so the dark half of that move had zero coverage in a sixty-day sweep
+      // however the bot was taught. This hands out one of each kind and sizes everybody up.
+      const kinds: AgendaKind[] = ['debt', 'leave', 'revenge', 'ambition', 'family'];
+      const near = Object.values(w.npcs).filter(x => x.alive && !x.crew && !x.official && distanceFromStart(w, x.homeBlockId) <= 2);
+      let i = 0;
+      for (const x of near.slice(0, amount ?? 12)) {
+        const kind = kinds[i++ % kinds.length];
+        // `family` is only ever real: it needs somebody in the web to be frightened for
+        const kin = familyOf(w, x)[0];
+        if (kind === 'family' && !kin) continue;
+        x.agenda = { kind, progress: 40, rate: 3, target: kind === 'family' ? kin.id : Object.keys(w.factions)[0] };
+        x.known = true;
+      }
+      log(w, `[admin] ${Math.min(near.length, amount ?? 12)} people nearby now want something, and you know what.`, 'warn');
       break;
     }
     case 'ratted': {

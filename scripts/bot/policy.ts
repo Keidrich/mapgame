@@ -308,6 +308,85 @@ export function workTheStreet(c: Ctx) {
 }
 
 
+/**
+ * Have a real conversation with somebody, the way the UI now does: open it, work an opener if
+ * one is on offer, then close on the scene's own approach. The bot used to dispatch `visit` and
+ * `threaten` straight, which is still legal and still what most of its day is — this exists so
+ * the opener/closer path has coverage at all, because nothing else in the sweep touches it.
+ */
+export function haveAConversation(c: Ctx, scene: 'visit' | 'shakedown' | 'threaten', npcId: Id, businessId?: Id): boolean {
+  if (!tryAct(c, { type: 'talk', scene, npcId, businessId })) return false;
+  bump(c.cov, 'talks');
+  let guard = 0;
+  while (guard++ < 4) {
+    const live = select.activeConfrontation(c.w);
+    if (!live || live.kind !== 'talk') break;
+    const opts = select.confrontOptions(c.w, live) as unknown as { id: string; closes: boolean; chance: number; disabled?: string }[];
+    const usable = opts.filter(o => !o.disabled);
+    // settling somebody's problem beats anything else on the menu: it is the only move that
+    // leaves them owing you, which is what every real ask is gated on
+    const agenda = usable.find(o => o.id.startsWith('agenda:settle'));
+    const opener = usable.filter(o => !o.closes).sort((a, b) => b.chance - a.chance)[0];
+    const closer = usable.filter(o => o.closes && o.id.startsWith('approach:')).sort((a, b) => b.chance - a.chance)[0];
+    const pick = agenda ?? (opener && opener.chance >= 55 ? opener : closer);
+    if (!pick) { tryAct(c, { type: 'resolve_confrontation', id: live.id, approach: 'leave' }); break; }
+    if (!tryAct(c, { type: 'resolve_confrontation', id: live.id, approach: pick.id as never })) { tryAct(c, { type: 'resolve_confrontation', id: live.id, approach: 'leave' }); break; }
+    if (pick === opener) bump(c.cov, 'talk_openers');
+    else { if (pick === closer) bump(c.cov, 'talk_closed'); break; }
+  }
+  return true;
+}
+
+/**
+ * Do something about what somebody actually wants. Settling it is the only thing in the game
+ * that produces reciprocity on demand, so the bot reaches for it before it reaches for a
+ * shakedown — and takes the dark route when a mark it cannot afford to help is worth trapping.
+ */
+export function workTheAgendas(c: Ctx): boolean {
+  const near = Object.values(c.w.blocks)
+    .filter(b => select.distanceFromStart(c.w, b.id) <= 2)
+    .flatMap(b => select.businessesIn(c.w, b.id))
+    .flatMap(b => [b.ownerId, ...b.patronIds]);
+  for (const id of near) {
+    const n = c.w.npcs[id]; if (!n || !select.agendaKnown(c.w, n)) continue;
+    // Settling is the good deal and the default. But spending real money to do a favour for
+    // somebody who dislikes you is poor value, and the dark route is exactly what it is for —
+    // it is cheaper, and it works on people who would not have owed you anything anyway.
+    const moves = select.agendaMoves(c.w, n).slice().sort((a, b) => rank(c, n, a.mode) - rank(c, n, b.mode));
+    for (const m of moves) {
+      if (select.agendaReason(c.w, n, m.mode)) continue;
+      if (!goTo(c, npcBlock(c, id))) continue;
+      const before = select.favours(n);
+      if (!tryAct(c, { type: 'resolve_agenda', npcId: id, mode: m.mode })) continue;
+      bump(c.cov, m.mode === 'trap' ? 'agendas_trapped' : 'agendas_settled');
+      if (select.favours(c.w.npcs[id]) > before) bump(c.cov, 'favours_owed');
+      return true;
+    }
+  }
+  // nobody's agenda is legible yet: size somebody up, which is one of the three ways in
+  const blind = near.map(id => c.w.npcs[id]).find(n => n && n.alive && !n.known && n.agenda && !n.agenda.done);
+  if (blind && goTo(c, npcBlock(c, blind.id))) return tryAct(c, { type: 'read', npcId: blind.id });
+  return false;
+}
+
+/**
+ * Which way round to try an agenda on this person. Lower goes first.
+ *
+ * The only agenda with two routes is `leave`, and the question it asks is simple: do you want
+ * this person to go? Somebody who runs a place is worth more standing behind their counter than
+ * gone, so you shut the door — that is the dark route. Anybody else, you help, because a settled
+ * favour is worth more than a frightened stranger.
+ *
+ * Two earlier rules here never fired once in a sixty-day sweep and are worth naming so the next
+ * person does not try them again: *trap anyone whose trust is negative* (people near the start
+ * block sit at or above zero) and *trap anyone whose place you already collect from* (by the time
+ * the protection is installed, the agenda has been settled days earlier).
+ */
+function rank(c: Ctx, n: { id: Id }, mode: 'settle' | 'trap'): number {
+  const runsAPlace = Object.values(c.w.businesses).some(b => b.ownerId === n.id && b.ownedBy !== 'faction');
+  return (mode === 'trap') === runsAPlace ? 0 : 1;
+}
+
 /** A production of yours with nobody running it at all. */
 function unmannedProduction(c: Ctx): Id | undefined {
   for (const sid of c.w.player.safehouseIds) {

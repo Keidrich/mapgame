@@ -10,7 +10,7 @@ import { PLAYER, dispatch, generateWorld, select, type World } from '@sim/index'
 import { Rng } from '@sim/rng';
 import { SCENARIOS, setUp, topUp, type ScenarioName } from './admin';
 import { newCoverage, bump, warn, type Coverage } from './coverage';
-import { answerEverything, buyKit, handleMoney, launchOps, planAnOp, promoteLieutenants, resetPolicy, resolveEvents, runTheEmpire, tallyNight, tallyProduction, workTheBuildings, workTheStreet, workTheWire, type Ctx } from './policy';
+import { answerEverything, buyKit, goTo, handleMoney, haveAConversation, launchOps, planAnOp, promoteLieutenants, resetPolicy, resolveEvents, runTheEmpire, tallyNight, tallyProduction, workTheAgendas, workTheBuildings, workTheStreet, workTheWire, type Ctx } from './policy';
 
 export interface RunOpts {
   days: number;
@@ -63,8 +63,15 @@ export function run(opts: RunOpts): RunResult {
     launchOps(c);
     workTheWire(c);
 
-    // 4. the street, then the rest of the empire, then money — in that order, because the
-    //    laundering has to come after the day that earned something to launder
+    // 4. Somebody's problem, then the street, then the rest of the empire, then money — in that
+    //    order, because the laundering has to come after the day that earned something to
+    //    launder. Agendas go first among those: settling one is the only thing that makes
+    //    somebody owe you, and being owed is what the real asks below are gated on.
+    workTheAgendas(c);
+    // A conversation costs the AP that would otherwise have gone on an op, so the bot has one
+    // every third day rather than daily. Daily cost it two op kinds over sixteen days and bought
+    // no coverage the third day did not already have.
+    if (d % 3 === 0) haveARealConversation(c);
     workTheStreet(c);
     runTheEmpire(c, startBlockId);
     handleMoney(c);
@@ -78,6 +85,21 @@ export function run(opts: RunOpts): RunResult {
     check(c, d);
   }
   return { w: c.w, cov, scenario };
+}
+
+/**
+ * One conversation a day, done the way the UI does it rather than by dispatching the scene
+ * straight. The rest of the bot's day still goes through the plain actions, which is correct —
+ * both paths are real and both need to stay working.
+ */
+function haveARealConversation(c: Ctx) {
+  const near = Object.values(c.w.blocks)
+    .filter(b => select.distanceFromStart(c.w, b.id) <= 1)
+    .flatMap(b => select.businessesIn(c.w, b.id));
+  const spot = near.find(b => c.w.npcs[b.ownerId]?.alive);
+  if (!spot) return;
+  if (!goTo(c, spot.blockId)) return;
+  haveAConversation(c, 'visit', spot.ownerId, spot.id);
 }
 
 /** The invariants a soak exists to catch. A NaN here is a real bug, not a balance question. */

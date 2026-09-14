@@ -10,6 +10,7 @@ import { Act, AmountPicker, Disclosure, SceneAct } from './Act';
 import { Info, Term, TermChip } from './Info';
 import { AwayNotice } from './Walk';
 import { NoteEditor } from './Note';
+import { LedgerPanel } from './Ledger';
 import { whereabouts } from './SocialTab';
 
 export function NpcSheet({ npcId }: { npcId: Id }) {
@@ -46,6 +47,7 @@ export function NpcSheet({ npcId }: { npcId: Id }) {
       <div className="mt12"><SkillBars skills={n.skills} /></div>
       <div className="mt12"><RelMeters rel={n.rel} /></div>
       <Standing npcId={npcId} />
+      <AgendaActions npcId={npcId} />
       <dl className="kv mt12">
         <dt><Term id="findAt">Find at</Term></dt>
         <dd>{where ? <button type="button" className="chip btn" onClick={() => openSheet({ kind: 'business', businessId: where.id })}>{where.name}</button> : home ? <button type="button" className="chip btn" onClick={() => openSheet({ kind: 'block', blockId: home.id })}>{home.name}</button> : '—'}</dd>
@@ -59,6 +61,7 @@ export function NpcSheet({ npcId }: { npcId: Id }) {
         </div>
       )}
       <TapPanel npcId={npcId} />
+      <LedgerPanel npcId={npcId} collapsed />
       <Connections npcId={npcId} />
       {/* the sim's own flavour, kept separate from the player's note above */}
       {n.notes.length > 0 && <ul className="small muted mt8" style={{ paddingLeft: 18, margin: 0 }}>{n.notes.map((x, i) => <li key={i}>{x}</li>)}</ul>}
@@ -273,5 +276,37 @@ function Standing({ npcId }: { npcId: string }) {
       {owed > 0 && <TermChip id="favour" tone="var(--green)">Owes you {owed === 1 ? 'a favour' : `${owed} favours`}</TermChip>}
       {hold && <TermChip id="hold" tone="var(--gold)" note={hold.why}>You have a hold</TermChip>}
     </div>
+  );
+}
+
+/**
+ * Doing something about what they actually want.
+ *
+ * Only shows once the player has established the agenda — a size-up, a look through their books,
+ * or a tap. The moves themselves come from `content/agendas.ts`; this only renders them, and the
+ * odds and the price are the ones the reducer will use.
+ */
+function AgendaActions({ npcId }: { npcId: string }) {
+  const w = useWorld();
+  const n = w.npcs[npcId]; if (!n) return null;
+  const moves = select.agendaMoves(w, n);
+  if (!moves.length) return null;
+  return (
+    <>
+      <div className="section-title">What they want<Info id="agendaMove" /></div>
+      <p className="small muted">{select.agendaLabel(n)}{select.agendaTargetName(w, n) ? ` — ${select.agendaTargetName(w, n)}` : ''}. Settle it and they will owe you something real.</p>
+      <div className="actions">
+        {moves.map(m => {
+          const cost = select.agendaCost(w, n, m.mode);
+          return (
+            <Act key={m.mode}
+              action={{ type: 'resolve_agenda', npcId: n.id, mode: m.mode }}
+              label={`${m.label}${cost ? ` · ${fmtMoney(cost)}` : ''} · ${select.agendaChance(w, n, m.mode)}%`}
+              icon={m.icon}
+              kind={m.mode === 'trap' ? 'danger' : 'primary'} />
+          );
+        })}
+      </div>
+    </>
   );
 }

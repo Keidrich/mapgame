@@ -13,7 +13,8 @@ import { Info } from './Info';
 export function ConfrontModal() {
   const w = useWorld();
   const c = select.activeConfrontation(w);
-  if (!c) return null;
+  // a conversation is the same queue entry with a different face: `SceneSheet` renders those
+  if (!c || c.kind === 'talk') return null;
   const f = w.factions[c.factionId];
   const options = select.confrontOptions(w, c);
   const carried = select.equippedItems(w);

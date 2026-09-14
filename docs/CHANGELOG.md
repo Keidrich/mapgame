@@ -14,6 +14,126 @@ House rules for an entry (see `CLAUDE.md` → *Leave a trail*):
 
 ---
 
+## 2026-09-14 — Conversation depth, agenda resolution, and one history screen for everybody
+
+**What.** Three pieces on top of the standing system: a real action for every kind of agenda an
+NPC can carry, conversations with more than one move in them, and a single personal-history screen
+that serves an ordinary shopkeeper and a crew lieutenant from the same component.
+
+**Why.** Standing shipped the gates and left them with one sparse input. Concessions need
+reciprocity or leverage, and reciprocity could only arrive from the handful of events that
+happened to offer it — there was no move a player could *make* to earn one. Meanwhile agendas had
+been advancing quietly since the people pass: you could read on somebody's sheet that they were
+drowning in debt and do nothing about it. And every scene in the game was the same three buttons
+whoever you were talking to, whatever you knew about them, and whatever had passed between you —
+all of which the sim already knew and none of which was in the room.
+
+**How.**
+
+*1. Agenda resolution.* `content/agendas.ts` holds a move per `AgendaKind`; `sim/agendas.ts` runs
+them through a new `resolve_agenda` action. Gated on actually knowing the agenda — a size-up, a
+look through their books, or a tap. Trust is deliberately not one of the three: people do not
+volunteer this. Every `settle` ends in `doFavour(w, n, kind)`, which is the entire hook into the
+concession system; nothing else had to be built for the gating to work. `leave` has two routes —
+help them get out, or shut every door so they cannot — and `trap` deliberately does *not* call
+`doFavour`: it takes fear and somebody who cannot leave, and no friend.
+
+*2. Conversations.* A conversation is a queued `Confrontation` with `kind: 'talk'`, answered
+through `resolve_confrontation` and rendered by the scene sheet. **The same queue as a fight at
+your door**, chosen over a second pending-action mechanism because the queue already owns the End
+Day sweep, the "deal with what is in front of you" gate and the modal stacking. The menu is
+generated from world state — the scene's own approaches (which close it), their agenda if known, a
+name you both know from the connections graph, something out of your ledger. The last two are
+*openers*: they buy a bonus on whatever you close with, can be worked once each, and can land
+badly and cost you trust.
+
+*3. The ledger.* `sim/ledger.ts` writes one line per meaningful exchange to `Npc.ledger`;
+`dossier()` assembles it with the established facts, favours in both directions and any current
+hold. One component (`ui/components/Ledger.tsx`) for everybody — the crew rows simply do not
+appear for somebody who is not crew. `rel.owedToThem` is the other side of `rel.favours`, and a
+conversation can spend it.
+
+*4. Everything routes through what exists.* A resolved agenda closes the agenda, spreads
+reputation through `spreadFrom` exactly as the standing pass does, writes a ledger line, and logs
+itself — so the next conversation with that person opens differently. No new reputation or memory
+system.
+
+**The reducer had to be split, and that is the structural change here.** A closing move runs a
+real scene, which means one action running another on the same world:
+
+- `dispatch` is now clone-and-charge; `apply` is what-the-action-does. `end_day` still returns a
+  replacement world and still writes the rng back before `endDay` reads it.
+- `can` is the modal gates plus `gate`, the action's own rules. A conversation asks `gate` about
+  its closing move, because asking `can` has the conversation refuse itself for being the thing in
+  front of the player — which it did, for an afternoon.
+
+**Three real bugs the new tests found, all mine, all fixed:**
+
+- **Opening a conversation charged AP and closing charged it again.** `can('talk')` returned the
+  scene's affordance including its cost, and `dispatch` deducted it; then the closing move
+  deducted it a second time. The gate is now checked and the cost dropped.
+- **The closing move refused itself.** The recursive gate check went through `can`, which is
+  blocked by "somebody is in front of you" — and the conversation *is* that somebody.
+- **A test that cloned a world 25 times rolled the same number 25 times.** `structuredClone`
+  carries `w.rng`, so the retry loop was one attempt repeated. Worth remembering: vary `t.rng`,
+  not just the clone.
+
+**Numbers.** Before the bot was taught any of this the honest run was **bit-identical**,
+confirming the direct-action path is untouched — both paths are real and both stay working. With
+the bot taught, `npm run sim -- 60 <seed> honest` at day 61:
+
+| seed | before | after |
+|---|---|---|
+| 3 | 7,584 / 1,258 | 8,534 / 1,349 |
+| 7 | 7,714 / 1,092 | 13,083 / 3,543 |
+| 11 | −388 / 50,182 | −208 / 35,679 |
+| 19 | 125 / 2,774 | −1,573 / 15,599 |
+
+It is up on three seeds and down on one: the bot now settles agendas, which earns reciprocity,
+which opens concessions it could not reach — and spends AP doing it, which is what seed 19 paid.
+
+`npm run sim -- 60 7 all` reports **16/16 systems** (up from 13) and 32 distinct op kinds. New
+coverage rows: `conversations`, `settling an agenda`, `using one against them`. Across the eight
+scenarios: 159 conversations, 386 openers worked, 113 agendas settled, 3 used against them, 105
+people who now owe the player something.
+
+**Watch out.**
+
+- **No `WORLD_VERSION` bump.** `Npc.ledger`, `Relationship.owedToThem` and `Confrontation.talk`
+  are all optional; an old save loads with a blank history, which is the honest answer since the
+  game was not writing any of this down before.
+- **`SceneAct` dispatches a real action now** instead of setting a UI-only store slot. The
+  store's `scene`/`openScene`/`closeScene` are no longer used by it; a conversation is world
+  state, so it survives a reload and the sim can see it.
+- **The dark half of `leave` took four attempts to reach, and the last one found a real bug.**
+  `using one against them` sat at 0 across a full sweep while three bot rules were tried: *trap
+  anyone whose trust is negative* (people near the start sit at or above zero), *trap anyone whose
+  place you already collect from* (the agenda is settled days before the protection is installed),
+  and then a new `agendas` admin-panel entry — because **seed 7 generates no `leave` agenda within
+  two blocks of the start at all**, so no policy could have reached it. The rule that works is
+  *shut the door on anyone who runs a place*. That immediately exposed the real bug: a trap resets
+  the agenda's progress without closing it, so it was farmable — **54 traps to 6 settlements in one
+  run**, free fear on a loop. `TRAP_REWARD.again` is now a 20-day cooldown, and the ratio is 20:4.
+- **The bot has a conversation every third day, not daily.** Daily cost two op kinds over the
+  sixteen days `scripts/bot.test.ts` runs and bought no coverage the third day did not already
+  have. The op-roster threshold in that test is unchanged.
+- **`insureCost` / `repairCost` are now in `sim/economy.ts`.** The reducer extraction removed the
+  `check` closure that `insure` and `repair` were reading their cash cost from, and the formula
+  was written out twice; it is now written once and read by both.
+- Two emoji had to be swapped for Unicode 6.0 equivalents (🤝 and 🛡 in `content/agendas.ts`, 🤲
+  in the ledger). The guard caught all three.
+
+**Files.** New: `content/agendas.ts`, `sim/agendas.ts`, `sim/conversation.ts`, `sim/ledger.ts`,
+`ui/components/Ledger.tsx`, `sim/agenda-resolution.test.ts`, `sim/conversation-depth.test.ts`,
+`ui/ledger.test.tsx`. Changed: `sim/reducer.ts` (the split), `sim/combat.ts`, `sim/types.ts`,
+`sim/actions.ts`, `sim/scenes.ts`, `sim/select.ts`, `sim/economy.ts`, `sim/ops.ts`, `sim/cyber.ts`,
+`ui/components/SceneSheet.tsx`, `ui/components/Act.tsx`, `ui/components/NpcSheet.tsx`,
+`ui/components/ConfrontModal.tsx`, `scripts/bot/policy.ts`, `scripts/bot/run.ts`,
+`scripts/bot/coverage.ts`, `scripts/bot/admin.ts` (a new `agendas` entry), `content/glossary.ts`
+(`conversation`, `agendaMove`, `ledger`), `docs/DESIGN.md` §3.8.
+
+---
+
 ## 2026-09-14 — Standing: fear costs what it cost you, trust plateaus, reputation walks the graph, and a familiarity floor under all of it
 
 **What.** The four numbers every social system reads — fear, trust, familiarity, reputation —

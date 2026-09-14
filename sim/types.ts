@@ -6,6 +6,8 @@
 
 import type { NameGroup } from '@content/names';
 import type { AuthorityKind, AuthorityPosture } from '@content/authority';
+import type { SceneKind } from '@content/lines';
+export type { SceneKind };
 import type { ComplicationKind } from '@content/complications';
 import type { SupplyRule } from './automation';
 import type { IntelKind } from '@content/intel';
@@ -130,10 +132,18 @@ export interface Skills { muscle: number; brains: number; charm: number; wheels:
  */
 export interface Connection { npcId: Id; kind: 'family' | 'friend'; label: string }
 
+/**
+ * One line of history with one person. Optional on `Npc` so an old save loads with a blank
+ * page, which is the honest answer — the game was not writing any of this down before.
+ */
+export type LedgerKind = 'met' | 'read' | 'favour' | 'owed' | 'threat' | 'harm' | 'deal' | 'talk' | 'intel' | 'door';
+export interface LedgerEntry { day: number; kind: LedgerKind; text: string }
+
 export interface Relationship {
   trust: number;   // -100..100
   fear: number;    // 0..100
   respect: number; // 0..100
+  owedToThem?: number;  // things they did for you. The other side of `favours`
   // How well you actually know each other. All optional so an old save loads as a stranger,
   // which is the right answer for anybody the player has not dealt with since. See
   // `sim/standing.ts`: these drive the familiarity floor and the concession gates.
@@ -194,6 +204,7 @@ export interface Npc {
   fixer?: { day: number; amount: number; cap: number }; // role 'fixer': today's window, and what is left of it
   connections: Connection[]; // family and friends among the other NPCs; mutual, and nothing to do with the player
   notes: string[];            // the sim's own flavour ("Runs the Eastside Boys"). Never the player's words.
+  ledger?: LedgerEntry[];     // what has actually passed between you and them (sim/ledger.ts)
   playerNote?: string;        // the player's memory aid, set from the Social tab or their sheet. The sim never writes it.
 }
 
@@ -205,6 +216,8 @@ export interface Agenda {
   target?: Id;       // faction or npc it concerns
   milestone50?: boolean;
   done?: boolean;
+  /** The day the player last shut this down rather than settling it. See `sim/agendas.ts`. */
+  blocked?: number;
 }
 
 // ---------- products ----------
@@ -488,10 +501,22 @@ export interface Secret {
 }
 
 // ---------- confrontations: somebody came for you, and you are standing there ----------
-export type ConfrontKind = 'racket' | 'business' | 'crew' | 'op';
+export type ConfrontKind = 'racket' | 'business' | 'crew' | 'op' | 'talk';
 export type { ComplicationKind };
 /** How you meet it. Each maps onto an op approach, so carried kit reads the same way it does on a job. */
 export type ConfrontApproach = 'fight' | 'flee' | 'backup';
+
+/**
+ * A move inside a conversation (`kind: 'talk'`). Namespaced rather than a flat list because the
+ * set is generated from world state — which approaches this scene has, whose name you can drop,
+ * what is in their ledger — so it cannot be enumerated up front.
+ */
+export type TalkMove =
+  | `approach:${string}`   // one of the scene's own approaches; closes the conversation
+  | `agenda:${string}`     // settle what they actually want. Closes it, and owes you afterwards
+  | `name:${string}`       // invoke somebody you both know. An opening move: it softens, it does not close
+  | `recall:${string}`     // bring up something out of your history with them. Also an opening move
+  | 'leave';
 
 export interface Confrontation {
   id: Id;
@@ -506,6 +531,24 @@ export interface Confrontation {
   blockId?: Id;
   opId?: Id;                 // kind 'op': the job this went wrong in the middle of
   complication?: ComplicationKind;
+  talk?: TalkState;          // kind 'talk': a conversation in progress
+}
+
+/**
+ * A conversation, mid-flow. The same queue as a fight at your door, because it is the same
+ * thing structurally: something in front of the player that nothing else happens until they
+ * answer. `bonus` is what the opening moves have bought so far and rides on the closing
+ * approach's odds; `used` stops the same opener being worked twice in one conversation.
+ */
+export interface TalkState {
+  scene: SceneKind;
+  businessId?: Id;
+  otherFactionId?: FactionId;
+  beat: number;
+  bonus: number;
+  used: string[];
+  /** What they said back to the last opening move, shown above the menu on the next beat. */
+  reply?: string;
 }
 
 // ---------- events ----------

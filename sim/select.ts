@@ -30,6 +30,10 @@ export { seatReason, members as commissionMembers } from './commission';
 export { protectRoute, protectReason, PROTECT_TRUST, PROTECT_FAVOUR_RATE } from './economy';
 // the systemic core: how well you know somebody, what you have over them, and what they owe you
 export { daysKnown, familiar, familiarReason, favours, leverageOver, concessionReason, trustCeiling, fearCeiling } from './standing';
+// the personal history screen, and what a conversation can do with it
+export { dossier, ledgerOf, owedToThem, LEDGER_MAX } from './ledger';
+export { agendaKnown, agendaMoves, agendaCost, agendaChance, agendaReason, agendaTargetName, sharedConnections } from './agendas';
+export { talkOptions, isTalk, TALK } from './conversation';
 export { fixerRate, fixerDailyCap, fixerUsedToday, fixerCapToday, fixerCapLeft, fixersKnown } from './economy';
 export { knownRecipes, recipesForKind, restockCost, qualityOf, sellMult, shortageActive, saturationActive, productionQuality } from './production';
 import { distanceM } from '@geo/project';

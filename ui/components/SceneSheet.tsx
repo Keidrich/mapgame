@@ -1,72 +1,81 @@
-import { useState } from 'react';
-import { sceneFor, type Scene, type SceneOption } from '@sim/index';
-import type { Action } from '@sim/actions';
+import { select, type TalkMove } from '@sim/index';
 import { TRAIT_LABELS } from '@content/rackets';
-import { act, closeScene, useStore, useWorld } from '@ui/store';
+import { act, useWorld } from '@ui/store';
 import { fmtMoney, initials } from '@ui/derive';
 import { Info, Term, TermChip } from './Info';
+import { LedgerPanel } from './Ledger';
 
-/** A face-to-face scene: what they say, the approaches on offer with odds, then what happened. */
+/**
+ * A conversation.
+ *
+ * It used to be one screen: their opening line, three approaches, a result. Now it is a short
+ * sequence — you can spend a beat dropping a name you both know, or bringing up something out of
+ * your history with them, before you ask for anything. Those do not end the conversation; they
+ * change the odds on whatever you close with.
+ *
+ * The conversation itself lives on the world, queued on the confrontation list, so this component
+ * holds no state of its own: everything on screen is read back out of the sim, including the
+ * reply to the last thing the player said.
+ */
 export function SceneSheet() {
   const w = useWorld();
-  const req = useStore(s => s.scene);
-  const [result, setResult] = useState<{ lines: string[]; tone: string } | null>(null);
-  if (!req) return null;
-  const n = w.npcs[req.npcId]; if (!n) return null;
-  const scene: Scene = sceneFor(w, req.kind, req.npcId, req.businessId, req.otherFactionId);
-  const biz = req.businessId ? w.businesses[req.businessId] : undefined;
-
-  const choose = (o: SceneOption) => {
-    const before = w.log.length;
-    const action: Action =
-      req.kind === 'shakedown' ? { type: 'shakedown', businessId: req.businessId!, approach: o.id }
-      : req.kind === 'threaten' ? { type: 'threaten', npcId: req.npcId, approach: o.id }
-      : req.kind === 'recruit' ? { type: 'recruit', npcId: req.npcId, approach: o.id }
-      : req.kind === 'parley' ? { type: 'parley', npcId: req.npcId, approach: o.id }
-      : req.kind === 'broker' ? { type: 'broker', npcId: req.npcId, otherFactionId: req.otherFactionId!, approach: o.id }
-      : { type: 'visit', npcId: req.npcId, approach: o.id };
-    const ok = act(action);
-    if (!ok) return;
-    const after = useStore.getState().world!.log.slice(before);
-    setResult({ lines: after.map(l => l.text), tone: after.some(l => l.tone === 'bad') ? 'bad' : after.some(l => l.tone === 'good' || l.tone === 'money') ? 'good' : 'info' });
-  };
-  const done = () => { setResult(null); closeScene(); };
+  const c = select.activeConfrontation(w);
+  if (!c || c.kind !== 'talk' || !c.npcId) return null;
+  const n = w.npcs[c.npcId]; if (!n) return null;
+  const t = c.talk!;
+  const biz = t.businessId ? w.businesses[t.businessId] : undefined;
+  const options = select.confrontOptions(w, c) as unknown as TalkOpt[];
+  const openers = options.filter(o => !o.closes);
+  const closers = options.filter(o => o.closes && o.id !== 'leave');
+  const answer = (id: TalkMove) => act({ type: 'resolve_confrontation', id: c.id, approach: id });
 
   return (
-    <div className="modal-backdrop scene-backdrop" role="dialog" aria-modal="true" aria-labelledby="scene-title" onClick={done}>
-      <div className="modal scene" onClick={e => e.stopPropagation()}>
+    <div className="modal-backdrop scene-backdrop" role="dialog" aria-modal="true" aria-labelledby="scene-title">
+      <div className="modal scene">
         <div className="scene-head">
           <div className="avatar big">{initials(n.name)}</div>
           <div className="grow">
             <h2 id="scene-title">{n.name}</h2>
             <div className="small muted">{n.role === 'owner' && biz ? `Runs ${biz.name}` : n.role}</div>
-            <div className="chips mt4">{n.traits.map(t => <TermChip key={t} id={`trait:${t}`}>{TRAIT_LABELS[t] ?? t}</TermChip>)}</div>
-            <div className="small muted mt4"><Term id="trust">Trust</Term> {n.rel.trust} · <Term id="npcfear">Fear</Term> {n.rel.fear} · <Term id="nerve">Nerve</Term> {n.nerve}</div>
+            <div className="chips mt4">{n.traits.map(x => <TermChip key={x} id={`trait:${x}`}>{TRAIT_LABELS[x] ?? x}</TermChip>)}</div>
+            <div className="small muted mt4"><Term id="trust">Trust</Term> {Math.round(n.rel.trust)} · <Term id="npcfear">Fear</Term> {Math.round(n.rel.fear)} · <Term id="nerve">Nerve</Term> {n.nerve}</div>
           </div>
         </div>
-        {!result ? (
+
+        <p className="scene-line">{c.text}</p>
+        {t.reply && <p className="scene-line" style={{ borderLeftColor: t.bonus >= 0 ? 'var(--green)' : 'var(--red)' }}>{t.reply}</p>}
+        {t.bonus !== 0 && (
+          <p className="tiny" style={{ color: t.bonus > 0 ? 'var(--green)' : 'var(--red)' }}>
+            {t.bonus > 0 ? `They are warmer than when you walked in: +${t.bonus} on whatever you ask.` : `That went badly: ${t.bonus} on whatever you ask.`}
+          </p>
+        )}
+
+        {openers.length > 0 && (
           <>
-            <p className="scene-line">{scene.line}</p>
-            <div className="row between mb8"><span className="tiny muted">Pick an approach<Info id="odds" /></span></div>
-            <div className="col">
-              {scene.options.map(o => (
-                <button type="button" key={o.id} className="opt scene-opt" disabled={!!o.disabled} onClick={() => choose(o)}>
-                  <span className="lbl">{o.icon} {o.label} <span className={`odds ${o.chance >= 65 ? 'good' : o.chance >= 40 ? 'mid' : 'bad'}`}>{o.chance}%</span></span>
-                  <span className="det">{o.blurb}</span>
-                  <span className="stakes"><b className="green">✓ {o.good}</b> <b className="red">✗ {o.bad}</b></span>
-                  <span className="cst">{o.disabled ?? `Costs ${o.costAp} AP${o.costCash ? ` · ${fmtMoney(o.costCash)}` : ''}`}</span>
-                </button>
-              ))}
-            </div>
-            <button type="button" className="btn btn-ghost btn-block mt8" onClick={done}>Walk away</button>
-          </>
-        ) : (
-          <>
-            <div className={`scene-result ${result.tone}`}>{result.lines.map((l, i) => <p key={i}>{l}</p>)}</div>
-            <button type="button" className="btn btn-primary btn-block mt8" onClick={done}>Done</button>
+            <div className="row between mb8 mt8"><span className="tiny muted">Before you ask<Info id="conversation" /> — worth a moment, and it can backfire</span></div>
+            <div className="col">{openers.map(o => <Move key={o.id} o={o} onPick={answer} />)}</div>
           </>
         )}
+
+        <div className="row between mb8 mt8"><span className="tiny muted">What you came for<Info id="odds" /></span></div>
+        <div className="col">{closers.map(o => <Move key={o.id} o={o} onPick={answer} />)}</div>
+
+        <LedgerPanel npcId={n.id} collapsed />
+        <button type="button" className="btn btn-ghost btn-block mt8" onClick={() => answer('leave')}>Leave it</button>
       </div>
     </div>
+  );
+}
+
+interface TalkOpt { id: TalkMove; label: string; icon: string; blurb: string; good: string; bad: string; chance: number; closes: boolean; costCash?: number; disabled?: string }
+
+function Move({ o, onPick }: { o: TalkOpt; onPick: (id: TalkMove) => void }) {
+  return (
+    <button type="button" className="opt scene-opt" disabled={!!o.disabled} onClick={() => onPick(o.id)}>
+      <span className="lbl">{o.icon} {o.label} <span className={`odds ${o.chance >= 65 ? 'good' : o.chance >= 40 ? 'mid' : 'bad'}`}>{o.chance}%</span></span>
+      <span className="det">{o.blurb}</span>
+      <span className="stakes"><b className="green">✓ {o.good}</b> <b className="red">✗ {o.bad}</b></span>
+      {(o.disabled || o.costCash) && <span className="cst">{o.disabled ?? fmtMoney(o.costCash!)}</span>}
+    </button>
   );
 }

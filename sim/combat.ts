@@ -20,7 +20,9 @@ import { complicationBias, complicationOptions } from './complications';
 import { resolveOp } from './ops';
 import { kitApproachBias, kitHeatMult, kitSkillBoost } from './items';
 import type { Rng } from './rng';
-import { PLAYER, type Confrontation, type ConfrontApproach, type Faction, type Id, type World } from './types';
+import { PLAYER, type Confrontation, type ConfrontApproach, type Faction, type Id, type TalkMove, type World } from './types';
+import { resolveTalk, talkOptions } from './conversation';
+import { remember } from './ledger';
 import { addHeat, adjustRel, clamp, log, nid, spreadRep } from './util';
 
 /** Which op approach each answer is cut from, for kit and for flavour. */
@@ -77,6 +79,9 @@ export function confrontChance(w: World, c: Confrontation, approach: ConfrontApp
 }
 
 export function confrontOptions(w: World, c: Confrontation): ConfrontOption[] {
+  // A conversation is the same queue entry with a different menu — generated from the graph, the
+  // ledger and their agenda rather than from the three ways to meet a fist.
+  if (c.kind === 'talk') return talkOptions(w, c) as unknown as ConfrontOption[];
   const crew = backupCrew(w);
   if (c.kind === 'op' && c.complication) {
     const o = complicationOptions(c);
@@ -97,7 +102,8 @@ export function confrontOptions(w: World, c: Confrontation): ConfrontOption[] {
 export function queueConfrontation(w: World, c: Omit<Confrontation, 'id' | 'day'>): Confrontation {
   const full: Confrontation = { ...c, id: nid(w, 'x'), day: w.day };
   w.confrontations = [...confrontations(w), full];
-  log(w, full.text, 'warn', { factionId: full.factionId, businessId: full.businessId, npcId: full.npcId, blockId: full.blockId });
+  if (full.kind !== 'talk' && full.npcId) remember(w, w.npcs[full.npcId], 'door', full.text);
+  log(w, full.text, full.kind === 'talk' ? 'info' : 'warn', { factionId: full.factionId, businessId: full.businessId, npcId: full.npcId, blockId: full.blockId });
   return full;
 }
 
@@ -105,7 +111,18 @@ export function queueConfrontation(w: World, c: Omit<Confrontation, 'id' | 'day'
  * Answer one. `absent` is what happens when the day ends with the player never having dealt
  * with it: the attack lands as it would have before any of this existed.
  */
-export function resolveConfrontation(w: World, c: Confrontation, approach: ConfrontApproach | 'absent', rng: Rng): boolean {
+export function resolveConfrontation(w: World, c: Confrontation, given: ConfrontApproach | TalkMove | 'absent', rng: Rng): boolean {
+  // A conversation is answered, not survived. The reducer drives those directly through
+  // `resolveTalk`, because a closing move has to run an actual scene and that is reducer work;
+  // what reaches here is the End Day sweep, where an unanswered conversation is simply somebody
+  // who got bored and left. It must never fall through to the damage code below.
+  if (c.kind === 'talk') {
+    resolveTalk(w, c, 'absent', rng);
+    w.confrontations = confrontations(w).filter(x => x.id !== c.id);
+    return false;
+  }
+  const approach = given as ConfrontApproach | 'absent';
+
   w.confrontations = confrontations(w).filter(x => x.id !== c.id);
 
   // A complication is not an attack: nothing is wrecked and nobody is hurt here. The answer is

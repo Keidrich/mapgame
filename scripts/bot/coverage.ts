@@ -18,7 +18,9 @@ export type Counter =
   | 'launders' | 'fixer_launders' | 'raids' | 'busts' | 'moves'
   // the production pack: automation, distribution, and what a bank or a depot is worth
   | 'foremen' | 'foreman_switches' | 'supply_set' | 'supply_delivered'
-  | 'intel_ratted' | 'skims' | 'routes' | 'route_used';
+  | 'intel_ratted' | 'skims' | 'routes' | 'route_used'
+  // conversations and the agendas they can settle
+  | 'talks' | 'talk_openers' | 'talk_closed' | 'agendas_settled' | 'agendas_trapped' | 'favours_owed';
 
 export interface Coverage {
   counts: Record<Counter, number>;
@@ -55,6 +57,9 @@ export const SYSTEMS: { label: string; needs: Counter[]; hint: string }[] = [
   { label: 'foremen', needs: ['foremen'], hint: 'no production was ever put on automation, so recipe-switching and auto-restock are untested' },
   { label: 'standing orders', needs: ['supply_set', 'supply_delivered'], hint: 'every product racket was left on its default rule; distribution is untested' },
   { label: 'bank / depot intel', needs: ['intel_ratted', 'skims', 'routes'], hint: 'nobody at a bank or a depot was ever got at, so those two buildings still do nothing in the sweep' },
+  { label: 'conversations', needs: ['talks'], hint: 'every scene was a single button press; the opener/closer path is untested' },
+  { label: 'settling an agenda', needs: ['agendas_settled'], hint: 'nobody ever had their problem settled, so reciprocity never arrives from the only system that generates it on demand' },
+  { label: 'using one against them', needs: ['agendas_trapped'], hint: 'the dark half of agenda resolution never ran — it is half a shipped feature with no coverage' },
   { label: 'laundering', needs: ['launders', 'fixer_launders'], hint: 'dirty money never got washed' },
   { label: 'police pressure', needs: ['raids', 'busts'], hint: 'the police never actually did anything' },
 ];
@@ -87,6 +92,11 @@ export function report(c: Coverage): string[] {
     ['routes', count(c, 'routes')], ['routes used on a job', count(c, 'route_used')],
   ] as const;
   out.push(`  production & intel: ${auto.map(([k, n]) => `${k} ${n}`).join(', ')}`);
+  const social = [
+    ['conversations', count(c, 'talks')], ['openers worked', count(c, 'talk_openers')], ['closed on a scene', count(c, 'talk_closed')],
+    ['agendas settled', count(c, 'agendas_settled')], ['agendas used against them', count(c, 'agendas_trapped')], ['people who now owe you', count(c, 'favours_owed')],
+  ] as const;
+  out.push(`  talk & agendas: ${social.map(([k, n]) => `${k} ${n}`).join(', ')}`);
   for (const warning of c.warnings) out.push(`  ! ${warning}`);
   return out;
 }

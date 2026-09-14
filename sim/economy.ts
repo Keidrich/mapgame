@@ -161,3 +161,9 @@ export function streetPrice(w: World, blockId: string, product: keyof typeof PRO
   const b = w.blocks[blockId];
   return PRODUCT_INFO[product].price * (0.7 + b.wealth / 150) * (b.demand[product] > 3 ? 1.1 : 0.9);
 }
+
+
+/** What insuring a place costs, and what fixing one costs. One formula each, read by `can` and
+ *  by the reducer that charges it — they used to be the same expression written twice. */
+export const insureCost = (b: Business) => Math.round(b.value * 0.08);
+export const repairCost = (b: Business) => Math.round((100 - b.condition) * b.value / 400);

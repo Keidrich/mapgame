@@ -43,8 +43,14 @@ function disabledReason(w: World, kind: SceneKind, id: string, n: Npc, otherFact
   return undefined;
 }
 
-/** 3..97 % — the number the player sees and the number the dice use. */
-export function approachChance(w: World, kind: SceneKind, id: string, n: Npc, biz?: Business, otherFactionId?: Id): number {
+/**
+ * 3..97 % — the number the player sees and the number the dice use.
+ *
+ * `bonus` is what a conversation's opening moves bought: a name you both know that landed, a
+ * favour they had not forgotten. It is passed in rather than read off the world because it
+ * belongs to one conversation and one closing move, and must not leak into anything else.
+ */
+export function approachChance(w: World, kind: SceneKind, id: string, n: Npc, biz?: Business, otherFactionId?: Id, bonus = 0): number {
   const p = w.player; const s = p.skills; const crew = activeCrewCount(w);
   const fa = n.faction ? w.factions[n.faction] : undefined; const fb = otherFactionId ? w.factions[otherFactionId] : undefined;
   const temperBonus = (f?: import('./types').Faction) => !f ? 0 : f.temperament === 'diplomatic' ? 12 : f.temperament === 'aggressive' ? -10 : f.temperament === 'paranoid' ? -6 : 0;
@@ -75,7 +81,7 @@ export function approachChance(w: World, kind: SceneKind, id: string, n: Npc, bi
   if (biz && biz.protection && biz.protection.factionId !== 'player' && kind === 'shakedown') v -= 20;
   if (n.grudge && (kind === 'shakedown' || kind === 'threaten' || kind === 'recruit')) v -= 10; // they have their guard up
   if (n.homeBlockId === w.player.homeBlockId) v += 5; // home turf
-  return Math.max(3, Math.min(97, Math.round(v)));
+  return Math.max(3, Math.min(97, Math.round(v + bonus)));
 }
 
 export function resultLine(kind: SceneKind, id: string, ok: boolean, rng: Rng): string {

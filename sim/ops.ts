@@ -16,6 +16,7 @@ import { complicationHeat, complicationSwing, maybeComplicate } from './complica
 import { kitHeatMult } from './items';
 import { PLAYER, type Op, type World } from './types';
 import { addHeat, addInfluence, adjustRel, clamp, jailDays, log, money, spreadRep } from './util';
+import { remember } from './ledger';
 import { freeOpCrew } from './reducer';
 import { addMemory } from './people';
 import { crewAt, dissolveCrew } from './crews';
@@ -55,6 +56,7 @@ export function resolveOp(w: World, o: Op, rng: Rng) {
         let extra = '';
         if (n) {
           adjustRel(w, n, { fear: 20, trust: -25 }, 'violence');
+          remember(w, n, 'harm', 'Somebody put them against a wall and went through their pockets. They did not see who.');
           addMemory(w, n.homeBlockId, 'mugging', `Somebody put ${n.name} against a wall and went through their pockets.`);
           // a pocket sometimes has a card in it: everything on the wire starts here
           if (rng.chance(0.45)) { const card = rollCard(w, rng, n.id); addCard(w, card); extra = ` There was a ${CARD_TIERS[card.tier].label} in the wallet.`; }
@@ -66,6 +68,7 @@ export function resolveOp(w: World, o: Op, rng: Rng) {
         const n = o.targetNpcId ? w.npcs[o.targetNpcId] : undefined;
         if (!n) { res.text = 'Nothing there to get into.'; break; }
         n.ratted = w.day;
+        remember(w, n, 'intel', 'You have been through their books.');
         // a bank teller or a depot driver is worth more than a secret: what they know is a
         // standing skim or a route, and that is what these two buildings are for on every other day
         const opened = openIntel(w, n, rng);
@@ -329,7 +332,7 @@ export function resolveOp(w: World, o: Op, rng: Rng) {
         break;
       }
       case 'intimidate': {
-        if (target) { const owner = w.npcs[target.ownerId]; adjustRel(w, owner, { fear: 30, trust: -10 }, 'property'); target.condition = clamp(target.condition - 15); spreadRep(w, target.blockId, { fear: 6 }, 1, 'property'); p.fear = clamp(p.fear + 3);
+        if (target) { const owner = w.npcs[target.ownerId]; adjustRel(w, owner, { fear: 30, trust: -10 }, 'property'); remember(w, owner, 'harm', `Windows out at ${target.name}, bats swung.`); target.condition = clamp(target.condition - 15); spreadRep(w, target.blockId, { fear: 6 }, 1, 'property'); p.fear = clamp(p.fear + 3);
           if (target.protection && target.protection.factionId !== PLAYER) { w.factions[target.protection.factionId].standing[PLAYER] -= 10; } }
         res.text = `Windows out, bats swung. ${target ? w.npcs[target.ownerId].name : 'The owner'} got the message.`;
         break;

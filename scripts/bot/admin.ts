@@ -100,6 +100,7 @@ export const SCENARIOS: Record<ScenarioName, Scenario> = {
       { what: 'open_case', amount: 40 },
       { what: 'cards', amount: 8 },
       { what: 'ratted' },
+      { what: 'agendas' },
       { what: 'stash' },
     ],
     topUp: {

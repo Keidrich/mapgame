@@ -17,6 +17,7 @@ import { kitSkillBoost } from './items';
 import type { Rng } from './rng';
 import { PLAYER, type Card, type CardTier, type FactionId, type Id, type Npc, type Secret, type World } from './types';
 import { addHeat, adjustRel, clamp, log, money, nid } from './util';
+import { remember } from './ledger';
 
 // ---------------------------------------------------------------- cards
 export function cards(w: World): Card[] { return w.player.cards ?? []; }
@@ -110,7 +111,7 @@ export function tapRisk(w: World, n: Npc): number {
 }
 
 /** Start listening. */
-export function startTap(w: World, n: Npc) { n.tap = { since: w.day }; n.ratted = w.day; }
+export function startTap(w: World, n: Npc) { n.tap = { since: w.day }; n.ratted = w.day; remember(w, n, 'intel', 'You started listening to them.'); }
 
 /** Pull the tap, however it ended. */
 export function endTap(w: World, n: Npc, found: boolean, rng: Rng) {

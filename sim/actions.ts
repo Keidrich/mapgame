@@ -3,7 +3,8 @@
  * `sim/reducer.ts` validates and applies them; `sim/affordances.ts` tells the UI
  * which are currently possible and why not.
  */
-import type { Id, FactionId, RacketKind, ProductionKind, OpKind, ProductKind, Assignment, SupplyRule } from './types';
+import type { Id, FactionId, RacketKind, ProductionKind, OpKind, ProductKind, Assignment, SupplyRule, ConfrontApproach, TalkMove, SceneKind } from './types';
+import type { AgendaMode } from '@content/agendas';
 import type { GeoChunk } from '@geo/chunks';
 
 export type Action =
@@ -70,7 +71,12 @@ export type Action =
   // --- movement ---
   | { type: 'move'; toBlockId: Id }                        // legwork: walk the block graph to another block
   // --- someone is at the door ---
-  | { type: 'resolve_confrontation'; id: Id; approach: 'fight' | 'flee' | 'backup' }
+  | { type: 'resolve_confrontation'; id: Id; approach: ConfrontApproach | TalkMove }
+  // Open a conversation. It queues as a confrontation and is answered through the line above:
+  // one pending-thing mechanism, not two. See `sim/conversation.ts`.
+  | { type: 'talk'; scene: SceneKind; npcId: Id; businessId?: Id; otherFactionId?: FactionId }
+  // Do something about what somebody actually wants. `settle` is the favour; `trap` is using it.
+  | { type: 'resolve_agenda'; npcId: Id; mode: AgendaMode }
   | { type: 'case_joint'; businessId: Id }   // 2 AP: walk a place and read the room
   // --- turn ---
   | { type: 'resolve_event'; eventId: Id; optionId: string }
@@ -96,7 +102,8 @@ export type CheatKind =
   | 'jail_crew'    // one of yours is in a cell, which is what springing somebody needs
   | 'open_case'    // an open file, which is what killing one needs
   | 'cards'        // a pile of lifted cards, a secret and some wire heat
-  | 'ratted';      // you have been inside everybody, which is what wire fraud needs
+  | 'ratted'       // you have been inside everybody, which is what wire fraud needs
+  | 'agendas';     // everybody nearby wants something, and you know what — which is what the agenda moves need
 
 export type SitDownOffer =
   | { kind: 'truce'; days: number }

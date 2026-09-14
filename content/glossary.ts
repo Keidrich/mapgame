@@ -162,6 +162,21 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
     title: 'Home turf',
     body: 'The block where you started. People here begin warmer, gain extra trust from visits, and your noise draws a fifth less heat.',
   },
+  conversation: {
+    title: 'A conversation',
+    body: 'Their opening line, then what you can actually do right now. Some moves end it — the ones you came for. Others are openers: drop a name you both know, or bring up something out of your history, and whatever you ask next lands better.',
+    note: 'An opener can go wrong and cost you. You get a few before they want you to get to the point. Opening a conversation is free; the time goes on how you close it.',
+  },
+  agendaMove: {
+    title: 'Doing something about it',
+    body: 'Once you know what somebody is carrying, you can settle it — clear the debt, get them out, square their score, put your name behind them, put somebody on whoever they are frightened for.',
+    note: 'A settled problem is the one thing that makes somebody genuinely owe you, which is what protection, a place in the crew and a friendly price all need. Being liked is not enough on its own.',
+  },
+  ledger: {
+    title: 'Your history with them',
+    body: 'Everything that has actually passed between you: what you established about them, what you did, what they did, and what each of you owes the other. The same page for a shopkeeper and for a lieutenant.',
+    note: 'A conversation can bring up anything on it. So can they.',
+  },
   agenda: {
     title: 'What they want',
     body: 'People have their own business and it advances whether or not you show up. At the halfway mark and at the end it surfaces as an event or a quiet change.',

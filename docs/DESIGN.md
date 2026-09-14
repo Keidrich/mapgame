@@ -261,6 +261,76 @@ is the whole point — expanding into new ground means starting cold there, soci
 existing save loads with everybody a stranger, which is the right answer for anyone the player
 has not dealt with since.
 
+### 3.8 Conversations, agendas, and the ledger
+
+Three pieces that only work because §3.7 exists.
+
+**Agenda resolution.** Every NPC worth watching carries an `Agenda` — a debt, a way out, a score
+to settle, a name to make, somebody to keep safe — and it advanced daily whether or not the
+player showed up. You could read it on their sheet and do nothing with it: milestones fired
+events *at* the player, and there was no move to make *with* one. Now each kind has a real action
+(`resolve_agenda`, moves in `content/agendas.ts`), gated on actually knowing the agenda — a
+size-up, a look through their books, or a tap. Trust is not one of the three: people do not
+volunteer this.
+
+| kind | the move | what it costs |
+|---|---|---|
+| `debt` | pay off what they owe | cash, scaled by how far the debt has rotted |
+| `leave` | help them get out — **or** shut every door so they cannot | $1,200, or nothing but nerve |
+| `revenge` | go and settle it for them | noise |
+| `ambition` | put your name behind them | your standing if they are no good |
+| `family` | put somebody on whoever they are frightened for | noise, and word that you watch that house |
+
+A trap resets the agenda's progress without closing it — they still want out, they just cannot —
+so `TRAP_REWARD.again` holds a 20-day cooldown on shutting the same door twice. Without it the
+move is a free-fear loop, which the soak found at 54 traps to 6 settlements in a single run.
+
+Every `settle` ends in `doFavour(w, n, kind)` — the whole hook into §3.7, and the reason the
+pass matters: before it, reciprocity could only arrive from the handful of events that happened
+to offer it, so the concession gates had one sparse input. `trap` deliberately does **not** call
+it: it takes fear and a person who cannot leave, and no friend. Both are real plays and neither
+is the obvious one.
+
+**Conversations.** A scene used to be one screen: opening line, three approaches, result — the
+same three moves whoever you were talking to, whatever you knew about them, whatever had passed
+between you. A conversation is now a queued `Confrontation` with `kind: 'talk'`, answered through
+`resolve_confrontation` and rendered by the scene sheet. That is the same queue a fight at your
+door uses, chosen over a second pending-action mechanism because the queue already owns the
+End Day sweep, the "deal with what is in front of you" gate and the modal stacking; a parallel
+system would have had to reimplement all three and stay in step with them for ever.
+
+The menu is generated from world state, never authored per person:
+
+- the scene's own approaches, which **close** the conversation (what the whole scene used to be);
+- **their agenda**, if you have established it — the move above;
+- **a name you both know**, from §3.6's graph;
+- **something out of your history**, from the ledger below.
+
+The last two are *openers*: they do not close the conversation, they buy a bonus on whatever you
+close with, and each can be worked once. That is the tactical shape — spend a beat softening
+somebody for better odds, or go straight in and risk the number you have. Openers can also land
+badly and cost you trust. `TALK.maxBeats` caps how long you can warm somebody up before asking.
+
+Opening a conversation is free; the AP goes on the closing move, and the closing move is gated by
+its own scene's rules, so a conversation is never a way round a shakedown's cash cost.
+
+**The ledger** (`sim/ledger.ts`) is one line per meaningful exchange, on `Npc.ledger`, and
+`dossier()` assembles it with the established facts, favours in both directions and any current
+hold into the one screen the UI renders. Deliberately one screen for everybody: a shopkeeper and
+a lieutenant have the same *kind* of history with the player and only the contents differ, so the
+crew rows simply do not appear for somebody who is not crew. `rel.owedToThem` is the other side
+of `rel.favours` — things they did for you, which a later conversation can spend.
+
+Outcomes route through what already exists: an agenda resolution advances or closes the agenda,
+spreads reputation through `spreadFrom` exactly as §3.7 does, writes a ledger line, and logs
+itself, so the next conversation opens differently. No new reputation or memory system.
+
+**The reducer split.** Making a closing move run a real scene meant one action running another on
+the same world, so `dispatch` is now clone-and-charge and `apply` is what-the-action-does; and
+`can` is the modal gates plus `gate`, the action's own rules. A conversation asks `gate` about its
+closing move, because asking `can` would have the conversation refuse itself for being in front
+of the player.
+
 ## 4. Player systems
 
 - **Cash** (clean) and **dirty cash**. Dirty cash can buy from criminals; clean cash

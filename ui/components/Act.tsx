@@ -1,6 +1,6 @@
 import { useState, type FocusEvent, type ReactNode } from 'react';
 import type { Action } from '@sim/actions';
-import { act, check, openScene, useStore, type SceneRequest } from '@ui/store';
+import { act, check, useStore, type SceneRequest } from '@ui/store';
 import { fmtMoney } from '@ui/derive';
 
 /**
@@ -67,14 +67,22 @@ export function Disclosure({ label, children, icon, kind }: { label: string; chi
   );
 }
 
-/** A button that opens a scene (approach choice) instead of acting straight away. Gated like Act. */
+/**
+ * A button that opens a conversation rather than acting straight away.
+ *
+ * This used to set a UI-only `scene` slot and the sheet drove the whole thing from there. It now
+ * dispatches a real `talk` action: a conversation is world state, queued on the confrontation
+ * list, so it survives a reload, is visible to the sim, and is answered the same way somebody at
+ * your door is. The gate is still the scene's own — there is no point opening a conversation you
+ * could not possibly close, so a player out of AP is told so at the door.
+ */
 export function SceneAct({ scene, label, icon, kind = '' }: { scene: SceneRequest; label: ReactNode; icon?: string; kind?: '' | 'primary' | 'danger' | 'ghost' }) {
   useStore(s => s.world);
-  const base: Action = scene.kind === 'shakedown' ? { type: 'shakedown', businessId: scene.businessId! } : scene.kind === 'threaten' ? { type: 'threaten', npcId: scene.npcId } : scene.kind === 'recruit' ? { type: 'recruit', npcId: scene.npcId } : scene.kind === 'parley' ? { type: 'parley', npcId: scene.npcId } : scene.kind === 'broker' ? { type: 'broker', npcId: scene.npcId, otherFactionId: scene.otherFactionId! } : { type: 'visit', npcId: scene.npcId };
-  const a = check(base);
+  const open: Action = { type: 'talk', scene: scene.kind, npcId: scene.npcId, businessId: scene.businessId, otherFactionId: scene.otherFactionId };
+  const a = check(open);
   return (
     <div className="actwrap">
-      <button type="button" className={`btn${kind ? ` btn-${kind}` : ''}`} disabled={!a.ok} onClick={() => openScene(scene)}>
+      <button type="button" className={`btn${kind ? ` btn-${kind}` : ''}`} disabled={!a.ok} onClick={() => act(open)}>
         <span>{icon && <>{icon} </>}{label}</span><span className="cost">{scene.kind === 'broker' ? 2 : 1} AP</span>
       </button>
       {!a.ok && <span className="btn-caption">{a.reason}</span>}
