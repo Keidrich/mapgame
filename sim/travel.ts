@@ -95,7 +95,7 @@ export function isHere(w: World, blockId?: Id): boolean { return !!blockId && w.
 export function npcBlockIds(w: World, n: Npc): Id[] {
   const out = new Set<Id>();
   for (const id of n.favouriteBusinessIds) { const b = w.businesses[id]; if (b) out.add(b.blockId); }
-  const owned = Object.values(w.businesses).find(b => b.ownerId === n.id);
+  const owned = Object.values(w.businesses).find(b => b.ownerId === n.id && !b.shut);
   if (owned) out.add(owned.blockId);
   if (n.homeBlockId) out.add(n.homeBlockId);
   return [...out];

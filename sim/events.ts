@@ -118,7 +118,7 @@ export function drawEvents(w: World, rng: Rng) {
       { id: 'week', label: 'One more week', detail: '+trust; maybe you get paid' },
       { id: 'work', label: 'Work it off', detail: `${debtor.name} joins your crew at no wage for a while` },
     ], { npcId: debtor.id, racketId: r.id }); } },
-    { w: Object.values(w.npcs).some(n => n.role === 'owner' && n.rel.trust >= 40 && w.businesses[Object.values(w.businesses).find(b => b.ownerId === n.id)?.id ?? '']?.ownedBy === 'npc') ? 2 : 0, make: () => { const o = Object.values(w.npcs).find(n => n.role === 'owner' && n.rel.trust >= 40 && Object.values(w.businesses).find(b => b.ownerId === n.id)?.ownedBy === 'npc')!; const b = Object.values(w.businesses).find(b => b.ownerId === o.id)!; const price = Math.round(b.value * 0.75); return ev('offer_sale', `${o.name} wants out`, `"I am tired. ${b.name} is yours for ${money(price)} if you want it. Keep me on and I will run it."`, [
+    { w: Object.values(w.npcs).some(n => n.role === 'owner' && n.rel.trust >= 40 && w.businesses[Object.values(w.businesses).find(b => b.ownerId === n.id && !b.shut)?.id ?? '']?.ownedBy === 'npc') ? 2 : 0, make: () => { const o = Object.values(w.npcs).find(n => n.role === 'owner' && n.rel.trust >= 40 && Object.values(w.businesses).find(b => b.ownerId === n.id && !b.shut)?.ownedBy === 'npc')!; const b = Object.values(w.businesses).find(b => b.ownerId === o.id && !b.shut)!; const price = Math.round(b.value * 0.75); return ev('offer_sale', `${o.name} wants out`, `"I am tired. ${b.name} is yours for ${money(price)} if you want it. Keep me on and I will run it."`, [
       { id: 'buy', label: `Buy for ${money(price)}`, costCash: price },
       { id: 'decline', label: 'Not now' },
     ], { npcId: o.id, businessId: b.id }); } },

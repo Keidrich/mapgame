@@ -33,6 +33,14 @@ export const RACKET_DEFS: Record<RacketKind, RacketDef> = {
   counterfeiting: { label: 'Counterfeiting', icon: '🖨️', blurb: 'A press in the back room. Worth what somebody will take for it, which is what a fence is for.', setupCost: 1600, skill: 'tech', heat: 3, incomeBase: 0, scale: 'stash', dirty: true, needsProduct: true, risk: 0.06 },
   after_hours:    { label: 'After Hours', icon: '🌃', blurb: 'The place does not close. Drinks at four in the morning, at four in the morning prices.', setupCost: 1400, skill: 'charm', heat: 3, incomeBase: 340, scale: 'block', dirty: true, risk: 0.07 },
   policy_bank:    { label: 'Policy Bank', icon: '🏦', blurb: 'Not a numbers route but the bank behind several of them. Somebody else does the walking.', setupCost: 3200, skill: 'brains', heat: 2, incomeBase: 520, scale: 'block', dirty: true, risk: 0.05 },
+  // ---------------------------------------------------------------- the crime pass
+  // What the tier 1/2 types added alongside them are actually for. Each one is deliberately
+  // vague about method: the game is about who pays who and what it costs, never about how.
+  parts_stripping: { label: 'Parts Stripping', icon: '🔩', blurb: 'Cars come in whole and leave in pieces. Nobody reports the pieces.', setupCost: 900, skill: 'tech', heat: 2.5, incomeBase: 210, scale: 'block', dirty: true, risk: 0.06 },
+  relay_export:    { label: 'Relay & Export', icon: '🚛', blurb: 'Somebody else\'s car, quietly, and out of the city before the paperwork catches up.', setupCost: 2200, skill: 'wheels', heat: 4, incomeBase: 380, scale: 'block', dirty: true, risk: 0.09 },
+  card_supply:     { label: 'Card Supply', icon: '📱', blurb: 'You do not work the machines. You supply the people who do, and take a cut of all of it.', setupCost: 1600, skill: 'tech', heat: 3, incomeBase: 300, scale: 'block', dirty: true, risk: 0.07 },
+  knockoffs:       { label: 'Knockoffs', icon: '👕', blurb: 'A rail at the front with the right labels on the wrong cloth. Nobody asks and nobody checks.', setupCost: 1400, skill: 'charm', heat: 1.5, incomeBase: 0, scale: 'stash', dirty: true, needsProduct: true, risk: 0.04 },
+  script_diversion:{ label: 'Script Diversion', icon: '💊', blurb: 'A professional with a signature, a debt, and a reason to look the other way.', setupCost: 3000, skill: 'charm', heat: 3.5, incomeBase: 420, scale: 'block', dirty: true, risk: 0.08 },
 };
 
 export interface ProductionDef {
@@ -44,6 +52,7 @@ export const PRODUCTION_DEFS: Record<ProductionKind, ProductionDef> = {
   grow_op:    { label: 'Grow Op', icon: '🌿', blurb: 'Lamps and patience. Best kept somewhere quiet.', product: 'green', setupCost: 2500, ingredientCost: 60, outputBase: 10, skill: 'brains', heat: 2, risk: 0.05 },
   lab:        { label: 'Lab', icon: '⚗️', blurb: 'Pills. High margin, high heat, and it stinks.', product: 'pills', setupCost: 6000, ingredientCost: 150, outputBase: 8, skill: 'tech', heat: 4, risk: 0.09 },
   print_shop: { label: 'Print Shop', icon: '🖨️', blurb: 'Funny money. Passes at 40 cents on the dollar.', product: 'counterfeit', setupCost: 4000, ingredientCost: 80, outputBase: 9, skill: 'tech', heat: 3, risk: 0.07 },
+  cut_house:  { label: 'Cut House', icon: '👕', blurb: 'Machines, a pattern table, and somebody\'s label sewn onto none of their cloth.', product: 'streetwear', setupCost: 3200, ingredientCost: 70, outputBase: 11, skill: 'charm', heat: 2, risk: 0.05 },
 };
 
 export const PRODUCT_INFO: Record<ProductKind, { label: string; icon: string; price: number; heat: number }> = {
@@ -52,6 +61,7 @@ export const PRODUCT_INFO: Record<ProductKind, { label: string; icon: string; pr
   pills:       { label: 'Pills', icon: '💊', price: 180, heat: 2 },
   hot_goods:   { label: 'Hot Goods', icon: '📦', price: 100, heat: 1 },
   counterfeit: { label: 'Counterfeit', icon: '💵', price: 40, heat: 1.5 },
+  streetwear:  { label: 'Streetwear', icon: '👕', price: 75, heat: 0.6 },
 };
 
 export type OpFamily = 'wire';
@@ -190,6 +200,40 @@ export const OP_DEFS: Record<OpKind, OpDef> = {
   convoy_run:      { label: 'Run a Convoy', icon: '🚛', blurb: 'Not one van but four, on one night, through ground you have to already control. The whole quarter\'s product in one move.', planDays: 4, minCrew: 3, maxCrew: 5, needs: { wheels: 16, brains: 9, muscle: 8 }, difficulty: 66, payout: [0, 0], lootKind: 'green', heat: 20, target: 'none', cost: 6000, tier: 3, requires: { crewCount: 3, safehouseTier: 2, priorOps: ['dockside_pickup', 'smuggle_run'] } },
 
   raid_rival:      { label: 'Raid Rival Racket', icon: '⚔️', blurb: 'Hit a rival racket, take the cash box, wreck the place.', planDays: 1, minCrew: 2, maxCrew: 5, needs: { muscle: 12, wheels: 4 }, difficulty: 50, payout: [1500, 6000], heat: 12, target: 'business', tier: 2, requires: { crewCount: 2, racketKinds: ['protection', 'numbers', 'bookmaking', 'gambling_den', 'loansharking', 'fencing', 'chop_shop', 'dealing', 'laundering', 'smuggling', 'no_show_jobs'] } },
+  // ================================================================ the crime pass
+  // Everything below is deliberately abstract about method. The game is about who pays who, what
+  // it costs and who finds out — never about how a thing is actually done. Blurbs describe the
+  // shape of a crime and the people in it, and stop there.
+
+  // ---- street: small, constant, and what somebody actually starts with ----
+  porch_piracy:    { label: 'Doorstep Runs', icon: '📦', blurb: 'Follow the vans around the good streets and take what they leave on the step. Small, constant, and nobody calls it in twice.', planDays: 0, minCrew: 0, maxCrew: 2, needs: { wheels: 4, brains: 2 }, difficulty: 22, payout: [150, 600], lootKind: 'hot_goods', heat: 3, target: 'block', tier: 0 },
+  bike_ring:       { label: 'Bike Ring', icon: '🚲', blurb: 'Two kids, a van and a set of bolt croppers, working a district a night. The good ones are worth what a car was ten years ago.', planDays: 1, minCrew: 1, maxCrew: 3, needs: { wheels: 6, muscle: 3 }, difficulty: 28, payout: [400, 1400], lootKind: 'hot_goods', heat: 5, target: 'district', tier: 0, requires: { crewCount: 1 } },
+  vape_bootleg:    { label: 'Bootleg Smokes', icon: '🚬', blurb: 'Cartons and cartridges off a lorry that was going somewhere else, sold out of a hundred counters at half the shop price.', planDays: 1, minCrew: 0, maxCrew: 2, needs: { charm: 5, wheels: 3 }, difficulty: 26, payout: [500, 1600], heat: 4, target: 'district', tier: 0 },
+  copper_strip:    { label: 'Strip It for Copper', icon: '🔩', blurb: 'A building nobody is watching, and everything inside the walls that is worth money by the kilo.', planDays: 1, minCrew: 1, maxCrew: 3, needs: { muscle: 6, tech: 4 }, difficulty: 30, payout: [600, 2200], lootKind: 'hot_goods', heat: 6, target: 'block', tier: 0, requires: { derelictTarget: true } },
+  squatter_scheme: { label: 'Rent What Is Not Yours', icon: '🏚️', blurb: 'Put people in an empty building and collect from them every week. The paperwork is somebody else\'s problem and so is the roof.', planDays: 2, minCrew: 1, maxCrew: 2, needs: { charm: 6, brains: 5 }, difficulty: 34, payout: [900, 3000], heat: 5, target: 'block', tier: 1, requires: { derelictTarget: true } },
+  sim_swap:        { label: 'Take Their Number', icon: '📵', blurb: 'Their phone stops working and everything tied to it answers to somebody else for an afternoon. Only against somebody you have already been inside.', family: 'wire', planDays: 1, minCrew: 0, maxCrew: 2, needs: { tech: 10, charm: 6 }, difficulty: 46, payout: [1200, 5000], heat: 6, target: 'npc', tier: 1, requires: { rattedTarget: true } },
+
+  // ---- mid: paper, professionals, and people who sign things ----
+  straw_purchase:  { label: 'Straw Buyers', icon: '📝', blurb: 'Other people\'s names on the paperwork for cars and goods that were never theirs and never will be. Consumer stock only; nobody in this outfit arms strangers.', planDays: 2, minCrew: 1, maxCrew: 3, needs: { charm: 8, brains: 7 }, difficulty: 44, payout: [2500, 8000], heat: 8, target: 'none', tier: 2, requires: { crewCount: 2 } },
+  resort_fraud:    { label: 'Timeshare Sell', icon: '🏝️', blurb: 'A room, a slideshow and a week in the sun that does not exist. They sign because everybody else in the room is signing.', planDays: 3, minCrew: 1, maxCrew: 3, needs: { charm: 10, brains: 6 }, difficulty: 48, payout: [4000, 14000], heat: 7, target: 'none', tier: 2, requires: { crewCount: 2, priorOps: ['long_con', 'shell_company'] } },
+  match_fixing:    { label: 'Fix the Card', icon: '🏆', blurb: 'One professional who needs money more than they need the result. The gym, the book and the crowd do the rest.', planDays: 2, minCrew: 1, maxCrew: 2, needs: { charm: 8, muscle: 5 }, difficulty: 50, payout: [3000, 11000], heat: 9, target: 'npc', tier: 2, requires: { racketKinds: ['bookmaking', 'numbers', 'policy_bank'] } },
+  stream_piracy:   { label: 'Pirate Feeds', icon: '📺', blurb: 'Somebody else\'s channels, resold by the month to half a district. Quiet money that arrives whether you get up or not.', planDays: 2, minCrew: 0, maxCrew: 2, needs: { tech: 9, brains: 6 }, difficulty: 40, payout: [2000, 7000], heat: 5, target: 'none', tier: 2, requires: { crewCount: 1 } },
+  betting_app:     { label: 'Run a Book Online', icon: '📲', blurb: 'The same book, on everybody\'s phone, with no room to stand in and no door to raid.', planDays: 3, minCrew: 1, maxCrew: 3, needs: { tech: 10, brains: 8 }, difficulty: 52, payout: [4000, 13000], heat: 8, target: 'none', tier: 2, requires: { racketKinds: ['bookmaking', 'gambling_den', 'policy_bank'] } },
+  synth_identity:  { label: 'Build a Person', icon: '📇', blurb: 'A name that belongs to nobody, with a history, a rating and a signature. Worth more the longer it sits untouched.', planDays: 3, minCrew: 0, maxCrew: 2, needs: { tech: 9, brains: 9 }, difficulty: 54, payout: [3500, 12000], heat: 7, target: 'none', tier: 2, requires: { crewCount: 2, priorOps: ['shell_company', 'wire_fraud'] } },
+
+  // ---- organised: a commission, a client, or a permanent cost ----
+  illegal_dumping: { label: 'Take the Contract', icon: '🏭', blurb: 'Somebody pays well to have barrels go away. Where they go is a district that will not find out for years.', planDays: 2, minCrew: 1, maxCrew: 3, needs: { wheels: 8, muscle: 6 }, difficulty: 42, payout: [3000, 10000], heat: 10, target: 'district', tier: 2, requires: { crewCount: 2, racketKinds: ['union_dues', 'no_show_jobs', 'smuggling'] } },
+  arson_hire:      { label: 'Fire for Hire', icon: '🔥', blurb: 'Not your building and not your insurance. Somebody else wants a place gone and will pay for it to look like bad luck.', planDays: 2, minCrew: 1, maxCrew: 3, needs: { muscle: 6, tech: 7 }, difficulty: 52, payout: [6000, 18000], heat: 22, target: 'business', tier: 3, requires: { crewCount: 2, priorOps: ['intimidate', 'insurance_fraud'] } },
+  bust_out:        { label: 'Bust-Out', icon: '📉', blurb: 'Take a real business, order everything its name will carry, sell it all, and walk away from the bill. What is left is not a business any more.', planDays: 4, minCrew: 2, maxCrew: 4, needs: { brains: 10, charm: 8 }, difficulty: 56, payout: [12000, 38000], heat: 16, target: 'business', tier: 3, ownBusiness: true, requires: { businessOwned: true, priorOps: ['shell_company'] } },
+  boiler_room:     { label: 'Boiler Room', icon: '☎️', blurb: 'Twenty phones, twenty scripts and a company that is a filing cabinet. They are buying a feeling, and it is not coming back.', planDays: 3, minCrew: 2, maxCrew: 5, needs: { charm: 12, brains: 9 }, difficulty: 58, payout: [14000, 45000], heat: 14, target: 'none', tier: 3, requires: { crewCount: 3, priorOps: ['shell_company', 'long_con'] } },
+  bid_rigging:     { label: 'Rig the Bidding', icon: '📋', blurb: 'The contract was always going to somebody. A councillor who takes your calls decides it goes to you.', planDays: 3, minCrew: 1, maxCrew: 3, needs: { brains: 10, charm: 9 }, difficulty: 55, payout: [15000, 50000], heat: 12, target: 'npc', tier: 3, requires: { officialTarget: true, crewCount: 2 } },
+  campaign_wash:   { label: 'Fund a Friend', icon: '🗳️', blurb: 'Money into a campaign through a hundred names that are not yours, and a friend in the building afterwards.', planDays: 3, minCrew: 1, maxCrew: 3, needs: { charm: 10, brains: 10 }, difficulty: 57, payout: [0, 0], cost: 12000, heat: 10, target: 'npc', tier: 3, requires: { officialTarget: true, racketKinds: ['laundering'] } },
+  prison_supply:   { label: 'Supply the Wing', icon: '🔒', blurb: 'One of yours is inside and everything in there costs ten times what it costs out here. Somebody has to carry it in.', planDays: 2, minCrew: 1, maxCrew: 3, needs: { charm: 8, muscle: 6 }, difficulty: 50, payout: [3000, 9000], heat: 9, target: 'npc', tier: 3, requires: { jailedTarget: true, priorOps: ['spring_crew'] } },
+  corporate_extortion: { label: 'Lean on the Board', icon: '🏢', blurb: 'Not a shop and not a man behind a counter. A company, a quarterly number, and something they would rather nobody read.', planDays: 3, minCrew: 2, maxCrew: 4, needs: { brains: 11, charm: 9 }, difficulty: 60, payout: [10000, 32000], heat: 13, target: 'npc', tier: 3, requires: { rattedTarget: true, crewCount: 3 } },
+
+  // ---- elite: the two that reach the whole city ----
+  crypto_wash:     { label: 'Wash It Sideways', icon: '💱', blurb: 'Money in one shape, out in another, through enough hands that nobody is sure which were yours. The tech-flavoured cousin of an offshore account.', family: 'wire', planDays: 4, minCrew: 1, maxCrew: 3, needs: { tech: 13, brains: 11 }, difficulty: 64, payout: [0, 0], heat: 9, target: 'none', tier: 4, requires: { crewCount: 3, priorOps: ['wire_fraud', 'shell_company'], safehouseTier: 2 } },
+  vote_buying:     { label: 'Buy the Ward', icon: '🗳️', blurb: 'Not a bribe to one man. A ward, paid for door by door, and a result that everybody can see and nobody can prove.', planDays: 4, minCrew: 2, maxCrew: 5, needs: { charm: 13, brains: 10 }, difficulty: 66, payout: [0, 0], cost: 20000, heat: 15, target: 'district', tier: 4, requires: { crewCount: 4, priorOps: ['campaign_wash'] } },
 };
 
 export const SAFEHOUSE_TIERS = [
@@ -212,6 +256,12 @@ export const RECIPES: Record<string, RecipeDef> = {
   copper_pot:   { label: 'Copper pot batch', kind: 'still', blurb: 'A small pot, run slow, vented properly. Half the smell of anything else.', quality: 14, output: 0.95, heat: 0.7, risk: 0.75 },
   overproof:    { label: 'Overproof white', kind: 'still', blurb: 'Straight off the still at strength. Quick money, and the fire risk is not theoretical.', quality: 5, output: 1.6, heat: 1.5, risk: 1.5 },
   bonded:       { label: 'Bonded label', kind: 'still', blurb: 'Real bottles, real labels, real revenue stamps that are not real. Sells like the genuine article.', quality: 32, output: 0.7, heat: 0.6, risk: 0.8 },
+
+  // ---- the cut house: whose label, and how close to the real thing ----
+  bootleg_tee:  { label: 'Bootleg tees', kind: 'cut_house', blurb: 'Blanks by the box and a heat press in the back. Nobody is fooled and nobody cares at that price.', quality: -12, output: 1.45, heat: 0.8, risk: 0.8 },
+  mirror_run:   { label: 'Mirror run', kind: 'cut_house', blurb: 'The same pattern, the same stitch count, the same box. Told apart by people who do it for a living.', quality: 30, output: 0.75, heat: 1.2, risk: 1.2 },
+  overrun:      { label: 'Factory overrun', kind: 'cut_house', blurb: 'A real line run on past its order. Genuinely the same cloth, which is exactly the problem.', quality: 38, output: 0.6, heat: 0.7, risk: 1.4 },
+  seconds:      { label: 'Seconds and rejects', kind: 'cut_house', blurb: 'Crooked seams and the wrong shade, relabelled and sold anyway. Cheap, fast, and half of it comes back.', quality: -22, output: 1.65, heat: 1.1, risk: 1.3 },
 
   // ---- the grow op: what is actually in the bag ----
   hydro:        { label: 'Hydroponic', kind: 'grow_op', blurb: 'More lamps, more yield, more on the power bill — and the bill is what gets noticed.', quality: 5, output: 1.3, heat: 1.25, risk: 1 },
@@ -265,6 +315,51 @@ export const FIXER = {
    * eases as the relationship earns it — rather than silently halving every fixer in the city.
    */
   trustBand: 60,
+};
+
+/**
+ * The crime pass's three numbers that are not a racket and not an op payout.
+ *
+ * `CRYPTO_WASH` is the wire's answer to a laundering racket: one big wash in a single job
+ * rather than a daily capacity, at a rate deliberately between a fixer's best and a racket's, so
+ * it is the thing you reach for when you are sitting on a pile and have no front — never the
+ * thing that makes a front pointless. `PRISON_WING` is the only income in the game that runs out
+ * of a cell instead of a building, and it ends by itself. `WARD` is what buying a ward door by
+ * door actually moves: influence across a whole district, which is what the Commission counts.
+ */
+export const CRYPTO_WASH = {
+  base: 9000,        // what the job will touch at tech 0
+  perTech: 900,      // + per point of tech
+  rate: 0.78,        // between FIXER.maxRate and LAUNDER_RATE, for ever
+};
+export const PRISON_WING = {
+  share: 1 / 12,     // of the job's payout, per day, while they are inside
+  heatPerDay: 0.4,   // somebody carries it in every week and eventually somebody is searched
+};
+export const WARD = {
+  perBlock: 9,       // influence on every block of the district
+  respect: 8,
+  councillor: 10,    // trust with the one man in the building who notices
+};
+
+/**
+ * Fronting a street crew's racket: the third thing you can do with a corner, alongside putting
+ * them on the payroll and folding them into your outfit. You pay for the shop, they own it and
+ * run it, and you take a share of what it makes instead of all of it.
+ *
+ * It is deliberately the worst rate and the least work in the game: nobody of yours stands in
+ * it, it needs no runner and no AP after the day you set it up, and in exchange the books are
+ * theirs. Everything that can go wrong is somebody else's decision — which is the point.
+ */
+export const FUNDED = {
+  setupMult: 1.2,      // you are paying for somebody else's shop, at somebody else's price
+  kick: 0.45,          // your share of what it makes
+  minMood: -20,        // nobody takes a stake from somebody they cannot stand
+  skimChance: 0.09,    // per day: a light week that is not really a light week
+  skimMin: 0.15, skimMax: 0.4,   // of your share, when they do
+  noticeAt: 1200,      // skimmed before the numbers stop adding up and somebody tells you
+  outgrowAt: 8,        // the strength at which they stop feeling like your investment...
+  outgrowMood: 25,     // ...unless they actually like you
 };
 
 /** Delegation: what it takes to hand a crew member a district, and what they do with it. */

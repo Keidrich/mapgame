@@ -97,14 +97,14 @@ export const BUSINESS_DEFS: Record<BusinessType, BusinessDef> = {
   // ---------------------------------------------------------------- tier 1: the street trades
   // Places with a yard or a counter and somebody who has to open tomorrow. Cheap to lean on,
   // cheap to hold, and the ones a player meets first.
-  scrapyard:     { label: 'Scrapyard',       icon: '🔩', tier: 1, income: [90, 200],  valueMult: 35, patrons: [1, 2], rackets: ['protection', 'chop_shop', 'fencing', 'smuggling', 'union_dues'], heistTarget: true, nerve: 55 },
-  electronics:   { label: 'Phone Shop',      icon: '📱', tier: 1, income: [100, 230], valueMult: 35, patrons: [2, 4], rackets: ['protection', 'fencing', 'counterfeiting', 'numbers'], nerve: 35 },
-  tow_yard:      { label: 'Tow Yard',        icon: '🚛', tier: 1, income: [110, 240], valueMult: 35, patrons: [1, 2], rackets: ['protection', 'chop_shop', 'loansharking', 'union_dues'], nerve: 60 },
+  scrapyard:     { label: 'Scrapyard',       icon: '🔩', tier: 1, income: [90, 200],  valueMult: 35, patrons: [1, 2], rackets: ['protection', 'chop_shop', 'fencing', 'smuggling', 'union_dues', 'parts_stripping'], heistTarget: true, nerve: 55 },
+  electronics:   { label: 'Phone Shop',      icon: '📱', tier: 1, income: [100, 230], valueMult: 35, patrons: [2, 4], rackets: ['protection', 'fencing', 'counterfeiting', 'numbers', 'card_supply'], nerve: 35 },
+  tow_yard:      { label: 'Tow Yard',        icon: '🚛', tier: 1, income: [110, 240], valueMult: 35, patrons: [1, 2], rackets: ['protection', 'chop_shop', 'loansharking', 'union_dues', 'relay_export'], nerve: 60 },
 
   // ---------------------------------------------------------------- tier 2: the established ones
   // Books, a lawyer on call, and an owner who has been leaned on before and did not fold.
-  boutique:      { label: 'Boutique',        icon: '👗', tier: 2, income: [180, 420], valueMult: 50, patrons: [2, 4], rackets: ['protection', 'laundering', 'fencing', 'counterfeiting'], nerve: 45 },
-  pharmacy:      { label: 'Pharmacy',        icon: '💊', tier: 2, income: [220, 480], valueMult: 50, patrons: [2, 4], rackets: ['protection', 'laundering', 'dealing'], heistTarget: true, nerve: 55 },
+  boutique:      { label: 'Boutique',        icon: '👗', tier: 2, income: [180, 420], valueMult: 50, patrons: [2, 4], rackets: ['protection', 'laundering', 'fencing', 'counterfeiting', 'knockoffs'], nerve: 45 },
+  pharmacy:      { label: 'Pharmacy',        icon: '💊', tier: 2, income: [220, 480], valueMult: 50, patrons: [2, 4], rackets: ['protection', 'laundering', 'dealing', 'script_diversion'], heistTarget: true, nerve: 55 },
 
   // ---------------------------------------------------------------- tier 3: the institutions
   // Nobody here is frightened of you. No racket runs out of these and no threat opens them; the

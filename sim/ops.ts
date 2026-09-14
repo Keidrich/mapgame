@@ -9,7 +9,7 @@ import { ROUTE } from '@content/intel';
 import { POSTURES } from '@content/authority';
 import { buyDownAttention, killCase, openCaseById, springFrom } from './authority-ops';
 import { CARD_TIERS } from '@content/cyber';
-import { OP_APPROACHES, OP_DEFS } from '@content/rackets';
+import { CRYPTO_WASH, OP_APPROACHES, OP_DEFS, PRISON_WING, WARD } from '@content/rackets';
 import type { Rng } from './rng';
 import { opChance } from './select';
 import { complicationHeat, complicationSwing, maybeComplicate } from './complications';
@@ -17,7 +17,8 @@ import { kitHeatMult } from './items';
 import { PLAYER, type Op, type World } from './types';
 import { addHeat, addInfluence, adjustRel, clamp, jailDays, log, money, spreadRep } from './util';
 import { remember } from './ledger';
-import { freeOpCrew } from './reducer';
+import { doFavour } from './standing';
+import { freeOpCrew, shutBusiness } from './reducer';
 import { addMemory } from './people';
 import { crewAt, dissolveCrew } from './crews';
 import { claim, revealOne } from './abandoned';
@@ -267,7 +268,7 @@ export function resolveOp(w: World, o: Op, rng: Rng) {
           else if (n.role === 'lieutenant') { f.lieutenantIds = f.lieutenantIds.filter(id => id !== n.id); f.standing[PLAYER] -= 40; f.grudges.push(`hit:${n.id}`); res.text += `${f.name} wants blood.`; }
           else { f.standing[PLAYER] -= 15; f.soldiers = Math.max(0, f.soldiers - 1); }
         }
-        if (n.role === 'owner') { for (const b of Object.values(w.businesses)) if (b.ownerId === n.id) { b.flags.push('owner_dead'); b.condition = clamp(b.condition - 20); } }
+        if (n.role === 'owner') { for (const b of Object.values(w.businesses)) if (b.ownerId === n.id && !b.shut) { b.flags.push('owner_dead'); b.condition = clamp(b.condition - 20); } }
         p.fear = clamp(p.fear + 10); spreadRep(w, n.homeBlockId, { fear: 12, trust: -5 }, 2, 'grave');
         addMemory(w, n.homeBlockId, 'hit', `${n.name} was killed. Everybody knows who ordered it.`, { npcId: n.id });
         if (caseWitnessOf(w, n.id)) silenceWitness(w, n.id, 'gone');
@@ -337,6 +338,197 @@ export function resolveOp(w: World, o: Op, rng: Rng) {
         res.text = `Windows out, bats swung. ${target ? w.npcs[target.ownerId].name : 'The owner'} got the message.`;
         break;
       }
+
+      // ============================================================ the crime pass
+      // Every case below says who paid, what it cost and who found out. None of them says how a
+      // thing was done, and none of them should ever start to.
+
+      // ---- street work. It comes back as goods, not money, which is what a fence is for.
+      case 'porch_piracy': case 'bike_ring': case 'copper_strip': {
+        const units = Math.max(1, Math.round(value / 80));
+        p.stash.hot_goods += units; res.loot = { hot_goods: units };
+        res.text = o.kind === 'porch_piracy'
+          ? `A morning behind the vans and ${units} boxes in the back of yours. Nobody on that street reports the same thing twice.`
+          : o.kind === 'bike_ring' ? `${units} frames off the racks in one night. The good ones are worth what a car was.`
+          : `${units} loads out of the walls of a building nobody was watching. It weighs more than it pays.`;
+        break;
+      }
+      case 'squatter_scheme': {
+        const blk = o.targetBlockId ? w.blocks[o.targetBlockId] : undefined;
+        p.dirty += value; res.cash = value;
+        if (blk) {
+          // you are the only authority in that building, which is influence whether you wanted it or not
+          addInfluence(w, blk.id, PLAYER, 8);
+          spreadRep(w, blk.id, { fear: 4, trust: -6 }, 1, 'property');
+          addMemory(w, blk.id, 'squat', `Somebody is collecting rent on the empty building on ${blk.name}, and it is not the council.`);
+        }
+        res.text = `Forty people in a building with no landlord, paying every Friday. ${money(value)}.`;
+        break;
+      }
+      case 'sim_swap': {
+        const n = o.targetNpcId ? w.npcs[o.targetNpcId] : undefined;
+        p.dirty += value; res.cash = value;
+        // it happened on the wire, so it lands on the half of your heat that scrubbing can touch
+        cyberHeat(w, Math.round(def.heat * 0.6), n?.homeBlockId);
+        if (n) {
+          adjustRel(w, n, { trust: -20, fear: 8 }, 'property');
+          remember(w, n, 'harm', 'Their phone stopped working for an afternoon and things moved that they did not move.');
+        }
+        res.text = `${n?.name ?? 'They'} spend the afternoon on hold to somebody who cannot help them. ${money(value)} while they wait.`;
+        break;
+      }
+
+      // ---- paper and professionals. Cash, and somebody who signed something.
+      case 'vape_bootleg': case 'stream_piracy': case 'betting_app': case 'straw_purchase': case 'resort_fraud': case 'boiler_room': {
+        p.dirty += value; res.cash = value;
+        res.text = {
+          vape_bootleg: `Cartons under a hundred counters by the end of the week. ${money(value)}, and every shopkeeper on the round knows your name now.`,
+          stream_piracy: `Half a district pays somebody a month for something that was never theirs to sell. ${money(value)}.`,
+          betting_app: `The book runs all night in everybody's pocket and never opens a door. ${money(value)}.`,
+          straw_purchase: `Other people's names on paperwork for stock that was never theirs. ${money(value)}, and a row of signatures nobody will be answering the phone about.`,
+          resort_fraud: `The room signs because the room is signing. ${money(value)}, and a coach party that finds out in April.`,
+          boiler_room: `Twenty phones, three weeks and ${money(value)}. The company was a filing cabinet, and the filing cabinet is gone.`,
+        }[o.kind];
+        break;
+      }
+      case 'match_fixing': {
+        const n = o.targetNpcId ? w.npcs[o.targetNpcId] : undefined;
+        p.dirty += value; res.cash = value;
+        if (n) {
+          // they took your money to lose, which is a thing you now know about them for ever
+          adjustRel(w, n, { trust: -8, fear: 12 }, 'words');
+          remember(w, n, 'deal', 'They took money to lose, and you are the one holding that.');
+        }
+        res.text = `It goes the way it was paid to go, in the fourth. ${money(value)} across three books, none of them yours.`;
+        break;
+      }
+      case 'synth_identity': {
+        // paper rather than cash in a bag: it comes out clean, and a name that is not yours takes
+        // a little of the city's attention off the one that is
+        p.cash += value; res.cash = value;
+        p.heat = clamp(p.heat - 4); res.heat = Math.max(0, res.heat - 2);
+        res.text = `A name with a history, a rating and a signature, and nobody behind it. ${money(value)} clean, and a little less attention on your own name.`;
+        break;
+      }
+
+      // ---- organised: a client, a commission, or a cost you do not get back.
+      case 'illegal_dumping': {
+        const d = o.targetDistrictId ? w.districts[o.targetDistrictId] : undefined;
+        p.dirty += value; res.cash = value;
+        if (d?.blockIds.length) {
+          const where = w.blocks[d.blockIds[0]];
+          // the district does not find out for years, so this is trust bleeding rather than fear
+          spreadRep(w, where.id, { trust: -4 }, 2, 'property');
+          addMemory(w, where.id, 'dumping', `Barrels went into the ground somewhere on ${d.name} and nobody will say whose.`);
+        }
+        res.text = `The barrels go away. ${money(value)} from a company that will never know where, in ${d?.name ?? 'somebody else\'s district'}.`;
+        break;
+      }
+      case 'arson_hire': {
+        // Deliberately not insurance_fraud: somebody else's building, somebody else's insurer, and
+        // a fee from a client instead of a payout from a policy. You end up with cash and an owner
+        // who knows exactly what happened, rather than cash and a claim form.
+        p.dirty += value; res.cash = value;
+        if (target) {
+          target.condition = 5; target.insured = false; target.flags.push('torched');
+          for (const rid of target.racketIds) { const r = w.rackets[rid]; if (r) r.disrupted = Math.max(r.disrupted, 8); }
+          const owner = w.npcs[target.ownerId];
+          adjustRel(w, owner, { fear: 30, trust: -40 }, 'violence');
+          remember(w, owner, 'harm', `${target.name} burned down in the night. Nobody was ever charged.`);
+          spreadRep(w, target.blockId, { fear: 10, trust: -6 }, 2, 'violence');
+          addMemory(w, target.blockId, 'fire', `${target.name} went up in the night. The street has its own opinion about why.`, { businessId: target.id });
+          p.fear = clamp(p.fear + 6);
+          if (margin < 40) openCase(w, 'arson', `${target.name} fire`, { businessId: target.id, blockId: target.blockId, opId: o.id }, o.crewIds, rng, 20);
+        }
+        res.text = `${target?.name ?? 'The building'} burns, and the man who wanted it gone pays ${money(value)} without ever meeting you.`;
+        break;
+      }
+      case 'bust_out': {
+        // The only op in the game that spends something you cannot buy back. Everything the name
+        // will carry is ordered, sold, and never paid for; what is left does not open again. The
+        // payout is the biggest on the board because the asset is gone with it — see `shutBusiness`.
+        p.dirty += value; res.cash = value;
+        if (target) {
+          const lost = target.value;
+          shutBusiness(w, target, 'busted_out');
+          openCase(w, 'fraud', `creditors of ${target.name}`, { businessId: target.id, blockId: target.blockId, opId: o.id }, o.crewIds, rng, margin > 30 ? 15 : 30);
+          res.text = `Everything ${target.name}'s name would carry is ordered, sold and never paid for. ${money(value)} out of it, ${money(lost)} of business gone for good. The doors do not open again.`;
+        } else res.text = `${money(value)} out of a name that does not mean anything any more.`;
+        break;
+      }
+      case 'bid_rigging': {
+        const n = o.targetNpcId ? w.npcs[o.targetNpcId] : undefined;
+        p.cash += value; res.cash = value;   // public money arrives in the light
+        if (n) { adjustRel(w, n, { trust: 6 }); remember(w, n, 'deal', 'A contract went the way they said it would go.'); }
+        res.text = `${n?.name ?? 'The committee'} reads a name out and it is yours. ${money(value)} of public money, all of it explainable.`;
+        break;
+      }
+      case 'campaign_wash': {
+        // No payout: you spent the money and what you bought is a person. The trust goes in through
+        // `adjustRel` like everybody else's, so `officialTrust` picks it up wherever it is already
+        // read — buying down a case, jail time, the paperwork route into a derelict block.
+        const n = o.targetNpcId ? w.npcs[o.targetNpcId] : undefined;
+        if (n) {
+          adjustRel(w, n, { trust: 18, respect: 6 });
+          doFavour(w, n, 'their campaign, paid for through names that were not yours');
+          remember(w, n, 'favour', 'Their campaign was paid for through a hundred names, none of them yours.');
+          if (n.official) n.official.corruption = clamp(n.official.corruption + 10);
+        }
+        res.text = `The money arrives from a hundred people who have never met each other. ${n?.name ?? 'The office'} wins, and takes your calls afterwards.`;
+        break;
+      }
+      case 'prison_supply': {
+        const n = o.targetNpcId ? w.npcs[o.targetNpcId] : undefined;
+        p.dirty += value; res.cash = value;
+        if (n?.crew) {
+          n.crew.loyalty = clamp(n.crew.loyalty + 12);
+          remember(w, n, 'favour', 'Somebody kept the wing supplied the whole time they were inside.');
+          // and it keeps paying while they are in there. Ends by itself the day they walk out.
+          p.wing = { npcId: n.id, since: w.day, perDay: Math.max(1, Math.round(value * PRISON_WING.share)) };
+        }
+        res.text = `Everything in there costs ten times what it costs out here, and ${n?.name ?? 'somebody of yours'} is the one handing it out. ${money(value)}, and it keeps coming while they are inside.`;
+        break;
+      }
+      case 'corporate_extortion': {
+        const n = o.targetNpcId ? w.npcs[o.targetNpcId] : undefined;
+        p.dirty += value; res.cash = value;
+        if (n) {
+          adjustRel(w, n, { fear: 25, trust: -20 }, 'property');
+          remember(w, n, 'harm', 'Somebody read the thing they most wanted unread, and then said a number.');
+        }
+        res.text = `Not a man behind a counter: a quarterly number, and something in it they would rather nobody read. ${money(value)}, invoiced.`;
+        break;
+      }
+
+      // ---- the two that reach the whole city.
+      case 'crypto_wash': {
+        const cap = CRYPTO_WASH.base + p.skills.tech * CRYPTO_WASH.perTech;
+        const amt = Math.min(p.dirty, cap);
+        const clean = Math.round(amt * CRYPTO_WASH.rate);
+        p.dirty -= amt; p.cash += clean; res.cash = clean;
+        cyberHeat(w, Math.round(def.heat * 0.5));
+        res.text = amt > 0
+          ? `${money(amt)} goes in one shape and ${money(clean)} comes back in another, through enough hands that nobody is sure which were yours.`
+          : 'Everything set up, and nothing dirty to put through it. The people involved are paid either way.';
+        break;
+      }
+      case 'vote_buying': {
+        // The Commission tie: a chair is counted in blocks where you are the name on the street,
+        // and a ward bought door by door moves every block in the district at once.
+        const d = o.targetDistrictId ? w.districts[o.targetDistrictId] : undefined;
+        if (d) {
+          for (const id of d.blockIds) addInfluence(w, id, PLAYER, WARD.perBlock);
+          if (d.blockIds.length) {
+            spreadRep(w, d.blockIds[0], { respect: 6 }, 2, 'words');
+            addMemory(w, d.blockIds[0], 'ward', `The ward went one way and everybody on it knows why. Nobody can prove it.`);
+          }
+        }
+        const councillor = Object.values(w.npcs).find(x => x.official?.kind === 'councillor' && x.alive);
+        if (councillor) adjustRel(w, councillor, { trust: WARD.councillor, respect: 6 });
+        p.respect = clamp(p.respect + WARD.respect);
+        res.text = `${d?.name ?? 'The ward'} votes the way it was paid to, door by door. Everybody can see it and nobody can prove it.`;
+        break;
+      }
     }
     p.respect = clamp(p.respect + (def.difficulty >= 60 ? 6 : 2));
     for (const n of crew) if (n.crew) n.crew.loyalty = clamp(n.crew.loyalty + 5);
@@ -362,6 +554,13 @@ export function resolveOp(w: World, o: Op, rng: Rng) {
     if (o.kind === 'war_strike' && o.targetNpcId) { const n = w.npcs[o.targetNpcId]; const f = n.faction ? w.factions[n.faction] : undefined; if (f) { f.standing[PLAYER] = clamp(f.standing[PLAYER] - 20, -100, 100); f.soldiers += 2; f.grudges.push(`war_strike_failed:${n.id}`); res.text += ` ${f.short} know exactly who sent them, and they are hiring.`; } }
     if (o.kind === 'defend_racket' && target) { const held = target.racketIds.map(id => w.rackets[id]).filter(r => r?.owner === PLAYER); for (const r of held) r.disrupted = Math.max(r.disrupted, 3); res.text += ' They came through anyway.'; }
     if (o.kind === 'insurance_fraud' && target) { target.condition = clamp(target.condition - 40); target.insured = false; target.flags.push('arson_suspect'); res.heat += 10; res.text += ' The fire marshal is asking about you.'; }
+    // ---- the crime pass: a failed job here costs more than the trip home
+    if (o.kind === 'arson_hire' && target) { target.condition = clamp(target.condition - 20); adjustRel(w, w.npcs[target.ownerId], { fear: 15, trust: -25 }, 'violence'); openCase(w, 'arson', `the fire at ${target.name}`, { businessId: target.id, blockId: target.blockId, opId: o.id }, o.crewIds, rng, 20); res.text += ' It goes out before it takes, and the marshal can see where it started.'; }
+    if (o.kind === 'bust_out' && target) { target.condition = clamp(target.condition - 25); target.flags.push('paper'); openCase(w, 'fraud', `the accounts at ${target.name}`, { businessId: target.id, blockId: target.blockId, opId: o.id }, o.crewIds, rng, 25); res.text += ` ${target.name} keeps its doors, and its suppliers stop taking orders.`; }
+    if (o.kind === 'prison_supply' && o.targetNpcId) { const n = w.npcs[o.targetNpcId]; if (n?.crew?.status === 'jailed') { n.crew.statusDays += 7; n.crew.loyalty = clamp(n.crew.loyalty - 10); res.text += ` ${n.name} was searched on the way back to the wing, and it goes on their sheet.`; } }
+    if (o.kind === 'campaign_wash' && o.targetNpcId) { const n = w.npcs[o.targetNpcId]; adjustRel(w, n, { trust: -12 }); res.text += ` ${n.name} gives the money back in front of a camera.`; }
+    if (o.kind === 'vote_buying' && o.targetDistrictId) { const d = w.districts[o.targetDistrictId]; if (d?.blockIds.length) { spreadRep(w, d.blockIds[0], { trust: -8, respect: -4 }, 2, 'words'); addMemory(w, d.blockIds[0], 'ward', 'Somebody was going door to door with money, and the ward talked about it for weeks.'); } }
+    if ((o.kind === 'sim_swap' || o.kind === 'crypto_wash') && !success) cyberHeat(w, Math.round(def.heat * 0.5));
     for (const n of crew) if (n.crew) n.crew.loyalty = clamp(n.crew.loyalty - 8);
   }
   addHeat(w, res.heat, blockId);

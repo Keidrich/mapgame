@@ -52,7 +52,7 @@ export function tickAgendas(w: World, rng: Rng) {
 }
 
 function milestone(w: World, n: Npc, a: Agenda, at: 50 | 100, rng: Rng) {
-  const biz = Object.values(w.businesses).find(b => b.ownerId === n.id);
+  const biz = Object.values(w.businesses).find(b => b.ownerId === n.id && !b.shut);
   const known = n.known || n.rel.trust >= 20;
   const ev = (kind: string, title: string, text: string, options: GameEvent['options'], refs: GameEvent['refs'] = {}) => { w.pendingEvents.push({ id: nid(w, 'e'), day: w.day, kind, title, text, options, refs }); };
   const f = a.target ? w.factions[a.target] : undefined;
@@ -123,7 +123,7 @@ export function tickGossip(w: World, rng: Rng) {
     if (n.rel.fear >= 60 || w.day - g.since > 20) { n.grudge = undefined; continue; } // scared quiet, or old news
     if (g.spread >= 4 || !rng.chance(0.5)) continue;
     const circle = new Set<Id>();
-    for (const bid of [...n.favouriteBusinessIds, ...Object.values(w.businesses).filter(b => b.ownerId === n.id).map(b => b.id)]) { const b = w.businesses[bid]; if (!b) continue; circle.add(b.ownerId); for (const p of b.patronIds) circle.add(p); }
+    for (const bid of [...n.favouriteBusinessIds, ...Object.values(w.businesses).filter(b => b.ownerId === n.id && !b.shut).map(b => b.id)]) { const b = w.businesses[bid]; if (!b || b.shut) continue; circle.add(b.ownerId); for (const p of b.patronIds) circle.add(p); }
     for (const bid of w.blocks[n.homeBlockId]?.businessIds ?? []) { const b = w.businesses[bid]; if (b) circle.add(b.ownerId); }
     // and the people who actually matter to them: a sister across the district hears it before the man at the next stool
     for (const c of connectionsOf(w, n)) circle.add(c.npc.id);

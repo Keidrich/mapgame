@@ -10,7 +10,7 @@ import { PLAYER, dispatch, generateWorld, select, type World } from '@sim/index'
 import { Rng } from '@sim/rng';
 import { SCENARIOS, setUp, topUp, type ScenarioName } from './admin';
 import { newCoverage, bump, warn, type Coverage } from './coverage';
-import { answerEverything, buyKit, goTo, handleMoney, haveAConversation, launchOps, planAnOp, promoteLieutenants, resetPolicy, resolveEvents, runTheEmpire, tallyNight, tallyProduction, tallyPeople, workTheAgendas, workTheBuildings, workTheRoom, workTheStreet, workTheWire, type Ctx } from './policy';
+import { answerEverything, buyKit, goTo, handleMoney, haveAConversation, launchOps, planAnOp, promoteLieutenants, resetPolicy, resolveEvents, runTheEmpire, tallyNight, tallyProduction, tallyPeople, workTheAgendas, workTheBuildings, workTheCorners, workTheRoom, workTheStreet, workTheWire, type Ctx } from './policy';
 
 export interface RunOpts {
   days: number;
@@ -36,7 +36,9 @@ export function run(opts: RunOpts): RunResult {
 
   const cov = newCoverage();
   resetPolicy();
-  const c: Ctx = { w, rng: new Rng(seed * 7 + 1), cov, crewCap: s.crewCap };
+  // Ops need people who are not already running something. A scenario that plans no ops holds
+  // nobody back, so the honest day is exactly the shape it always was.
+  const c: Ctx = { w, rng: new Rng(seed * 7 + 1), cov, crewCap: s.crewCap, reserve: (opts.opsPerDay ?? s.opsPerDay) > 0 ? 4 : 0 };
   const startBlockId = select.startBlock(c.w).id;
   const opsPerDay = opts.opsPerDay ?? s.opsPerDay;
 
@@ -76,6 +78,10 @@ export function run(opts: RunOpts): RunResult {
     // every third day rather than daily. Daily cost it two op kinds over sixteen days and bought
     // no coverage the third day did not already have.
     if (d % 3 === 0) haveARealConversation(c);
+    // The corners, on alternate days for the same reason as the rest of these: it is a walk
+    // across town and the AP comes out of the same day an op would have used. It has to come
+    // before `workTheStreet`, which spends the day down to the last AP and left this a no-op.
+    if (opsPerDay > 0 && d % 2 === 1) workTheCorners(c);
     workTheStreet(c);
     runTheEmpire(c, startBlockId);
     handleMoney(c);

@@ -18,11 +18,13 @@ export type Counter =
   | 'launders' | 'fixer_launders' | 'raids' | 'busts' | 'moves'
   // the production pack: automation, distribution, and what a bank or a depot is worth
   | 'foremen' | 'foreman_switches' | 'supply_set' | 'supply_delivered'
-  | 'intel_ratted' | 'skims' | 'routes' | 'route_used'
+  | 'intel_ratted' | 'skims' | 'routes' | 'route_used' | 'consigns' | 'offshores' | 'lanes' | 'offshore_filed'
   // conversations and the agendas they can settle
   | 'talks' | 'talk_openers' | 'talk_closed' | 'agendas_settled' | 'agendas_trapped' | 'favours_owed'
   // the lieutenant who keeps turning up, and the people who work for you without being crew
-  | 'nemesis_met' | 'nemesis_made' | 'defections' | 'assets_turned' | 'asset_warnings' | 'referrals';
+  | 'nemesis_met' | 'nemesis_made' | 'defections' | 'assets_turned' | 'asset_warnings' | 'referrals'
+  // the corners: parleying with a street crew, and the third thing you can do with one
+  | 'parleys' | 'crews_funded' | 'funded_kicks';
 
 export interface Coverage {
   counts: Record<Counter, number>;
@@ -58,13 +60,16 @@ export const SYSTEMS: { label: string; needs: Counter[]; hint: string }[] = [
   { label: 'kit', needs: ['items_bought'], hint: 'nothing was ever bought or carried' },
   { label: 'foremen', needs: ['foremen'], hint: 'no production was ever put on automation, so recipe-switching and auto-restock are untested' },
   { label: 'standing orders', needs: ['supply_set', 'supply_delivered'], hint: 'every product racket was left on its default rule; distribution is untested' },
-  { label: 'bank / depot intel', needs: ['intel_ratted', 'skims', 'routes'], hint: 'nobody at a bank or a depot was ever got at, so those two buildings still do nothing in the sweep' },
+  { label: 'institutional intel', needs: ['intel_ratted'], hint: 'nobody inside an institution was ever got at, so the five buildings that pay out only through the wire do nothing in the sweep' },
+  { label: 'offshore accounts', needs: ['offshores'], hint: 'the accountant lane never opened, so the biggest laundering capacity in the game and its paper trail are both untested' },
   { label: 'conversations', needs: ['talks'], hint: 'every scene was a single button press; the opener/closer path is untested' },
   { label: 'settling an agenda', needs: ['agendas_settled'], hint: 'nobody ever had their problem settled, so reciprocity never arrives from the only system that generates it on demand' },
   { label: 'using one against them', needs: ['agendas_trapped'], hint: 'the dark half of agenda resolution never ran — it is half a shipped feature with no coverage' },
   { label: 'a nemesis', needs: ['nemesis_made'], hint: 'no lieutenant was ever met often enough to be changed by it, so the whole recurring-antagonist arc is untested' },
   { label: 'informants and assets', needs: ['assets_turned'], hint: 'nobody was ever turned, so early warning and a pair of hands are both untested' },
   { label: 'introductions', needs: ['referrals'], hint: 'nobody ever vouched for the player, so the one shortcut past the familiarity floor is untested' },
+  { label: 'street crews', needs: ['parleys'], hint: 'nobody ever stood on a crew\'s corner and talked, so payroll, folding them in and running them off are all untested' },
+  { label: 'staked crews', needs: ['crews_funded'], hint: 'no crew was ever fronted a racket, so the third mode — somebody else running your money — is untested' },
   { label: 'laundering', needs: ['launders', 'fixer_launders'], hint: 'dirty money never got washed' },
   { label: 'police pressure', needs: ['raids', 'busts'], hint: 'the police never actually did anything' },
 ];
@@ -95,6 +100,7 @@ export function report(c: Coverage): string[] {
     ['standing orders set', count(c, 'supply_set')], ['deliveries', count(c, 'supply_delivered')],
     ['employees got at', count(c, 'intel_ratted')], ['skims', count(c, 'skims')],
     ['routes', count(c, 'routes')], ['routes used on a job', count(c, 'route_used')],
+    ['consignments', count(c, 'consigns')], ['offshore', count(c, 'offshores')], ['trade lanes', count(c, 'lanes')], ['files opened on the paper', count(c, 'offshore_filed')],
   ] as const;
   out.push(`  production & intel: ${auto.map(([k, n]) => `${k} ${n}`).join(', ')}`);
   const social = [

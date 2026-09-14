@@ -13,7 +13,7 @@
 import { FAMILIARITY } from '@content/standing';
 import { BUSINESS_DEFS } from '@content/businesses';
 import { canHost } from './tiers';
-import type { Business, Id, Npc, RacketKind, World } from './types';
+import type { Business, BusinessType, Id, Npc, RacketKind, World } from './types';
 
 /** Somebody you have dealt with properly. `favours` is what they owe you — reciprocity. */
 export function known(w: World, n: Npc, opts: { trust?: number; days?: number; contacts?: number; favours?: number } = {}): Npc {
@@ -53,4 +53,20 @@ export function softBiz(w: World, blockId?: Id): Business | undefined {
 /** A business that can host this racket kind, for tests about rackets rather than about tiers. */
 export function hostFor(w: World, kind: RacketKind, blockId?: Id): Business | undefined {
   return Object.values(w.businesses).find(b => (!blockId || b.blockId === blockId) && canHost(b, kind));
+}
+
+/**
+ * A business of a given type, converting a spare one where this seed generated none.
+ *
+ * Which types a city gets is a roll per block, so a test about galleries or importers is
+ * silently vacuous on half the seeds — it returns early, passes, and checks nothing. Retyping
+ * one leaves its rolled income and value alone, which is fine for anything asking what a type
+ * can host or be got at for, and is not fine for a test about what it earns.
+ */
+export function typed(w: World, type: BusinessType): Business {
+  const have = Object.values(w.businesses).find(b => b.type === type && b.ownedBy === 'npc');
+  if (have) return have;
+  const spare = Object.values(w.businesses).find(b => b.ownedBy === 'npc' && !b.racketIds.length && !b.protection)!;
+  spare.type = type;
+  return spare;
 }

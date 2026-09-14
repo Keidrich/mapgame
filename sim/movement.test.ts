@@ -20,7 +20,7 @@ function line(w: World, n = 6): Block[] {
       id, chunkKey: 'test', polygon: [], center: { lat: 51.5 + i * 0.001, lng: -0.12 }, areaM2: 10000,
       neighborIds: [], edgeKeys: [], streetNames: [], name: `Test ${String.fromCharCode(65 + i)}`,
       districtId: Object.keys(w.districts)[0] ?? '', wealth: 50, police: 40, heat: 0, population: 50,
-      demand: { booze: 1, green: 1, pills: 1, hot_goods: 1, counterfeit: 1 }, influence: {},
+      demand: { booze: 1, green: 1, pills: 1, hot_goods: 1, counterfeit: 1, streetwear: 1 }, influence: {},
       businessIds: [], memory: [], tags: [],
     };
     w.blocks[id] = b; blocks.push(b);
@@ -81,7 +81,7 @@ describe('walking the block graph', () => {
     let w = mk(); const b = line(w);
     expect(route(w, b[0].id, b[5].id)!.cost).toBe(5);
     // a safehouse on every block does not make the walk cheaper any more: only influence does
-    for (const x of b) { const id = `ts${x.id}`; w.safehouses[id] = { id, blockId: x.id, name: 'S', tier: 1, owner: PLAYER, stash: { booze: 0, green: 0, pills: 0, hot_goods: 0, counterfeit: 0 }, cash: 0, productionIds: [], capacity: 60, hostageIds: [] }; x.safehouseId = id; w.player.safehouseIds.push(id); }
+    for (const x of b) { const id = `ts${x.id}`; w.safehouses[id] = { id, blockId: x.id, name: 'S', tier: 1, owner: PLAYER, stash: { booze: 0, green: 0, pills: 0, hot_goods: 0, counterfeit: 0, streetwear: 0 }, cash: 0, productionIds: [], capacity: 60, hostageIds: [] }; x.safehouseId = id; w.player.safehouseIds.push(id); }
     expect(route(w, b[0].id, b[5].id)!.cost).toBe(5);
     // run the blocks and the whole stretch is free to move through
     for (const x of b) own(w, x.id);

@@ -9,7 +9,7 @@ import { familiar, familiarReason, favours, leverageOver } from './standing';
  *  and the better the place is doing, the less your offer is worth to them. */
 export const OWNER_RECRUIT_RESIST = 30;
 export function businessesOwnedBy(w: World, npcId: Id): Business[] {
-  return Object.values(w.businesses).filter(b => b.ownerId === npcId && b.ownedBy === 'npc');
+  return Object.values(w.businesses).filter(b => b.ownerId === npcId && b.ownedBy === 'npc' && !b.shut);
 }
 export function ownerResistance(w: World, n: Npc): number {
   const own = businessesOwnedBy(w, n.id);

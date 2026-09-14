@@ -395,7 +395,12 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
   streetCrew: {
     title: 'Street crew',
     body: 'A small independent gang holding one corner. Left alone they grow, take a cut of any racket you run here, start extorting businesses, and eventually get swallowed by a faction.',
-    note: 'Parley with the boss to put them on your payroll or fold them in, or take the corner by force.',
+    note: 'Parley with the boss to put them on your payroll, fold them in or stake them, or take the corner by force.',
+  },
+  stakedCrew: {
+    title: 'Staking a crew',
+    body: 'You pay for a racket on their corner and they own it. They run it, you take 45% of what it makes, and you never have to stand in it or put anybody on it. The worst rate in the game and the least work.',
+    note: 'The books are theirs, so some weeks are light and you are not told. A crew that gets strong enough — and does not like you enough — simply keeps it. Coming over to you or losing the corner to you hands it back; being swallowed by a faction hands it to them.',
   },
 
   // ---------------------------------------------------------------- derelict ground

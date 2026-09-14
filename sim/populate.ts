@@ -269,7 +269,7 @@ export function stanceFor(standing: number) {
 }
 export function demandFor(wealth: number, population: number, kind: string): Record<ProductKind, number> {
   const base = population / 20;
-  const d: Record<ProductKind, number> = { booze: base * 1.2, green: base, pills: base * (wealth / 100), hot_goods: base * 0.5, counterfeit: base * 0.6 };
+  const d: Record<ProductKind, number> = { booze: base * 1.2, green: base, pills: base * (wealth / 100), hot_goods: base * 0.5, counterfeit: base * 0.6, streetwear: base * 0.7 };
   if (kind === 'strip') { d.pills *= 2; d.booze *= 1.5; }
   if (kind === 'projects') { d.green *= 1.5; d.pills *= 0.7; }
   if (kind === 'heights') { d.pills *= 1.5; d.hot_goods *= 1.5; }

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { select } from '@sim/index';
 import { PLAYER, type Id, type ProductKind, type Safehouse, type World } from '@sim/types';
 import { AUTHORITY_KINDS, POSTURES } from '@content/authority';
-import { PRODUCTION_DEFS, PRODUCTION_UPGRADE_MULT, PRODUCT_INFO, RECIPES, SAFEHOUSE_TIERS } from '@content/rackets';
+import { PRODUCTION_DEFS, PRODUCTION_UPGRADE_MULT, PRODUCT_INFO, RACKET_DEFS, RECIPES, SAFEHOUSE_TIERS } from '@content/rackets';
 import { PRODUCTS, crewName, districtName, fmtMoney, influenceRows, safehouseAt, stashLine } from '@ui/derive';
 import { openSheet, useWorld } from '@ui/store';
 import { Sheet } from './Sheet';
@@ -84,6 +84,14 @@ export function BlockSheet({ blockId }: { blockId: Id }) {
           <div className="row between"><b>🚩 The {crew.name}<Info id="streetCrew" /></b><span className="chip">{crew.tribute === PLAYER ? 'On your payroll' : crew.tribute ? `Under ${select.factionName(w, crew.tribute)}` : `Strength ${Math.round(crew.strength)}`}</span></div>
           <p className="small muted" style={{ margin: '6px 0' }}>{w.npcs[crew.bossId]?.name} and {crew.soldierIds.length} soldiers hold this corner.{!crew.tribute ? ' Your rackets here pay them a street tax until you deal with them. Left alone, they grow.' : ''}</p>
           <button type="button" className="chip btn mb8" onClick={() => openSheet({ kind: 'npc', npcId: crew.bossId })}>{w.npcs[crew.bossId]?.name}</button>
+          {crew.funded && (() => {
+            const r = select.fundedRacket(w, crew); const rb = r ? w.businesses[r.businessId] : undefined;
+            return (
+              <p className="small" style={{ margin: '6px 0' }}>
+                💼 <b>Staked<Info id="stakedCrew" /></b>: they run {r ? RACKET_DEFS[r.kind].label.toLowerCase() : 'something'}{rb ? ` at ${rb.name}` : ''} and send you {Math.round(crew.funded.kick * 100)}%. {fmtMoney(crew.funded.paid)} so far{crew.funded.noticed ? `, and about ${fmtMoney(crew.funded.skimmed)} that never arrived` : ''}.
+              </p>
+            );
+          })()}
           {!crew.tribute && (
             <div className="actions">
               <SceneAct scene={{ kind: 'parley', npcId: crew.bossId }} label="Parley" icon="🗣️" kind="primary" />

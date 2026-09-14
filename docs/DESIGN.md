@@ -984,6 +984,85 @@ a new mechanism) opens one of two things:
 
 Both surface as event cards in the opportunity category as well as through a deliberate rat.
 
+**And the three institutions the tier pass added use the same door.** `IntelKind` is five now, and
+which kind a person carries is data: `INTEL[kind].from` names the business type, `intelSourceFor`
+looks it up, and adding an institution is a row in a table rather than a branch.
+
+- **A consignment window**, out of a gallery: hot goods a day rather than cash, scaling with
+  charm, with a compounding discovery risk. Things arrive, hang for a season, and one of them
+  each time is yours.
+- **Accounts somewhere else**, out of an accountant's office: far more laundering capacity than
+  anything you can build (2,600 + 180/brains a day at 0.72, against a racket's 0.85 and a fixer's
+  ceiling of 0.70) — and every pound of it is written down. `intel.paper` grows with days and with
+  volume, and past `OFFSHORE.filesAt` it opens a real `fraud` case file on you and closes the
+  arrangement. The rate is not the trade; the receipt is.
+- **A trade lane**, out of an import firm: the depot route's shape pointed at a list of jobs
+  rather than one. `TRADE.helps` is content, so which ops a lane is worth something on is a data
+  question and not a condition buried in `opChance`.
+
+### 4.22 The crime pass: what each tier is actually for
+
+The tier system decided *where* crime can happen; this is the content that fills it, and the split
+is the tier rule rather than a theme.
+
+**Tier 1 and 2 get racket kinds.** Parts stripping and relay export on a scrapyard or a tow yard,
+card supply on a phone shop, script diversion on a pharmacy, knockoffs on a boutique. Every one has
+a setup cost, an income, heat, a risk and an entry in `SYNERGIES` — a racket outside the
+saturation/synergy tables is a number that does not argue with the district, which is the one thing
+territory is for. The synergy pairs are reasons, not bonuses: the yard wants a supply arriving
+overnight, the export wants somewhere to break what it cannot ship, the card supply is useless
+without a wash, and the scripts want a corner already moving product.
+
+**Tier 3 gets none, ever** — see §4.21. An institution pays out through somebody inside it.
+
+**A fifth production line.** `cut_house` makes `streetwear`, with four recipes on the same three
+axes as the others (quality, output, and how loud the method is), and `knockoffs` is a stash-scale
+racket that draws on it. It is the same pipeline as the still and the corner: something is made
+upstairs, standing orders carry it, the rail at the front sells it.
+
+**Twenty-two jobs**, from doorstep runs at tier 0 to buying a ward at tier 4, every one of them
+gated by the existing `OpRequires` family and resolved by a `case` in `resolveOp` — an op kind with
+no case resolves to no money and an empty line, which is a silent no-op the tests now fail on.
+
+Three of them are not payouts at all:
+
+- **Fund a friend** buys a person. No money comes back; the councillor's trust goes up through
+  `adjustRel` like everybody else's, so every existing read of `officialTrust` — buying down a
+  case, jail time, the paperwork route into a derelict block — picks it up with no new wiring.
+- **Buy the ward** buys ground: influence on every block of a district at once, which is what a
+  chair at the Commission is counted in. That is the Commission tie, and it is the existing
+  `seatReason` block count rather than a new eligibility rule.
+- **Wash it sideways** turns dirty into clean in one job (9,000 + 900/tech at 0.78), deliberately
+  between a fixer's best rate and a laundering racket's. It is what you reach for sitting on a pile
+  with no front; it never makes a front pointless.
+
+**The bust-out is the only job in the game that spends something you cannot buy back.** Everything
+the name will carry is ordered, sold and never paid for, and `shutBusiness` then takes the place
+off its block, off your books, out of everybody's habits and down to zero income and zero value.
+The record stays in `w.businesses` because log lines, ledgers and case files point at it by id;
+every read that enumerates the city filters on `shut`. It pays the most on the board because the
+asset goes with it.
+
+**One income in the game does not run out of a building.** Supplying the wing pays a daily trickle
+while somebody of yours is inside, and ends by itself the day they walk out.
+
+### 4.23 Staking a street crew
+
+The third thing you can do with a corner, alongside putting them on the payroll and folding them
+into your outfit. You pay for a shop on their block; the racket is **theirs** (`Racket.owner` is
+the crew id — the same ownership-by-relationship the game already had), they run it, and 45% comes
+back. No AP after the day you set it up, no runner, nobody of yours standing in it.
+
+The trade is that the books are theirs, and everything that can go wrong is somebody else's
+decision — the same shape as a lieutenant's skim, for the same reason:
+
+- they **skim** (9% of days, 15–40% of your share), and past `FUNDED.noticeAt` somebody tells you;
+- they **outgrow you**: at strength 8, a crew that does not actually like you simply keeps it;
+- they get **swallowed** by a neighbouring faction, and the racket goes with them.
+
+Coming over to you, or losing the corner to you, hands it back — you did pay for it. All four
+outcomes run through `dissolveCrew`, which is where ownership is settled in one place.
+
 ## 5.5 The law, the map, and the edge of the map
 
 ### 5.5.1 Authority — not a faction

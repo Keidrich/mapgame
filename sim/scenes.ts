@@ -7,7 +7,7 @@ import { PLAYER } from './types';
 import { APPROACHES, OPENING, RESULT, type SceneKind } from '@content/lines';
 import type { Rng } from './rng';
 import { activeCrewCount } from './util';
-import { crewOfBoss } from './crews';
+import { crewOfBoss, fundReason } from './crews';
 import { ownerResistance } from './economy';
 import type { Business, Id, Npc, World } from './types';
 
@@ -81,6 +81,7 @@ function disabledReason(w: World, kind: SceneKind, id: string, n: Npc, otherFact
   if (kind === 'recruit' && id === 'cut' && w.player.cash < 200) return 'Needs $200 up front.';
   if (kind === 'recruit' && id === 'lean' && n.traits.includes('loyal')) return 'Loyal people do not fold.';
   if (kind === 'parley' && id === 'join' && bedsLeftFor(w) <= 0) return 'No room in your safehouses for their boss.';
+  if (kind === 'parley' && id === 'fund') { const c = crewOfBoss(w, n.id); if (c) return fundReason(w, c); }
   return undefined;
 }
 
@@ -110,6 +111,9 @@ export function approachChance(w: World, kind: SceneKind, id: string, n: Npc, bi
     case 'visit:listen': v = 60 + s.charm * 2 + (has('quiet') ? 20 : 0); break;
     case 'parley:tribute': v = 20 + s.charm * 4 + p.respect * 0.6 + p.fear * 0.4 + crew * 4 - (crewOfBoss(w, n.id)?.strength ?? 3) * 4 + (has('greedy') ? 10 : 0) - (has('hothead') ? 10 : 0); break;
     case 'parley:join': v = 10 + s.charm * 4 + trust * 0.8 + p.respect * 0.7 - (crewOfBoss(w, n.id)?.strength ?? 3) * 3 + (has('ambitious') ? 20 : 0) - (has('loyal') ? 10 : 0); break;
+    // A stake is a business proposition, so it reads like one: what you are worth to them, what
+    // they think of you, and a strong crew wanting a partner less than a weak one does.
+    case 'parley:fund': v = 30 + s.charm * 3 + s.brains * 2 + trust * 0.5 + p.respect * 0.4 + (crewOfBoss(w, n.id)?.mood ?? 0) * 0.2 - (crewOfBoss(w, n.id)?.strength ?? 3) * 3 + (has('greedy') || has('ambitious') ? 15 : 0) - (has('loyal') ? 5 : 0); break;
     case 'parley:warn': v = 25 + s.muscle * 5 + crew * 8 + p.fear * 0.5 - (crewOfBoss(w, n.id)?.strength ?? 3) * 6 + (has('coward') ? 20 : 0) - (has('hothead') ? 10 : 0); break;
     case 'broker:split': v = 25 + s.charm * 4 + p.respect * 0.4 + temperBonus(fa) + temperBonus(fb) + ((fa?.standing[PLAYER] ?? 0) + (fb?.standing[PLAYER] ?? 0)) * 0.15; break;
     case 'broker:lean': v = 15 + s.muscle * 3 + p.fear * 0.5 + crew * 4 - ((fa?.soldiers ?? 0) + (fb?.soldiers ?? 0)) * 0.6 + temperBonus(fa) * 0.5 + temperBonus(fb) * 0.5; break;

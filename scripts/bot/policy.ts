@@ -11,11 +11,21 @@
  * scenario will still spend most of its days shaking down bars, which is correct.
  */
 import { PLAYER, can, dispatch, select, type Action, type Id, type OpKind, type ProductKind, type World } from '@sim/index';
-import { OP_DEFS, RACKET_DEFS } from '@content/rackets';
+import { OP_DEFS } from '@content/rackets';
 import type { Rng } from '@sim/rng';
 import { bump, bumpComplication, bumpOp, warn, type Coverage } from './coverage';
 
-export interface Ctx { w: World; rng: Rng; cov: Coverage; crewCap: number }
+export interface Ctx {
+  w: World; rng: Rng; cov: Coverage; crewCap: number;
+  /**
+   * People kept off racket and production duty so there is somebody to take on a job. Zero for
+   * the honest scenario, whose day must not change: it plans no ops, so it has nothing to hold
+   * anybody back for. For the rest it is the difference between a soak that runs the roster and
+   * one that only ever runs the jobs needing nobody — with a racket of every kind sitting
+   * unmanned, the loop below used to assign every last body and `idleCrew` was empty for ever.
+   */
+  reserve: number;
+}
 
 export const tryAct = (c: Ctx, a: Action): boolean => {
   const gate = can(c.w, a);
@@ -119,13 +129,24 @@ export function planAnOp(c: Ctx): boolean {
   const ranked = open.slice().sort((a, b) => {
     const fresh = (c.cov.opKinds[a] ?? 0) - (c.cov.opKinds[b] ?? 0);
     if (fresh !== 0) return fresh;                                  // things never tried first
-    return (OP_DEFS[b].tier ?? 0) - (OP_DEFS[a].tier ?? 0);         // then the biggest job going
+    // then the one that ties up the fewest people. Preferring the biggest job among the untried
+    // meant a five-hander took the whole outfit and every other untried kind that day needed
+    // somebody who was already out; a sixty-day sweep left a quarter of the roster unrun.
+    const crew = OP_DEFS[a].minCrew - OP_DEFS[b].minCrew;
+    if (crew !== 0) return crew;
+    return (OP_DEFS[b].tier ?? 0) - (OP_DEFS[a].tier ?? 0);         // and among equals, the biggest
   });
   for (const kind of ranked) {
     const def = OP_DEFS[kind];
     const target = pickTarget(c, kind);
     if (!target) continue;
-    const idle = select.idleCrew(c.w).slice(0, def.maxCrew).map(n => n.id);
+    // Take what the job actually needs, and only pad it out when there are people spare. Sending
+    // `maxCrew` on everything meant two jobs tied up the whole outfit and every day after that
+    // could only plan the ops that need nobody — which is why a sixty-day sweep never once ran
+    // half the roster. Breadth is the whole point of a soak.
+    const free = select.idleCrew(c.w);
+    const want = Math.min(def.maxCrew, def.minCrew + (free.length - def.minCrew >= 3 ? 2 : 0));
+    const idle = free.slice(0, want).map(n => n.id);
     if (idle.length < def.minCrew) continue;
     const approach = def.target === 'business' ? c.rng.pick(['loud', 'quiet'] as const) : undefined;
     const action: Action = { type: 'plan_op', kind, crewIds: idle, approach, ...target } as Action;
@@ -207,7 +228,10 @@ export function runTheEmpire(c: Ctx, startBlockId: Id) {
   // runner is worth a few hundred. There is normally one production, so this costs one body.
   for (const n of select.idleCrew(c.w)) {
     const orphan = unmannedProduction(c);
+    // A production nobody runs bleeds ingredients every day, so the foreman comes before the
+    // reserve — a job can wait a day, a still cannot.
     if (orphan && tryAct(c, { type: 'assign', npcId: n.id, assignment: { kind: 'foreman', productionId: orphan } })) { bump(c.cov, 'foremen'); continue; }
+    if (select.idleCrew(c.w).length <= c.reserve) break;   // somebody has to be free to take a job
     const r = c.w.player.racketIds.map(id => c.w.rackets[id]).find(x => x && !x.runnerId);
     if (r) { tryAct(c, { type: 'assign', npcId: n.id, assignment: { kind: 'racket', racketId: r.id } }); continue; }
     if (select.liveCards(c.w).length >= 3) tryAct(c, { type: 'assign', npcId: n.id, assignment: { kind: 'hack' } });
@@ -221,7 +245,7 @@ export function runTheEmpire(c: Ctx, startBlockId: Id) {
       if (pr.stock < 2) tryAct(c, { type: 'restock_production', productionId: pid, days: 7 });
       // a foreman is strictly better than a plain worker, so only fall back to one if nobody
       // could take the job — which is also how a player would do it
-      if (!pr.workerId && !select.foremanOf(c.w, pid)) { const free = select.idleCrew(c.w)[0]; if (free) tryAct(c, { type: 'assign', npcId: free.id, assignment: { kind: 'production', productionId: pid } }); }
+      if (!pr.workerId && !select.foremanOf(c.w, pid) && select.idleCrew(c.w).length > c.reserve) { const free = select.idleCrew(c.w)[0]; if (free) tryAct(c, { type: 'assign', npcId: free.id, assignment: { kind: 'production', productionId: pid } }); }
       if (pr.level < 3 && c.w.player.cash > 15000) tryAct(c, { type: 'upgrade_production', productionId: pid });
       const known = select.recipesForKind(c.w, pr.kind); if (known.length && !pr.recipe) tryAct(c, { type: 'set_recipe', productionId: pid, recipe: known[0] });
     }
@@ -262,6 +286,36 @@ export function buyKit(c: Ctx) {
   }
 }
 
+/**
+ * The corners. A street crew is the one part of the map the bot walked past for its whole life:
+ * it took the street tax on its own rackets every day and never once stood on the stoop. All
+ * three of the old answers and the staked one are ordinary `parley` scenes, so this is a walk
+ * and a button — and staking them is preferred where it is open, because it is the only one of
+ * the four that leaves a racket running that nobody of yours is standing in.
+ */
+export function workTheCorners(c: Ctx) {
+  const w = c.w;
+  const near = Object.values(w.crews)
+    .filter(x => !x.tribute && (select.travelCost(w, x.blockId) ?? 9) <= 1)
+    .sort((a, b) => (a.funded ? 1 : 0) - (b.funded ? 1 : 0));
+  for (const crew of near.slice(0, 2)) {
+    const boss = w.npcs[crew.bossId]; if (!boss?.alive) continue;
+    // a crew of yours that is paying honestly is left alone; one that has been caught sending
+    // short gets the only answer the game has for it
+    const short = !!crew.funded?.noticed;
+    if (crew.funded && !short) continue;
+    if (!goTo(c, crew.blockId)) continue;
+    const want = short ? 'warn'
+      : !select.fundReason(c.w, crew) ? 'fund'
+      : c.w.player.respect > 30 ? 'tribute'
+      : 'warn';
+    if (!tryAct(c, { type: 'parley', npcId: boss.id, approach: want })) continue;
+    bump(c.cov, 'parleys');
+    if (c.w.crews[crew.id]?.funded && !crew.funded) bump(c.cov, 'crews_funded');
+    return;    // one corner a day: a parley is a whole errand across town
+  }
+}
+
 /** The street: recruit, lie low, add rackets, expand, buy in. Roughly what it always did. */
 export function workTheStreet(c: Ctx) {
   let guard = 0;
@@ -289,7 +343,12 @@ export function workTheStreet(c: Ctx) {
     // …but only among kinds it can actually pay for. Ranking on yield alone made the bot keep
     // choosing a policy bank it could not afford and install nothing at all, which halved its
     // racket count on three of six seeds before this filter went in.
-    const affordable = (b: typeof mine[number]) => select.racketsByOutlook(w, b).filter(x => RACKET_DEFS[x.kind].setupCost <= p.cash - 200)[0];
+    // ...and the price it checks has to be the price it will be charged. This read
+    // `RACKET_DEFS[kind].setupCost` — the base — which stopped being what anything costs when the
+    // tier pass made setting up inside an established place dearer. The bot kept picking a kind
+    // it could not pay for, installed nothing, and a sixty-day honest run came back with three
+    // rackets where it used to come back with four.
+    const affordable = (b: typeof mine[number]) => select.racketsByOutlook(w, b).filter(x => select.setupCost(b, x.kind) <= p.cash - 200)[0];
     const ranked = mine.map(b => ({ b, best: affordable(b) })).filter(x => x.best).sort((x, y) => y.best.income - x.best.income)[0];
     if (ranked && p.cash > 1500) {
       if (tryAct(c, { type: 'start_racket', businessId: ranked.b.id, kind: ranked.best.kind })) { bump(c.cov, 'rackets_started'); continue; }
@@ -493,6 +552,7 @@ const PRODUCT_OF: Partial<Record<string, (r: { product?: ProductKind }) => Produ
   dealing: r => r.product ?? 'green',
   fencing: () => 'hot_goods',
   counterfeiting: () => 'counterfeit',
+  knockoffs: () => 'streetwear',
 };
 
 /**
@@ -533,10 +593,14 @@ export function workTheBuildings(c: Ctx): boolean {
 
 /** Count what the production pack actually did overnight, after End Day. */
 export function tallyProduction(c: Ctx) {
+  // every kind, not two named ones: the institutions pass added three more and a tally that only
+  // knew about skims and routes reported zero coverage for all of them
+  const COUNTER = { skim: 'skims', route: 'routes', consign: 'consigns', offshore: 'offshores', trade: 'lanes' } as const;
   for (const n of Object.values(c.w.npcs)) {
-    if (n.intel?.kind === 'skim' && !seenIntel.has(n.id)) { seenIntel.add(n.id); bump(c.cov, 'skims'); bump(c.cov, 'intel_ratted'); }
-    if (n.intel?.kind === 'route' && !seenIntel.has(n.id)) { seenIntel.add(n.id); bump(c.cov, 'routes'); bump(c.cov, 'intel_ratted'); }
+    const k = n.intel?.kind; if (!k || seenIntel.has(n.id)) continue;
+    seenIntel.add(n.id); bump(c.cov, COUNTER[k]); bump(c.cov, 'intel_ratted');
   }
+  for (const f of c.w.cases ?? []) if (f.kind === 'fraud' && !seenCases.has(f.id)) { seenCases.add(f.id); bump(c.cov, 'offshore_filed'); }
   for (const sid of c.w.player.safehouseIds) {
     for (const pid of c.w.safehouses[sid]?.productionIds ?? []) {
       const pr = c.w.productions[pid]; if (!pr) continue;
@@ -553,6 +617,7 @@ export function tallyProduction(c: Ctx) {
   }
 }
 const seenIntel = new Set<Id>();
+const seenCases = new Set<Id>();
 const lastRecipe = new Map<Id, string | undefined>();
 
 /** Count what the night did to you, after End Day. */
@@ -568,4 +633,4 @@ export function tallyNight(c: Ctx, before: { busts: number; logLen: number }) {
 const seen = new Set<Id>();
 const absent = new Set<Id>();
 /** Reset the per-run memory, so two runs in one process do not pollute each other. */
-export function resetPolicy() { seen.clear(); absent.clear(); seenIntel.clear(); lastRecipe.clear(); madeNemesis.clear(); }
+export function resetPolicy() { seen.clear(); absent.clear(); seenIntel.clear(); seenCases.clear(); lastRecipe.clear(); madeNemesis.clear(); }

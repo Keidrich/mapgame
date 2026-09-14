@@ -10,6 +10,7 @@ import type { Rng } from './rng';
 import { agendaCost, agendaReason, resolveAgenda } from './agendas';
 import { resolveTalk, startConversation } from './conversation';
 import { oweThem, remember } from './ledger';
+import { openIntel } from './intel';
 import { scoreMeeting } from './nemesis';
 import { assetReason, introduce, referralReason, turnAsset, type AssetKind } from './informants';
 import { DEFECT } from '@content/nemesis';
@@ -26,7 +27,7 @@ import { resolveEventOption } from './events';
 import { approachChance, resultLine } from './scenes';
 import { AGENDA_LABEL, addGrudge, addMemory } from './people';
 import { standingCap } from './factions';
-import { crewAt, crewOfBoss, parley } from './crews';
+import { crewAt, crewOfBoss, fundReason, makeCrew, parley } from './crews';
 import { endDay } from './tick';
 import { PLAYER, type AgendaKind, type Business, type Confrontation, type Id, type Npc, type Op, type Racket, type RacketKind, type Safehouse, type TalkMove, type World } from './types';
 import { onDemote, promote, promoteReason } from './lieutenants';
@@ -34,7 +35,7 @@ import { backCandidate, broker, brokerReason } from './politics';
 import { buryEvidence, caseWitnessOf, openCase, silenceWitness } from './cases';
 import { blockName as blockNameOf, isHere, legworkFor, npcBlockIds, npcIsHere, route, travelCost } from './travel';
 import { petition, seatReason } from './commission';
-import { claimedByPlayer } from './abandoned';
+import { abandonedBlocks, claimedByPlayer, makeAbandoned } from './abandoned';
 import { isHeld, resolveHostage, roomFor } from './hostages';
 import { PLAYER_NOTE_MAX, opCost, opLocked } from './select';
 import { EQUIP_MAX, buyPrice, equipSlotsLeft, isMarket, marketStock, ownedCount, sellPrice } from './items';
@@ -132,7 +133,7 @@ function gate(w: World, a: Action): Affordance {
     case 'gift': { const n = npc(a.npcId); if (!n?.alive) return no('They are gone.'); if (a.amount < 50) return no('That is an insult, not a gift.'); const r = cash(a.amount); return r ? no(r) : yes({ cash: a.amount }); }
     case 'read': { const n = npc(a.npcId); if (!n?.alive) return no('They are gone.'); if (n.known) return no('You already have their number.'); const h = hereNpc(n); if (h) return no(h); const r = ap(1); return r ? no(r) : yes({ ap: 1 }); }
     case 'threaten': { const n = npc(a.npcId); if (!n?.alive) return no('They are gone.'); if (n.official) return no('Threatening an official is a bad idea. Bribe them.'); if (n.role === 'boss') return no('You do not threaten a boss. You go to war with him.'); const h = hereNpc(n); if (h) return no(h); const r = ap(1); if (r) return no(r); if (a.approach === 'crew' && activeCrewCount(w) === 0) return no('No crew to bring.'); return yes({ ap: 1 }); }
-    case 'parley': { const n = npc(a.npcId); if (!n?.alive) return no('They are gone.'); const c0 = crewOfBoss(w, n.id); if (!c0) return no('They do not run a crew.'); if (!isHere(w, c0.blockId)) return no(`The ${c0.name} hold ${blockNameOf(w, c0.blockId)}. Walk over first${travelCost(w, c0.blockId) !== undefined ? ` (${travelCost(w, c0.blockId)} legwork)` : ''}.`); const r = ap(1); if (r) return no(r); if (a.approach === 'join' && bedsLeft(w) <= 0) return no('No room in your safehouses for their boss.'); return yes({ ap: 1 }); }
+    case 'parley': { const n = npc(a.npcId); if (!n?.alive) return no('They are gone.'); const c0 = crewOfBoss(w, n.id); if (!c0) return no('They do not run a crew.'); if (!isHere(w, c0.blockId)) return no(`The ${c0.name} hold ${blockNameOf(w, c0.blockId)}. Walk over first${travelCost(w, c0.blockId) !== undefined ? ` (${travelCost(w, c0.blockId)} legwork)` : ''}.`); const r = ap(1); if (r) return no(r); if (a.approach === 'join' && bedsLeft(w) <= 0) return no('No room in your safehouses for their boss.'); if (a.approach === 'fund') { const why = fundReason(w, c0); if (why) return no(why); } return yes({ ap: 1 }); }
     case 'broker': { const n = npc(a.npcId); if (!n?.alive) return no('They are gone.'); const why = brokerReason(w, n, a.otherFactionId); if (why) return no(why); const r = ap(2); if (r) return no(r); if (a.approach === 'split') { const c = cash(4000); if (c) return no(c); } return yes({ ap: 2, cash: a.approach === 'split' ? 4000 : 0 }); }
     case 'resolve_confrontation': {
       const c = confrontations(w).find(x => x.id === a.id); if (!c) return no('That is over.');
@@ -737,7 +738,18 @@ function apply(w: World, a: Action, rng: Rng, done: () => void, bonus = 0): Worl
     case 'buy_business': {
       const b = w.businesses[a.businessId]; const owner = npc(b.ownerId); takeCash(w, a.offer);
       b.ownedBy = 'player'; p.businessIds.push(b.id);
-      if (b.protection) { const pf = b.protection.factionId; if (pf !== PLAYER) { w.factions[pf].standing[PLAYER] -= 10; log(w, `${w.factions[pf].name} was collecting from ${b.name}. Not any more.`, 'warn', { factionId: pf }); } for (const rid of b.racketIds) if (w.rackets[rid].kind === 'protection') { delete w.rackets[rid]; p.racketIds = p.racketIds.filter(id => id !== rid); } b.racketIds = b.racketIds.filter(id => w.rackets[id]); b.protection = undefined; }
+      if (b.protection) {
+        const pf = b.protection.factionId;
+        // A street crew can hold protection too — `tickCrews` gives a strong one a place to
+        // collect from — and they are not in `w.factions`. Reading them as one threw.
+        if (pf !== PLAYER) {
+          const f = w.factions[pf]; const gang = w.crews[pf];
+          if (f) { f.standing[PLAYER] -= 10; log(w, `${f.name} was collecting from ${b.name}. Not any more.`, 'warn', { factionId: pf }); }
+          else if (gang) { gang.mood -= 20; log(w, `The ${gang.name} were collecting from ${b.name}. Not any more, and they know whose name is on it.`, 'warn', { blockId: b.blockId }); }
+        }
+        for (const rid of b.racketIds) if (w.rackets[rid]?.kind === 'protection') { delete w.rackets[rid]; p.racketIds = p.racketIds.filter(id => id !== rid); }
+        b.racketIds = b.racketIds.filter(id => w.rackets[id]); b.protection = undefined;
+      }
       adjustRel(w, owner, { trust: 10, respect: 8 }); owner.faction = PLAYER;
       addInfluence(w, b.blockId, PLAYER, 12); spreadRep(w, b.blockId, { respect: 2 });
       log(w, `You bought ${b.name} for ${money(a.offer)}. ${owner.name} stays on to run it.`, 'good', { businessId: b.id });
@@ -1099,8 +1111,43 @@ function cheat(w: World, what: CheatKind, amount?: number, rng?: import('./rng')
     case 'turf': addInfluence(w, here.id, PLAYER, 60); log(w, `Testing: ${here.name} is your turf.`, 'good', { blockId: here.id }); break;
     case 'reveal': {
       for (const n of Object.values(w.npcs)) n.known = true;
+      // Plenty of generated cities have no derelict ground at all — `abandonChance` is zero in
+      // half the district kinds — and then revealing it reveals nothing, which left every op that
+      // needs a derelict target permanently unreachable in a soak. So make some if there is none:
+      // the same `makeAbandoned` generation uses, on blocks with nothing on them.
+      if (!abandonedBlocks(w).length) {
+        const r = rng ?? (() => { const { rng: made, done } = rngOf(w); done(); return made; })();
+        // Generation only ever empties a block the map had nothing on, so a populated city can
+        // easily have none at all; clear the two quietest blocks out the same way a bust-out
+        // clears one place, then hand them to `makeAbandoned` exactly as generation would.
+        const quiet = Object.values(w.blocks)
+          .filter(b => b.id !== p.currentBlockId && !b.safehouseId && !b.tags.length)
+          .sort((a, b) => a.businessIds.length - b.businessIds.length || a.police - b.police)
+          .slice(0, 2);
+        for (const b of quiet) {
+          for (const id of [...b.businessIds]) shutBusiness(w, w.businesses[id], 'cleared_out');
+          makeAbandoned(b, r, { police: b.police, population: b.population });
+        }
+      }
       for (const b of Object.values(w.blocks)) if (b.abandoned) b.abandoned.known = true;
       log(w, 'Testing: everyone is known and every derelict block is on the map.', 'info');
+      break;
+    }
+    case 'crews': {
+      // Whether a corner has a crew is a dice roll at generation and on plenty of seeds the
+      // answer is nowhere — which leaves the whole street-crew layer, payroll, folding them in
+      // and staking them, with no way to be reached at all.
+      const r = rng ?? (() => { const { rng: made, done } = rngOf(w); done(); return made; })();
+      const want = Math.max(1, amount ?? 2);
+      let made = 0;
+      for (const b of Object.values(w.blocks).sort((a, z) => (travelCost(w, a.id) ?? 9) - (travelCost(w, z.id) ?? 9))) {
+        if (made >= want) break;
+        if (!b.businessIds.length || b.id === p.currentBlockId || crewAt(w, b.id)) continue;
+        if (Object.entries(b.influence).some(([k, v]) => k !== PLAYER && v >= 30)) continue;
+        makeCrew(w, b, r, (pre: string) => nid(w, pre));
+        made++;
+      }
+      log(w, `Testing: ${made} street crew${made === 1 ? '' : 's'} on the corners near you.`, 'info');
       break;
     }
     case 'stash': { const n = amount ?? 50; for (const k of Object.keys(p.stash) as (keyof typeof p.stash)[]) p.stash[k] += n; log(w, `Testing: +${n} of every product.`, 'good'); break; }
@@ -1198,7 +1245,16 @@ function cheat(w: World, what: CheatKind, amount?: number, rng?: import('./rng')
     case 'ratted': {
       let n = 0;
       for (const x of Object.values(w.npcs)) if (x.alive && !x.crew && (x.role === 'owner' || x.role === 'boss' || x.role === 'lieutenant')) { x.ratted = w.day; n++; }
-      log(w, `Testing: you have been inside ${n} businesses.`, 'info');
+      // …and open what that is worth wherever it is worth something. An institution pays out only
+      // through somebody inside it, and there are five of them now: leaving this at "ratted" meant
+      // the offshore lane and the consignment window had no coverage at all in a sixteen-day run,
+      // because the bot has to find a rare building *and* get inside it first.
+      let opened = 0;
+      for (const x of Object.values(w.npcs)) {
+        if (!x.alive || x.crew || x.intel || !x.ratted) continue;
+        if (rng && openIntel(w, x, rng)) opened++;
+      }
+      log(w, `Testing: you have been inside ${n} businesses${opened ? `, and ${opened} of them were worth something standing` : ''}.`, 'info');
       break;
     }
   }
@@ -1227,6 +1283,28 @@ export function closeRacket(w: World, id: Id) {
   b.racketIds = b.racketIds.filter(x => x !== id);
   w.player.racketIds = w.player.racketIds.filter(x => x !== id);
   delete w.rackets[id];
+}
+
+/**
+ * A business stops being a business, permanently. Only a bust-out does this.
+ *
+ * The record stays in `w.businesses` on purpose — log lines, ledgers and case files all point at
+ * it by id and would otherwise resolve to nothing — but it comes off its block, off the player's
+ * books, and out of everybody's habits, so nothing lists it as somewhere you can walk into again.
+ * Every read that enumerates the city filters on `shut`; going through this one function is what
+ * keeps those two halves in step.
+ */
+export function shutBusiness(w: World, b: Business, why: string) {
+  for (const rid of [...b.racketIds]) closeRacket(w, rid);
+  b.shut = w.day; b.flags.push(why);
+  b.baseIncome = 0; b.value = 0; b.condition = 0; b.insured = false; b.protection = undefined;
+  b.ownedBy = 'npc';
+  w.player.businessIds = w.player.businessIds.filter(id => id !== b.id);
+  w.blocks[b.blockId].businessIds = w.blocks[b.blockId].businessIds.filter(id => id !== b.id);
+  // nobody drinks in a building with the shutters down: the regulars stop being regulars, which
+  // is also what stops `npcLocation` putting somebody behind a counter that is not there
+  for (const id of b.patronIds) { const n = w.npcs[id]; if (n) n.favouriteBusinessIds = n.favouriteBusinessIds.filter(x => x !== b.id); }
+  b.patronIds = [];
 }
 
 export function clearAssignment(w: World, n: Npc) {

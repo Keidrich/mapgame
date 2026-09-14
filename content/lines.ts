@@ -86,6 +86,7 @@ export const APPROACHES: Record<SceneKind, { id: string; label: string; icon: st
   parley: [
     { id: 'tribute', label: 'Put them on the payroll', icon: '💸', blurb: 'Charm and respect. They keep the corner, pay you weekly, and the block is yours.', good: 'Block turns yours; weekly cash', bad: 'Laughed off; they dig in' },
     { id: 'join', label: 'Bring them in', icon: '👥', blurb: 'Trust. Their boss joins your crew; their people become yours to recruit.', good: 'A made crew member and recruits', bad: 'They want to see more first' },
+    { id: 'fund', label: 'Stake them', icon: '💼', blurb: 'Cash. Pay for a shop on their corner. They own it and run it; you take a share and do none of the work.', good: 'A racket you never have to stand in', bad: 'They hear an offer and remember you made it' },
     { id: 'warn', label: 'Run them off', icon: '😤', blurb: 'Muscle. Make them small. No body, no cops.', good: 'They lie low; +fear on the block', bad: 'They come back at you tonight' },
   ],
   recruit: [
@@ -110,6 +111,7 @@ export const RESULT: Record<string, string[]> = {
   'visit:listen:ok': ['They talk. Eventually it gets interesting.'], 'visit:listen:fail': ['Weather, mostly.'],
   'parley:tribute:ok': ['"Fine. Every Friday. Don\'t make us regret it."'], 'parley:tribute:fail': ['"Pay YOU? Get off our corner."'],
   'parley:join:ok': ['"About time somebody real showed up. We\'re in."'], 'parley:join:fail': ['"We\'ll think about it." They won\'t.'],
+  'parley:fund:ok': ['"Your money, our corner. We\'ll send yours on."'], 'parley:fund:fail': ['"We don\'t need a partner. We need you off the stoop."'],
   'parley:warn:ok': ['They fold. The stoop is empty by the time you reach the corner.'], 'parley:warn:fail': ['Bottles. You leave before the second one lands.'],
   'broker:split:ok': ['Envelopes change hands. Hands get shaken. Nobody means it, but it holds.'], 'broker:split:fail': ['They pocket the money and shoot each other on the way out.'],
   'broker:lean:ok': ['Silence. Then a nod from each side. It stops tonight.'], 'broker:lean:fail': ['"Who the hell are you to tell us anything?"'],

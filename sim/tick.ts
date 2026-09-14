@@ -7,7 +7,7 @@ import { foremanOf, haulHeat, tickAutomation } from './automation';
 import { tickIntel } from './intel';
 import { tickAssets } from './informants';
 import { launderCapacity, productionOutput, racketIncome, streetPrice } from './economy';
-import { LAUNDER_RATE } from '@content/rackets';
+import { LAUNDER_RATE, PRISON_WING } from '@content/rackets';
 import { resolveConfrontation } from './combat';
 import { tickCards, tickHackCrew, tickTaps } from './cyber';
 import { drawEvents } from './events';
@@ -31,6 +31,7 @@ import { PRODUCTION_LEVEL } from '@content/rackets';
 /** Which product a racket sells, for the standing orders. Undefined for the ones that sell nothing. */
 function productOf(r: import('./types').Racket): import('./types').ProductKind | undefined {
   if (r.kind === 'dealing') return r.product ?? 'green';
+  if (r.kind === 'knockoffs') return 'streetwear';
   if (r.kind === 'fencing') return 'hot_goods';
   if (r.kind === 'counterfeiting') return 'counterfeit';
   return undefined;
@@ -71,6 +72,20 @@ export function endDay(w: World): World {
     if (c.loyalty < 15 && rng.chance(0.2)) { p.crewIds = p.crewIds.filter(x => x !== n.id); n.crew = undefined; n.role = 'patron'; n.rel.trust = -30; log(w, `${n.name} walked. Nobody saw them go.`, 'bad', { npcId: n.id }); }
   }
 
+  // ---- the wing you are supplying ----
+  // The one income that is not a racket on a building: it runs while somebody of yours is inside
+  // and stops by itself the day they walk out, because the thing it runs out of is their cell.
+  if (p.wing) {
+    const inside = w.npcs[p.wing.npcId];
+    if (!inside || !inside.crew || inside.crew.status !== 'jailed') {
+      log(w, `${inside?.name ?? 'Your man'} is out, and the wing goes back to paying somebody else.`, 'info', { npcId: inside?.id });
+      p.wing = undefined;
+    } else {
+      p.dirty += p.wing.perDay; summary.dirty += p.wing.perDay;
+      addHeat(w, PRISON_WING.heatPerDay);
+    }
+  }
+
   // ---- owned businesses ----
   for (const id of p.businessIds) {
     const b = w.businesses[id];
@@ -102,6 +117,7 @@ export function endDay(w: World): World {
         if (have > 0) { const demand = w.blocks[b.blockId].demand[prod] * (1 + (r.level - 1) * 0.5) * (0.6 + b.patronIds.length * 0.15); const sold = Math.min(have, Math.max(0, Math.round(demand))); p.stash[prod] -= sold; income = Math.round(sold * streetPrice(w, b.blockId, prod) * sellMult(w, prod) * yieldMult(w, r)); addHeat(w, sold * PRODUCT_INFO[prod].heat * 0.3, b.blockId); }
         break;
       }
+      case 'knockoffs': { const have = p.stash.streetwear; if (have > 0) { const sold = Math.min(have, 5 + r.level * 5); p.stash.streetwear -= sold; income = Math.round(sold * PRODUCT_INFO.streetwear.price * 0.65 * (1 + (r.level - 1) * 0.15) * sellMult(w, 'streetwear') * yieldMult(w, r)); } break; }
       case 'counterfeiting': { const have = p.stash.counterfeit; if (have > 0) { const sold = Math.min(have, 5 + r.level * 4); p.stash.counterfeit -= sold; income = Math.round(sold * PRODUCT_INFO.counterfeit.price * 0.7 * (1 + (r.level - 1) * 0.15) * yieldMult(w, r)); } break; }
       case 'fencing': { const have = p.stash.hot_goods; if (have > 0) { const sold = Math.min(have, 6 + r.level * 4); p.stash.hot_goods -= sold; income = Math.round(sold * PRODUCT_INFO.hot_goods.price * 0.6 * (1 + (r.level - 1) * 0.15) * yieldMult(w, r)); } break; }
       case 'laundering': { const cap = Math.max(0, launderCapacity(w, r) - p.launderedToday); const amt = Math.min(p.dirty, cap); if (amt > 0) { p.dirty -= amt; const clean = Math.round(amt * LAUNDER_RATE); p.cash += clean; income = clean; summary.clean += clean; p.launderedToday += amt; } break; }

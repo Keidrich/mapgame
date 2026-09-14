@@ -118,7 +118,7 @@ describe('coverage', () => {
     const r = canon('everything');
     const distinct = Object.keys(r.cov.opKinds).length;
     const total = Object.keys(OP_DEFS).length;
-    // Measured 16–20 of 41 across seeds 1,3,5,7,9,11 in sixteen days.
+    // Measured 22–29 of 63 across seeds 1,3,5,7,9,11 in sixteen days.
     //
     // This briefly went down to 32% and came back. Every pass since the standing rework added
     // something the bot spends AP on — conversations, agendas, assets, introductions — and against
@@ -127,11 +127,27 @@ describe('coverage', () => {
     // day (`{ what: 'ap', amount: 14 }` in `admin.ts` CORE), and with it the sixty-day sweep went
     // from 27 distinct op kinds back to 33 — better than before the squeeze started.
     //
-    // The floor stays below the worst of those seeds rather than at the best, because a threshold
-    // only one seed clears is a flaky test pretending to be a standard. Raising this number means
-    // teaching the bot, not re-rolling. **If a future pass makes this fail, lengthen the bot's day
-    // before you lower this number** — cutting the bar hides exactly the thing it exists to show.
-    expect(distinct, `only ${distinct} of ${total} op kinds ever ran`).toBeGreaterThanOrEqual(Math.floor(total * 0.4));
+    // The crime pass put 22 more ops on the board — a roster 54% bigger in one pass — and the
+    // fraction fell to 20 of 63. Teaching came first, per the rule below, and it found a real
+    // blindness rather than a shortfall: `runTheEmpire` assigned every last idle body to an
+    // unmanned racket, so `idleCrew` was empty for ever and the bot had *never once* been able to
+    // plan an op with a `minCrew` — on some seeds every single job it ran all month was one that
+    // needs nobody. Holding people back for work (`Ctx.reserve`), restaffing the outfit the law
+    // scenario keeps jailing, making `reveal` produce derelict ground where a generated city has
+    // none, and ranking untried ops by how few people they tie up rather than by how big they are
+    // took it from 20 back to 22–29, against 16–20 before the roster grew. The sixty-day sweep
+    // went 33 → 47 distinct kinds on the same changes. Lengthening the run buys nothing now:
+    // thirty days measures what sixteen does.
+    //
+    // So the fraction moved because the denominator did, and this is the one place it is honest
+    // to cut it: absolute reach went **up** by six kinds in the same pass that cut the percentage.
+    // 33% of 63 is 20, which sits below the worst of the six seeds — the floor has to be below
+    // the worst rather than at the best, because a threshold only one seed clears is a flaky test
+    // pretending to be a standard. **If a future pass makes this fail, teach the bot or lengthen
+    // its day before you touch this number**: cutting the bar to fit a bot that got worse hides
+    // exactly the thing this exists to show. Cutting it because 22 new ops landed at once, with
+    // the measurement to prove reach rose, is a different thing, and it should not happen twice.
+    expect(distinct, `only ${distinct} of ${total} op kinds ever ran`).toBeGreaterThanOrEqual(Math.floor(total * 0.33));
   }, SLOW);
 
   it('reports nothing as covered when nothing was run', () => {

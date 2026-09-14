@@ -9,7 +9,7 @@ const give = {
   crew: (w: World, n = 1) => { w.player.crewEver += n; },
   safehouse: (w: World, tier: number) => {
     const b = select.startBlock(w);
-    const s: Safehouse = { id: `sh${tier}`, blockId: b.id, name: 'S', tier, owner: PLAYER, stash: { booze: 0, green: 0, pills: 0, hot_goods: 0, counterfeit: 0 }, cash: 0, productionIds: [], capacity: 60, hostageIds: [] };
+    const s: Safehouse = { id: `sh${tier}`, blockId: b.id, name: 'S', tier, owner: PLAYER, stash: { booze: 0, green: 0, pills: 0, hot_goods: 0, counterfeit: 0, streetwear: 0 }, cash: 0, productionIds: [], capacity: 60, hostageIds: [] };
     w.safehouses[s.id] = s; w.player.safehouseIds.push(s.id);
   },
   racket: (w: World) => { const biz = select.businessesIn(w, select.startBlock(w).id)[0]; mkRacket(w, 'numbers', biz); },

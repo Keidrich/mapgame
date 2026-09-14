@@ -27,6 +27,7 @@ const CHEATS: { what: CheatKind; label: string; icon: string }[] = [
   { what: 'open_case', label: 'Open a case file on you', icon: '🗄️' },
   { what: 'cards', label: 'Cards, a secret and wire heat', icon: '💳' },
   { what: 'ratted', label: 'You have been inside everybody', icon: '🕳️' },
+  { what: 'crews', label: 'Street crews on the corners near you', icon: '🚩' },
 ];
 
 /** One-screen "how to play" (the README's first five minutes), opened from the ? in the HUD. */

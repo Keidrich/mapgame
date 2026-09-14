@@ -14,6 +14,141 @@ House rules for an entry (see `CLAUDE.md` → *Leave a trail*):
 
 ---
 
+## 2026-09-14 — The crime pass: four rackets, a cut house, five institutions, twenty-two jobs and somebody else's corner
+
+**What.** The content the tier system was built to hold. Four racket kinds for the tier 1–2
+benches, a fifth production line (counterfeit streetwear) and the rail that sells it, three more
+`IntelKind`s so the tier-3 institutions pay out through people rather than through rackets,
+twenty-two new ops across all four tiers, and a third thing you can do with a street crew: front
+them a racket and take a cut.
+
+**Why.** After the tier pass a scrapyard, a phone shop, a pharmacy and a boutique existed and had
+nothing to do; the gallery, the accountant and the importer were closed by `TIER_EXCLUDES[3]` with
+no door opened in their place; and the op roster had not grown since the wire. The tiers were a
+frame with nothing in it.
+
+**How.**
+
+*Rackets (tier 1–2).* `parts_stripping`, `relay_export`, `card_supply`, `script_diversion`, each
+with setup cost, income, heat, risk **and an entry in `SYNERGIES`** — a racket outside the
+saturation/synergy tables is a number that never argues with the district. The pairs are reasons
+rather than bonuses (the yard wants cars arriving overnight; the card supply is useless without a
+wash).
+
+*Production.* `cut_house` → `streetwear`, four recipes on the existing quality/output/noise axes,
+and `knockoffs`, a stash-scale racket on a boutique. Same pipeline as the still and the corner.
+
+*Institutions (tier 3).* `IntelKind` is five. Which kind somebody carries is now **data** —
+`INTEL[k].from` names a business type and `intelSourceFor` looks it up, where it used to be two
+hand-written branches. A consignment window (gallery) pays in hot goods; an offshore arrangement
+(accountant) washes 2,600 + 180/brains a day at 0.72 — far more than you can build — and
+accumulates `intel.paper` until it opens a real `fraud` case file on you and closes itself; a trade
+lane (importer) is the depot route's shape pointed at a list of ops via `TRADE.helps`.
+
+*Ops.* Twenty-two, gated through the existing `OpRequires` family. Three buy something instead of
+paying: **Fund a Friend** buys a councillor (trust through `adjustRel`, so every existing
+`officialTrust` read picks it up with no new wiring), **Buy the Ward** buys influence across a whole
+district — which is what `seatReason` counts for a chair, and the whole of the Commission tie —
+and **Wash It Sideways** converts dirty to clean at 0.78, deliberately between a fixer's ceiling
+and a laundering racket's.
+
+**The bust-out is the one job that spends something you cannot buy back.** `shutBusiness` sets
+`Business.shut`, zeroes income and value, closes its rackets, and takes it off its block, off your
+books and out of everybody's favourites. The row stays in `w.businesses` because log lines, ledgers
+and case files point at it by id; every enumeration filters on `shut`. It pays the most on the
+board because the asset goes with it.
+
+*Staked crews.* Front a crew's setup cost and the racket is **theirs** — `Racket.owner` is the crew
+id, the ownership-by-relationship the game already had — and 45% comes back daily with no AP, no
+runner and nobody of yours standing in it. The price is that the books are theirs: they skim 9% of
+days, a crew at strength 8 that does not like you simply keeps it, and a faction that swallows them
+takes it. Coming over to you or losing the corner to you hands it back. All four outcomes settle in
+`dissolveCrew`.
+
+**Everything stays abstract about method.** Blurbs say who pays who, what it costs and who finds
+out. `sim/crime-ops.test.ts` fails on an instruction-shaped blurb, on digits that look like data, and
+asserts straw purchasing is consumer stock only — in the content as well as in the comment.
+
+**What the bot turned up, which was the real find of the pass.** Coverage fell to 20 of 63 op
+kinds, and the cause was not the new content: `runTheEmpire` assigned every last idle body to an
+unmanned racket, so `idleCrew` was empty for ever and the bot **had never once been able to plan an
+op with a `minCrew`** — on some seeds every job it ran all month was one that needs nobody. Four
+fixes: a crew reserve (`Ctx.reserve`, four people held back when a scenario plans ops; zero for
+`honest`, whose day is unchanged); crew in the `everything` top-up to replace the ones the law
+scenario keeps jailing; `reveal` now *creates* derelict ground where a generated city has none
+(plenty have none, so `claim_abandoned` and the two derelict jobs were unreachable for ever); and
+untried ops are now ranked by **how few people they tie up** before how big they are — preferring
+the biggest untried job meant a five-hander took the whole outfit and every other untried kind that
+day needed somebody who was already out.
+
+The numbers: 20 → 22–29 distinct kinds across six seeds in sixteen days (against 16–20 of 41 before
+the roster grew), and the sixty-day all-scenario sweep went **33 → 47 distinct op kinds**, which is
+the recovery the last changelog asked for and then some. Two new coverage rows (street crews,
+staked crews) and the table is 22/22.
+
+**Three real bugs it found on the way.**
+
+- **The bot was checking a price the game stopped charging.** `affordable` in the racket-choice
+  policy read `RACKET_DEFS[kind].setupCost` — the *base* cost — which has not been what anything
+  costs since the tier pass made setting up inside an established place dearer. It kept picking a
+  kind it could not pay for and installing nothing. Reading `select.setupCost(biz, kind)` instead
+  took a sixty-day honest run on seed 7 from 4 rackets and 13.3% of the map to 8 and 20.0%, and
+  seed 9 from 7 and 17.8% to 18 and 22.2%.
+
+- **Buying a business a street crew was collecting from threw.** `buy_business` read
+  `b.protection.factionId` as a faction, and `tickCrews` gives a strong crew a place to collect
+  from. Latent since crews shipped; it surfaced the moment the new `crews` cheat put one near the
+  bot. Now a crew loses the corner and the mood instead.
+- **Seed 5 generates no street crews at all**, so the canonical soak could never have covered the
+  layer. New `crews` admin cheat (`makeCrew` split out of `spawnCrews`), and two new coverage rows.
+
+**Files.** `content/rackets.ts` (4 racket defs, `cut_house`, 4 recipes, 22 `OP_DEFS`, `FUNDED`,
+`CRYPTO_WASH`, `PRISON_WING`, `WARD`), `content/intel.ts`, `content/territory.ts`,
+`content/businesses.ts`, `content/lines.ts`, `content/glossary.ts`, `sim/types.ts`
+(`Business.shut`, `Player.wing`, `StreetCrew.funded`, 22 `OpKind`s, 5 `RacketKind`s),
+`sim/ops.ts`, `sim/crews.ts`, `sim/intel.ts`, `sim/tick.ts`, `sim/reducer.ts` (`shutBusiness`,
+`crews` cheat, `reveal`), `sim/scenes.ts`, `sim/select.ts`, `ui/components/BlockSheet.tsx`,
+`ui/components/HelpSheet.tsx`, `scripts/bot/{policy,run,admin,coverage}.ts`, and five new test
+files: `sim/new-rackets`, `sim/streetwear-production`, `sim/tier3-intel`, `sim/crime-ops`,
+`sim/funded-crews`.
+
+**Watch out.**
+
+- **No `WORLD_VERSION` bump.** Every new field is optional (`Business.shut`, `Player.wing`,
+  `StreetCrew.funded`, `Npc.intel.paper`), so old saves load with nothing shut, nobody inside and
+  nobody staked.
+- **Still never run in a sixty-day sweep (16 of 63):** most of the heist tree, and four of this
+  pass's own — `copper_strip` and `squatter_scheme` want a derelict block that is *known and
+  unclaimed*, and the bot claims every one it finds with `claim_abandoned`, so the two compete for
+  the same target; `boiler_room` and `corporate_extortion` want three people free at once. Worth a
+  look next pass, not worth more dial-turning this one.
+- **The op-roster bar moved from 40% to 33%** in `scripts/bot.test.ts`, and that is the one place
+  in this repo where cutting it is honest: absolute reach went **up** by six kinds in the same pass
+  that cut the percentage, because the denominator grew 54% in one go. The comment says so at
+  length, and says it should not happen twice. Lengthening the run no longer buys anything —
+  thirty days measures the same 22–27 as sixteen.
+- **A staked crew's racket does not appear in your empire ledger**, because it is not yours. It
+  shows on the block sheet's crew card instead. Deliberate, and worth revisiting if the ledger ever
+  grows a "money you do not run" section.
+- **The only answer to a skimming crew is `warn` or taking the corner.** There is no confrontation
+  scene about the books. Deliberately out of scope; the log tells you and the two existing answers
+  work.
+- **`prison_supply` pays while somebody is inside**, which is the only income in the game not tied
+  to a building (`Player.wing`). It ends by itself when they walk out.
+- **The honest curve moved, and here is the audit**, because a change this size in the content
+  tables shifts every seeded stream downstream of it. Generation is provably untouched — the same
+  126 businesses, 405 NPCs, same base incomes and the same mean protection income of 60.2 on seed
+  7 in both trees — and so is the racket ranking on any given place. What differs is the bot's
+  path from day one: half of ten seeds came out byte-identical, and the rest diverged at the first
+  scene of day 1 and compounded. On the empire measures the new tree is equal or better on every
+  seed measured (rackets and share of the map above); end-of-run *cash* is lower on some because
+  the money is in rackets instead of in a pocket. The honest scenario's shape is untouched: it
+  still plans no ops, holds nobody back (`reserve` is 0 for it), and uses no admin panel.
+- Carried over and still out of scope: recruiting the city's only fixer deletes all laundering
+  capacity, because `recruit` sets `role = 'crew'` and `fixersKnown` filters on `role === 'fixer'`.
+
+---
+
 ## 2026-09-14 — Business tiers, eight new types, and a tooltip audit that found five unreachable entries
 
 **What.** Every business type now carries a tier, and the tier decides what it can host, what

@@ -218,7 +218,7 @@ export function RacketStock({ w, r }: { w: World; r: Racket }) {
   const def = RACKET_DEFS[r.kind];
   if (def.scale !== 'stash') return null;
   const product: ProductKind = r.kind === 'dealing' ? (r.product ?? 'green')
-    : r.kind === 'fencing' ? 'hot_goods' : r.kind === 'counterfeiting' ? 'counterfeit' : 'hot_goods';
+    : r.kind === 'fencing' ? 'hot_goods' : r.kind === 'counterfeiting' ? 'counterfeit' : r.kind === 'knockoffs' ? 'streetwear' : 'hot_goods';
   if (r.kind === 'carding') {
     const cards = select.liveCards(w).length;
     return <p className="small mt8" style={{ margin: '8px 0 0', color: cards ? 'var(--green)' : 'var(--orange)' }}>💳 {cards ? `${cards} live card${cards === 1 ? '' : 's'} to move.` : 'No cards to move. This one buys the pile you are carrying; go and get some.'}</p>;

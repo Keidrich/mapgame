@@ -5,6 +5,7 @@ import { addProduct, moveProduct, productionQuality, qualityOf, resolveProductio
 import { resolveOp } from './ops';
 import { Rng } from './rng';
 import { known } from './test-util';
+import type { ProductKind } from './types';
 
 const mk = (seed = 5) => generateWorld({ origin: { lat: 51.5, lng: -0.12 }, placeName: 'London', playerName: 'T', background: 'brains', seed });
 
@@ -48,10 +49,10 @@ describe('production quality and recipes', () => {
     void q;
   });
   it('mixing keeps a weighted average', () => {
-    const h = { stash: { booze: 0, green: 0, pills: 0, hot_goods: 0, counterfeit: 0 } } as { stash: Record<'booze' | 'green' | 'pills' | 'hot_goods' | 'counterfeit', number>; quality?: Partial<Record<'booze', number>> };
+    const h = { stash: { booze: 0, green: 0, pills: 0, hot_goods: 0, counterfeit: 0, streetwear: 0 } } as { stash: Record<ProductKind, number>; quality?: Partial<Record<'booze', number>> };
     addProduct(h, 'booze', 10, 80); addProduct(h, 'booze', 10, 40);
     expect(qualityOf(h, 'booze')).toBe(60);
-    const other = { stash: { booze: 0, green: 0, pills: 0, hot_goods: 0, counterfeit: 0 } };
+    const other = { stash: { booze: 0, green: 0, pills: 0, hot_goods: 0, counterfeit: 0, streetwear: 0 } };
     moveProduct(h, other, 'booze', 5);
     expect(h.stash.booze).toBe(15); expect(qualityOf(other, 'booze')).toBe(60);
   });

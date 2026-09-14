@@ -23,7 +23,10 @@ import { newGame } from './store';
 import { asHtml, plain } from './test-util';
 
 const mk = (seed = 111) => generateWorld({ origin: { lat: 51.5, lng: -0.12 }, placeName: 'London', playerName: 'T', background: 'muscle', seed });
-const WIRE: OpKind[] = ['rat', 'wire_fraud', 'digital_strike'];
+// The lane the crime pass widened: taking somebody's number and washing money sideways are the
+// same kind of work as the original three — nobody is hurt, nobody sees you, and it is all done
+// through somebody else's arrangements.
+const WIRE: OpKind[] = ['rat', 'wire_fraud', 'digital_strike', 'sim_swap', 'crypto_wash'];
 
 describe('the wire reads as one lane', () => {
   it('all three are tagged as a family in the content, and nothing else is', () => {

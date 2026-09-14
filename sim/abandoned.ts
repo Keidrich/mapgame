@@ -62,7 +62,7 @@ export function makeAbandoned(b: Block, rng: Rng, low: { police: number; populat
   b.abandoned = { known: rng.chance(OBVIOUS) };
   b.police = clamp(Math.round(low.police * (0.3 + rng.float() * 0.3)), 2, 100);
   b.population = clamp(Math.round(low.population * (0.1 + rng.float() * 0.2)), 1, 100);
-  b.demand = { booze: 0, green: 0, pills: 0, hot_goods: 0, counterfeit: 0 };
+  b.demand = { booze: 0, green: 0, pills: 0, hot_goods: 0, counterfeit: 0, streetwear: 0 };
 }
 
 /** Blocks in this district the player has not found yet. */

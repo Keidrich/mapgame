@@ -57,6 +57,14 @@ export const SYNERGIES: Partial<Record<RacketKind, Synergy>> = {
   union_dues:   { needs: 'protection', bonus: 0.2, why: 'nobody votes against a friend of the neighbourhood' },
   counterfeiting: { needs: 'fencing', bonus: 0.3, why: 'a fence who will take paper as readily as goods' },
   after_hours:  { needs: 'smuggling', bonus: 0.3, why: 'the bar never runs dry and never buys legally' },
+  // the crime pass. Each pair is a real reason one feeds the other, not a number for its own sake:
+  // the yard needs a supply of cars, the export needs somewhere to break the ones it cannot move,
+  // the card supply needs a wash, and the scripts need somebody already moving product on a corner.
+  parts_stripping:  { needs: 'relay_export', bonus: 0.35, why: 'a steady supply arriving overnight, already nobody\'s' },
+  relay_export:     { needs: 'chop_shop', bonus: 0.3, why: 'somewhere to break the ones that are too hot to ship' },
+  card_supply:      { needs: 'laundering', bonus: 0.3, why: 'the take is useless until somewhere clean will take it' },
+  script_diversion: { needs: 'dealing', bonus: 0.35, why: 'a corner already moving product takes the overflow without a word' },
+  knockoffs:        { needs: 'smuggling', bonus: 0.3, why: 'cloth and boxes arriving on your own route, at your own price' },
 };
 
 export const TERRITORY = {

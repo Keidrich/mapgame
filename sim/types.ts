@@ -120,6 +120,14 @@ export interface Business {
   insured: boolean;
   lastShakedownDay?: number;
   casedUntil?: number;  // you walked it and know the layout: an op here is easier until this day
+  /**
+   * The day this place stopped being a business for good. Only a bust-out sets it: everything
+   * the name would carry was ordered, sold and never paid for, and what is left does not open
+   * again. The record stays in `w.businesses` so old log lines and ledgers still resolve, but it
+   * comes off its block and off every list of places you can walk into. Optional, so a save made
+   * before the crime pass loads with nothing shut.
+   */
+  shut?: number;
 
   flags: string[];      // free-form markers ('torched', 'raided', ...)
 }
@@ -234,7 +242,7 @@ export interface Npc {
   hint?: string;              // the coarse read you get from casing the place: a feel, not a file
   tap?: { since: number };    // you are listening to this one; risk compounds daily (sim/cyber.ts)
   ratted?: number;            // the day you last got inside their business; wire fraud needs this
-  intel?: { kind: IntelKind; since: number; businessId: Id };  // a standing skim or a route, off a bank or depot employee
+  intel?: { kind: IntelKind; since: number; businessId: Id; paper?: number };  // a standing arrangement inside an institution; `paper` is the offshore trail
   recipe?: string;            // a specialist: recruiting them unlocks this RECIPES id
   hostage?: { safehouseId: Id; since: number }; // held by you: alive, but out of their own life
   fixer?: { day: number; amount: number; cap: number }; // role 'fixer': today's window, and what is left of it
@@ -259,7 +267,7 @@ export interface Agenda {
 }
 
 // ---------- products ----------
-export type ProductKind = 'booze' | 'green' | 'pills' | 'hot_goods' | 'counterfeit';
+export type ProductKind = 'booze' | 'green' | 'pills' | 'hot_goods' | 'counterfeit' | 'streetwear';
 export type Stash = Record<ProductKind, number>;
 
 // ---------- rackets ----------
@@ -271,7 +279,13 @@ export type RacketKind =
   | 'union_dues'       // the payroll is yours to write; feeds no-show jobs
   | 'counterfeiting'   // paper that is not what it says it is; needs a fence
   | 'after_hours'      // a bar that never closes and never buys legally
-  | 'policy_bank';     // the numbers game run as a bank, not a route
+  | 'policy_bank'      // the numbers game run as a bank, not a route
+  // the crime pass: what the new tier 1/2 types are actually for
+  | 'parts_stripping'  // a yard that takes the parts off cars nobody reports missing
+  | 'relay_export'     // cars taken quietly and shipped out before anybody files paper
+  | 'card_supply'      // supplying the people who work the card machines
+  | 'script_diversion' // a professional signing things they should not
+  | 'knockoffs';       // the counter a cut house's work goes over
 
 export interface Racket {
   id: Id;
@@ -290,7 +304,7 @@ export interface Racket {
 }
 
 // ---------- safehouses & production ----------
-export type ProductionKind = 'still' | 'grow_op' | 'lab' | 'print_shop';
+export type ProductionKind = 'still' | 'grow_op' | 'lab' | 'print_shop' | 'cut_house';
 
 export interface Production {
   id: Id;
@@ -339,7 +353,18 @@ export type OpKind =
   // paper, patience and somebody else's signature
   | 'long_con' | 'staged_accident' | 'shell_company' | 'charity_front' | 'counterfeit_run'
   // moving things that should not be moving
-  | 'dockside_pickup' | 'hijack_load' | 'convoy_run';
+  | 'dockside_pickup' | 'hijack_load' | 'convoy_run'
+  // ---- the crime pass ----
+  // street: small, constant, and what somebody actually starts with
+  | 'porch_piracy' | 'bike_ring' | 'vape_bootleg' | 'copper_strip' | 'squatter_scheme'
+  | 'sim_swap'
+  // mid: paper, professionals and people who sign things
+  | 'straw_purchase' | 'resort_fraud' | 'match_fixing' | 'stream_piracy' | 'betting_app' | 'synth_identity'
+  // organised: things with a commission, a client, or a permanent cost
+  | 'illegal_dumping' | 'arson_hire' | 'bust_out' | 'boiler_room' | 'bid_rigging'
+  | 'campaign_wash' | 'prison_supply' | 'corporate_extortion'
+  // elite: the two that reach the whole city
+  | 'crypto_wash' | 'vote_buying';
 
 export type OpStatus = 'planning' | 'ready' | 'done' | 'failed' | 'aborted';
 
@@ -439,6 +464,14 @@ export interface StreetCrew {
   strength: number;      // 1..10; grows if ignored
   mood: number;          // -100..100 toward the player
   tribute?: FactionId;   // who they pay (the player, or a faction that absorbed them)
+  /**
+   * You fronted them a racket. They own it and run it; you take `kick` of what it makes and
+   * carry none of the day-to-day. `skimmed` is what has quietly not reached you, and `noticed`
+   * is the day the numbers stopped adding up — the same shape as a lieutenant's skim, because
+   * it is the same problem: somebody else keeping your books. Optional, so a save from before
+   * the crime pass has nobody staked.
+   */
+  funded?: { racketId: Id; since: number; kick: number; skimmed: number; paid: number; noticed?: number };
   since: number;
 }
 
@@ -446,7 +479,7 @@ export interface StreetCrew {
 export interface CaseFile {
   id: Id;
   day: number;
-  kind: 'hit' | 'heist' | 'arson' | 'frame';
+  kind: 'hit' | 'heist' | 'arson' | 'frame' | 'fraud';   // 'fraud' is the paper trail an offshore arrangement leaves
   title: string;
   evidence: number;        // 0..100; charges at 100
   status: 'open' | 'cold' | 'charged';
@@ -509,6 +542,13 @@ export interface Player {
   busts: number;
   launderedToday: number;
   crewEver: number;   // people who have ever joined your crew, for op requirements
+  /**
+   * The wing you are supplying, from `prison_supply`. The only income in the game that is not a
+   * racket on a business, because the thing it runs out of is a cell rather than a building: it
+   * pays a trickle every day for as long as that person is inside, and ends by itself the day
+   * they walk out. Optional, so a save from before the crime pass simply has nobody inside.
+   */
+  wing?: { npcId: Id; since: number; perDay: number };
   homeBlockId: Id;
 }
 

@@ -29,7 +29,7 @@ export interface NewGameOptions {
   extraChunks?: GeoChunk[]; // neighbouring areas to populate at once (when the start sits near a chunk edge)
 }
 
-export const emptyStash = () => ({ booze: 0, green: 0, pills: 0, hot_goods: 0, counterfeit: 0 });
+export const emptyStash = () => ({ booze: 0, green: 0, pills: 0, hot_goods: 0, counterfeit: 0, streetwear: 0 });
 
 export function generateWorld(opts: NewGameOptions): World {
   const seed = opts.seed ?? hashString(`${opts.origin.lat.toFixed(4)},${opts.origin.lng.toFixed(4)}`);

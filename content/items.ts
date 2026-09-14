@@ -111,6 +111,12 @@ export const ITEM_DEFS: Record<string, ItemDef> = {
     blurb: 'Doors stop being doors.', mods: { skillBoost: { tech: 1 }, approachBias: { quiet: 0.35, loud: -0.15 }, heatMult: 0.9 },
     detail: 'Tech +1. Quiet jobs go a third better and loud ones slightly worse, and a job done through the lock leaves less behind.',
   },
+  relay_box: {
+    id: 'relay_box', label: 'Relay Box', icon: '📻', category: 'tool', cost: 2200, underCounter: true,
+    blurb: 'A grey case that makes a car think you are its owner.',
+    mods: { skillBoost: { tech: 1, wheels: 2 }, approachBias: { quiet: 0.3, loud: -0.25 }, heatMult: 0.85 },
+    detail: 'Wheels +2, tech +1. Quiet work goes far better and loud work worse, and a car taken this way leaves 15% less behind. The back rooms only.',
+  },
   // ---- tech: also the groundwork for what comes after ----
   burner: {
     id: 'burner', label: 'Burner Phone', icon: '📱', category: 'tech', cost: 120,

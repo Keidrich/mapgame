@@ -37,7 +37,7 @@ export function roomFor(s: Safehouse, beds: number): number {
 export function ransomValue(w: World, n: Npc): number {
   const f = n.faction ? w.factions[n.faction] : undefined;
   const role = n.role === 'boss' ? 6 : n.role === 'lieutenant' ? 3 : n.role === 'owner' ? 2 : 1;
-  const biz = Object.values(w.businesses).find(b => b.ownerId === n.id);
+  const biz = Object.values(w.businesses).find(b => b.ownerId === n.id && !b.shut);
   const base = 1200 * role + (biz ? biz.value * 0.25 : 0) + (f ? Math.max(0, f.cash) * 0.1 : 0);
   return Math.round(Math.max(600, Math.min(60000, base)));
 }
@@ -110,7 +110,7 @@ export function resolveHostage(w: World, n: Npc, mode: 'ransom' | 'leverage' | '
   const blockId = n.hostage ? w.safehouses[n.hostage.safehouseId]?.blockId : undefined;
   if (mode === 'ransom') {
     const ask = ransomValue(w, n);
-    const payer = f && f.alive ? f.cash : Object.values(w.businesses).find(b => b.ownerId === n.id)?.value ?? 0;
+    const payer = f && f.alive ? f.cash : Object.values(w.businesses).find(b => b.ownerId === n.id && !b.shut)?.value ?? 0;
     const paid = Math.round(Math.min(ask, Math.max(0, payer)));
     release(w, n);
     if (paid < ask * 0.4) {

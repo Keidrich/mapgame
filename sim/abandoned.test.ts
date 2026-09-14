@@ -15,7 +15,7 @@ function derelict(w: World, opts: { known?: boolean; police?: number; population
     id: `ab${Object.keys(w.blocks).length}`, chunkKey: here.chunkKey, polygon: [], center: { lat: here.center.lat + 0.002, lng: here.center.lng },
     areaM2: 20000, neighborIds: [here.id], edgeKeys: [], streetNames: [], name: 'The Yards', districtId: here.districtId,
     wealth: 20, police: opts.police ?? 6, heat: 0, population: opts.population ?? 4,
-    demand: { booze: 0, green: 0, pills: 0, hot_goods: 0, counterfeit: 0 }, influence: {}, businessIds: [], memory: [], tags: [],
+    demand: { booze: 0, green: 0, pills: 0, hot_goods: 0, counterfeit: 0, streetwear: 0 }, influence: {}, businessIds: [], memory: [], tags: [],
     abandoned: { known: opts.known ?? true },
   };
   w.blocks[b.id] = b; here.neighborIds.push(b.id);

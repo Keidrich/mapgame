@@ -11,7 +11,7 @@ import { describe, expect, it } from 'vitest';
 import { PRODUCTION_DEFS, RECIPES, recipesOfKind, qualityMult } from '@content/rackets';
 import type { ProductionKind } from '@sim/types';
 
-const KINDS: ProductionKind[] = ['still', 'grow_op', 'lab', 'print_shop'];
+const KINDS: ProductionKind[] = ['still', 'grow_op', 'lab', 'print_shop', 'cut_house'];
 
 describe('every production kind has a real menu', () => {
   it('at least four recipes each, all naming a distinct thing', () => {

@@ -20,7 +20,7 @@ function testDistrict(w: World, closeness: number, tag: string, blocks = 4, per 
     const block: Block = {
       id, chunkKey: 'test', polygon: [], center: { lat: 51.5 + b * 0.001, lng: -0.12 }, areaM2: 10000, neighborIds: [], edgeKeys: [], streetNames: [],
       name: `${tag} ${b}`, districtId: district.id, wealth: 50, police: 40, heat: 0, population: 50,
-      demand: { booze: 1, green: 1, pills: 1, hot_goods: 1, counterfeit: 1 }, influence: {}, businessIds: [], memory: [], tags: [],
+      demand: { booze: 1, green: 1, pills: 1, hot_goods: 1, counterfeit: 1, streetwear: 1 }, influence: {}, businessIds: [], memory: [], tags: [],
     };
     w.blocks[id] = block; district.blockIds.push(id); made.push(block);
     for (let p = 0; p < per; p++) {

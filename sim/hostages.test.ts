@@ -11,7 +11,7 @@ function safehouse(w: World, opts: { police?: number; population?: number; tier?
   const b = select.startBlock(w);
   if (opts.police !== undefined) b.police = opts.police;
   if (opts.population !== undefined) b.population = opts.population;
-  const s: Safehouse = { id: `sh${Object.keys(w.safehouses).length}`, blockId: b.id, name: 'Back room', tier: opts.tier ?? 1, owner: PLAYER, stash: { booze: 0, green: 0, pills: 0, hot_goods: 0, counterfeit: 0 }, cash: 0, productionIds: [], capacity: 60, hostageIds: [] };
+  const s: Safehouse = { id: `sh${Object.keys(w.safehouses).length}`, blockId: b.id, name: 'Back room', tier: opts.tier ?? 1, owner: PLAYER, stash: { booze: 0, green: 0, pills: 0, hot_goods: 0, counterfeit: 0, streetwear: 0 }, cash: 0, productionIds: [], capacity: 60, hostageIds: [] };
   w.safehouses[s.id] = s; b.safehouseId = s.id; w.player.safehouseIds.push(s.id);
   return s;
 }

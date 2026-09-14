@@ -4,6 +4,7 @@ import { CASE_JOINT, OP_APPROACHES, OP_DEFS, PRODUCTION_DEFS, RACKET_DEFS, RECIP
 import { controller, stanceFor } from './generate';
 import { CREW_COLOR, crewAt } from './crews';
 export { crewAt };
+export { fundReason, fundTarget, fundedRacket } from './crews';
 export { lieutenants, lieutenantOf, districtsRunnable, districtIncome, promoteReason, playerAssetsIn } from './lieutenants';
 export { nearPolice } from './tick';
 export { brokerReason } from './politics';
@@ -20,7 +21,7 @@ import { coverFor } from './lieutenants';
 import { racketsAllowed } from './tiers';
 import { foremanOf, supplyReading, SUPPLY_LABELS } from './automation';
 import { productionOutput } from './economy';
-import { routeDiscount } from './intel';
+import { laneDiscount, routeDiscount } from './intel';
 import { rawRacketIncome, streetPrice } from './economy';
 import { qualityOf, sellMult } from './production';
 import { equippedItems, kitApproachBias, kitSkillBoost } from './items';
@@ -65,7 +66,7 @@ export function factionColor(w: World, f?: FactionId): string {
 export function factionName(w: World, f?: FactionId): string {
   if (!f) return 'Unclaimed'; if (f === PLAYER) return w.player.name; if (w.crews[f]) return `The ${w.crews[f].name}`; return w.factions[f]?.name ?? '?';
 }
-export function businessesIn(w: World, blockId: Id): Business[] { return w.blocks[blockId].businessIds.map(id => w.businesses[id]); }
+export function businessesIn(w: World, blockId: Id): Business[] { return w.blocks[blockId].businessIds.map(id => w.businesses[id]).filter(b => b && !b.shut); }
 export function patronsOf(w: World, biz: Business): Npc[] { return biz.patronIds.map(id => w.npcs[id]).filter(n => n.alive); }
 export function crew(w: World): Npc[] { return w.player.crewIds.map(id => w.npcs[id]); }
 export function idleCrew(w: World): Npc[] { return crew(w).filter(n => n.crew?.status === 'idle'); }
@@ -84,6 +85,7 @@ export function opTargets(w: World, kind: OpKind): Business[] {
   const d = OP_DEFS[kind];
   if (d.target !== 'business') return [];
   return Object.values(w.businesses).filter(b => {
+    if (b.shut) return false;   // a bust-out leaves a building, not a business
     if (d.ownBusiness) return b.ownedBy === 'player';
     if (d.targetTypes) return d.targetTypes.includes(b.type) && b.ownedBy !== 'player';
     if (kind === 'raid_rival') return b.racketIds.some(r => w.rackets[r].owner !== PLAYER) || (b.protection && b.protection.factionId !== PLAYER);
@@ -118,7 +120,7 @@ export function opChance(w: World, kind: OpKind, crewIds: Id[], approach?: OpApp
   // a place you have walked in the last few days is a place you know the back of
   const cased = targetBusinessId && (w.businesses[targetBusinessId]?.casedUntil ?? 0) >= w.day ? CASE_JOINT.difficulty : 0;
   // a current route off a depot employee is the same kind of discount as having walked the place
-  const route = kind === 'heist_armored' ? -routeDiscount(w, targetBusinessId) : 0;
+  const route = kind === 'heist_armored' ? -routeDiscount(w, targetBusinessId) : -laneDiscount(w, kind);
   // Work aimed at the law is harder the harder the law is already looking, and harder again on
   // ground they are standing on — the same way every other op reads its target's state.
   const authority = d.target === 'case' || d.requires?.officialTarget || d.requires?.jailedTarget
@@ -150,7 +152,7 @@ export function startBlock(w: World): Block { return Object.values(w.blocks).sli
 export function neighborsOf(w: World, blockId: Id): Block[] { return w.blocks[blockId].neighborIds.map(id => w.blocks[id]).filter(Boolean); }
 export function npcLocation(w: World, n: Npc): Business | undefined {
   if (n.favouriteBusinessIds.length) return w.businesses[n.favouriteBusinessIds[0]];
-  if (n.role === 'owner') return Object.values(w.businesses).find(b => b.ownerId === n.id);
+  if (n.role === 'owner') return Object.values(w.businesses).find(b => b.ownerId === n.id && !b.shut);
   return undefined;
 }
 export function agendaLabel(n: Npc): string | undefined {
@@ -322,12 +324,13 @@ export {
 export {
   intelCandidates, intelSourceFor, intelReading, skimmers, routeHolders, routeFor, anyRoute,
   routeDiscount, skimTake, skimRisk, daysRunning as intelDays,
+  laneDiscount, anyLane, consignTake, consignRisk, offshoreCapacity, offshorePaper, consigners, offshoreHolders, laneHolders,
 } from './intel';
 
 // ---------------------------------------------------------------- what you are holding
 /** Every unit of every product, wherever it is: on you and in every safehouse you own. */
 export function stashTotals(w: World): Record<ProductKind, number> {
-  const out: Record<ProductKind, number> = { booze: 0, green: 0, pills: 0, hot_goods: 0, counterfeit: 0 };
+  const out: Record<ProductKind, number> = { booze: 0, green: 0, pills: 0, hot_goods: 0, counterfeit: 0, streetwear: 0 };
   for (const k of Object.keys(out) as ProductKind[]) {
     out[k] = w.player.stash[k] ?? 0;
     for (const id of w.player.safehouseIds) out[k] += w.safehouses[id]?.stash[k] ?? 0;
@@ -481,6 +484,7 @@ function racketProduct(r: Racket): ProductKind | undefined {
   if (r.kind === 'dealing') return r.product ?? 'green';
   if (r.kind === 'fencing') return 'hot_goods';
   if (r.kind === 'counterfeiting') return 'counterfeit';
+  if (r.kind === 'knockoffs') return 'streetwear';
   return undefined;
 }
 

@@ -135,7 +135,7 @@ function Ties({ npc, onWalk }: { npc: Npc; onWalk: (n: Npc) => void }) {
 
 /** "runs Casa Roma on Mott St" — the same line the person's own sheet uses. */
 export function whereabouts(w: ReturnType<typeof useWorld>, npc: Npc): string {
-  const biz = Object.values(w.businesses).find(b => b.ownerId === npc.id);
+  const biz = Object.values(w.businesses).find(b => b.ownerId === npc.id && !b.shut);
   const block = w.blocks[npc.homeBlockId]?.name;
   if (biz) return `Runs ${biz.name}${block ? ` on ${block}` : ''}`;
   if (npc.crew) return 'In your crew';

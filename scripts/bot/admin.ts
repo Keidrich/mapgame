@@ -95,7 +95,7 @@ export const SCENARIOS: Record<ScenarioName, Scenario> = {
     setup: [...CORE, { what: 'cash', amount: 500000 }],
   },
   everything: {
-    label: 'everything', opsPerDay: 3, crewCap: 8,
+    label: 'everything', opsPerDay: 3, crewCap: 12,
     blurb: 'All of the above at once: the run that should reach every system.',
     setup: [
       ...CORE,
@@ -108,6 +108,9 @@ export const SCENARIOS: Record<ScenarioName, Scenario> = {
       { what: 'ratted' },
       { what: 'agendas' },
       { what: 'nemesis' },
+      // plenty of generated cities have no street crew at all, and then nothing about corners,
+      // payroll or staking one can be reached however long the run is
+      { what: 'crews', amount: 2 },
       { what: 'stash' },
     ],
     topUp: {
@@ -115,6 +118,10 @@ export const SCENARIOS: Record<ScenarioName, Scenario> = {
       cheats: [
         { what: 'cash', amount: 120000 }, { what: 'cards', amount: 6 }, { what: 'attention', amount: 85 },
         { what: 'open_case', amount: 40 }, { what: 'jail_crew', amount: 25 }, { what: 'war', amount: 2 },
+        // ...and people to replace the ones the line above just put in a cell. Without this the
+        // outfit is six-eighths jailed by day 14 and every op with a `minCrew` stops being
+        // plannable, which reads in the coverage table as half the roster never running.
+        { what: 'crew', amount: 8 },
       ],
     },
   },

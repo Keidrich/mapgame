@@ -111,7 +111,8 @@ export type CheatKind =
   | 'cards'        // a pile of lifted cards, a secret and some wire heat
   | 'ratted'       // you have been inside everybody, which is what wire fraud needs
   | 'agendas'      // everybody nearby wants something, and you know what — which is what the agenda moves need
-  | 'nemesis';     // a lieutenant of each faction has been getting the better of you for weeks
+  | 'nemesis'      // a lieutenant of each faction has been getting the better of you for weeks
+  | 'crews';       // a street crew on a corner near you, which plenty of generated cities have none of
 
 export type SitDownOffer =
   | { kind: 'truce'; days: number }
