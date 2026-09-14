@@ -71,6 +71,14 @@ multiplier applies in exactly one place), `sim/tick.ts`, `sim/types.ts` (four `R
 `ui/components/BusinessSheet.tsx` + `BlockSheet.tsx` (both mechanics made visible),
 `content/glossary.ts`, `scripts/bot/policy.ts`, `docs/DESIGN.md` §4.15–4.16.
 
+**A third bug from real play, fixed in a follow-up.** A dealing racket "never really sells". There
+is no racket inventory — product rackets move what the *player* is carrying, which is a coherent
+rule — but production puts everything into safehouses, so the obvious setup (a still upstairs, a
+dealer on the corner below) sold nothing forever and nothing on screen said why. A safehouse of
+yours **on the same block** now hands 40 units a day down to the corner, and every product racket's
+card states what it has to sell, where the rest of it is, and how to get it there. Reaching across
+town still is not free: stock in a safehouse elsewhere stays there until you move it.
+
 **Watch out.**
 
 - **No `WORLD_VERSION` bump.** `Block.heldSince` is optional and the new racket kinds only appear

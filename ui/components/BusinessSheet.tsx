@@ -177,6 +177,7 @@ export function RacketCard({ w, r, showBiz }: { w: World; r: Racket; showBiz?: b
         {r.float !== undefined && <> · <Term id="float">float</Term> {fmtMoney(r.float)}</>}
         {r.disrupted > 0 && <span className="red"> · <Term id="disrupted">disrupted</Term> {r.disrupted}d</span>}
       </div>
+      {yours && <RacketStock w={w} r={r} />}
       {yours && <RacketYield w={w} r={r} />}
       {yours && (
         <div className="row wrap mt8" style={{ gap: 6 }}>
@@ -198,6 +199,43 @@ export function RacketCard({ w, r, showBiz }: { w: World; r: Racket; showBiz?: b
           {idle.length === 0 && <span className="small muted">No idle crew.</span>}
           <div className="chips">{idle.map(n => <Act key={n.id} action={{ type: 'assign', npcId: n.id, assignment: { kind: 'racket', racketId: r.id } }} label={`${n.name} (${d.skill} ${n.skills[d.skill]})`} small />)}</div>
         </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * What a product racket has to sell. These sell out of *your* stash, not a stock of their own —
+ * which is fine until you notice production puts everything in safehouses, at which point a
+ * dealing racket reads "$0/day" forever and nothing on screen says why. Now it says why.
+ */
+export function RacketStock({ w, r }: { w: World; r: Racket }) {
+  const def = RACKET_DEFS[r.kind];
+  if (def.scale !== 'stash') return null;
+  const product: ProductKind = r.kind === 'dealing' ? (r.product ?? 'green')
+    : r.kind === 'fencing' ? 'hot_goods' : r.kind === 'counterfeiting' ? 'counterfeit' : 'hot_goods';
+  if (r.kind === 'carding') {
+    const cards = select.liveCards(w).length;
+    return <p className="small mt8" style={{ margin: '8px 0 0', color: cards ? 'var(--green)' : 'var(--orange)' }}>💳 {cards ? `${cards} live card${cards === 1 ? '' : 's'} to move.` : 'No cards to move. This one buys the pile you are carrying; go and get some.'}</p>;
+  }
+  const carrying = Math.round(w.player.stash[product] ?? 0);
+  const here = w.player.safehouseIds.map(id => w.safehouses[id]).find(s => s && s.blockId === w.businesses[r.businessId]?.blockId && (s.stash[product] ?? 0) > 0);
+  const elsewhere = w.player.safehouseIds.map(id => w.safehouses[id]).filter(s => s && (s.stash[product] ?? 0) > 0);
+  return (
+    <div className="mt8">
+      <p className="small" style={{ margin: 0, color: carrying > 0 ? 'var(--green)' : 'var(--orange)' }}>
+        {PRODUCT_INFO[product].icon} {carrying > 0
+          ? `${carrying} ${PRODUCT_INFO[product].label.toLowerCase()} on you to sell.`
+          : `Nothing to sell. This moves ${PRODUCT_INFO[product].label.toLowerCase()} out of your own stash.`}
+      </p>
+      {carrying === 0 && (
+        <p className="tiny muted" style={{ margin: '4px 0 0' }}>
+          {here
+            ? `${here.name} is on this block and has some — it will restock the corner itself, starting tomorrow.`
+            : elsewhere.length
+              ? `${elsewhere[0].name} has ${Math.round(elsewhere[0].stash[product])}. Move it to yourself on the Empire tab, or put a safehouse on this block and it restocks itself.`
+              : 'Make it, buy it or steal it first — a production in a safehouse is the usual way.'}
+        </p>
       )}
     </div>
   );

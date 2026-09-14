@@ -24,6 +24,9 @@ import { tickCommission } from './commission';
 import { heldIds, tickHostages } from './hostages';
 import { PRODUCTION_LEVEL } from '@content/rackets';
 
+/** Units a dealing racket pulls per day from a safehouse of yours on the same block. */
+const RESTOCK_FROM_SAFEHOUSE = 40;
+
 export function endDay(w: World): World {
   const { rng, done } = rngOf(w);
   const p = w.player;
@@ -76,7 +79,17 @@ export function endDay(w: World): World {
     let income = 0;
     switch (r.kind) {
       case 'dealing': {
-        const prod = r.product ?? 'green'; const have = p.stash[prod];
+        const prod = r.product ?? 'green';
+        // A dealing racket sells what *you* are carrying, not a stock of its own. That is fine
+        // until you notice product piles up in safehouses, which is where production puts it —
+        // so a still upstairs and a dealer downstairs silently sold nothing, forever, with
+        // nothing on screen explaining why. A safehouse on the same block restocks the corner.
+        const houseHere = p.safehouseIds.map(id => w.safehouses[id]).find(s2 => s2 && s2.blockId === b.blockId && s2.stash[prod] > 0);
+        if (houseHere) {
+          const pull = Math.min(houseHere.stash[prod], RESTOCK_FROM_SAFEHOUSE);
+          houseHere.stash[prod] -= pull; p.stash[prod] += pull;
+        }
+        const have = p.stash[prod];
         if (have > 0) { const demand = w.blocks[b.blockId].demand[prod] * (1 + (r.level - 1) * 0.5) * (0.6 + b.patronIds.length * 0.15); const sold = Math.min(have, Math.max(0, Math.round(demand))); p.stash[prod] -= sold; income = Math.round(sold * streetPrice(w, b.blockId, prod) * sellMult(w, prod) * yieldMult(w, r)); addHeat(w, sold * PRODUCT_INFO[prod].heat * 0.3, b.blockId); }
         break;
       }
