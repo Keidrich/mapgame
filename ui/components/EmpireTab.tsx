@@ -131,7 +131,7 @@ function Launder() {
   const w = useWorld();
   const [amount, setAmount] = useState(1000);
   return (
-    <Disclosure label="Launder" icon="🧼">
+    <Disclosure label="Launder" icon="♻️">
       <p className="small muted"><Term id="dirty">Dirty</Term> {fmtMoney(w.player.dirty)} on hand · laundered today {fmtMoney(w.player.launderedToday)}. Needs a laundering racket, which converts at {Math.round(LAUNDER_RATE * 100)} cents on the dollar up to a daily cap.</p>
       <Fixers />
       <AmountPicker presets={[500, 1000, 5000, Math.max(1, Math.floor(w.player.dirty))]} value={amount} onChange={setAmount} min={1} />

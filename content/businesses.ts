@@ -17,13 +17,13 @@ export const BUSINESS_DEFS: Record<BusinessType, BusinessDef> = {
   bar:           { label: 'Bar',            icon: '🍺', income: [120, 260], valueMult: 40, patrons: [3, 5], rackets: ['protection', 'numbers', 'bookmaking', 'gambling_den', 'loansharking', 'after_hours'], nerve: 45 },
   diner:         { label: 'Diner',          icon: '🍳', income: [90, 180],  valueMult: 35, patrons: [2, 4], rackets: ['protection', 'numbers', 'laundering'], nerve: 35 },
   restaurant:    { label: 'Restaurant',     icon: '🍝', income: [180, 380], valueMult: 45, patrons: [2, 4], rackets: ['protection', 'numbers', 'laundering', 'gambling_den', 'after_hours'], nerve: 50 },
-  laundromat:    { label: 'Laundromat',     icon: '🧺', income: [60, 120],  valueMult: 40, patrons: [1, 2], rackets: ['protection', 'laundering', 'counterfeiting'], nerve: 30 },
+  laundromat:    { label: 'Laundromat',     icon: '👕', income: [60, 120],  valueMult: 40, patrons: [1, 2], rackets: ['protection', 'laundering', 'counterfeiting'], nerve: 30 },
   pawn:          { label: 'Pawn Shop',      icon: '💍', income: [100, 220], valueMult: 40, patrons: [1, 3], rackets: ['protection', 'fencing', 'loansharking', 'counterfeiting'], nerve: 55 },
   garage:        { label: 'Auto Garage',    icon: '🔧', income: [110, 240], valueMult: 40, patrons: [1, 3], rackets: ['protection', 'chop_shop', 'smuggling', 'union_dues'], nerve: 50 },
-  nightclub:     { label: 'Nightclub',      icon: '🪩', income: [300, 700], valueMult: 50, patrons: [4, 6], rackets: ['protection', 'gambling_den', 'dealing', 'laundering', 'bookmaking', 'after_hours'], nerve: 60 },
+  nightclub:     { label: 'Nightclub',      icon: '🎶', income: [300, 700], valueMult: 50, patrons: [4, 6], rackets: ['protection', 'gambling_den', 'dealing', 'laundering', 'bookmaking', 'after_hours'], nerve: 60 },
   corner_store:  { label: 'Corner Store',   icon: '🏪', income: [70, 150],  valueMult: 30, patrons: [2, 4], rackets: ['protection', 'numbers', 'dealing', 'policy_bank'], nerve: 30 },
   barbershop:    { label: 'Barbershop',     icon: '💈', income: [60, 130],  valueMult: 30, patrons: [3, 5], rackets: ['protection', 'numbers', 'bookmaking', 'policy_bank'], nerve: 40 },
-  gym:           { label: 'Boxing Gym',     icon: '🥊', income: [70, 140],  valueMult: 35, patrons: [3, 5], rackets: ['protection', 'bookmaking', 'loansharking', 'policy_bank'], nerve: 65 },
+  gym:           { label: 'Boxing Gym',     icon: '👊', income: [70, 140],  valueMult: 35, patrons: [3, 5], rackets: ['protection', 'bookmaking', 'loansharking', 'policy_bank'], nerve: 65 },
   cab_company:   { label: 'Cab Company',    icon: '🚕', income: [150, 300], valueMult: 40, patrons: [1, 3], rackets: ['protection', 'smuggling', 'dealing', 'union_dues'], nerve: 45 },
   construction:  { label: 'Construction Co.', icon: '🏗️', income: [250, 600], valueMult: 45, patrons: [1, 2], rackets: ['protection', 'no_show_jobs', 'laundering', 'union_dues'], nerve: 55 },
   warehouse:     { label: 'Warehouse',      icon: '📦', income: [80, 200],  valueMult: 45, patrons: [0, 1], rackets: ['protection', 'smuggling', 'fencing', 'counterfeiting', 'union_dues'], heistTarget: true, safehouse: true, nerve: 40 },
@@ -33,7 +33,7 @@ export const BUSINESS_DEFS: Record<BusinessType, BusinessDef> = {
   armored_depot: { label: 'Armored Car Depot', icon: '🚚', income: [0, 0],  valueMult: 0,  patrons: [0, 0], rackets: [], heistTarget: true, nerve: 95 },
   // A back room behind a legitimate front: where kit is bought and sold (content/items.ts).
   // Rare, quiet districts, and the owner is nobody's idea of a soft touch.
-  black_market:  { label: 'Back-Room Market', icon: '🧰', income: [120, 300], valueMult: 40, patrons: [1, 2], rackets: ['protection', 'fencing', 'smuggling'], nerve: 65 },
+  black_market:  { label: 'Back-Room Market', icon: '🚪', income: [120, 300], valueMult: 40, patrons: [1, 2], rackets: ['protection', 'fencing', 'smuggling'], nerve: 65 },
 };
 
 export interface DistrictDef {

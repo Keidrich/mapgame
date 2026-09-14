@@ -9,7 +9,7 @@ const CHEATS: { what: CheatKind; label: string; icon: string }[] = [
   { what: 'dirty', label: '+$10,000 dirty', icon: '💰' },
   { what: 'ap', label: 'Refill AP', icon: '⚡' },
   { what: 'legwork', label: 'Refill legwork', icon: '🚶' },
-  { what: 'heat', label: 'Clear all heat', icon: '🧊' },
+  { what: 'heat', label: 'Clear all heat', icon: '❄️' },
   { what: 'skills', label: 'Every skill to 10', icon: '🎓' },
   { what: 'crew', label: 'Three people join your crew', icon: '👥' },
   { what: 'unlock', label: 'Unlock the op tree', icon: '🔓' },
@@ -19,7 +19,7 @@ const CHEATS: { what: CheatKind; label: string; icon: string }[] = [
   { what: 'reveal', label: 'Reveal people and derelict blocks', icon: '🗺️' },
   { what: 'stash', label: '+50 of every product', icon: '📦' },
   // set up one system so it can actually be exercised; the soak bot drives these same entries
-  { what: 'kit', label: 'Carry a weapon, a tool and a car', icon: '🧰' },
+  { what: 'kit', label: 'Carry a weapon, a tool and a car', icon: '🎒' },
   { what: 'rackets', label: 'A racket of every useful kind', icon: '🎟️' },
   { what: 'war', label: 'Somebody goes to war with you', icon: '⚔️' },
   { what: 'attention', label: 'Every precinct looking hard', icon: '🚔' },
@@ -71,7 +71,7 @@ function Cheats() {
   const cheated = useStore(s => !!s.world?.cheated);
   return (
     <div className="mt12">
-      <Disclosure label="Testing tools" icon="🛠️">
+      <Disclosure label="Testing tools" icon="🔧">
         <p className="small muted" style={{ margin: 0 }}>
           For testing this build. Anything here happens instantly and for free, and marks the save as cheated{cheated ? ' — which this one already is.' : '.'}
         </p>

@@ -30,7 +30,7 @@ export const BACKGROUND_DEFS: BackgroundDef[] = [
     skills: { ...BASE_SKILLS, muscle: 8 },
   },
   {
-    id: 'brains', label: 'Brains', ico: '🧠', blurb: 'Numbers, paper, plans. You see the angles.',
+    id: 'brains', label: 'Brains', ico: '💡', blurb: 'Numbers, paper, plans. You see the angles.',
     detail: 'Brains 8, tech 4. Numbers, bookmaking and laundering earn more, quiet ops go cleaner, and you spot a lieutenant skimming. The patient opening: build a machine.',
     skills: { ...BASE_SKILLS, brains: 8, tech: 4 },
   },
@@ -73,7 +73,7 @@ export const SKILL_BLURBS: Record<keyof Skills, string> = {
 };
 
 export const START_TRAITS: { id: StartTraitId; label: string; ico: string; blurb: string; detail: string }[] = [
-  { id: 'connected', label: 'Connected', ico: '🤝', blurb: 'You did not arrive a stranger.', detail: 'Two more people on your block already know and trust you — warm from day one, and the shortest path to a first crew member.' },
+  { id: 'connected', label: 'Connected', ico: '👥', blurb: 'You did not arrive a stranger.', detail: 'Two more people on your block already know and trust you — warm from day one, and the shortest path to a first crew member.' },
   { id: 'earner', label: 'Earner', ico: '💵', blurb: 'You came with a roll.', detail: '$2,500 more clean cash to open with: a safehouse and a racket on day one instead of day six.' },
   { id: 'local', label: 'Local', ico: '🏠', blurb: 'You grew up on this street.', detail: 'Your home block starts with much more of your influence on it, and a little respect on the street. You run your first block far sooner.' },
   { id: 'feared', label: 'Feared', ico: '😨', blurb: 'Something about you they heard before you arrived.', detail: 'You start with a reputation, and every owner on your block is already afraid of you. First shakedowns fold; nobody warms to you quickly.' },

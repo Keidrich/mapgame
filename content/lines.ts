@@ -65,7 +65,7 @@ export const OPENING: Record<SceneKind, Lines> = {
 export const APPROACHES: Record<SceneKind, { id: string; label: string; icon: string; blurb: string; good: string; bad: string }[]> = {
   shakedown: [
     { id: 'lean', label: 'Lean on them', icon: '👊', blurb: 'Muscle. Make it clear what happens if they don\'t pay.', good: 'Big envelope, +fear', bad: 'They dig in; heat, and word gets around' },
-    { id: 'reason', label: 'Talk business', icon: '🤝', blurb: 'Charm. Protection is a service; you are the provider.', good: 'Steady envelope, a little trust', bad: 'Laughed off; −respect' },
+    { id: 'reason', label: 'Talk business', icon: '👥', blurb: 'Charm. Protection is a service; you are the provider.', good: 'Steady envelope, a little trust', bad: 'Laughed off; −respect' },
     { id: 'wreck', label: 'Break something first', icon: '🔨', blurb: 'Crew. Smash the place up, then ask. Loud.', good: 'Biggest envelope, +fear on the block', bad: 'Cops, and an owner who hates you' },
   ],
   threaten: [
@@ -81,11 +81,11 @@ export const APPROACHES: Record<SceneKind, { id: string; label: string; icon: st
   broker: [
     { id: 'split', label: 'Sweeten it', icon: '💰', blurb: 'Charm and cash. $2,000 to each side to make sitting down worth their while.', good: 'Truce between them; both owe you', bad: 'They take the money and keep shooting' },
     { id: 'lean', label: 'Bang heads', icon: '😤', blurb: 'Fear and crew. Tell both sides the shooting stops because you say so.', good: 'Truce; everybody remembers who ended it', bad: 'Both sides decide you are the problem' },
-    { id: 'favour', label: 'Call in a favour', icon: '🤝', blurb: 'Standing. Ask the side that likes you to give a little first.', good: 'Truce; costs you nothing', bad: 'They feel used; standing drops' },
+    { id: 'favour', label: 'Call in a favour', icon: '👥', blurb: 'Standing. Ask the side that likes you to give a little first.', good: 'Truce; costs you nothing', bad: 'They feel used; standing drops' },
   ],
   parley: [
     { id: 'tribute', label: 'Put them on the payroll', icon: '💸', blurb: 'Charm and respect. They keep the corner, pay you weekly, and the block is yours.', good: 'Block turns yours; weekly cash', bad: 'Laughed off; they dig in' },
-    { id: 'join', label: 'Bring them in', icon: '🤝', blurb: 'Trust. Their boss joins your crew; their people become yours to recruit.', good: 'A made crew member and recruits', bad: 'They want to see more first' },
+    { id: 'join', label: 'Bring them in', icon: '👥', blurb: 'Trust. Their boss joins your crew; their people become yours to recruit.', good: 'A made crew member and recruits', bad: 'They want to see more first' },
     { id: 'warn', label: 'Run them off', icon: '😤', blurb: 'Muscle. Make them small. No body, no cops.', good: 'They lie low; +fear on the block', bad: 'They come back at you tonight' },
   ],
   recruit: [

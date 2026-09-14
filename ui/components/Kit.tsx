@@ -36,11 +36,14 @@ function KitRow({ item }: { item: ItemDef }) {
   const have = select.ownedCount(w, item.id);
   const on = select.equippedCount(w, item.id);
   return (
-    <div className={`listitem${on ? ' sel' : ''}`} style={{ alignItems: 'flex-start' }}>
+    <div className={`shelfitem${on ? ' sel' : ''}`}>
       <span className="ico">{item.icon}</span>
-      <div className="grow" style={{ minWidth: 0 }}>
-        <div className="title">{item.label}{have > 1 && <span className="muted small"> ×{have}</span>}{on > 0 && <span className="gold small"> · carried{on > 1 ? ` ×${on}` : ''}</span>}</div>
-        <div className="sub" style={{ whiteSpace: 'normal' }}>{item.detail}</div>
+      <div className="shelf-body">
+        <div className="shelf-head">
+          <b className="shelf-name">{item.label}{have > 1 && <span className="muted"> ×{have}</span>}</b>
+          {on > 0 && <span className="shelf-price gold">carried{on > 1 ? ` ×${on}` : ''}</span>}
+        </div>
+        <p className="shelf-detail">{item.detail}</p>
       </div>
       <div className="col" style={{ gap: 4, flex: 'none' }}>
         <TermChip id={`itemCat:${item.category}`} title={item.family ? FAMILY_LABELS[item.family] : CATEGORY_LABELS[item.category]} body={item.blurb}>{item.family ? FAMILY_LABELS[item.family] : CATEGORY_LABELS[item.category]}</TermChip>
@@ -63,11 +66,19 @@ export function MarketSection({ businessId }: { businessId: Id }) {
       <div className="section-title">On the shelf<Info id="kit" /></div>
       <div className="col" style={{ gap: 6 }}>
         {stock.map(item => (
-          <div key={item.id} className="listitem" style={{ alignItems: 'flex-start' }}>
+          <div key={item.id} className="shelfitem">
             <span className="ico">{item.icon}</span>
-            <div className="grow" style={{ minWidth: 0 }}>
-              <div className="title">{item.label} <span className="muted small">{fmtMoney(select.buyPrice(item))}</span>{item.family && <span className="chip" style={{ marginLeft: 6 }}>{FAMILY_LABELS[item.family]}</span>}</div>
-              <div className="sub" style={{ whiteSpace: 'normal' }}>{item.detail}</div>
+            <div className="shelf-body">
+              <div className="shelf-head">
+                <b className="shelf-name">{item.label}</b>
+                <span className="shelf-price">{fmtMoney(select.buyPrice(item))}</span>
+              </div>
+              <div className="shelf-meta">
+                <span className="tinychip">{item.family ? FAMILY_LABELS[item.family] : CATEGORY_LABELS[item.category]}</span>
+                {item.underCounter && <span className="tinychip warn">under the counter</span>}
+                {(w.player.items ?? []).includes(item.id) && <span className="tinychip own">you own one</span>}
+              </div>
+              <p className="shelf-detail">{item.detail}</p>
             </div>
             <Act action={{ type: 'buy_item', businessId, itemId: item.id }} label="Buy" kind="primary" small />
           </div>
@@ -78,11 +89,14 @@ export function MarketSection({ businessId }: { businessId: Id }) {
           <div className="section-title">They will take these off you</div>
           <div className="col" style={{ gap: 6 }}>
             {mine.map(item => (
-              <div key={item.id} className="listitem">
+              <div key={item.id} className="shelfitem">
                 <span className="ico">{item.icon}</span>
-                <div className="grow" style={{ minWidth: 0 }}>
-                  <div className="title ellipsis">{item.label}</div>
-                  <div className="sub ellipsis">{fmtMoney(select.sellPrice(w, item))} · <Term id="dirty">dirty</Term></div>
+                <div className="shelf-body">
+                  <div className="shelf-head">
+                    <b className="shelf-name">{item.label}</b>
+                    <span className="shelf-price">{fmtMoney(select.sellPrice(w, item))}</span>
+                  </div>
+                  <div className="shelf-meta"><span className="tinychip"><Term id="dirty">dirty cash</Term></span></div>
                 </div>
                 <Act action={{ type: 'sell_item', businessId, itemId: item.id }} label="Sell" kind="ghost" small />
               </div>

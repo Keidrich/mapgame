@@ -20,7 +20,7 @@ type GroupMode = 'connections' | 'district' | 'faction';
 const MODES: { id: GroupMode; label: string }[] = [
   { id: 'connections', label: '🕸 Ties' },
   { id: 'district', label: '📍 District' },
-  { id: 'faction', label: '🤝 Faction' },
+  { id: 'faction', label: '👥 Faction' },
 ];
 
 export function SocialTab() {

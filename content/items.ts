@@ -47,7 +47,7 @@ export const RESALE = 0.5;
 export const ITEM_DEFS: Record<string, ItemDef> = {
   // ---- melee: cheap, quiet-ish, and nobody can prove what it was for ----
   knuckles: {
-    id: 'knuckles', label: 'Knuckledusters', icon: '🥊', category: 'weapon', family: 'melee', cost: 40,
+    id: 'knuckles', label: 'Knuckledusters', icon: '👊', category: 'weapon', family: 'melee', cost: 40,
     blurb: 'Fits in a coat pocket.', mods: { skillBoost: { muscle: 1 }, approachBias: { loud: 0.08, quiet: -0.04 } },
     detail: 'Muscle +1 and almost no extra heat. The cheapest way to stop being the smaller man in the room.',
   },
@@ -73,7 +73,7 @@ export const ITEM_DEFS: Record<string, ItemDef> = {
     detail: 'Muscle +3. Hits harder than a pistol in every way, including how loudly the police hear about it.',
   },
   suppressed: {
-    id: 'suppressed', label: 'Suppressed Pistol', icon: '🤫', category: 'weapon', family: 'pistol', cost: 3200, underCounter: true,
+    id: 'suppressed', label: 'Suppressed Pistol', icon: '🔇', category: 'weapon', family: 'pistol', cost: 3200, underCounter: true,
     blurb: 'The only gun worth taking on a quiet job.', mods: { skillBoost: { muscle: 2, tech: 1 }, approachBias: { loud: 0.15, quiet: 0.2, inside: 0.1 }, heatMult: 0.8 },
     detail: 'Muscle +2, tech +1, and the exception to the rule: it helps a quiet job as much as a loud one, and cuts the heat a job leaves by a fifth. Expensive for the reason you would expect.',
   },
@@ -101,7 +101,7 @@ export const ITEM_DEFS: Record<string, ItemDef> = {
     detail: 'Loud jobs go a quarter better for almost nothing, but a fire is the loudest thing you can do: every job leaves 70% more heat.',
   },
   pipebomb: {
-    id: 'pipebomb', label: 'Pipe Bomb', icon: '🧨', category: 'weapon', family: 'explosive', cost: 1300, underCounter: true,
+    id: 'pipebomb', label: 'Pipe Bomb', icon: '💣', category: 'weapon', family: 'explosive', cost: 1300, underCounter: true,
     blurb: 'Somebody has to build it. Carefully.', mods: { skillBoost: { muscle: 2, tech: 1 }, approachBias: { loud: 0.45, quiet: -0.38 }, heatMult: 1.9 },
     detail: 'Muscle +2, tech +1, and a loud job goes far better. It also doubles what the job leaves behind: the police treat a bomb as a different kind of crime, because it is.',
   },

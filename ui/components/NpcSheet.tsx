@@ -68,14 +68,14 @@ export function NpcSheet({ npcId }: { npcId: Id }) {
       <AwayNotice blockId={select.npcReachBlock(w, n)} what={n.name} />
       <div className="section-title">Actions<Info id="odds" /></div>
       <div className="actions">
-        {!select.isKnown(n) && n.alive && <Act action={{ type: 'read', npcId }} label="Size them up" icon="🧐" />}
-        <SceneAct scene={{ kind: 'visit', npcId }} label="Visit" icon="🤝" />
+        {!select.isKnown(n) && n.alive && <Act action={{ type: 'read', npcId }} label="Size them up" icon="🔍" />}
+        <SceneAct scene={{ kind: 'visit', npcId }} label="Visit" icon="👥" />
         <SceneAct scene={{ kind: 'threaten', npcId }} label="Threaten" icon="😠" kind="danger" />
         <Disclosure label="Gift" icon="🎁">
           <AmountPicker presets={[100, 500, 2000]} value={gift} onChange={setGift} min={1} />
           <div className="mt8"><Act action={{ type: 'gift', npcId, amount: gift }} label={`Give ${fmtMoney(gift)}`} kind="primary" block /></div>
         </Disclosure>
-        {canRecruit && <SceneAct scene={{ kind: 'recruit', npcId }} label="Recruit" icon="🧢" kind="primary" />}
+        {canRecruit && <SceneAct scene={{ kind: 'recruit', npcId }} label="Recruit" icon="👤" kind="primary" />}
         {n.role === 'fixer' && n.alive && <FixerAct npcId={npcId} />}
         {n.official && (
           <Disclosure label={`Bribe the ${n.official.kind}`} icon="💼" kind="primary">
@@ -103,7 +103,7 @@ function FixerAct({ npcId }: { npcId: Id }) {
   const left = select.fixerCapLeft(w, n);
   const back = Math.round(Math.min(amount, left, w.player.dirty) * rate);
   return (
-    <Disclosure label="Wash money" icon="🧼" kind="primary">
+    <Disclosure label="Wash money" icon="♻️" kind="primary">
       <p className="small muted">
         {Math.round(rate * 100)} cents on the dollar, up to {fmtMoney(cap)} a day — {fmtMoney(left)} left today.
         Both get better as {n.name.split(' ')[0]} comes to trust you, and neither ever matches a <Term id="laundering">laundering racket</Term> of your own.
@@ -200,7 +200,7 @@ function CrewSection({ npcId }: { npcId: Id }) {
   const options: { label: string; a: Assignment }[] = [];
   for (const r of playerRackets(w)) if (!r.runnerId || r.runnerId === npcId) options.push({ label: `${RACKET_DEFS[r.kind].icon} ${RACKET_DEFS[r.kind].label} at ${w.businesses[r.businessId]?.name ?? '?'}`, a: { kind: 'racket', racketId: r.id } });
   for (const sh of playerSafehouses(w)) for (const pid of sh.productionIds) { const p = w.productions[pid]; if (p && (!p.workerId || p.workerId === npcId)) options.push({ label: `${PRODUCTION_DEFS[p.kind].icon} ${PRODUCTION_DEFS[p.kind].label} at ${sh.name}`, a: { kind: 'production', productionId: pid } }); }
-  for (const b of select.playerBlocks(w)) options.push({ label: `🛡️ Guard ${b.name}`, a: { kind: 'guard', blockId: b.id } });
+  for (const b of select.playerBlocks(w)) options.push({ label: `💪 Guard ${b.name}`, a: { kind: 'guard', blockId: b.id } });
   options.push({ label: '💰 Collect', a: { kind: 'collect' } });
   options.push({ label: '💻 On the wire (work the cards)', a: { kind: 'hack' } });
   for (const d of select.districtsRunnable(w)) { const cur = select.lieutenantOf(w, d.id); if (!cur || cur.id === npcId) options.push({ label: `⭐ Run ${d.name}`, a: { kind: 'lieutenant', districtId: d.id } }); }

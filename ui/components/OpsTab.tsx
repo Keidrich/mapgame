@@ -18,7 +18,7 @@ function KitOnApproach({ approach }: { approach?: OpApproach }) {
   return (
     <div className="card mt8">
       <div className="row between">
-        <b className="small">🧰 What you are carrying<Info id="kit" /></b>
+        <b className="small">🎒 What you are carrying<Info id="kit" /></b>
         {heat !== 1 && <span className={`chip ${heat > 1 ? 'red' : 'green'}`}>Heat ×{heat.toFixed(2)}</span>}
       </div>
       <div className="col mt8" style={{ gap: 4 }}>

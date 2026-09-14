@@ -159,7 +159,7 @@ export function Onboarding() {
       <div className="section-title">Background</div>
       <div className="segment">
         <button type="button" className={maker === 'preset' ? 'on' : ''} onClick={() => setMaker('preset')}>Pick a life</button>
-        <button type="button" className={maker === 'custom' ? 'on' : ''} onClick={() => setMaker('custom')}>🛠️ Build your own</button>
+        <button type="button" className={maker === 'custom' ? 'on' : ''} onClick={() => setMaker('custom')}>🔧 Build your own</button>
       </div>
       {maker === 'preset' ? (
         <div className="col mt8">

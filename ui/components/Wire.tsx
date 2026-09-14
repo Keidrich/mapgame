@@ -113,7 +113,7 @@ function Scrub() {
   return (
     <div className="card mt8">
       <div className="row between">
-        <b className="small">🧽 Scrub your trail<Info id="scrub" /></b>
+        <b className="small">🚿 Scrub your trail<Info id="scrub" /></b>
         <span className="chip">{Math.round(w.player.cyberHeat ?? 0)} of your <Term id="heat">heat</Term> came off the wire</span>
       </div>
       <p className="small muted mt8" style={{ margin: '8px 0 0' }}>

@@ -30,7 +30,7 @@ export function BizRow({ w, biz, sel }: { w: World; biz: Business; sel?: boolean
         <div className="title ellipsis">{biz.name}</div>
         <div className="sub ellipsis">{bizTypeLabel(biz)} · {ownerLabel(w, biz)}{rackets.length > 0 && <> · {rackets.map(r => RACKET_DEFS[r.kind].icon).join(' ')}</>}</div>
       </div>
-      {biz.ownedBy === 'player' ? <span className="chip" style={{ color: 'var(--gold)' }}>Yours</span> : prot && <span className="chip" style={{ color: select.factionColor(w, biz.protection!.factionId) }}>🛡️</span>}
+      {biz.ownedBy === 'player' ? <span className="chip" style={{ color: 'var(--gold)' }}>Yours</span> : prot && <span className="chip" style={{ color: select.factionColor(w, biz.protection!.factionId) }}>💪</span>}
     </button>
   );
 }

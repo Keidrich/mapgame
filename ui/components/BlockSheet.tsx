@@ -81,13 +81,13 @@ export function BlockSheet({ blockId }: { blockId: Id }) {
       )}
       {crew && (
         <div className="card mt12" style={{ borderColor: '#9a7b4f' }}>
-          <div className="row between"><b>🏴 The {crew.name}<Info id="streetCrew" /></b><span className="chip">{crew.tribute === PLAYER ? 'On your payroll' : crew.tribute ? `Under ${select.factionName(w, crew.tribute)}` : `Strength ${Math.round(crew.strength)}`}</span></div>
+          <div className="row between"><b>🚩 The {crew.name}<Info id="streetCrew" /></b><span className="chip">{crew.tribute === PLAYER ? 'On your payroll' : crew.tribute ? `Under ${select.factionName(w, crew.tribute)}` : `Strength ${Math.round(crew.strength)}`}</span></div>
           <p className="small muted" style={{ margin: '6px 0' }}>{w.npcs[crew.bossId]?.name} and {crew.soldierIds.length} soldiers hold this corner.{!crew.tribute ? ' Your rackets here pay them a street tax until you deal with them. Left alone, they grow.' : ''}</p>
           <button type="button" className="chip btn mb8" onClick={() => openSheet({ kind: 'npc', npcId: crew.bossId })}>{w.npcs[crew.bossId]?.name}</button>
           {!crew.tribute && (
             <div className="actions">
               <SceneAct scene={{ kind: 'parley', npcId: crew.bossId }} label="Parley" icon="🗣️" kind="primary" />
-              <Act action={{ type: 'plan_op', kind: 'takeover', crewIds: select.idleCrew(w).slice(0, 3).map(n => n.id), targetBlockId: b.id }} label="Take the corner" icon="🏴" kind="danger" />
+              <Act action={{ type: 'plan_op', kind: 'takeover', crewIds: select.idleCrew(w).slice(0, 3).map(n => n.id), targetBlockId: b.id }} label="Take the corner" icon="🚩" kind="danger" />
             </div>
           )}
         </div>
@@ -152,7 +152,7 @@ function SafehouseCard({ w, sh }: { w: World; sh: Safehouse }) {
                   <div className="small muted mt8">{days} day{days === 1 ? '' : 's'} · worth about {fmtMoney(select.ransomValue(w, n))} to whoever wants them back.</div>
                   <div className="actions mt8">
                     <Act action={{ type: 'resolve_hostage', npcId: n.id, mode: 'ransom' }} label={`Ransom (${fmtMoney(select.ransomValue(w, n))})`} icon="💰" kind="primary" />
-                    <Act action={{ type: 'resolve_hostage', npcId: n.id, mode: 'leverage' }} label="Squeeze for a favour" icon="🤝" />
+                    <Act action={{ type: 'resolve_hostage', npcId: n.id, mode: 'leverage' }} label="Squeeze for a favour" icon="👥" />
                     <Act action={{ type: 'resolve_hostage', npcId: n.id, mode: 'release' }} label="Let them go" icon="🚪" kind="ghost" confirm={`Release ${n.name} with nothing?`} />
                   </div>
                 </div>

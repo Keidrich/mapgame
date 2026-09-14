@@ -11,7 +11,7 @@ import { setLayer, useStore, useWorld, type MapLayer } from '@ui/store';
  * first; if there isn't one, that is a simulation change and belongs in `/sim`, not here.
  */
 const LAYERS: { id: MapLayer; label: string; icon: string; hint: string }[] = [
-  { id: 'control', label: 'Control', icon: '🏴', hint: 'Who runs each block.' },
+  { id: 'control', label: 'Control', icon: '🚩', hint: 'Who runs each block.' },
   { id: 'heat', label: 'Heat', icon: '🔥', hint: 'How hot each block is on you right now.' },
   { id: 'wealth', label: 'Wealth', icon: '💵', hint: 'What the people here have to take.' },
   { id: 'police', label: 'Police', icon: '🚔', hint: 'Patrol strength, including what the precincts are putting on it.' },

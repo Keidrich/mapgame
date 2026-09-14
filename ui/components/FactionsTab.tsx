@@ -35,7 +35,7 @@ function CommissionCard() {
       <div className="row between"><b>🏛️ The Commission<Info id="commission" /></b><span className="chip">{c.seat ? 'You have a chair' : 'No chair'}</span></div>
       <div className="small muted mt8">Since day {c.formedDay} · {ms.map(f => f.short).join(', ')}{c.seat ? `, ${w.player.name}` : ''} · next meeting day {c.nextMeeting}{c.pending ? ' (on the table now)' : ''}</div>
       {c.rulings.length > 0 && <div className="mt8">{c.rulings.slice(-3).reverse().map((r, i) => <div key={i} className="small"><span className="muted">D{r.day}</span> {r.text}</div>)}</div>}
-      {!c.seat && <div className="mt8"><Act action={{ type: 'petition_seat' }} label="Petition for a chair" icon="🪑" block /></div>}
+      {!c.seat && <div className="mt8"><Act action={{ type: 'petition_seat' }} label="Petition for a chair" icon="💺" block /></div>}
       {c.seat && <p className="small muted mt8">Your vote counts, the pot can pay you, and members drift back toward peace with you.</p>}
     </div>
   );
@@ -106,7 +106,7 @@ function FactionCard({ f }: { f: Faction }) {
 
       {f.alive && (
         <div className="actions mt8">
-          <Disclosure label="Sit-down" icon="🪑" kind="primary">
+          <Disclosure label="Sit-down" icon="💺" kind="primary">
             <label className="field"><Term id="sitDown">Your offer</Term></label>
             <select className="select mb8" value={offerKind} onChange={e => setOfferKind(e.target.value as SitDownOffer['kind'])}>
               <option value="truce">Truce</option><option value="tribute">Pay tribute</option><option value="cede_block">Cede a block</option>
