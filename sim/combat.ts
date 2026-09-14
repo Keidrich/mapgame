@@ -22,6 +22,9 @@ import { kitApproachBias, kitHeatMult, kitSkillBoost } from './items';
 import type { Rng } from './rng';
 import { PLAYER, type Confrontation, type ConfrontApproach, type Faction, type Id, type TalkMove, type World } from './types';
 import { resolveTalk, talkOptions } from './conversation';
+import { nemesisName, scoreMeeting } from './nemesis';
+import { ASSET } from '@content/informants';
+import type { Stake } from '@content/standing';
 import { remember } from './ledger';
 import { addHeat, adjustRel, clamp, log, nid, spreadRep } from './util';
 
@@ -73,9 +76,12 @@ export function confrontChance(w: World, c: Confrontation, approach: ConfrontApp
       base = 26 + (crew.length * 11 + brains * 2 + p.respect * 0.2) * bias - soldiers * 1.2 - (c.war ? 6 : 0);
       break;
   }
+  // An informant who got word out first is worth real odds: you are standing in the doorway when
+  // they arrive instead of looking up from the till. Same shape as the kit bonus above.
+  const ready = c.warned ? ASSET.warnedBonus : 0;
   // A complication is the same three answers against a different problem, so it rides the same
   // maths and only shifts the base: forcing a time-locked door is a bad idea whatever you own.
-  return Math.max(3, Math.min(97, Math.round(base + complicationBias(c, approach))));
+  return Math.max(3, Math.min(97, Math.round(base + ready + complicationBias(c, approach))));
 }
 
 export function confrontOptions(w: World, c: Confrontation): ConfrontOption[] {
@@ -145,12 +151,23 @@ export function resolveConfrontation(w: World, c: Confrontation, given: Confront
 
   const f: Faction | undefined = w.factions[c.factionId];
   const short = f?.short ?? 'They';
+  // whoever came is who this happened with, and it goes on their page like anybody else's
+  const led = c.byNpcId ? w.npcs[c.byNpcId] : undefined;
+  const stake: Stake = c.kind === 'crew' ? 'violence' : c.kind === 'business' || c.kind === 'racket' ? 'property' : 'backed';
   const heat = (n: number) => addHeat(w, Math.round(n * kitHeatMult(w)), c.blockId);
   const won = approach !== 'absent' && rng.int(1, 100) <= confrontChance(w, c, approach);
 
-  if (approach === 'absent') { land(w, c, rng, 1); log(w, `You were not there when ${short} came. ${damageLine(w, c)}`, 'bad', refs(c)); return false; }
+  if (approach === 'absent') {
+    land(w, c, rng, 1);
+    scoreMeeting(w, led, true, stake, `They came for ${what(w, c)} and you were not there. ${damageLine(w, c)}`);
+    log(w, `You were not there when ${led ? nemesisName(led) : short} came. ${damageLine(w, c)}`, 'bad', refs(c));
+    return false;
+  }
+
+  const score = (w2: World, w3: boolean, line: string) => scoreMeeting(w2, led, w3, stake, line);
 
   if (approach === 'flee') {
+    score(w, !won, won ? `You went out the back on them at ${what(w, c)}.` : `They were already at the back door at ${what(w, c)}.`);
     if (won) {
       log(w, `You are out the back before they are through the door. Nothing of yours is broken, but ${short} tell it their way.`, 'info', refs(c));
       w.player.respect = clamp(w.player.respect - 2);
@@ -164,6 +181,7 @@ export function resolveConfrontation(w: World, c: Confrontation, given: Confront
   }
 
   if (approach === 'backup') {
+    score(w, !won, won ? `Your people got to ${what(w, c)} before they finished.` : `Your people got to ${what(w, c)} late.`);
     const crew = backupCrew(w);
     const helper = crew.length ? w.npcs[rng.pick(crew)] : undefined;
     if (won) {
@@ -182,6 +200,7 @@ export function resolveConfrontation(w: World, c: Confrontation, given: Confront
   }
 
   // fight
+  score(w, !won, won ? `You put the first one down at ${what(w, c)}.` : `There were more of them than there were of you at ${what(w, c)}.`);
   if (won) {
     if (f) { f.soldiers = Math.max(0, f.soldiers - 1); f.standing[PLAYER] = clamp(f.standing[PLAYER] - 4, -100, 100); }
     w.player.fear = clamp(w.player.fear + 4);
@@ -198,6 +217,14 @@ export function resolveConfrontation(w: World, c: Confrontation, given: Confront
 }
 
 const refs = (c: Confrontation) => ({ factionId: c.factionId, businessId: c.businessId, npcId: c.npcId, blockId: c.blockId });
+/** Where it happened, for a ledger line that reads like a memory rather than a field name. */
+function what(w: World, c: Confrontation): string {
+  const biz = c.businessId ? w.businesses[c.businessId] : undefined;
+  if (biz) return biz.name;
+  const n = c.npcId ? w.npcs[c.npcId] : undefined;
+  if (n) return n.name;
+  return w.blocks[c.blockId ?? '']?.name ?? 'your ground';
+}
 
 /** What they came to do, done — scaled by how badly it went. */
 function land(w: World, c: Confrontation, rng: Rng, severity: number) {

@@ -10,6 +10,7 @@ export { brokerReason } from './politics';
 export { route, travelCost, isHere, npcIsHere, npcBlockIds, npcReachBlock, currentBlock, yourTurf, footholdBlocks, legworkFor, FOOTHOLD } from './travel';
 import { openCases } from './cases';
 import { abandonedBlocks } from './abandoned';
+import { activeHelp, helpAgainst } from './informants';
 export { openCases, caseWitnessOf } from './cases';
 export { connectionsOf, familyOf, backingOf } from './connections';
 export { ownedItems, equippedItems, isEquipped, ownedCount, equippedCount, equipSlotsLeft, kitSkillBoost, kitApproachBias, kitHeatMult, kitMods, isMarket, marketStock, buyPrice, sellPrice, EQUIP_MAX } from './items';
@@ -28,6 +29,11 @@ export function threatenedRackets(w: World) {
 import { connectionsOf } from './connections';
 export { seatReason, members as commissionMembers } from './commission';
 export { protectRoute, protectReason, PROTECT_TRUST, PROTECT_FAVOUR_RATE } from './economy';
+// informants and assets: a standing arrangement, and an introduction
+export { assets, assetOf, assetReason, hearsAbout, referrals, referralReason, goneCold } from './informants';
+// the lieutenant who keeps turning up
+export { nemesisName, isNemesis, notoriety, candidatesFor, successionWeight } from './nemesis';
+export { defectReason } from './defect';
 // the systemic core: how well you know somebody, what you have over them, and what they owe you
 export { daysKnown, familiar, familiarReason, favours, leverageOver, concessionReason, trustCeiling, fearCeiling } from './standing';
 // the personal history screen, and what a conversation can do with it
@@ -80,7 +86,7 @@ export function crewSkillSum(w: World, ids: Id[]): Record<string, number> {
   for (const id of ids) { const n = w.npcs[id]; if (!n) continue; for (const k of Object.keys(s)) s[k] += n.skills[k as keyof typeof n.skills]; }
   return s;
 }
-export interface OpTarget { businessId?: Id; npcId?: Id; caseId?: Id }
+export interface OpTarget { businessId?: Id; npcId?: Id; caseId?: Id; factionId?: FactionId }
 /** Old call sites pass a business id; newer ops need a person or a file, so both are accepted. */
 function asTarget(t?: Id | OpTarget): OpTarget { return typeof t === 'string' ? { businessId: t } : (t ?? {}); }
 
@@ -108,8 +114,11 @@ export function opChance(w: World, kind: OpKind, crewIds: Id[], approach?: OpApp
   // ground they are standing on — the same way every other op reads its target's state.
   const authority = d.target === 'case' || d.requires?.officialTarget || d.requires?.jailedTarget
     ? authorityDifficulty(w, tgt) : 0;
+  // Somebody of yours already inside their people. An asset is standing, not a favour spent, so
+  // it pays on every job against them — which is what separates it from a one-off introduction.
+  const inside = assetBonus(w, tgt);
   const base = 50 + (ratio - 1) * 70 - (d.difficulty + (ap?.difficulty ?? 0) + cased + route + authority - 50) * 0.6 - w.player.heat * 0.15;
-  return Math.max(3, Math.min(97, Math.round(base)));
+  return Math.max(3, Math.min(97, Math.round(base + inside)));
 }
 /** People at a target who trust you enough to be an inside man (best first). */
 export function insidersFor(w: World, businessId?: Id): Npc[] {
@@ -336,4 +345,20 @@ export function styleOf(w: World, product: ProductKind): string | undefined {
     .filter(pr => w.player.safehouseIds.includes(pr.safehouseId) && PRODUCTION_DEFS[pr.kind].product === product && pr.recipe && RECIPES[pr.recipe])
     .sort((a, b) => b.lastOutput - a.lastOutput);
   return making[0]?.recipe;
+}
+
+
+/**
+ * What a pair of hands close to the target is worth on this job. Reads the target the same way
+ * every other modifier above it does — a faction, a person who belongs to one, or the owner of
+ * the place — so an asset works against whoever they are actually placed against.
+ */
+export function assetBonus(w: World, tgt: OpTarget): number {
+  const direct = activeHelp(w, tgt.factionId);
+  if (direct) return direct.bonus;
+  const n = tgt.npcId ? w.npcs[tgt.npcId] : undefined;
+  const viaNpc = helpAgainst(w, n);
+  if (viaNpc) return viaNpc.bonus;
+  const owner = tgt.businessId ? w.npcs[w.businesses[tgt.businessId]?.ownerId] : undefined;
+  return helpAgainst(w, owner)?.bonus ?? 0;
 }

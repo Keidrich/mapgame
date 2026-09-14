@@ -77,6 +77,13 @@ export type Action =
   | { type: 'talk'; scene: SceneKind; npcId: Id; businessId?: Id; otherFactionId?: FactionId }
   // Do something about what somebody actually wants. `settle` is the favour; `trap` is using it.
   | { type: 'resolve_agenda'; npcId: Id; mode: AgendaMode }
+  // A faction's lieutenant crosses the floor. The mirror of losing one of yours, and gated the
+  // same way any major concession is — you settled something of theirs first.
+  | { type: 'defect'; npcId: Id }
+  // A standing arrangement rather than a one-off favour: somebody on the inside, or a pair of hands.
+  | { type: 'turn_asset'; npcId: Id; kind: 'informant' | 'muscle' }
+  // Somebody who knows you both makes a call, and a stranger is no longer a stranger.
+  | { type: 'introduce'; npcId: Id; toNpcId: Id }
   | { type: 'case_joint'; businessId: Id }   // 2 AP: walk a place and read the room
   // --- turn ---
   | { type: 'resolve_event'; eventId: Id; optionId: string }
@@ -103,7 +110,8 @@ export type CheatKind =
   | 'open_case'    // an open file, which is what killing one needs
   | 'cards'        // a pile of lifted cards, a secret and some wire heat
   | 'ratted'       // you have been inside everybody, which is what wire fraud needs
-  | 'agendas';     // everybody nearby wants something, and you know what — which is what the agenda moves need
+  | 'agendas'      // everybody nearby wants something, and you know what — which is what the agenda moves need
+  | 'nemesis';     // a lieutenant of each faction has been getting the better of you for weeks
 
 export type SitDownOffer =
   | { kind: 'truce'; days: number }

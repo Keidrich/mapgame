@@ -33,7 +33,7 @@ export function resolveOp(w: World, o: Op, rng: Rng) {
   if (maybeComplicate(w, o, rng)) return;
 
   const swing = complicationSwing(o, !!o.complication?.won, o.complication?.answered ?? 'absent');
-  const chance = clamp(opChance(w, o.kind, o.crewIds, o.approach, { businessId: o.targetBusinessId, npcId: o.targetNpcId, caseId: o.targetCaseId }) + swing, 3, 97);
+  const chance = clamp(opChance(w, o.kind, o.crewIds, o.approach, { businessId: o.targetBusinessId, npcId: o.targetNpcId, caseId: o.targetCaseId, factionId: o.targetFactionId }) + swing, 3, 97);
   const roll = rng.int(1, 100);
   const success = roll <= chance;
   const crew = o.crewIds.map(id => w.npcs[id]).filter(Boolean);

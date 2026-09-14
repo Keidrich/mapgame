@@ -20,7 +20,9 @@ export type Counter =
   | 'foremen' | 'foreman_switches' | 'supply_set' | 'supply_delivered'
   | 'intel_ratted' | 'skims' | 'routes' | 'route_used'
   // conversations and the agendas they can settle
-  | 'talks' | 'talk_openers' | 'talk_closed' | 'agendas_settled' | 'agendas_trapped' | 'favours_owed';
+  | 'talks' | 'talk_openers' | 'talk_closed' | 'agendas_settled' | 'agendas_trapped' | 'favours_owed'
+  // the lieutenant who keeps turning up, and the people who work for you without being crew
+  | 'nemesis_met' | 'nemesis_made' | 'defections' | 'assets_turned' | 'asset_warnings' | 'referrals';
 
 export interface Coverage {
   counts: Record<Counter, number>;
@@ -60,6 +62,9 @@ export const SYSTEMS: { label: string; needs: Counter[]; hint: string }[] = [
   { label: 'conversations', needs: ['talks'], hint: 'every scene was a single button press; the opener/closer path is untested' },
   { label: 'settling an agenda', needs: ['agendas_settled'], hint: 'nobody ever had their problem settled, so reciprocity never arrives from the only system that generates it on demand' },
   { label: 'using one against them', needs: ['agendas_trapped'], hint: 'the dark half of agenda resolution never ran — it is half a shipped feature with no coverage' },
+  { label: 'a nemesis', needs: ['nemesis_made'], hint: 'no lieutenant was ever met often enough to be changed by it, so the whole recurring-antagonist arc is untested' },
+  { label: 'informants and assets', needs: ['assets_turned'], hint: 'nobody was ever turned, so early warning and a pair of hands are both untested' },
+  { label: 'introductions', needs: ['referrals'], hint: 'nobody ever vouched for the player, so the one shortcut past the familiarity floor is untested' },
   { label: 'laundering', needs: ['launders', 'fixer_launders'], hint: 'dirty money never got washed' },
   { label: 'police pressure', needs: ['raids', 'busts'], hint: 'the police never actually did anything' },
 ];
@@ -97,6 +102,11 @@ export function report(c: Coverage): string[] {
     ['agendas settled', count(c, 'agendas_settled')], ['agendas used against them', count(c, 'agendas_trapped')], ['people who now owe you', count(c, 'favours_owed')],
   ] as const;
   out.push(`  talk & agendas: ${social.map(([k, n]) => `${k} ${n}`).join(', ')}`);
+  const people = [
+    ['lieutenants met', count(c, 'nemesis_met')], ['made into somebody', count(c, 'nemesis_made')], ['walked over to you', count(c, 'defections')],
+    ['assets turned', count(c, 'assets_turned')], ['warnings received', count(c, 'asset_warnings')], ['introductions', count(c, 'referrals')],
+  ] as const;
+  out.push(`  nemesis & assets: ${people.map(([k, n]) => `${k} ${n}`).join(', ')}`);
   for (const warning of c.warnings) out.push(`  ! ${warning}`);
   return out;
 }

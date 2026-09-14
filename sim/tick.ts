@@ -5,6 +5,7 @@ import { effectivePolice, raidPressure, tickAuthorities } from './authority';
 import { applyDailyInfluence, updateTenure, yieldMult } from './territory';
 import { foremanOf, haulHeat, tickAutomation } from './automation';
 import { tickIntel } from './intel';
+import { tickAssets } from './informants';
 import { launderCapacity, productionOutput, racketIncome, streetPrice } from './economy';
 import { LAUNDER_RATE } from '@content/rackets';
 import { resolveConfrontation } from './combat';
@@ -49,6 +50,7 @@ export function endDay(w: World): World {
   tickTaps(w, rng);
   tickHackCrew(w, rng);
   tickIntel(w, rng);
+  tickAssets(w, rng);   // an informant you never call stops answering
 
   // Influence is gathered per block and applied once at the end of the day rather than per
   // asset, so `accrualMult` can see the whole depth of what you run there. Adding it per racket

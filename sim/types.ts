@@ -139,6 +139,33 @@ export interface Connection { npcId: Id; kind: 'family' | 'friend'; label: strin
 export type LedgerKind = 'met' | 'read' | 'favour' | 'owed' | 'threat' | 'harm' | 'deal' | 'talk' | 'intel' | 'door';
 export interface LedgerEntry { day: number; kind: LedgerKind; text: string }
 
+/**
+ * What repeatedly running into the same lieutenant has made of them. Only ever set on somebody
+ * who works for a faction; the player's own crew are tracked by `CrewInfo`.
+ *
+ * `notoriety` is the one number, and it is what a win against the player is worth — scaled by
+ * `STAKES` the same way fear is, because a lieutenant who beat you in a shooting is made by it
+ * and one who talked over you at a sit-down is not. It buys traits, skill and eventually a name,
+ * and it is what makes somebody a candidate when their boss goes down.
+ */
+export interface Nemesis {
+  since: number;
+  wins: number;        // times they came out of something with the player on top
+  losses: number;
+  notoriety: number;   // 0..100
+  earned: string[];    // milestones already paid out, so none of them fires twice
+  nickname?: string;
+}
+
+/** A standing arrangement, not a one-off favour. Earned like any other concession. */
+export interface Asset {
+  kind: 'informant' | 'muscle';
+  since: number;
+  /** Faction they are placed to hear about, when they are placed to hear about one. */
+  factionId?: FactionId;
+  used: number;        // times they have actually paid out, for the ledger and the sheet
+}
+
 export interface Relationship {
   trust: number;   // -100..100
   fear: number;    // 0..100
@@ -205,6 +232,8 @@ export interface Npc {
   connections: Connection[]; // family and friends among the other NPCs; mutual, and nothing to do with the player
   notes: string[];            // the sim's own flavour ("Runs the Eastside Boys"). Never the player's words.
   ledger?: LedgerEntry[];     // what has actually passed between you and them (sim/ledger.ts)
+  nemesis?: Nemesis;          // a faction lieutenant who keeps meeting you, and what it has made of them
+  asset?: Asset;              // a standing informant or a pair of hands, earned the same way a concession is
   playerNote?: string;        // the player's memory aid, set from the Social tab or their sheet. The sim never writes it.
 }
 
@@ -532,6 +561,8 @@ export interface Confrontation {
   opId?: Id;                 // kind 'op': the job this went wrong in the middle of
   complication?: ComplicationKind;
   talk?: TalkState;          // kind 'talk': a conversation in progress
+  byNpcId?: Id;              // the lieutenant who actually came. This is what makes a nemesis
+  warned?: Id;               // an informant told you it was coming; you were not surprised
 }
 
 /**

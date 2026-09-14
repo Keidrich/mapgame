@@ -162,6 +162,21 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
     title: 'Home turf',
     body: 'The block where you started. People here begin warmer, gain extra trust from visits, and your noise draws a fifth less heat.',
   },
+  asset: {
+    title: 'A standing arrangement',
+    body: 'Somebody who keeps their ears open for you, or turns up when it goes wrong. Not a favour — a favour is spent once. This keeps paying: word before a faction moves on you, or real odds on a job against their own people.',
+    note: 'It costs what any big ask costs: they have to know you, and owe you something real or be somewhere you have a hold. Stop calling for a few weeks and they stop answering.',
+  },
+  referral: {
+    title: 'An introduction',
+    body: 'Somebody who trusts you makes a call, and a stranger in their family or their circle will talk to you like somebody they have already met — because now they have.',
+    note: 'It is the only thing that shortcuts the days and the meetings a real relationship otherwise takes. They have to know you properly first, and actually know the other person.',
+  },
+  nemesis: {
+    title: 'Somebody who keeps turning up',
+    body: 'A faction lieutenant who has met you enough times to be changed by it. Beating you makes them — harder, better connected, eventually known by a name they earned against you — and it is what puts them in the running when their boss goes down.',
+    note: 'Beating them takes it back. So does settling whatever they are carrying: a lieutenant who owes you something real can be asked to walk out on their own people.',
+  },
   conversation: {
     title: 'A conversation',
     body: 'Their opening line, then what you can actually do right now. Some moves end it — the ones you came for. Others are openers: drop a name you both know, or bring up something out of your history, and whatever you ask next lands better.',

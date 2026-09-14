@@ -9,6 +9,8 @@ import type { Rng } from './rng';
 import { PLAYER, type Block, type Faction, type FactionId, type World } from './types';
 import { addInfluence, clamp, factionOf, log, standingCap } from './util';
 import { queueConfrontation } from './combat';
+import { leaderFor, nemesisName } from './nemesis';
+import { warnedBy } from './informants';
 import { bossChurn, successionOrDeath, tickCrisis } from './politics';
 export { standingCap };
 import { addMemory } from './people';
@@ -155,18 +157,27 @@ function actAgainstPlayer(w: World, f: Faction, rng: Rng, war: boolean) {
       if (lt && rng.chance(0.25 + lt.skills.muscle * 0.04)) { log(w, `${f.short} muscle showed up at ${biz.name}. ${lt.name} and a couple of the local kids sent them home.`, 'good', { businessId: biz.id, factionId: f.id, npcId: lt.id }); continue; }
       // they are at the door, not gone: the player answers this on their next move
       r.threatened = w.day + 6;
-      queueConfrontation(w, { factionId: f.id, kind: 'racket', war, racketId: r.id, businessId: biz.id, blockId: biz.blockId,
-        text: `${f.short} muscle are standing in ${biz.name} asking who runs the ${r.kind.replace('_', ' ')}. You are looking right at them.` });
+      // and somebody is leading it. A faction used to send an anonymous "they"; naming the
+      // lieutenant is the whole of what makes a nemesis, and `leaderFor` sends the one who
+      // already has history with the player far more often than a fresh face.
+      const led = leaderFor(w, f, rng);
+      queueConfrontation(w, { factionId: f.id, kind: 'racket', war, racketId: r.id, businessId: biz.id, blockId: biz.blockId, byNpcId: led?.id,
+        warned: warnedBy(w, f, rng)?.id,
+        text: `${led ? `${nemesisName(led)} and some ${f.short} muscle are` : `${f.short} muscle are`} standing in ${biz.name} asking who runs the ${r.kind.replace('_', ' ')}. You are looking right at them.` });
     } else if (roll < 0.7 && p.businessIds.length) {
       const biz = w.businesses[rng.pick(p.businessIds)];
-      queueConfrontation(w, { factionId: f.id, kind: 'business', war, businessId: biz.id, blockId: biz.blockId,
-        text: `${f.short} are outside ${biz.name} with ${war ? 'a can of petrol' : 'bats'}. Somebody has to decide what happens next.` });
+      const led = leaderFor(w, f, rng);
+      queueConfrontation(w, { factionId: f.id, kind: 'business', war, businessId: biz.id, blockId: biz.blockId, byNpcId: led?.id,
+        warned: warnedBy(w, f, rng)?.id,
+        text: `${led ? `${nemesisName(led)} is` : `${f.short} are`} outside ${biz.name} with ${war ? 'a can of petrol' : 'bats'}. Somebody has to decide what happens next.` });
     } else if (war && p.crewIds.length) {
       const alive = p.crewIds.map(id => w.npcs[id]).filter(n => n.crew && (n.crew.status === 'idle' || n.crew.status === 'assigned'));
       if (!alive.length) continue;
       const victim = rng.pick(alive);
-      queueConfrontation(w, { factionId: f.id, kind: 'crew', war, npcId: victim.id, blockId: victim.homeBlockId,
-        text: `${f.short} soldiers have ${victim.name} against a wall outside their place. You got there at the same time they did.` });
+      const led = leaderFor(w, f, rng);
+      queueConfrontation(w, { factionId: f.id, kind: 'crew', war, npcId: victim.id, blockId: victim.homeBlockId, byNpcId: led?.id,
+        warned: warnedBy(w, f, rng)?.id,
+        text: `${led ? `${nemesisName(led)} has` : `${f.short} soldiers have`} ${victim.name} against a wall outside their place. You got there at the same time they did.` });
     } else {
       // push into a player block
       const target = Object.values(w.blocks).find(b => factionOf(w, b.id) === PLAYER && near(b.id));

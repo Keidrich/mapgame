@@ -3,6 +3,7 @@
  * grudges that spread through the relationship graph, and what a block remembers.
  */
 import { connectionsOf, familyOf } from './connections';
+import { resolveScheme, schemeTarget } from './nemesis';
 import type { Rng } from './rng';
 import { PLAYER, type Agenda, type AgendaKind, type Block, type GameEvent, type Id, type Npc, type World } from './types';
 import { addHeat, bleedRel, clamp, log, money, nid } from './util';
@@ -21,6 +22,13 @@ export function assignAgendas(w: World, npcs: Npc[], rng: Rng) {
     if (n.role === 'owner' && rng.chance(0.35)) kind = rng.weighted([{ item: 'debt' as AgendaKind, w: 3 }, { item: 'leave', w: 2 }, { item: 'family', w: family.length ? 2 : 0 }, { item: 'revenge', w: 1 }]);
     else if (n.role === 'patron' && rng.chance(0.15)) kind = rng.weighted([{ item: 'ambition' as AgendaKind, w: 3 }, { item: 'debt', w: 2 }, { item: 'revenge', w: 1 }]);
     else if (n.role === 'lieutenant' && rng.chance(0.4)) kind = rng.chance(0.6) ? 'ambition' : 'revenge';
+    // A lieutenant's ambition used to mean exactly one thing — the chair, eventually — so every
+    // ambitious lieutenant in the city wanted the same one and none of them ever moved on each
+    // other. Sometimes what they actually want is the person standing between them and it.
+    if (kind === 'ambition' && n.role === 'lieutenant' && rng.chance(0.45)) {
+      const rival = schemeTarget(w, n, rng);
+      if (rival) { n.agenda = { kind, progress: rng.int(5, 40), rate: rng.int(2, 5), target: rival }; continue; }
+    }
     if (!kind) continue;
     if (n.traits.includes('ambitious') && rng.chance(0.5)) kind = 'ambition';
     if (n.traits.includes('gambler') && rng.chance(0.5)) kind = 'debt';
@@ -82,6 +90,9 @@ function milestone(w: World, n: Npc, a: Agenda, at: 50 | 100, rng: Rng) {
       if (at === 50 && (n.rel.trust >= 15 || n.rel.respect >= 30) && !n.crew && !n.faction) ev('agenda_ambition', `${n.name} wants in`, `"I've watched you work. I want to be part of something. Give me a shot and I won't let you down."`, [
         { id: 'take', label: 'Take them on', detail: 'Joins your crew, eager and loyal' }, { id: 'later', label: 'Not yet', detail: 'They keep looking' },
       ], { npcId: n.id });
+      // a scheme against a named rival resolves inside the faction, on the sim's own clock,
+      // whether or not the player is anywhere near it
+      else if (at === 100 && n.role === 'lieutenant' && a.target && w.npcs[a.target]) resolveScheme(w, n, rng);
       else if (at === 100 && !n.crew && !n.faction) { const fs = Object.values(w.factions).filter(x => x.alive); if (fs.length) { const pick = rng.pick(fs); n.faction = pick.id; n.role = n.role === 'lieutenant' ? 'lieutenant' : 'soldier'; pick.soldiers++; log(w, `${n.name} went to work for ${pick.name}.`, 'info', { npcId: n.id, factionId: pick.id }); } }
       break;
     case 'family': {

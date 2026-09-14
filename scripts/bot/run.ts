@@ -10,7 +10,7 @@ import { PLAYER, dispatch, generateWorld, select, type World } from '@sim/index'
 import { Rng } from '@sim/rng';
 import { SCENARIOS, setUp, topUp, type ScenarioName } from './admin';
 import { newCoverage, bump, warn, type Coverage } from './coverage';
-import { answerEverything, buyKit, goTo, handleMoney, haveAConversation, launchOps, planAnOp, promoteLieutenants, resetPolicy, resolveEvents, runTheEmpire, tallyNight, tallyProduction, workTheAgendas, workTheBuildings, workTheStreet, workTheWire, type Ctx } from './policy';
+import { answerEverything, buyKit, goTo, handleMoney, haveAConversation, launchOps, planAnOp, promoteLieutenants, resetPolicy, resolveEvents, runTheEmpire, tallyNight, tallyProduction, tallyPeople, workTheAgendas, workTheBuildings, workTheRoom, workTheStreet, workTheWire, type Ctx } from './policy';
 
 export interface RunOpts {
   days: number;
@@ -68,6 +68,10 @@ export function run(opts: RunOpts): RunResult {
     //    launder. Agendas go first among those: settling one is the only thing that makes
     //    somebody owe you, and being owed is what the real asks below are gated on.
     workTheAgendas(c);
+    // Standing arrangements on alternate days, for the same reason the conversation is every
+    // third: these all spend the AP an op would otherwise have used, and sixteen days is a fixed
+    // budget. Every day cost three op kinds over a sixty-day sweep and bought nothing extra.
+    if (d % 2 === 0) workTheRoom(c);
     // A conversation costs the AP that would otherwise have gone on an op, so the bot has one
     // every third day rather than daily. Daily cost it two op kinds over sixteen days and bought
     // no coverage the third day did not already have.
@@ -82,6 +86,7 @@ export function run(opts: RunOpts): RunResult {
     answerEverything(c);   // a job that went sideways overnight is waiting in the morning
     tallyNight(c, before);
     tallyProduction(c);
+    tallyPeople(c);
     check(c, d);
   }
   return { w: c.w, cov, scenario };

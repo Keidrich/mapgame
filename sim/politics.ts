@@ -7,12 +7,16 @@ import { PLAYER, type Faction, type GameEvent, type Id, type Npc, type World } f
 import { addInfluence, adjustRel, clamp, log, money, nid, standingCap } from './util';
 import { stanceFor } from './generate';
 import { addMemory } from './people';
+import { candidatesFor, nemesisName, notoriety, successionWeight } from './nemesis';
 
 export const CRISIS_DAYS = 3;
 
 /** The boss is gone. Two lieutenants means a crisis; one means a quiet handover; none means the end. */
 export function successionOrDeath(w: World, f: Faction) {
-  const lts = f.lieutenantIds.map(id => w.npcs[id]).filter(n => n && n.alive);
+  // `candidatesFor` ranks by the case each of them can actually make, and a record against the
+  // player is a large part of that: a lieutenant who has been beating you in public is exactly
+  // who the soldiers would follow. It used to be whoever happened to be first in the array.
+  const lts = candidatesFor(w, f);
   if (lts.length >= 2 && !f.crisis) { startCrisis(w, f, lts.slice(0, 2)); return; }
   const lt = lts[0];
   if (lt) { crown(w, f, lt, 'quiet'); }
@@ -25,7 +29,7 @@ function startCrisis(w: World, f: Faction, cands: Npc[]) {
   log(w, `${f.name} has no boss. ${a.name} and ${b.name} both want the chair, and the soldiers are picking sides. It settles in ${CRISIS_DAYS} days.`, 'warn', { factionId: f.id });
   const known = f.standing[PLAYER] > -60;
   if (known && !w.pendingEvents.some(e => e.kind === 'succession' && e.refs.factionId === f.id)) {
-    const desc = (n: Npc) => `${n.name} (${n.traits.join(', ') || 'unreadable'}; trust ${n.rel.trust})`;
+    const desc = (n: Npc) => `${nemesisName(n)} (${n.traits.join(', ') || 'unreadable'}; trust ${n.rel.trust}${notoriety(n) >= 20 ? `; has had the better of you ${n.nemesis!.wins} time${n.nemesis!.wins === 1 ? '' : 's'}` : ''})`;
     const ev: GameEvent = {
       id: nid(w, 'e'), day: w.day, kind: 'succession', title: `Who runs ${f.short} now?`,
       text: `Word comes through a lieutenant: ${f.name} is choosing. ${desc(a)} against ${desc(b)}. Money and a public word from you would tip it. Back the winner and the new boss owes you. Back the loser and the new boss never forgets.`,
@@ -58,7 +62,7 @@ export function tickCrisis(w: World, f: Faction, rng: Rng) {
   if (alive.length === 1 && w.day < c.resolvesDay) { crown(w, f, alive[0], 'default'); return; }
   if (alive.length === 0) { f.crisis = undefined; successionOrDeath(w, f); return; }
   if (w.day < c.resolvesDay) return;
-  const weight = (n: Npc) => n.skills.muscle + n.skills.charm + n.skills.brains / 2 + (n.traits.includes('ambitious') ? 2 : 0) + (c.backing === n.id ? 4 + Math.min(8, c.backedWith / 500) : 0) + rng.float() * 6;
+  const weight = (n: Npc) => n.skills.muscle + n.skills.charm + n.skills.brains / 2 + (n.traits.includes('ambitious') ? 2 : 0) + successionWeight(n) + (c.backing === n.id ? 4 + Math.min(8, c.backedWith / 500) : 0) + rng.float() * 6;
   const ranked = alive.slice().sort((x, y) => weight(y) - weight(x));
   crown(w, f, ranked[0], 'contest', ranked[1]);
 }

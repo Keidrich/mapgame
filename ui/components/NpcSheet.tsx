@@ -48,6 +48,7 @@ export function NpcSheet({ npcId }: { npcId: Id }) {
       <div className="mt12"><RelMeters rel={n.rel} /></div>
       <Standing npcId={npcId} />
       <AgendaActions npcId={npcId} />
+      <StandingPlays npcId={npcId} />
       <dl className="kv mt12">
         <dt><Term id="findAt">Find at</Term></dt>
         <dd>{where ? <button type="button" className="chip btn" onClick={() => openSheet({ kind: 'business', businessId: where.id })}>{where.name}</button> : home ? <button type="button" className="chip btn" onClick={() => openSheet({ kind: 'block', blockId: home.id })}>{home.name}</button> : '—'}</dd>
@@ -307,6 +308,60 @@ function AgendaActions({ npcId }: { npcId: string }) {
           );
         })}
       </div>
+    </>
+  );
+}
+
+/**
+ * The plays that need a real relationship behind them: a standing arrangement, an introduction,
+ * and — for somebody else's lieutenant — walking out on their own people.
+ *
+ * All three are gated by the same `concessionReason` every other big ask goes through, so the
+ * refusal a player reads here is the same sentence they read on a protection they cannot install.
+ * Shown even when refused, because the refusal is the instruction.
+ */
+function StandingPlays({ npcId }: { npcId: Id }) {
+  const w = useWorld();
+  const n = w.npcs[npcId]; if (!n || n.crew) return null;
+  const asset = n.asset;
+  const refs = select.referrals(w, n).slice(0, 4);
+  const canDefect = n.role === 'lieutenant' && n.faction && n.faction !== 'player';
+  const why = { informant: select.assetReason(w, n, 'informant'), muscle: select.assetReason(w, n, 'muscle'), defect: canDefect ? select.defectReason(w, n) : 'x' };
+  if (asset === undefined && why.informant && why.muscle && !refs.length && (!canDefect || why.defect)) {
+    // nothing is on offer and nothing would be legible: say so once rather than show three
+    // disabled buttons with the same sentence under each
+    return <p className="small muted mt8">{select.concessionReason(w, n, 'anything standing') ?? 'Nothing standing to ask of them right now.'}</p>;
+  }
+  return (
+    <>
+      <div className="section-title">Standing arrangements<Info id="asset" /></div>
+      {asset ? (
+        <p className="small">
+          <b className="green">{asset.kind === 'informant' ? '📞 Your ears' : '💪 Your hands'}</b>{' '}
+          since day {asset.since} · used {asset.used} time{asset.used === 1 ? '' : 's'}
+          {asset.factionId && <> · hears around {select.factionName(w, asset.factionId)}</>}
+          {select.goneCold(w, n) && <span className="orange"> · gone quiet; ask them for something</span>}
+        </p>
+      ) : (
+        <div className="actions">
+          <Act action={{ type: 'turn_asset', npcId: n.id, kind: 'informant' }} label="Ask them to keep their ears open" icon="📞" />
+          <Act action={{ type: 'turn_asset', npcId: n.id, kind: 'muscle' }} label="Ask them to turn up when it goes wrong" icon="💪" />
+        </div>
+      )}
+      {canDefect && (
+        <div className="actions mt8">
+          <Act action={{ type: 'defect', npcId: n.id }} label={`Ask ${select.nemesisName(n).split(' ')[0]} to walk`} icon="🚪" kind="danger" />
+        </div>
+      )}
+      {refs.length > 0 && (
+        <>
+          <div className="section-title">An introduction<Info id="referral" /></div>
+          <p className="small muted">{n.name} could put their name to you with somebody they know. A stranger stops being one.</p>
+          <div className="actions">
+            {refs.map(r => <Act key={r.id} action={{ type: 'introduce', npcId: n.id, toNpcId: r.id }} label={r.name} icon="👋" />)}
+          </div>
+        </>
+      )}
     </>
   );
 }

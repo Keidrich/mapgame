@@ -52,6 +52,10 @@ export function answerEverything(c: Ctx) {
     const isComplication = x.kind === 'op';
     if (isComplication) { bump(c.cov, 'complications'); if (x.complication) bumpComplication(c.cov, x.complication); }
     else bump(c.cov, 'confrontations');
+    // counted here rather than in `tallyPeople`: by the time that runs the queue has been
+    // answered and drained, and a warning that was acted on leaves nothing behind to count
+    if (x.warned) bump(c.cov, 'asset_warnings');
+    if (x.byNpcId) bump(c.cov, 'nemesis_met');
     c.w = dispatch(c.w, { type: 'resolve_confrontation', id: x.id, approach: best.id });
     if (isComplication) bump(c.cov, 'complications_answered');
     if (select.activeConfrontation(c.w)?.id === x.id) { warn(c.cov, 'a confrontation survived being answered'); break; }
@@ -370,6 +374,63 @@ export function workTheAgendas(c: Ctx): boolean {
 }
 
 /**
+ * The plays that need a standing relationship behind them: turn somebody, get introduced, and —
+ * when a lieutenant has been settled with — ask them to walk out on their own people.
+ *
+ * All three go through `concessionReason`, so the bot needs no idea of its own about who will say
+ * yes: it asks the same gate the UI shows a player, and acts on the answer.
+ */
+export function workTheRoom(c: Ctx): boolean {
+  const w = c.w;
+  // One of each, not one in total. Returning after the first success meant the list was really a
+  // priority order and the bottom of it never ran at all: introductions had zero coverage in a
+  // sixty-day sweep because a defection or an asset always came first.
+  let did = false;
+  const near = Object.values(w.blocks)
+    .filter(b => select.distanceFromStart(w, b.id) <= 2)
+    .flatMap(b => select.businessesIn(w, b.id))
+    .flatMap(b => [b.ownerId, ...b.patronIds]);
+
+  // 1. a lieutenant who owes you is the biggest thing on this list by a distance
+  for (const f of Object.values(w.factions)) {
+    for (const id of f.lieutenantIds) {
+      const n = w.npcs[id]; if (!n?.alive) continue;
+      if (select.defectReason(w, n)) continue;
+      if (!goTo(c, npcBlock(c, id))) continue;
+      if (tryAct(c, { type: 'defect', npcId: id })) { bump(c.cov, 'defections'); did = true; break; }
+    }
+  }
+
+  // 2. somebody on the inside. Ears first — a warning is worth more than a pair of hands — and
+  //    hands from anybody who is not placed to hear anything worth having
+  for (const id of near) {
+    const n = w.npcs[id]; if (!n || n.asset || n.crew) continue;
+    const kind = !select.assetReason(w, n, 'informant') ? 'informant' : !select.assetReason(w, n, 'muscle') ? 'muscle' : undefined;
+    if (!kind) continue;
+    if (!goTo(c, npcBlock(c, id))) continue;
+    if (tryAct(c, { type: 'turn_asset', npcId: id, kind })) { bump(c.cov, 'assets_turned'); did = true; break; }
+  }
+
+  // 3. an introduction, which is the cheapest way past the familiarity floor there is
+  for (const id of near) {
+    const n = w.npcs[id]; if (!n) continue;
+    const to = select.referrals(w, n)[0]; if (!to) continue;
+    if (!goTo(c, npcBlock(c, id))) continue;
+    if (tryAct(c, { type: 'introduce', npcId: id, toNpcId: to.id })) { bump(c.cov, 'referrals'); did = true; break; }
+  }
+  return did;
+}
+
+/** Count what the people around you turned into, after End Day. */
+export function tallyPeople(c: Ctx) {
+  for (const n of Object.values(c.w.npcs)) {
+    if (!n.nemesis?.earned.length || madeNemesis.has(n.id)) continue;
+    madeNemesis.add(n.id); bump(c.cov, 'nemesis_made');
+  }
+}
+const madeNemesis = new Set<Id>();
+
+/**
  * Which way round to try an agenda on this person. Lower goes first.
  *
  * The only agenda with two routes is `leave`, and the question it asks is simple: do you want
@@ -495,4 +556,4 @@ export function tallyNight(c: Ctx, before: { busts: number; logLen: number }) {
 const seen = new Set<Id>();
 const absent = new Set<Id>();
 /** Reset the per-run memory, so two runs in one process do not pollute each other. */
-export function resetPolicy() { seen.clear(); absent.clear(); seenIntel.clear(); lastRecipe.clear(); }
+export function resetPolicy() { seen.clear(); absent.clear(); seenIntel.clear(); lastRecipe.clear(); madeNemesis.clear(); }

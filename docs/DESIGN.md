@@ -331,6 +331,61 @@ the same world, so `dispatch` is now clone-and-charge and `apply` is what-the-ac
 closing move, because asking `can` would have the conversation refuse itself for being in front
 of the player.
 
+### 3.9 The lieutenant who keeps turning up, and the people who work for you without being crew
+
+Two pieces, both of which are almost entirely made of things that already existed.
+
+**Nemesis.** Faction lieutenants were furniture: a name on a sit-down, a name in a succession
+crisis, a name the faction tick never bothered to pick at all — attacks arrived from an anonymous
+"they". You could beat the same person six times and the seventh was identical to the first.
+
+A nemesis is not a new kind of person. It is the ledger (§3.8) doing for a lieutenant exactly what
+it does for a shopkeeper, plus one number on `Npc.nemesis`: **notoriety**, scaled by `STAKES` the
+same way fear is, because somebody who put your crew in hospital is made by it and somebody who
+talked over you at a sit-down is not. `leaderFor` names who came — weighted toward whoever already
+has history with the player, which is the whole of what makes a recurring antagonist rather than a
+fresh name every week — and `scoreMeeting` writes the meeting to their page.
+
+Notoriety buys `MILESTONES` in order, each paid once and each one legible change: a trait, then
+muscle, then **a name** (`nemesisName` replaces the given name everywhere from then on), then
+connections, then brains. Beating them takes it back. It also feeds `successionWeight`, which is
+on the existing `f.crisis` scale and in `candidatesFor` — a lieutenant who has been beating you in
+public is exactly who the soldiers would follow, and the shortlist used to be whoever happened to
+be first in the array.
+
+**Defection** (`sim/defect.ts`) is the mirror of `flipLieutenant`, which had handled losing one of
+yours since the lieutenant pass and had no opposite. It is explicitly *not* a loyalty number you
+grind down: it goes through `concessionReason`, the same gate as protection or a place in the
+crew, so the route in is settling **their own** agenda — a lieutenant's debt, their resentment of
+their own boss — through `resolve_agenda`, which calls `doFavour`. A loyal one still refuses. It
+costs 45 standing, two soldiers, a bed and two AP, and it is the worst thing the player can do to
+an outfit.
+
+**Scheming.** An `ambition` agenda on a lieutenant used to mean one thing, so every ambitious
+lieutenant in the city wanted the same chair and none of them ever moved on each other. It now
+sometimes names a peer instead — preferring one they are actually connected to, read off §3.6's
+graph — and resolves inside the faction on the sim's own clock, pushing one of them out.
+
+**Informants and assets** are the "phase 2 leverage" plays the connections graph was built for and
+then deferred, because nothing existed underneath to hang them on. The distinction that carries
+them: **a favour is spent, an asset is standing.** Turning somebody costs what any other major
+concession costs — `concessionReason`, so leverage or a settled favour — and then keeps paying:
+
+- **passive** — an informant placed to hear about a faction gets word out before it moves, and
+  `Confrontation.warned` is worth `ASSET.warnedBonus` on the answer, because you are in the
+  doorway rather than looking up from the till;
+- **active** — a pair of hands close to the target adds to `opChance` on every job against their
+  own people, through `assetBonus`, which reads the target the same way every other modifier does.
+
+They go cold if you never call: `ASSET.goesCold` days of silence and they drift, which is why
+using one is what keeps it.
+
+**Referrals** are the one thing in the game that shortcuts the familiarity floor. Somebody who
+knows you well enough (`REFERRAL.minTrust`, and familiar themselves) makes a call, and the target's
+`metDay` is dated back and their `contacts` topped up — so every existing familiarity check reads
+it without knowing referrals exist at all. It does not make a stranger trust you; it makes you not
+a stranger, which three days and two meetings were otherwise the only way to buy.
+
 ## 4. Player systems
 
 - **Cash** (clean) and **dirty cash**. Dirty cash can buy from criminals; clean cash
@@ -715,13 +770,22 @@ Scenarios:
 moving a step changes the RNG stream and the curve with it for no gameplay reason. Coverage comes
 from the other scenarios, never from changing this one.
 
-**Coverage is the point.** Every run reports which of thirteen systems it touched, how many
+**A boosted scenario gets a longer day.** `CORE` opens with `{ what: 'ap', amount: 14 }`, and
+`cheat('ap', n)` raises `apMax` rather than only refilling. This is not flavour: every pass since
+the standing rework added something the bot spends AP on, and against a fixed eight-AP day each one
+quietly cost op coverage — the sixty-day sweep fell from 32 distinct op kinds to 27 across two
+passes before this went in, and came back to 33 after. The honest scenario does not get it and must
+never get it; its whole value is being comparable across passes.
+
+**Coverage is the point.** Every run reports which of nineteen systems it touched, how many
 distinct op kinds ran, which complications fired, and what never ran at all. A `✗` means that
 system had no coverage and any conclusion drawn about it from the soak is worthless.
 `scripts/bot.test.ts` fails when `everything` stops reaching every system — so a future pass that
 ships something the bot cannot see breaks the build rather than passing quietly, which is what
 happened three passes running before this existed. Shipping a system means adding a row here in
-the same pass, or it is untested by construction.
+the same pass, or it is untested by construction. And when the op-roster threshold in
+`scripts/bot.test.ts` starts failing, lengthen the bot's day before lowering the bar — cutting it
+hides exactly the thing it exists to show.
 
 **Assignment order in `runTheEmpire` is load-bearing.** The bot hands idle crew out in a fixed
 order, and that order decides what gets coverage at all. Foreman first, then racket runner, then

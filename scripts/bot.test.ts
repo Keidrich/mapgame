@@ -118,9 +118,19 @@ describe('coverage', () => {
     const r = canon('everything');
     const distinct = Object.keys(r.cov.opKinds).length;
     const total = Object.keys(OP_DEFS).length;
-    // Measured 17–20 of 40 across six seeds in sixteen days. The floor is set below the worst of
-    // those rather than at the best, because a threshold only one seed clears is a flaky test
-    // pretending to be a standard. Raising this number means teaching the bot, not re-rolling.
+    // Measured 16–20 of 41 across seeds 1,3,5,7,9,11 in sixteen days.
+    //
+    // This briefly went down to 32% and came back. Every pass since the standing rework added
+    // something the bot spends AP on — conversations, agendas, assets, introductions — and against
+    // a fixed eight-AP day each one quietly cost op coverage; the floor was cut to accommodate
+    // that, which was treating the symptom. The real fix was giving the boosted scenarios a longer
+    // day (`{ what: 'ap', amount: 14 }` in `admin.ts` CORE), and with it the sixty-day sweep went
+    // from 27 distinct op kinds back to 33 — better than before the squeeze started.
+    //
+    // The floor stays below the worst of those seeds rather than at the best, because a threshold
+    // only one seed clears is a flaky test pretending to be a standard. Raising this number means
+    // teaching the bot, not re-rolling. **If a future pass makes this fail, lengthen the bot's day
+    // before you lower this number** — cutting the bar hides exactly the thing it exists to show.
     expect(distinct, `only ${distinct} of ${total} op kinds ever ran`).toBeGreaterThanOrEqual(Math.floor(total * 0.4));
   }, SLOW);
 

@@ -29,6 +29,12 @@ export interface Scenario {
 }
 
 const CORE: { what: CheatKind; amount?: number }[] = [
+  // A longer day, because the point of a boosted scenario is reach. Every pass since the standing
+  // rework has added something the bot spends AP on — conversations, agendas, assets,
+  // introductions — and against a fixed eight-AP day each one quietly cost op coverage: the
+  // sixty-day sweep fell from 32 distinct op kinds to 27 over two passes. The honest scenario
+  // does not get this and must never get it; its whole value is being comparable across passes.
+  { what: 'ap', amount: 14 },
   { what: 'cash', amount: 250000 },
   { what: 'skills', amount: 9 },
   { what: 'crew', amount: 5 },
@@ -101,6 +107,7 @@ export const SCENARIOS: Record<ScenarioName, Scenario> = {
       { what: 'cards', amount: 8 },
       { what: 'ratted' },
       { what: 'agendas' },
+      { what: 'nemesis' },
       { what: 'stash' },
     ],
     topUp: {

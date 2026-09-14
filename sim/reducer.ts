@@ -10,6 +10,11 @@ import type { Rng } from './rng';
 import { agendaCost, agendaReason, resolveAgenda } from './agendas';
 import { resolveTalk, startConversation } from './conversation';
 import { oweThem, remember } from './ledger';
+import { scoreMeeting } from './nemesis';
+import { assetReason, introduce, referralReason, turnAsset, type AssetKind } from './informants';
+import { DEFECT } from '@content/nemesis';
+import { REFERRAL } from '@content/informants';
+import { defect, defectReason } from './defect';
 import { familyOf } from './connections';
 import { distanceFromStart } from './select';
 import { emptyStash, stanceFor } from './generate';
@@ -157,6 +162,25 @@ function gate(w: World, a: Action): Affordance {
       const cost = agendaCost(w, n, a.mode);
       if (cost) { const c2 = cash(cost); if (c2) return no(c2); }
       return yes({ ap: 1, cash: cost });
+    }
+    case 'defect': {
+      const n = npc(a.npcId); if (!n?.alive) return no('They are gone.');
+      const why = defectReason(w, n); if (why) return no(why);
+      const h = hereNpc(n); if (h) return no(h);
+      if (bedsLeft(w) <= 0) return no('No room. Rent or upgrade a safehouse.');
+      const r = ap(DEFECT.ap); return r ? no(r) : yes({ ap: DEFECT.ap });
+    }
+    case 'turn_asset': {
+      const n = npc(a.npcId); if (!n?.alive) return no('They are gone.');
+      const why = assetReason(w, n, a.kind); if (why) return no(why);
+      const h = hereNpc(n); if (h) return no(h);
+      const r = ap(1); return r ? no(r) : yes({ ap: 1 });
+    }
+    case 'introduce': {
+      const n = npc(a.npcId); if (!n?.alive) return no('They are gone.');
+      const why = referralReason(w, n, a.toNpcId); if (why) return no(why);
+      const h = hereNpc(n); if (h) return no(h);
+      const r = ap(REFERRAL.ap); return r ? no(r) : yes({ ap: REFERRAL.ap });
     }
     case 'case_joint': {
       const b = biz(a.businessId); if (!b) return no('No such place.');
@@ -903,6 +927,9 @@ function apply(w: World, a: Action, rng: Rng, done: () => void, bonus = 0): Worl
       resolveAgenda(w, n, a.mode, rng);
       break;
     }
+    case 'defect': { defect(w, npc(a.npcId)); break; }
+    case 'turn_asset': { turnAsset(w, npc(a.npcId), a.kind as AssetKind); break; }
+    case 'introduce': { introduce(w, npc(a.npcId), npc(a.toNpcId)); break; }
     case 'case_joint': {
       const b = w.businesses[a.businessId];
       b.casedUntil = w.day + CASE_JOINT.days;
@@ -1018,7 +1045,15 @@ function cheat(w: World, what: CheatKind, amount?: number, rng?: import('./rng')
   switch (what) {
     case 'cash': { const n = amount ?? 10000; p.cash += n; log(w, `Testing: +${money(n)} clean.`, 'money'); break; }
     case 'dirty': { const n = amount ?? 10000; p.dirty += n; log(w, `Testing: +${money(n)} dirty.`, 'money'); break; }
-    case 'ap': p.ap = p.apMax; log(w, 'Testing: AP refilled.', 'info'); break;
+    case 'ap': {
+      // With an amount it lengthens the day rather than refilling it. The soak needs that: each
+      // pass adds something the bot has to spend AP on, and a fixed eight-hour day means every
+      // new system quietly costs op coverage. Boosted scenarios buy a longer day instead.
+      if (amount) { p.apMax = Math.max(p.apMax, amount); log(w, `Testing: days are ${p.apMax} AP long now.`, 'info'); }
+      p.ap = p.apMax;
+      if (!amount) log(w, 'Testing: AP refilled.', 'info');
+      break;
+    }
     case 'legwork': p.legwork = p.legworkMax; log(w, 'Testing: legwork refilled.', 'info'); break;
     case 'heat': p.heat = 0; for (const b of Object.values(w.blocks)) b.heat = 0; log(w, 'Testing: heat cleared.', 'good'); break;
     case 'skills': { const n = Math.max(0, Math.min(10, amount ?? 10)); for (const k of Object.keys(p.skills) as (keyof typeof p.skills)[]) p.skills[k] = n; p.legworkMax = legworkFor(p.skills.wheels); p.legwork = p.legworkMax; log(w, `Testing: every skill at ${n}.`, 'good'); break; }
@@ -1117,6 +1152,21 @@ function cheat(w: World, what: CheatKind, amount?: number, rng?: import('./rng')
       log(w, `Testing: ${(p.cards ?? []).length} cards in your pocket, something worth selling, and wire heat to clean up.`, 'money');
       break;
     }
+    case 'nemesis': {
+      // Drives the real scoring path rather than writing a Nemesis by hand: what it fabricates is
+      // the *history* — a run of meetings the player lost — and the milestones, the traits and the
+      // name all come out of the same code a sixty-day war run reaches on its own. A sixteen-day
+      // `everything` run cannot get there honestly, because the bot mostly wins.
+      let done = 0;
+      for (const f of Object.values(w.factions)) {
+        const lt = f.lieutenantIds.map(id => w.npcs[id]).find(n => n?.alive);
+        if (!lt) continue;
+        for (let i = 0; i < (amount ?? 6); i++) scoreMeeting(w, lt, true, 'violence', `They had the better of you again.`);
+        done++;
+      }
+      log(w, `[admin] ${done} lieutenant${done === 1 ? '' : 's'} have been getting the better of you for weeks.`, 'warn');
+      break;
+    }
     case 'agendas': {
       // The agenda moves are only reachable against somebody who has an agenda you know about,
       // and generation is thin on those near the start: seed 7 produces no `leave` agenda within
@@ -1206,6 +1256,9 @@ function sitDown(w: World, fid: string, offer: SitDownOffer, rng: import('./rng'
   const roll = rng.int(0, 30);
   const owed = f.owed ?? 0;
   const accept = (threshold: number) => { const ok = charm + standing * 0.5 + temper + roll + (owed ? 20 : 0) > threshold; if (ok && owed) { f.owed = owed - 1; log(w, `${f.short} remember what they owe you.`, 'info', { factionId: f.id }); } return ok; };
+  // The lieutenant across the table is a person with a page, not a name in a log line. A
+  // sit-down goes on it the same way a fight at your door does, and it is scored the same way —
+  // at `backed`, because talking over somebody is not the same as beating them.
   const lt = w.npcs[f.lieutenantIds[0]];
   const setStance = (s: number) => { f.standing[PLAYER] = Math.min(clamp(s, -100, 100), standingCap(f)); f.stance[PLAYER] = stanceFor(f.standing[PLAYER]); };
   switch (offer.kind) {
@@ -1254,6 +1307,8 @@ function sitDown(w: World, fid: string, offer: SitDownOffer, rng: import('./rng'
       break;
     }
   }
+  // who came out of the room ahead, by whether their faction ended up thinking better of you
+  if (lt) scoreMeeting(w, lt, f.standing[PLAYER] <= standing, 'backed', `You sat down with them about ${offer.kind.replace('_', ' ')}.`);
 }
 
 /**

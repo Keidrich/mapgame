@@ -14,6 +14,103 @@ House rules for an entry (see `CLAUDE.md` → *Leave a trail*):
 
 ---
 
+## 2026-09-14 — Nemesis, informants, and the introduction the connections graph was built for
+
+**What.** Two pieces, both almost entirely assembled from things that already shipped. A faction
+lieutenant who keeps meeting the player is changed by it, can be asked to walk out on their own
+people, and can end up running the outfit. And two standing relationships that are not favours: an
+informant or a pair of hands, and an introduction.
+
+**Why.** Lieutenants were furniture — a name on a sit-down, a name in a succession crisis, and not
+even that in an attack, which arrived from an anonymous "they". You could beat the same person six
+times and the seventh was identical to the first. Meanwhile `flipLieutenant` had handled losing one
+of *yours* since the lieutenant pass and had no opposite: there was no way to take somebody off a
+faction short of killing them. And the connections graph shipped with "phase 2: leverage plays on
+top of the graph" written in the design doc and deferred, because nothing existed underneath to
+hang them on. Standing and the ledger are that thing.
+
+**How.**
+
+*Nemesis.* `Npc.nemesis` holds one number — **notoriety** — scaled by `STAKES` exactly as fear is,
+because somebody who put your crew in hospital is made by it and somebody who talked over you at a
+sit-down is not. The history is `remember()`, the same logger a shopkeeper gets; the dossier screen
+reads it without knowing nemeses exist. `leaderFor` names who came and weights it toward whoever
+already has history with the player, which is the whole of what makes a recurring antagonist rather
+than a fresh name every week. `MILESTONES` pay out in order, once each, one legible change apiece:
+a trait, then muscle, then **a name** (`nemesisName` replaces the given one everywhere), then
+connections, then brains. Beating them takes it back.
+
+*The chair.* `successionWeight` is on the existing `f.crisis` scale, and `candidatesFor` replaces
+"whoever happened to be first in the array" as the shortlist. A lieutenant who has been beating you
+in public is exactly who the soldiers would follow.
+
+*Defection* (`sim/defect.ts`) is the mirror of `flipLieutenant` and explicitly **not** a loyalty
+number you grind down: it goes through `concessionReason`, the same gate as protection, so the route
+in is settling **their own** agenda through `resolve_agenda` → `doFavour`. A loyal one still refuses
+whatever you did for them. It costs 45 standing, two soldiers, a bed and two AP.
+
+*Scheming.* An `ambition` agenda on a lieutenant now sometimes names a peer instead of the chair —
+preferring one they are actually connected to, read off the graph — and resolves inside the faction
+on the sim's own clock.
+
+*Informants and assets.* The distinction that carries them: **a favour is spent, an asset is
+standing.** Turning somebody costs what any other major concession costs and then keeps paying —
+passive (`Confrontation.warned`, worth `ASSET.warnedBonus` on the answer, because you are in the
+doorway rather than looking up from the till) and active (`assetBonus` into `opChance`, reading the
+target the same way every other modifier does). They go cold after `ASSET.goesCold` days of silence.
+
+*Referrals* are the one thing in the game that shortcuts the familiarity floor. The target's
+`metDay` is dated back and `contacts` topped up, so every existing familiarity check reads it
+without knowing referrals exist. It does not make a stranger trust you; it makes you not a stranger.
+
+**Numbers.** `npm run sim -- 60 <seed> honest`, cash / dirty at day 61:
+
+| seed | before | after |
+|---|---|---|
+| 3 | 8,534 / 1,349 | 7,265 / 1,178 |
+| 7 | 13,083 / 3,543 | 14,562 / 2,238 |
+| 11 | −208 / 35,679 | −2,437 / 40,226 |
+| 19 | −1,573 / 15,599 | −813 / 15,972 |
+
+Within the band, no systematic shift: the honest scenario has no war and few lieutenants in reach,
+so most of this pass is invisible to it. `npm run sim -- 60 7 all` reports **19/19 systems** (up
+from 16), and **33 distinct op kinds**, up from 32 — see the AP note below.
+New coverage rows: `a nemesis`, `informants and assets`, `introductions`.
+
+**Watch out.**
+
+- **No `WORLD_VERSION` bump.** `Npc.nemesis`, `Npc.asset`, `Confrontation.byNpcId` and
+  `Confrontation.warned` are all optional.
+- **The real find of this pass was in the soak, not the feature.** Every pass since the standing
+  rework has added something the bot spends AP on — conversations, agendas, assets, introductions —
+  and against a fixed eight-AP day each one quietly cost op coverage. The sixty-day sweep had fallen
+  from **32 distinct op kinds to 27** across two passes, and I lowered the `scripts/bot.test.ts`
+  threshold from 40% to 32% to accommodate it, which was treating the symptom. The fix is a longer
+  day for the boosted scenarios only — `{ what: 'ap', amount: 14 }` in `admin.ts` CORE, via a
+  `cheat('ap', n)` that now raises `apMax` rather than only refilling. The sweep came back to **33
+  op kinds**, better than before the squeeze started, and the threshold is back at 40% with a note
+  saying to lengthen the day rather than cut the bar next time. **The honest scenario does not get
+  the longer day and must never get it** — its entire value is being comparable across passes.
+- **The bot's social work is also on a rota** — a conversation every third day, standing
+  arrangements every other — because each still spends AP an op would have used.
+- **`workTheRoom` does one of each category, not one thing in total.** Returning after the first
+  success turned the list into a priority order whose bottom never ran: introductions had zero
+  coverage in a full sweep because a defection or an asset always came first.
+- **A new `nemesis` admin-panel entry**, because a sixteen-day `everything` run cannot make one
+  honestly — the bot mostly wins, and winning takes notoriety back. What it fabricates is the
+  *history*; the milestones, traits and name all come out of the same `scoreMeeting` path a war run
+  reaches on its own, so the coverage is of real code.
+- **`OpTarget` gained `factionId`**, which the ops tab was already passing and `opChance` was
+  silently dropping. The number shown and the number rolled now agree for faction-targeted ops.
+
+**Files.** New: `content/nemesis.ts`, `content/informants.ts`, `sim/nemesis.ts`,
+`sim/informants.ts`, `sim/defect.ts`, `sim/nemesis.test.ts`, `sim/informants.test.ts`. Changed:
+`sim/types.ts`, `sim/actions.ts`, `sim/reducer.ts`, `sim/combat.ts`, `sim/factions.ts`,
+`sim/politics.ts`, `sim/people.ts`, `sim/select.ts`, `sim/ops.ts`, `sim/tick.ts`,
+`ui/components/NpcSheet.tsx`, `content/glossary.ts`, `scripts/bot/*`, `docs/DESIGN.md` §3.9.
+
+---
+
 ## 2026-09-14 — Conversation depth, agenda resolution, and one history screen for everybody
 
 **What.** Three pieces on top of the standing system: a real action for every kind of agenda an
