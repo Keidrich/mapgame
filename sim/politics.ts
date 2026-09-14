@@ -89,7 +89,7 @@ function crown(w: World, f: Faction, boss: Npc, how: 'quiet' | 'default' | 'cont
       text += ` You backed the wrong horse. The new boss knows.`;
     }
   }
-  const home = w.districts[f.homeDistrictId]?.blockIds[0]; if (home) addMemory(w, home, 'succession', `${boss.name} took over ${f.short}.`);
+  const home = w.districts[f.homeDistrictId]?.blockIds[0]; if (home) addMemory(w, home, 'succession', `${boss.name} took over ${f.short}.`, { npcId: boss.id });
   log(w, text, c?.backing === boss.id ? 'good' : c?.backing ? 'bad' : 'warn', { factionId: f.id, npcId: boss.id });
 }
 

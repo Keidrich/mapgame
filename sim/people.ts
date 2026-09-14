@@ -5,7 +5,7 @@
 import { connectionsOf, familyOf } from './connections';
 import { resolveScheme, schemeTarget } from './nemesis';
 import type { Rng } from './rng';
-import { PLAYER, type Agenda, type AgendaKind, type Block, type GameEvent, type Id, type Npc, type World } from './types';
+import { PLAYER, type Agenda, type AgendaKind, type Block, type BlockMemory, type GameEvent, type Id, type Npc, type World } from './types';
 import { addHeat, bleedRel, clamp, log, money, nid } from './util';
 
 export const AGENDA_LABEL: Record<AgendaKind, string> = {
@@ -62,7 +62,7 @@ function milestone(w: World, n: Npc, a: Agenda, at: 50 | 100, rng: Rng) {
         { id: 'lend', label: 'Lend $1,500', detail: 'Big trust; they owe you', costCash: 1500 }, { id: 'buy', label: 'Offer to buy them out cheap', detail: 'Works if they trust you' }, { id: 'no', label: 'Not my problem', detail: '−trust' },
       ], { npcId: n.id, businessId: biz.id });
       else if (at === 100 && biz && biz.ownedBy === 'npc') {
-        if (f && f.alive) { biz.protection = { factionId: f.id, rate: 0.3, since: w.day }; n.faction = f.id; addMemory(w, biz.blockId, 'debt', `${f.short} took over ${biz.name} for an unpaid debt.`); log(w, `${f.name} took ${biz.name} for ${n.name}'s debts. They collect 30% now.`, 'warn', { businessId: biz.id, factionId: f.id }); }
+        if (f && f.alive) { biz.protection = { factionId: f.id, rate: 0.3, since: w.day }; n.faction = f.id; addMemory(w, biz.blockId, 'debt', `${f.short} took over ${biz.name} for an unpaid debt.`, { npcId: n.id, businessId: biz.id }); log(w, `${f.name} took ${biz.name} for ${n.name}'s debts. They collect 30% now.`, 'warn', { businessId: biz.id, factionId: f.id }); }
         else { biz.condition = clamp(biz.condition - 30); log(w, `${n.name}'s debts caught up with them. ${biz.name} is half boarded up.`, 'info', { businessId: biz.id }); }
       }
       break;
@@ -135,9 +135,9 @@ export function tickGossip(w: World, rng: Rng) {
   }
 }
 
-export function addMemory(w: World, blockId: Id, kind: string, text: string) {
+export function addMemory(w: World, blockId: Id, kind: string, text: string, about?: BlockMemory['about']) {
   const b: Block | undefined = w.blocks[blockId]; if (!b) return;
-  b.memory.push({ day: w.day, kind, text });
+  b.memory.push({ day: w.day, kind, text, about });
   if (b.memory.length > 8) b.memory.splice(0, b.memory.length - 8);
 }
 

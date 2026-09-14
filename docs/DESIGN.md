@@ -173,6 +173,12 @@ What the web does today:
   them: "went to the police to keep Rosa Esposito, their cousin, out of it."
 - **Gossip** travels along real ties as well as the same-block, same-bar circle, so a
   humiliation reaches somebody's sister across the district instead of stopping at the bar.
+- **Block memory** is told by whoever you are standing in front of — except its subject.
+  `BlockMemory.about` names who or what a story happened to, and `openingLine` uses it so nobody
+  reports their own mugging as street talk. Somebody whose *place* was hit talks about it as
+  theirs; their family and friends still carry the story and now say whose tie it is, because that
+  is why it reached them. A memory with no subject (an old save, or a story about nobody in
+  particular) is told by everybody, as before.
 - **Reputation** travels along the same ties and nowhere else — see §3.7.
 - The NPC sheet lists who somebody has, and every name opens their own sheet.
 

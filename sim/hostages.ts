@@ -92,7 +92,7 @@ export function tickHostages(w: World, rng: Rng) {
       adjustRel(w, n, { trust: -40, fear: 20 }, 'grave');
       spreadRep(w, b.id, { fear: 6, trust: -4 }, 2, 'grave');
       addHeat(w, 8, b.id);
-      addMemory(w, b.id, 'escape', `${n.name} got out of a cellar here and told everyone.`);
+      addMemory(w, b.id, 'escape', `${n.name} got out of a cellar here and told everyone.`, { npcId: n.id });
       log(w, `${n.name} got loose and made it to the street. Everybody on ${b.name} knows now. (+8 heat)`, 'bad', { npcId: n.id, blockId: b.id });
     } else {
       const guard = w.player.crewIds.map(id => w.npcs[id]).find(c => c.crew && c.crew.status === 'idle');

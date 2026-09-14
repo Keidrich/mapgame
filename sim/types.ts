@@ -76,7 +76,13 @@ export interface Block {
   heldSince?: number;           // day the player took control; cleared when lost. Tenure feeds accrual.
 }
 
-export interface BlockMemory { day: number; kind: string; text: string }
+/**
+ * Something the block remembers. `about` is who or what it happened to, and it exists so that
+ * nobody is made to repeat a story about themselves as neighbourhood gossip — see `openingLine`
+ * in `sim/scenes.ts`. Optional, so an old save's memories simply have no subject and are told by
+ * everybody, which is what they did before.
+ */
+export interface BlockMemory { day: number; kind: string; text: string; about?: { npcId?: Id; businessId?: Id } }
 
 /** A block nobody runs any more. `known` is whether the player has found it; scouting flips it. */
 export interface Abandoned { known: boolean; claimedBy?: FactionId }

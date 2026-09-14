@@ -253,7 +253,7 @@ function raid(w: World, rng: import('./rng').Rng) {
     r.disrupted = rng.int(3, 6); const fine = Math.round(500 + r.lastIncome * 4); spend(w, fine);
     if (r.runnerId) { const n = w.npcs[r.runnerId]; if (n.crew) { n.crew.status = 'jailed'; n.crew.statusDays = jailDays(w, 12); n.crew.assignment = undefined; r.runnerId = undefined; } }
     log(w, `RAID: police hit the ${RACKET_DEFS[r.kind].label.toLowerCase()} at ${b.name}. ${money(fine)} in fines and lawyers; shut ${r.disrupted} days.`, 'bad', { businessId: b.id, racketId: r.id });
-    addMemory(w, b.blockId, 'raid', `The cops raided ${b.name}.`);
+    addMemory(w, b.blockId, 'raid', `The cops raided ${b.name}.`, { businessId: b.id, npcId: b.ownerId });
   } else {
     const s = w.safehouses[t.id];
     const lost = Math.round(stashTotal(s.stash) * (p.lawyer ? 0.3 : 0.6));

@@ -105,7 +105,7 @@ export function resolveAgenda(w: World, n: Npc, mode: AgendaMode, rng: Rng): Age
   spreadFrom(w, [n], { respect: AGENDA_REWARD.spreadRespect }, AGENDA_REWARD.spreadDegrees);
   const text = settleLine(w, n, kind);
   remember(w, n, 'favour', text);
-  addMemory(w, n.homeBlockId, 'favour', text);
+  addMemory(w, n.homeBlockId, 'favour', text, { npcId: n.id });
   log(w, text, 'good', { npcId: n.id });
   return { won: true, text };
 }
@@ -127,7 +127,7 @@ function trap(w: World, n: Npc, won: boolean): AgendaOutcome {
   addHeat(w, 2, n.homeBlockId);
   const text = `Every door ${n.name} was going to walk through is shut, and they know whose hand did it. They are not going anywhere.`;
   remember(w, n, 'harm', text);
-  addMemory(w, n.homeBlockId, 'trap', `${n.name} was going to leave. Now they are not.`);
+  addMemory(w, n.homeBlockId, 'trap', `${n.name} was going to leave. Now they are not.`, { npcId: n.id });
   log(w, text, 'warn', { npcId: n.id });
   return { won: true, text };
 }

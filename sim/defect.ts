@@ -60,6 +60,6 @@ export function defect(w: World, n: Npc): void {
 
   const line = `They walked out of ${f.name} and came to you.`;
   remember(w, n, 'deal', line);
-  if (d?.blockIds[0]) addMemory(w, d.blockIds[0], 'defect', `${name} left ${f.short}. Nobody says where they went.`);
+  if (d?.blockIds[0]) addMemory(w, d.blockIds[0], 'defect', `${name} left ${f.short}. Nobody says where they went.`, { npcId: n.id });
   log(w, `${name} is yours. ${f.name} lose a lieutenant, ${DEFECT.soldiers} soldiers and a great deal of face — and they know exactly who to blame. ${money(DEFECT.cut)}/day, loyalty ${Math.round(loyalty)}.`, 'good', { npcId: n.id, factionId: f.id });
 }

@@ -683,7 +683,7 @@ function apply(w: World, a: Action, rng: Rng, done: () => void, bonus = 0): Worl
       const b = w.businesses[a.businessId]; const owner = npc(b.ownerId); const ap_ = a.approach ?? 'lean'; owner.known = true;
       b.lastShakedownDay = w.day;
       const chance = approachChance(w, 'shakedown', ap_, owner, b, undefined, bonus); const ok = rng.int(1, 100) <= chance;
-      if (ap_ === 'wreck') { b.condition = clamp(b.condition - 15); addHeat(w, 4, b.blockId); spreadRep(w, b.blockId, { fear: 4 }, 1, 'property'); adjustRel(w, owner, { fear: 10, trust: -15 }, 'property'); remember(w, owner, 'harm', `You had ${b.name} smashed up in front of them.`); addMemory(w, b.blockId, 'wreck', `Somebody smashed up ${b.name} in broad daylight.`); }
+      if (ap_ === 'wreck') { b.condition = clamp(b.condition - 15); addHeat(w, 4, b.blockId); spreadRep(w, b.blockId, { fear: 4 }, 1, 'property'); adjustRel(w, owner, { fear: 10, trust: -15 }, 'property'); remember(w, owner, 'harm', `You had ${b.name} smashed up in front of them.`); addMemory(w, b.blockId, 'wreck', `Somebody smashed up ${b.name} in broad daylight.`, { npcId: owner.id, businessId: b.id }); }
       const rival = b.protection && b.protection.factionId !== PLAYER ? w.factions[b.protection.factionId] : undefined;
       if (ok) {
         const mult = ap_ === 'wreck' ? 1.6 : ap_ === 'reason' ? 0.9 : 1.2;

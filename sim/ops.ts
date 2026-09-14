@@ -57,7 +57,7 @@ export function resolveOp(w: World, o: Op, rng: Rng) {
         if (n) {
           adjustRel(w, n, { fear: 20, trust: -25 }, 'violence');
           remember(w, n, 'harm', 'Somebody put them against a wall and went through their pockets. They did not see who.');
-          addMemory(w, n.homeBlockId, 'mugging', `Somebody put ${n.name} against a wall and went through their pockets.`);
+          addMemory(w, n.homeBlockId, 'mugging', `Somebody put ${n.name} against a wall and went through their pockets.`, { npcId: n.id });
           // a pocket sometimes has a card in it: everything on the wire starts here
           if (rng.chance(0.45)) { const card = rollCard(w, rng, n.id); addCard(w, card); extra = ` There was a ${CARD_TIERS[card.tier].label} in the wallet.`; }
         }
@@ -147,7 +147,7 @@ export function resolveOp(w: World, o: Op, rng: Rng) {
       case 'armed_intimidation': {
         const owner = target ? w.npcs[target.ownerId] : undefined;
         if (owner) adjustRel(w, owner, { fear: 26 + Math.round(p.skills.muscle / 2), trust: -10 }, 'violence');
-        if (target) { target.condition = clamp(target.condition - 8); addMemory(w, target.blockId, 'armed', `Somebody showed ${owner?.name ?? 'the owner'} a gun in ${target.name}.`); }
+        if (target) { target.condition = clamp(target.condition - 8); addMemory(w, target.blockId, 'armed', `Somebody showed ${owner?.name ?? 'the owner'} a gun in ${target.name}.`, { npcId: owner?.id, businessId: target.id }); }
         spreadRep(w, blockId ?? p.currentBlockId, { fear: 6 }, 1, 'violence');
         res.text = `Nobody in ${target?.name ?? 'the place'} is going to forget what was under your coat. ${owner?.name ?? 'The owner'} understood it the first time.`;
         break;
@@ -269,7 +269,7 @@ export function resolveOp(w: World, o: Op, rng: Rng) {
         }
         if (n.role === 'owner') { for (const b of Object.values(w.businesses)) if (b.ownerId === n.id) { b.flags.push('owner_dead'); b.condition = clamp(b.condition - 20); } }
         p.fear = clamp(p.fear + 10); spreadRep(w, n.homeBlockId, { fear: 12, trust: -5 }, 2, 'grave');
-        addMemory(w, n.homeBlockId, 'hit', `${n.name} was killed. Everybody knows who ordered it.`);
+        addMemory(w, n.homeBlockId, 'hit', `${n.name} was killed. Everybody knows who ordered it.`, { npcId: n.id });
         if (caseWitnessOf(w, n.id)) silenceWitness(w, n.id, 'gone');
         openCase(w, 'hit', `${n.name.split(' ').slice(-1)[0]} killing`, { npcId: n.id, blockId: n.homeBlockId, opId: o.id }, o.crewIds, rng, o.approach === 'quiet' ? 10 : 25);
         break;
@@ -288,7 +288,7 @@ export function resolveOp(w: World, o: Op, rng: Rng) {
         }
         const captain = Object.values(w.npcs).find(x => x.official?.kind === 'captain'); if (captain) adjustRel(w, captain, { trust: 5 });
         p.heat = clamp(p.heat - 3); res.heat = Math.max(0, res.heat - 3);
-        addMemory(w, n.homeBlockId, 'frame', `${n.name} went away on a case nobody around here believes.`);
+        addMemory(w, n.homeBlockId, 'frame', `${n.name} went away on a case nobody around here believes.`, { npcId: n.id });
         break;
       }
       case 'scout_block': {
@@ -314,7 +314,7 @@ export function resolveOp(w: World, o: Op, rng: Rng) {
         takeHostage(w, n, s);
         if (n.crew) { p.crewIds = p.crewIds.filter(id => id !== n.id); n.crew = undefined; }
         p.fear = clamp(p.fear + 6); spreadRep(w, n.homeBlockId, { fear: 8, trust: -5 }, 2, 'violence');
-        addMemory(w, n.homeBlockId, 'kidnap', `${n.name} went out for cigarettes and did not come back.`);
+        addMemory(w, n.homeBlockId, 'kidnap', `${n.name} went out for cigarettes and did not come back.`, { npcId: n.id });
         if (n.faction && w.factions[n.faction]) { const f = w.factions[n.faction]; f.standing[PLAYER] = clamp(f.standing[PLAYER] - 10, -100, 100); }
         res.text = `${n.name} is in the back of a van and then in ${s.name}. Now you have to decide what they are worth.`;
         break;

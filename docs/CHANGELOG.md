@@ -14,6 +14,53 @@ House rules for an entry (see `CLAUDE.md` → *Leave a trail*):
 
 ---
 
+## 2026-09-14 — Nobody tells you their own mugging as neighbourhood gossip
+
+**What.** Block memory now knows who each story is about, and the person it happened to stops
+narrating it. Their family and friends carry on — and now say whose tie it is.
+
+**Why.** Reported from play. `openingLine` took the block's latest memory and had whoever the
+player was standing in front of repeat it, with no check on the subject. Since memories name
+people, that meant the man who was mugged reporting his own mugging as street talk — *"Everybody is
+still talking about it: Somebody put Dolores Fuentes against a wall and went through their
+pockets,"* said by Dolores Fuentes — and the shopkeeper whose windows had just gone in telling you
+somebody had smashed up his shop. Thirteen of the sim's memory writes name somebody.
+
+**How.** `BlockMemory` gains an optional `about: { npcId?, businessId? }`, set at every call site
+that names a person or a place. `gossipLine` then picks the newest memory that is *not* about the
+person in front of you, and the two halves of the fix are deliberately different:
+
+- **Nobody repeats a story about themselves as neighbourhood talk.** If it is about them
+  personally they say nothing; if it is about their own business they tell it as theirs — *"They
+  are still sweeping up: The cops raided Keane's Builders"* — because an owner talking about his
+  own raid is not the bug, talking about it as though he heard it from somebody else is.
+- **Their family and friends absolutely still do**, and it reads that way now: *"They will not let
+  it go — that is their cousin: Somebody put Dolores Fuentes against a wall…"*. Word arriving along
+  a real tie says which tie, because that is the reason it reached this person at all.
+
+The block also moves on rather than going quiet: somebody skips past a story about themselves to an
+older one, and only stays silent when there is nothing else to talk about.
+
+**Numbers.** `npm run sim -- 60 <seed> honest` is **bit-identical on all four seeds** — this is
+flavour text chosen at read time and touches no RNG and no state.
+
+**Watch out.**
+
+- **No `WORLD_VERSION` bump.** `about` is optional, and a memory without one is told by everybody
+  exactly as before, so an old save's existing memories keep working and only new ones are tagged.
+- `sim/gossip-subject.test.ts` ends with a structural guard: any memory whose text contains an NPC's
+  name must carry `about.npcId`. A future `addMemory` that names somebody and forgets the subject
+  fails there rather than showing up in play again.
+- The same class of bug does not exist in `tickGossip`, which has always done `circle.delete(n.id)`,
+  or in `spreadRep`, where the subject being a witness is correct — they were there.
+
+**Files.** New: `sim/gossip-subject.test.ts`. Changed: `sim/scenes.ts` (`gossipLine`),
+`sim/types.ts`, `sim/people.ts` (`addMemory`), and the call sites in `sim/ops.ts`, `sim/reducer.ts`,
+`sim/agendas.ts`, `sim/defect.ts`, `sim/hostages.ts`, `sim/lieutenants.ts`, `sim/politics.ts`,
+`sim/tick.ts`, `docs/DESIGN.md` §3.6.
+
+---
+
 ## 2026-09-14 — The empire ledger, and the man in the chair
 
 **What.** A holdings dashboard: every business, racket and production in one sortable table, with

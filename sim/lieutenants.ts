@@ -140,7 +140,7 @@ export function flipLieutenant(w: World, n: Npc, f: Faction, quiet = false) {
   if (d) {
     for (const bid of d.blockIds) { const b = w.blocks[bid]; if ((b.influence[PLAYER] ?? 0) > 0) { addInfluence(w, bid, PLAYER, -loss); addInfluence(w, bid, f.id, Math.round(loss * 0.6)); } }
     if (!quiet) for (const r of playerAssetsIn(w, d).rackets) if (!r.runnerId) r.disrupted = Math.max(r.disrupted, 2);
-    addMemory(w, d.blockIds[0], 'flip', `${n.name} ran this district for you, then went over to ${f.short}.`);
+    addMemory(w, d.blockIds[0], 'flip', `${n.name} ran this district for you, then went over to ${f.short}.`, { npcId: n.id });
   }
   if (quiet) log(w, `${n.name} goes to work for ${f.name}. ${d ? `${d.name} is nobody's book tonight.` : ''}`, 'warn', { npcId: n.id, factionId: f.id });
   else log(w, `${n.name} went over to ${f.name}, and took ${d?.name ?? 'the district'}'s book with them${taken ? ` along with ${money(taken)} they had been skimming` : ''}. Your rackets there stall while you pick up the pieces.`, 'bad', { npcId: n.id, factionId: f.id, blockId: d?.blockIds[0] });

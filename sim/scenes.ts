@@ -26,10 +26,51 @@ function openingLine(w: World, kind: SceneKind, n: Npc): string {
   let line = lines[(w.day + n.id.length) % lines.length];
   if (n.grudge && kind !== 'visit') line += ` "And I haven't forgotten last time."`;
   else if (n.grudge) line += ` They are cool with you; the whole block heard about last time.`;
-  const mem = w.blocks[n.homeBlockId]?.memory.slice(-1)[0];
-  if (mem && w.day - mem.day <= 15 && kind === 'visit') line += ` Everybody is still talking about it: ${mem.text}`;
+  if (kind === 'visit') line += gossipLine(w, n);
   if (n.homeBlockId === w.player.homeBlockId && kind === 'visit') line += ` (Home turf.)`;
   return line;
+}
+
+/** How long a block keeps talking about something. */
+const GOSSIP_DAYS = 15;
+
+/**
+ * What the person in front of you brings up about the neighbourhood.
+ *
+ * The block's memory used to be told by whoever you happened to be standing in front of, with no
+ * check on who it was about — so the man who was mugged reported his own mugging as gossip, and
+ * the shopkeeper whose windows went in told you somebody had smashed up his shop. Two fixes, and
+ * they are different:
+ *
+ *   - **Nobody repeats a story about themselves as neighbourhood talk.** They tell it as theirs,
+ *     or not at all. That is the sanity check.
+ *   - **Their family and their friends absolutely still do**, and now it reads that way: word
+ *     travelling along a real tie says whose tie it is, because "their cousin" is the whole reason
+ *     the story reached this person at all.
+ *
+ * Memories from before this shipped carry no subject, so they are told by everybody, exactly as
+ * they were. An old save loses nothing.
+ */
+function gossipLine(w: World, n: Npc): string {
+  const mems = (w.blocks[n.homeBlockId]?.memory ?? []).filter(m => w.day - m.day <= GOSSIP_DAYS);
+  if (!mems.length) return '';
+  const ownPlace = (m: typeof mems[number]) => !!m.about?.businessId && w.businesses[m.about.businessId]?.ownerId === n.id;
+  const aboutThem = (m: typeof mems[number]) => m.about?.npcId === n.id || ownPlace(m);
+
+  // their own business, first: they have more to say about it than the street does
+  const mine = mems.filter(ownPlace).slice(-1)[0];
+  if (mine) return ` They are still sweeping up: ${mine.text}`;
+  // anything about them personally, they do not narrate at all
+  const theirs = mems.filter(m => m.about?.npcId === n.id).slice(-1)[0];
+  const rest = mems.filter(m => !aboutThem(m));
+  const mem = rest.slice(-1)[0];
+  if (!mem) return theirs ? ` They do not bring up what happened to them, and neither does anybody else while you are standing there.` : '';
+
+  const about = mem.about?.npcId ? w.npcs[mem.about.npcId] : undefined;
+  const tie = about ? n.connections.find(c => c.npcId === about.id)?.label : undefined;
+  return tie
+    ? ` They will not let it go — that is their ${tie}: ${mem.text}`
+    : ` Everybody is still talking about it: ${mem.text}`;
 }
 
 function disabledReason(w: World, kind: SceneKind, id: string, n: Npc, otherFactionId?: Id): string | undefined {
