@@ -11,6 +11,7 @@ import { Info, Term } from './Info';
 import { Inventory } from './Inventory';
 import { Holdings } from './Holdings';
 import { WireSection } from './Wire';
+import { Icon } from '@ui/icons';
 
 export function EmpireTab() {
   const w = useWorld();
@@ -53,7 +54,7 @@ export function EmpireTab() {
       <div className="list">
         {safes.map(s => (
           <button type="button" key={s.id} className="listitem" onClick={() => openSheet({ kind: 'block', blockId: s.blockId })}>
-            <span className="ico">🏠</span>
+            <span className="ico"><Icon name="safehouse" size={18} /></span>
             <div className="grow"><div className="title">{s.name}</div><div className="sub">{SAFEHOUSE_TIERS[s.tier - 1]?.label} · {w.blocks[s.blockId]?.name} · {s.productionIds.length} productions · {fmtMoney(s.cash)} hidden</div></div>
           </button>
         ))}
@@ -81,7 +82,7 @@ function Cases() {
       <div className="list">
         {all.map(c => { const wit = c.witnessId ? w.npcs[c.witnessId] : undefined; return (
           <div key={c.id} className="card" style={{ padding: 10, opacity: c.status === 'open' ? 1 : 0.6 }}>
-            <div className="row between"><b>🗂️ {c.title}</b><span className={`chip ${c.status === 'charged' ? 'red' : ''}`}>{c.status === 'open' ? `day ${c.day}` : c.status}</span></div>
+            <div className="row between"><b><Icon name="casefile" size={14} /> {c.title}</b><span className={`chip ${c.status === 'charged' ? 'red' : ''}`}>{c.status === 'open' ? `day ${c.day}` : c.status}</span></div>
             <div className="mt8"><Meter label={<Term id="evidence">Evidence</Term>} value={c.evidence} color={c.evidence >= 60 ? 'var(--red)' : 'var(--orange)'} /></div>
             <div className="small muted mt8">
               {c.status === 'open' && (wit ? <>Witness: <button type="button" className="chip btn" onClick={() => openSheet({ kind: 'npc', npcId: wit.id })}>{wit.name}</button> · scare them (fear 40+), pay them, or make them go away. </> : 'No witness talking. ')}
@@ -97,7 +98,7 @@ function Launder() {
   const w = useWorld();
   const [amount, setAmount] = useState(1000);
   return (
-    <Disclosure label="Launder" icon="♻️">
+    <Disclosure label="Launder" icon="laundering">
       <p className="small muted"><Term id="dirty">Dirty</Term> {fmtMoney(w.player.dirty)} on hand · laundered today {fmtMoney(w.player.launderedToday)}. Needs a laundering racket, which converts at {Math.round(LAUNDER_RATE * 100)} cents on the dollar up to a daily cap.</p>
       <Fixers />
       <AmountPicker presets={[500, 1000, 5000, Math.max(1, Math.floor(w.player.dirty))]} value={amount} onChange={setAmount} min={1} />
@@ -168,10 +169,10 @@ function SaveCard() {
     <div className="card">
       <p className="small muted">Autosaves after every action. Seed {w.seed} · {w.placeName} · day {w.day}.</p>
       <div className="actions">
-        <button type="button" className="btn" onClick={download}>⬇️ Export file</button>
-        <button type="button" className="btn" onClick={() => void copy()}>📋 Copy JSON</button>
-        <button type="button" className="btn" onClick={() => file.current?.click()}>📂 Import file</button>
-        <button type="button" className="btn" onClick={() => setImporting(i => !i)}>📝 Paste JSON</button>
+        <button type="button" className="btn" onClick={download}><Icon name="download" size={14} /> Export file</button>
+        <button type="button" className="btn" onClick={() => void copy()}><Icon name="copy" size={14} /> Copy JSON</button>
+        <button type="button" className="btn" onClick={() => file.current?.click()}><Icon name="upload" size={14} /> Import file</button>
+        <button type="button" className="btn" onClick={() => setImporting(i => !i)}><Icon name="note" size={14} /> Paste JSON</button>
         <input ref={file} type="file" accept="application/json,.json" hidden onChange={e => onFile(e.target.files?.[0])} />
       </div>
       {importing && (
@@ -180,7 +181,7 @@ function SaveCard() {
           <button type="button" className="btn btn-primary btn-block mt8" disabled={!text.trim()} onClick={() => doImport(text)}>Import</button>
         </div>
       )}
-      <div className="mt12"><button type="button" className="btn btn-danger btn-block" onClick={() => { if (window.confirm('Start a new game? The current save will be deleted.')) resetGame(); }}>🗑️ New game</button></div>
+      <div className="mt12"><button type="button" className="btn btn-danger btn-block" onClick={() => { if (window.confirm('Start a new game? The current save will be deleted.')) resetGame(); }}><Icon name="trash" size={14} /> New game</button></div>
     </div>
   );
 }

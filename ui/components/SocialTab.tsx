@@ -5,6 +5,7 @@ import { initials, roleLabel } from '@ui/derive';
 import { openSheet, useWorld } from '@ui/store';
 import { Info } from './Info';
 import { NoteEditor } from './Note';
+import { Icon } from '@ui/icons';
 
 /**
  * Everybody you have met, and who they have behind them.
@@ -18,9 +19,9 @@ import { NoteEditor } from './Note';
 type GroupMode = 'connections' | 'district' | 'faction';
 
 const MODES: { id: GroupMode; label: string }[] = [
-  { id: 'connections', label: '🕸 Ties' },
-  { id: 'district', label: '📍 District' },
-  { id: 'faction', label: '👥 Faction' },
+  { id: 'connections', label: 'Ties' },
+  { id: 'district', label: 'District' },
+  { id: 'faction', label: 'Faction' },
 ];
 
 export function SocialTab() {
@@ -88,9 +89,9 @@ function PersonRow({ npc, open, onToggle, onWalk }: { npc: Npc; open: boolean; o
         <div className="grow" style={{ minWidth: 0 }}>
           <div className="title ellipsis">{npc.name}</div>
           <div className="sub ellipsis">{roleLabel(npc)} · {select.relLabel(npc)}{npc.crew ? ' · your crew' : ''}{npc.grudge ? ' · grudge' : ''}</div>
-          {npc.playerNote && <div className="small gold ellipsis" style={{ marginTop: 2 }}>📝 {npc.playerNote}</div>}
+          {npc.playerNote && <div className="small gold ellipsis" style={{ marginTop: 2 }}><Icon name="note" size={11} /> {npc.playerNote}</div>}
         </div>
-        {ties.length > 0 && <span className="chip" title={`${ties.length} family and friends${known.length ? `, ${known.length} you have met` : ''}`}>🕸 {ties.length}</span>}
+        {ties.length > 0 && <span className="chip" title={`${ties.length} family and friends${known.length ? `, ${known.length} you have met` : ''}`}><Icon name="social" size={11} /> {ties.length}</span>}
       </button>
       {open && (
         <div className="card mt8">

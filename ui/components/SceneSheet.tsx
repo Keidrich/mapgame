@@ -4,6 +4,7 @@ import { act, useWorld } from '@ui/store';
 import { fmtMoney, initials } from '@ui/derive';
 import { Info, Term, TermChip } from './Info';
 import { LedgerPanel } from './Ledger';
+import { Icon } from '@ui/icons';
 
 /**
  * A conversation.
@@ -74,7 +75,7 @@ function Move({ o, onPick }: { o: TalkOpt; onPick: (id: TalkMove) => void }) {
     <button type="button" className="opt scene-opt" disabled={!!o.disabled} onClick={() => onPick(o.id)}>
       <span className="lbl">{o.icon} {o.label} <span className={`odds ${o.chance >= 65 ? 'good' : o.chance >= 40 ? 'mid' : 'bad'}`}>{o.chance}%</span></span>
       <span className="det">{o.blurb}</span>
-      <span className="stakes"><b className="green">✓ {o.good}</b> <b className="red">✗ {o.bad}</b></span>
+      <span className="stakes"><b className="green"><Icon name="check" size={11} /> {o.good}</b> <b className="red"><Icon name="cross" size={11} /> {o.bad}</b></span>
       {(o.disabled || o.costCash) && <span className="cst">{o.disabled ?? fmtMoney(o.costCash!)}</span>}
     </button>
   );

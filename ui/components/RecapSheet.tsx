@@ -2,9 +2,11 @@ import { useMemo } from 'react';
 import type { LogEntry } from '@sim/types';
 import { fmtMoney } from '@ui/derive';
 import { closeRecap, focus, useStore, useWorld } from '@ui/store';
+import { Icon } from '@ui/icons';
 
 const ORDER: Record<LogEntry['tone'], number> = { bad: 0, warn: 1, money: 2, good: 3, info: 4 };
-const ICON: Record<LogEntry['tone'], string> = { bad: '🔴', warn: '🟠', money: '💵', good: '🟢', info: '·' };
+/** The tone of a line, as a mark rather than a coloured ball. Colour carries it; the glyph is the backup. */
+const ICON: Record<LogEntry['tone'], string> = { bad: 'cross', warn: 'warn', money: 'cash', good: 'check', info: 'routine' };
 
 /** The overnight report: money in and out, heat, and everything that happened, worst first. Shown before the day's events. */
 export function RecapSheet() {
@@ -34,7 +36,7 @@ export function RecapSheet() {
           <div className="list mt8">
             {shown.map((e, i) => (
               <button type="button" key={i} className="listitem" style={{ minHeight: 0, alignItems: 'flex-start' }} onClick={() => { if (e.refs) focus(e.refs); }} disabled={!e.refs || !(e.refs.blockId || e.refs.businessId || e.refs.npcId)}>
-                <span style={{ width: 18, flex: 'none' }}>{ICON[e.tone]}</span>
+                <Icon name={ICON[e.tone]} size={13} className={e.tone === 'bad' ? 'red' : e.tone === 'good' ? 'green' : e.tone === 'money' ? 'gold' : e.tone === 'warn' ? 'orange' : 'muted'} style={{ marginTop: 2 }} />
                 <span className={`small ${e.tone === 'bad' ? 'red' : e.tone === 'warn' ? 'orange' : e.tone === 'money' ? 'gold' : e.tone === 'good' ? 'green' : ''}`} style={{ textAlign: 'left' }}>{nights > 1 && <span className="muted">Day {e.day} · </span>}{e.text}</span>
               </button>
             ))}

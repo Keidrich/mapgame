@@ -7,6 +7,7 @@ import { act, check, openSheet, useWorld } from '@ui/store';
 import { Act } from './Act';
 import { Info, Term, TermChip } from './Info';
 import { OpTree } from './OpTree';
+import { Icon } from '@ui/icons';
 
 
 /** What the kit you are carrying is doing to the approach on the table. */
@@ -18,7 +19,7 @@ function KitOnApproach({ approach }: { approach?: OpApproach }) {
   return (
     <div className="card mt8">
       <div className="row between">
-        <b className="small">🎒 What you are carrying<Info id="kit" /></b>
+        <b className="small"><Icon name="kit" size={13} /> What you are carrying<Info id="kit" /></b>
         {heat !== 1 && <span className={`chip ${heat > 1 ? 'red' : 'green'}`}>Heat ×{heat.toFixed(2)}</span>}
       </div>
       <div className="col mt8" style={{ gap: 4 }}>
@@ -27,7 +28,7 @@ function KitOnApproach({ approach }: { approach?: OpApproach }) {
           const boost = Object.entries(item.mods.skillBoost ?? {}).map(([k, v]) => `${k} +${v}`).join(', ');
           return (
             <div key={item.id} className="row between small">
-              <span>{item.icon} {item.label}{boost && <span className="muted"> · {boost}</span>}</span>
+              <span><Icon of="item" id={item.id} size={14} /> {item.label}{boost && <span className="muted"> · {boost}</span>}</span>
               {approach
                 ? <span className={bias > 0 ? 'green' : bias < 0 ? 'red' : 'muted'}>{bias === 0 ? 'no help here' : `${bias > 0 ? '+' : ''}${Math.round(bias * 100)}% on ${OP_APPROACHES[approach].label.toLowerCase()}`}</span>
                 : <span className="muted">pick an approach</span>}
@@ -69,9 +70,10 @@ function OpCard({ o }: { o: Op }) {
   const chance = select.opChance(w, o.kind, o.crewIds);
   const tone = o.status === 'done' ? (o.result?.success ? 'var(--green)' : 'var(--red)') : o.status === 'failed' ? 'var(--red)' : o.status === 'ready' ? 'var(--gold)' : undefined;
   return (
-    <div className="card" style={{ borderColor: tone }}>
+    <div className="brief" style={{ borderColor: tone }}>
+      <div className="brief-head"><Icon of="op" id={o.kind} size={13} /> {d.label}<span className="n">{o.status === 'planning' ? `${o.daysLeft}d` : o.status}</span></div>
       <div className="row between">
-        <b>{d.icon} {d.label}</b>
+        <b>{d.label}</b>
         <span className="chip" style={{ color: tone }}>{o.status === 'planning' ? `${o.daysLeft}d left` : cap(o.status)}{o.launched && o.status === 'ready' ? ' · launched' : ''}</span>
       </div>
       <div className="small muted">Target: {opTargetLabel(w, o)} · crew: {o.crewIds.map(id => w.npcs[id]?.name ?? '?').join(', ') || 'none'}</div>
@@ -126,13 +128,14 @@ function Planner() {
   const toggle = (id: Id) => setCrewIds(ids => ids.includes(id) ? ids.filter(x => x !== id) : def && ids.length >= def.maxCrew ? ids : [...ids, id]);
 
   return (
-    <div className="card">
+    <div className="brief">
+      <div className="brief-head"><Icon name="ops" size={13} /> Operation<span className="n">{kind ? `step ${step + 1}/3` : 'pick a job'}</span></div>
       <div className="steps"><div className={step >= 0 ? 'on' : ''} /><div className={step >= 1 ? 'on' : ''} /><div className={step >= 2 ? 'on' : ''} /></div>
       {!kind && <OpTree onPick={k => setKind(k)} />}
       {kind && def && (
         <>
           <div className="row between">
-            <b>{def.icon} {def.label}</b>
+            <b><Icon of="op" id={kind} size={15} /> {def.label}</b>
             <button type="button" className="chip btn" onClick={reset}>Change</button>
           </div>
           <p className="small muted mt8">{def.blurb} Needs: {Object.entries(def.needs).map(([k, v]) => `${k} ${v}`).join(', ')}. Difficulty {def.difficulty}, heat +{def.heat}. {def.planDays > 0 && <><Term id="planDays">{def.planDays} days to plan</Term>.</>}</p>
@@ -146,7 +149,7 @@ function Planner() {
                   {targets.map(b => (
                     <button type="button" key={b.id} className="listitem" onClick={() => setTarget({ businessId: b.id })}>
                       <div className="grow"><div className="title">{b.name}</div><div className="sub">{w.blocks[b.blockId]?.name} · {b.ownedBy === 'player' ? 'yours' : b.protection ? `protected by ${select.factionName(w, b.protection.factionId)}` : 'independent'}</div></div>
-                      <button type="button" className="chip btn" onClick={e => { e.stopPropagation(); openSheet({ kind: 'business', businessId: b.id }); }}>ℹ️</button>
+                      <button type="button" className="chip btn" onClick={e => { e.stopPropagation(); openSheet({ kind: 'business', businessId: b.id }); }} aria-label="About this place"><Icon name="info" size={13} /></button>
                     </button>
                   ))}
                   {targets.length === 0 && <p className="small muted">No valid targets.</p>}
@@ -201,7 +204,7 @@ function Planner() {
                   <button type="button" key={m.id} className={`opt${on ? ' sel' : ''}`} onClick={() => setMode(m.id)}>
                     <span className="lbl">{m.icon} {m.label}</span>
                     <span className="det">{m.blurb}</span>
-                    <span className="stakes"><b className="green">✓ {m.good}</b> <b className="red">✗ {m.bad}</b></span>
+                    <span className="stakes"><b className="green"><Icon name="check" size={11} /> {m.good}</b> <b className="red"><Icon name="cross" size={11} /> {m.bad}</b></span>
                   </button>
                 ); })}
               </div>
@@ -216,7 +219,7 @@ function Planner() {
                     <button type="button" key={k} className={`opt${on ? ' sel' : ''}`} disabled={insideOff} onClick={() => setApproach(on ? undefined : k)}>
                       <span className="lbl">{a.icon} {a.label} <span className="odds" style={{ float: 'right' }}>{select.opChance(w, kind!, crewIds, k, target)}%</span></span>
                       <span className="det">{a.blurb}{k === 'inside' && insiders.length ? ` ${insiders[0].name} would do it.` : ''}</span>
-                      <span className="stakes"><b className="green">✓ {a.good}</b> <b className="red">✗ {a.bad}</b></span>
+                      <span className="stakes"><b className="green"><Icon name="check" size={11} /> {a.good}</b> <b className="red"><Icon name="cross" size={11} /> {a.bad}</b></span>
                       {insideOff && <span className="cst">{def.target !== 'business' ? 'Needs a place as the target.' : 'Nobody there trusts you enough yet (trust 35+).'}</span>}
                     </button>
                   ); })}
@@ -236,7 +239,7 @@ function Planner() {
               <div className="list">
                 {idle.map(n => { const on = crewIds.includes(n.id); return (
                   <button type="button" key={n.id} className={`check${on ? ' on' : ''}`} onClick={() => toggle(n.id)}>
-                    <span className="box">{on ? '✓' : ''}</span>
+                    <span className="box">{on && <Icon name="check" size={13} />}</span>
                     <div className="grow"><div className="bold">{n.name}</div><div className="small muted">{SKILL_KEYS.filter(k => def.needs[k]).map(k => `${k} ${n.skills[k]}`).join(' · ')}</div></div>
                   </button>
                 ); })}
@@ -275,7 +278,7 @@ function LawPrice({ kind, target }: { kind: OpKind; target: { npcId?: Id; caseId
   return (
     <div className="card mt8" style={{ borderColor: posture === 'Routine' ? 'var(--blue)' : 'var(--red)' }}>
       <div className="row between">
-        <b className="small">🚔 {a?.name ?? 'The law'}<Info id="lawJob" /><Info id="posture" /></b>
+        <b className="small"><Icon name="precinct" size={13} /> {a?.name ?? 'The law'}<Info id="lawJob" /><Info id="posture" /></b>
         <span className={`chip ${posture === 'Routine' ? '' : 'red'}`}>{posture}</span>
       </div>
       <p className="small muted mt8" style={{ margin: '8px 0 0' }}>{why}</p>

@@ -1,11 +1,12 @@
 import { useEffect, useRef, type ReactNode, type TouchEvent } from 'react';
 import { backSheet, closeSheets, useStore } from '@ui/store';
+import { Icon } from '@ui/icons';
 
 const SWIPE_CLOSE_PX = 90;
 
 /**
  * Generic bottom sheet. Back pops the sheet stack; close clears it. Closes on backdrop tap,
- * the ✕, a swipe down on the handle/header, or the big Close at the bottom of the body.
+ * the close button, a swipe down on the handle/header, or the big Close at the bottom of the body.
  * Never covers the HUD, and lifts itself above the on-screen keyboard while an input has focus.
  * `onClose` / `onBack` override the sheet-stack behaviour for sheets that live outside it (help).
  */
@@ -53,13 +54,13 @@ export function Sheet({ title, subtitle, icon, children, accent, onClose, onBack
         <div className="sheet-handle" onTouchStart={onStart} onTouchMove={onMove} onTouchEnd={onEnd} onTouchCancel={onEnd}>
           <div className="sheet-grab" />
           <div className="sheet-head">
-            {back && <button type="button" className="iconbtn" onClick={back} aria-label="Back">‹</button>}
-            {icon && <span style={{ fontSize: 24, flex: 'none' }}>{icon}</span>}
+            {back && <button type="button" className="iconbtn" onClick={back} aria-label="Back"><Icon name="caret" size={16} className="rot90" /></button>}
+            {icon && <span className="sheet-ico">{typeof icon === 'string' ? <Icon name={icon} size={20} /> : icon}</span>}
             <div className="grow" style={{ minWidth: 0 }}>
               <div className="sheet-title ellipsis">{title}</div>
               {subtitle && <div className="sheet-sub ellipsis">{subtitle}</div>}
             </div>
-            <button type="button" className="iconbtn" onClick={close} aria-label="Close">✕</button>
+            <button type="button" className="iconbtn" onClick={close} aria-label="Close"><Icon name="cross" size={16} /></button>
           </div>
         </div>
         <div className="sheet-body">

@@ -5,6 +5,7 @@ import type { Id, ProductKind } from '@sim/types';
 import { PRODUCTS, fmtMoney, playerSafehouses } from '@ui/derive';
 import { act, useWorld } from '@ui/store';
 import { Info, Term, TermChip } from './Info';
+import { Icon, IconTile } from '@ui/icons';
 
 /**
  * What you are holding, where it is, and what it is worth.
@@ -54,8 +55,8 @@ export function Inventory() {
 
           <div className="section-title" style={{ marginTop: 18 }}>Where it is</div>
           <div className="col" style={{ gap: 6 }}>
-            {carried.length > 0 && <PlaceRow id="player" name="On you" icon="🚶" />}
-            {stocked.map(s => <PlaceRow key={s.id} id={s.id} name={s.name} icon="🏠" />)}
+            {carried.length > 0 && <PlaceRow id="player" name="On you" icon="legwork" />}
+            {stocked.map(s => <PlaceRow key={s.id} id={s.id} name={s.name} icon="safehouse" />)}
             {carried.length === 0 && stocked.length === 0 && <p className="small muted">All of it is somewhere you have not listed.</p>}
             {empty.length > 0 && (
               <>
@@ -64,7 +65,7 @@ export function Inventory() {
                 </button>
                 {showEmpty && empty.map(s => (
                   <div key={s.id} className="shelfitem" style={{ opacity: 0.55 }}>
-                    <span className="ico">🏠</span>
+                    <span className="ico"><Icon name="safehouse" size={18} /></span>
                     <div className="shelf-body"><div className="shelf-head"><b className="shelf-name">{s.name}</b><span className="shelf-price muted">empty</span></div></div>
                   </div>
                 ))}
@@ -92,7 +93,7 @@ function ProductRow({ product }: { product: ProductKind }) {
 
   return (
     <div className="shelfitem">
-      <span className="ico">{info.icon}</span>
+      <IconTile of="product" id={product} size={32} tone={onYou > 0 ? 'gold' : 'muted'} />
       <div className="shelf-body">
         <div className="shelf-head">
           <b className="shelf-name">{style ? RECIPES[style].label : info.label}</b>
@@ -169,20 +170,20 @@ function PlaceRow({ id, name, icon }: { id: Id | 'player'; name: string; icon: s
   const automation = house ? house.productionIds.map(pid => ({ pr: w.productions[pid], boss: select.foremanOf(w, pid) })).filter(x => x.pr) : [];
   return (
     <div className="shelfitem">
-      <span className="ico">{icon}</span>
+      <IconTile name={icon} size={30} />
       <div className="shelf-body">
         <div className="shelf-head">
           <b className="shelf-name">{name}</b>
           {house && <span className="shelf-price muted">{Math.round(used)}/{house.capacity}</span>}
         </div>
         <div className="shelf-meta">
-          {held.map(p => <span key={p} className="tinychip">{PRODUCT_INFO[p].icon} {Math.round(stash[p])} {PRODUCT_INFO[p].label}</span>)}
+          {held.map(p => <span key={p} className="tinychip"><Icon of="product" id={p} size={11} /> {Math.round(stash[p])} {PRODUCT_INFO[p].label}</span>)}
           {!held.length && <span className="tinychip">empty</span>}
         </div>
         {automation.map(({ pr, boss }) => (
           <p key={pr!.id} className="shelf-detail">
             {boss
-              ? <><span className="gold">⚙️ {boss.name} is running it</span> — {pr!.recipe ? RECIPES[pr!.recipe].label : 'house standard'}, {pr!.lastOutput}/day, restocks and switches recipes on its own.</>
+              ? <><span className="gold"><Icon name="foreman" size={12} /> {boss.name} is running it</span> — {pr!.recipe ? RECIPES[pr!.recipe].label : 'house standard'}, {pr!.lastOutput}/day, restocks and switches recipes on its own.</>
               : <>Making {pr!.recipe ? RECIPES[pr!.recipe].label : 'the house standard'}, {pr!.lastOutput}/day. No foreman — you are picking the recipe by hand.</>}
           </p>
         ))}

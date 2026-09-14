@@ -2,6 +2,7 @@ import { select } from '@sim/index';
 import type { Id } from '@sim/types';
 import { act, useWorld } from '@ui/store';
 import { Info, Term } from './Info';
+import { Icon } from '@ui/icons';
 
 /**
  * "Walk here". Shows what the trip costs in legwork and why it is not possible when it
@@ -16,7 +17,7 @@ export function WalkHere({ blockId, what, block = true }: { blockId?: Id; what?:
   return (
     <div className="actwrap">
       <button type="button" className={`btn btn-primary${block ? ' btn-block' : ''}`} disabled={!canAfford} onClick={() => act({ type: 'move', toBlockId: blockId })}>
-        <span>🚶 Walk to {name}</span>
+        <span><Icon name="legwork" size={14} /> Walk to {name}</span>
         <span className="cost">{cost === undefined ? '—' : cost === 0 ? 'free' : `${cost} legwork`}</span>
       </button>
       {cost === undefined
@@ -38,7 +39,7 @@ export function AwayNotice({ blockId, what }: { blockId?: Id; what: string }) {
   if (!blockId || !w.blocks[blockId] || select.isHere(w, blockId)) return null;
   return (
     <div className="card mt8" style={{ borderColor: 'var(--orange)' }}>
-      <b>🚶 You are not there.<Info id="presence" /></b>
+      <b><Icon name="legwork" size={14} /> You are not there.<Info id="presence" /></b>
       <p className="small muted mt8">
         Face-to-face business needs you on the block. {what} is on {w.blocks[blockId].name}; you are on {select.currentBlock(w)?.name ?? 'another block'}.
         {' '}<Term id="legwork">Legwork</Term> is separate from AP and refills every day.

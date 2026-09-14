@@ -4,7 +4,11 @@
  * Two things brought this on. A player reported the stash summary rendering a picture-frame
  * placeholder where Booze's icon should be — the cause was an emoji too new to render on their
  * device, fixed at the root and guarded by sim/emoji-support.test.ts, and regression-covered
- * here at the screen where they actually saw it. And the screen itself: a one-line summary over
+ * here at the screen where they actually saw it. The visual pass took the last of that class of
+ * bug away: the glyph is drawn by us now, so the check below is that the *drawing* reached the
+ * screen rather than that a particular codepoint did. The emoji still exist in `/content` as
+ * data and are still guarded there; nothing on a screen depends on the device having them.
+ * And the screen itself: a one-line summary over
  * a list that named every safehouse whether or not anything was in it, with moving hidden behind
  * a form whose 5/10/25 presets were useless to somebody holding two units.
  *
@@ -37,7 +41,7 @@ describe('every product shows its identity next to its quantity', () => {
     for (const p of PRODUCTS) w.player.stash[p] = 7;
     const html = render(w);
     for (const p of PRODUCTS) {
-      expect(html, `${p} has no icon on screen`).toContain(PRODUCT_INFO[p].icon);
+      expect(html, `${p} has no icon on screen`).toContain(`data-icon="${p}"`);
       expect(html, `${p} has no label on screen`).toContain(PRODUCT_INFO[p].label);
     }
   });
@@ -46,13 +50,11 @@ describe('every product shows its identity next to its quantity', () => {
     const w = mk();
     w.player.stash.booze = 1;
     const html = render(w);
-    expect(html).toContain(PRODUCT_INFO.booze.icon);
+    expect(html).toContain('data-icon="booze"');
     expect(html).toContain('Booze');
-    // and the icon is one that actually renders — the root cause, asserted here too
-    for (const ch of PRODUCT_INFO.booze.icon) {
-      const cp = ch.codePointAt(0)!;
-      expect(cp < 0x1F900 || cp > 0x1F9FF, 'the booze icon is from a range that tofus').toBe(true);
-    }
+    // it is our drawing, so it renders the same everywhere: stroked paths, no font involved
+    expect(html).toMatch(/data-icon="booze"[^>]*>\s*<path/);
+    expect(html, 'an emoji got back onto this screen').not.toContain(PRODUCT_INFO.booze.icon);
   });
 
   it('never shows a bare quantity with no product beside it', () => {

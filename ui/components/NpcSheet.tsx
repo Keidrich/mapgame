@@ -12,6 +12,7 @@ import { AwayNotice } from './Walk';
 import { NoteEditor } from './Note';
 import { LedgerPanel } from './Ledger';
 import { whereabouts } from './SocialTab';
+import { Icon, IconTile } from '@ui/icons';
 
 export function NpcSheet({ npcId }: { npcId: Id }) {
   const w = useWorld();
@@ -58,7 +59,7 @@ export function NpcSheet({ npcId }: { npcId: Id }) {
       </dl>
       {n.playerNote && (
         <div className="card mt12" style={{ borderColor: 'var(--gold)' }}>
-          <b className="small gold">📝 Your note</b>
+          <b className="small gold"><Icon name="note" size={13} /> Your note</b>
           <p className="small" style={{ margin: '4px 0 0' }}>{n.playerNote}</p>
         </div>
       )}
@@ -67,24 +68,24 @@ export function NpcSheet({ npcId }: { npcId: Id }) {
       <Connections npcId={npcId} />
       {/* the sim's own flavour, kept separate from the player's note above */}
       {n.notes.length > 0 && <ul className="small muted mt8" style={{ paddingLeft: 18, margin: 0 }}>{n.notes.map((x, i) => <li key={i}>{x}</li>)}</ul>}
-      <Disclosure label={n.playerNote ? 'Edit your note' : 'Make a note'} icon="📝"><NoteEditor npcId={npcId} /></Disclosure>
+      <Disclosure label={n.playerNote ? 'Edit your note' : 'Make a note'} icon="note"><NoteEditor npcId={npcId} /></Disclosure>
 
       {n.crew && <CrewSection npcId={npcId} />}
 
       <AwayNotice blockId={select.npcReachBlock(w, n)} what={n.name} />
       <div className="section-title">Actions<Info id="odds" /></div>
       <div className="actions">
-        {!select.isKnown(n) && n.alive && <Act action={{ type: 'read', npcId }} label="Size them up" icon="🔍" />}
-        <SceneAct scene={{ kind: 'visit', npcId }} label="Visit" icon="👥" />
-        <SceneAct scene={{ kind: 'threaten', npcId }} label="Threaten" icon="😠" kind="danger" />
-        <Disclosure label="Gift" icon="🎁">
+        {!select.isKnown(n) && n.alive && <Act action={{ type: 'read', npcId }} label="Size them up" icon="search" />}
+        <SceneAct scene={{ kind: 'visit', npcId }} label="Visit" icon="crew" />
+        <SceneAct scene={{ kind: 'threaten', npcId }} label="Threaten" icon="intimidate" kind="danger" />
+        <Disclosure label="Gift" icon="gift">
           <AmountPicker presets={[100, 500, 2000]} value={gift} onChange={setGift} min={1} />
           <div className="mt8"><Act action={{ type: 'gift', npcId, amount: gift }} label={`Give ${fmtMoney(gift)}`} kind="primary" block /></div>
         </Disclosure>
-        {canRecruit && <SceneAct scene={{ kind: 'recruit', npcId }} label="Recruit" icon="👤" kind="primary" />}
+        {canRecruit && <SceneAct scene={{ kind: 'recruit', npcId }} label="Recruit" icon="person" kind="primary" />}
         {n.role === 'fixer' && n.alive && <FixerAct npcId={npcId} />}
         {n.official && (
-          <Disclosure label={`Bribe the ${n.official.kind}`} icon="💼" kind="primary">
+          <Disclosure label={`Bribe the ${n.official.kind}`} icon="collect" kind="primary">
             <p className="small muted">{OFFICIAL_BLURB[n.official.kind]}</p>
             <AmountPicker presets={[1000, 2500, 5000, 10000]} value={bribe} onChange={setBribe} min={1} />
             <div className="mt8"><Act action={{ type: 'bribe_official', npcId, amount: bribe }} label={`Pay ${fmtMoney(bribe)}`} kind="primary" block /></div>
@@ -109,7 +110,7 @@ function FixerAct({ npcId }: { npcId: Id }) {
   const left = select.fixerCapLeft(w, n);
   const back = Math.round(Math.min(amount, left, w.player.dirty) * rate);
   return (
-    <Disclosure label="Wash money" icon="♻️" kind="primary">
+    <Disclosure label="Wash money" icon="laundering" kind="primary">
       <p className="small muted">
         {Math.round(rate * 100)} cents on the dollar, up to {fmtMoney(cap)} a day — {fmtMoney(left)} left today.
         Both get better as {n.name.split(' ')[0]} comes to trust you, and neither ever matches a <Term id="laundering">laundering racket</Term> of your own.
@@ -132,21 +133,21 @@ function TapPanel({ npcId }: { npcId: Id }) {
   const n = w.npcs[npcId];
   if (!n?.tap) {
     if (!n?.ratted) return null;
-    return <p className="tiny muted mt8">🕳️ You have been inside their business. <Term id="ratted">That is what wire fraud reads.</Term></p>;
+    return <p className="tiny muted mt8"><Icon name="rat" size={12} /> You have been inside their business. <Term id="ratted">That is what wire fraud reads.</Term></p>;
   }
   const days = select.daysTapped(w, n);
   const risk = Math.round(select.tapRisk(w, n) * 100);
   return (
     <div className="card mt12" style={{ borderColor: risk >= 25 ? 'var(--red)' : 'var(--gold)' }}>
       <div className="row between">
-        <b className="small">📻 You are listening<Info id="tap" /></b>
+        <b className="small"><Icon name="rat" size={13} /> You are listening<Info id="tap" /></b>
         <span className={`chip ${risk >= 25 ? 'red' : ''}`}>{risk}% a day they find it</span>
       </div>
       <p className="small muted mt8" style={{ margin: '8px 0 0' }}>
         {days === 0 ? 'Went on today.' : `Running ${days} day${days === 1 ? '' : 's'}.`} Every day it runs is a day it is likelier to be found,
         and being found costs you everything they thought of you.
       </p>
-      <div className="mt8"><Act action={{ type: 'pull_tap', npcId }} label="Take it off" icon="🔌" kind="ghost" block /></div>
+      <div className="mt8"><Act action={{ type: 'pull_tap', npcId }} label="Take it off" icon="cross" kind="ghost" block /></div>
     </div>
   );
 }
@@ -203,19 +204,19 @@ function CrewSection({ npcId }: { npcId: Id }) {
   const n = w.npcs[npcId];
   const c = n?.crew;
   if (!n || !c) return null;
-  const options: { label: string; a: Assignment }[] = [];
-  for (const r of playerRackets(w)) if (!r.runnerId || r.runnerId === npcId) options.push({ label: `${RACKET_DEFS[r.kind].icon} ${RACKET_DEFS[r.kind].label} at ${w.businesses[r.businessId]?.name ?? '?'}`, a: { kind: 'racket', racketId: r.id } });
-  for (const sh of playerSafehouses(w)) for (const pid of sh.productionIds) { const p = w.productions[pid]; if (p && (!p.workerId || p.workerId === npcId)) options.push({ label: `${PRODUCTION_DEFS[p.kind].icon} ${PRODUCTION_DEFS[p.kind].label} at ${sh.name}`, a: { kind: 'production', productionId: pid } }); }
-  for (const b of select.playerBlocks(w)) options.push({ label: `💪 Guard ${b.name}`, a: { kind: 'guard', blockId: b.id } });
-  options.push({ label: '💰 Collect', a: { kind: 'collect' } });
-  options.push({ label: '💻 On the wire (work the cards)', a: { kind: 'hack' } });
+  const options: { label: string; a: Assignment; ico: string }[] = [];
+  for (const r of playerRackets(w)) if (!r.runnerId || r.runnerId === npcId) options.push({ label: `${RACKET_DEFS[r.kind].label} at ${w.businesses[r.businessId]?.name ?? '?'}`, a: { kind: 'racket', racketId: r.id }, ico: r.kind });
+  for (const sh of playerSafehouses(w)) for (const pid of sh.productionIds) { const p = w.productions[pid]; if (p && (!p.workerId || p.workerId === npcId)) options.push({ label: `${PRODUCTION_DEFS[p.kind].label} at ${sh.name}`, a: { kind: 'production', productionId: pid }, ico: p.kind }); }
+  for (const b of select.playerBlocks(w)) options.push({ label: `Guard ${b.name}`, a: { kind: 'guard', blockId: b.id }, ico: 'guard' });
+  options.push({ label: 'Collect', a: { kind: 'collect' }, ico: 'collect' });
+  options.push({ label: 'On the wire (work the cards)', a: { kind: 'hack' }, ico: 'hack' });
   // a foreman is the production assignment with its head up: recipe, ingredients and output
   for (const sh of playerSafehouses(w)) for (const pid of sh.productionIds) {
     const pr = w.productions[pid]; if (!pr) continue;
     const taken = select.foremanOf(w, pid);
-    if (!taken || taken.id === npcId) options.push({ label: `⚙️ Run the ${PRODUCTION_DEFS[pr.kind].label.toLowerCase()} at ${sh.name}`, a: { kind: 'foreman', productionId: pid } });
+    if (!taken || taken.id === npcId) options.push({ label: `Run the ${PRODUCTION_DEFS[pr.kind].label.toLowerCase()} at ${sh.name}`, a: { kind: 'foreman', productionId: pid }, ico: 'foreman' });
   }
-  for (const d of select.districtsRunnable(w)) { const cur = select.lieutenantOf(w, d.id); if (!cur || cur.id === npcId) options.push({ label: `⭐ Run ${d.name}`, a: { kind: 'lieutenant', districtId: d.id } }); }
+  for (const d of select.districtsRunnable(w)) { const cur = select.lieutenantOf(w, d.id); if (!cur || cur.id === npcId) options.push({ label: `Run ${d.name}`, a: { kind: 'lieutenant', districtId: d.id }, ico: 'lieutenant' }); }
   const [pick, setPick] = useState(0);
   const picked = options[pick]?.a;
   const lt = c.assignment?.kind === 'lieutenant' ? w.districts[c.assignment.districtId] : undefined;
@@ -232,17 +233,21 @@ function CrewSection({ npcId }: { npcId: Id }) {
         <p className="small mt8"><Term id="assignment">{assignmentLabel(w, c.assignment)}</Term></p>
         {lt && (
           <div className="card mt8">
-            <div className="row between"><b>⭐ <Term id="lieutenant">Lieutenant</Term>, {lt.name}</b><span className="small muted">{fmtMoney(ltIncome)}/day from rackets there</span></div>
+            <div className="row between"><b><Icon name="lieutenant" size={13} /> <Term id="lieutenant">Lieutenant</Term>, {lt.name}</b><span className="small muted">{fmtMoney(ltIncome)}/day from rackets there</span></div>
             <p className="small muted mt8">Covers rackets with no runner, runs off rival muscle, firms up your blocks. Costs more. The book is theirs to keep, honestly or not.</p>
-            <div className="mt8"><Act action={{ type: 'audit', npcId }} label="Go over the books" icon="📒" block /><Info id="audit" /></div>
+            <div className="mt8"><Act action={{ type: 'audit', npcId }} label="Go over the books" icon="accountant" block /><Info id="audit" /></div>
           </div>
         )}
         {c.status !== 'dead' && (
           <div className="mt8">
             <label className="field"><Term id="assignment">Assignment</Term></label>
-            <select className="select" value={pick} onChange={e => setPick(Number(e.target.value))}>
-              {options.map((o, i) => <option key={i} value={i}>{o.label}</option>)}
-            </select>
+            {/* a native select cannot hold a drawing, so the icon for what is picked sits beside it */}
+            <div className="row">
+              <IconTile name={options[pick]?.ico ?? 'crew'} size={40} tone="gold" />
+              <select className="select grow" value={pick} onChange={e => setPick(Number(e.target.value))}>
+                {options.map((o, i) => <option key={i} value={i}>{o.label}</option>)}
+              </select>
+            </div>
             {picked?.kind === 'lieutenant' && <p className="small muted mt8">Needs loyalty 50, five days in the crew, and some muscle, brains and charm between them. Their cut goes up by half.</p>}
             {picked?.kind === 'foreman' && <p className="small muted mt8">They keep it on the best recipe you know, buy ingredients when it runs dry, and move the output somewhere with room — without being asked. They count as the worker too.</p>}
             {picked?.kind === 'hack' && <p className="small muted mt8">They work the card pile all day and hand over most of what it makes — nothing in your handwriting, but a little wire heat every day. They will not bother unless you are holding at least three live cards. Tech is what makes them worth it.</p>}
@@ -252,7 +257,7 @@ function CrewSection({ npcId }: { npcId: Id }) {
             </div>
           </div>
         )}
-        <div className="mt8"><Act action={{ type: 'fire', npcId }} label="Fire" icon="🚪" kind="danger" confirm={`Fire ${n.name}?`} /></div>
+        <div className="mt8"><Act action={{ type: 'fire', npcId }} label="Fire" icon="spring_crew" kind="danger" confirm={`Fire ${n.name}?`} /></div>
       </div>
     </>
   );
@@ -338,20 +343,20 @@ function StandingPlays({ npcId }: { npcId: Id }) {
       <div className="section-title">Standing arrangements<Info id="asset" /></div>
       {asset ? (
         <p className="small">
-          <b className="green">{asset.kind === 'informant' ? '📞 Your ears' : '💪 Your hands'}</b>{' '}
+          <b className="green"><Icon name={asset.kind === 'informant' ? 'rat' : 'fist'} size={12} /> {asset.kind === 'informant' ? 'Your ears' : 'Your hands'}</b>{' '}
           since day {asset.since} · used {asset.used} time{asset.used === 1 ? '' : 's'}
           {asset.factionId && <> · hears around {select.factionName(w, asset.factionId)}</>}
           {select.goneCold(w, n) && <span className="orange"> · gone quiet; ask them for something</span>}
         </p>
       ) : (
         <div className="actions">
-          <Act action={{ type: 'turn_asset', npcId: n.id, kind: 'informant' }} label="Ask them to keep their ears open" icon="📞" />
-          <Act action={{ type: 'turn_asset', npcId: n.id, kind: 'muscle' }} label="Ask them to turn up when it goes wrong" icon="💪" />
+          <Act action={{ type: 'turn_asset', npcId: n.id, kind: 'informant' }} label="Ask them to keep their ears open" icon="boiler_room" />
+          <Act action={{ type: 'turn_asset', npcId: n.id, kind: 'muscle' }} label="Ask them to turn up when it goes wrong" icon="protection" />
         </div>
       )}
       {canDefect && (
         <div className="actions mt8">
-          <Act action={{ type: 'defect', npcId: n.id }} label={`Ask ${select.nemesisName(n).split(' ')[0]} to walk`} icon="🚪" kind="danger" />
+          <Act action={{ type: 'defect', npcId: n.id }} label={`Ask ${select.nemesisName(n).split(' ')[0]} to walk`} icon="spring_crew" kind="danger" />
         </div>
       )}
       {refs.length > 0 && (
@@ -359,7 +364,7 @@ function StandingPlays({ npcId }: { npcId: Id }) {
           <div className="section-title">An introduction<Info id="referral" /></div>
           <p className="small muted">{n.name} could put their name to you with somebody they know. A stranger stops being one.</p>
           <div className="actions">
-            {refs.map(r => <Act key={r.id} action={{ type: 'introduce', npcId: n.id, toNpcId: r.id }} label={r.name} icon="👋" />)}
+            {refs.map(r => <Act key={r.id} action={{ type: 'introduce', npcId: n.id, toNpcId: r.id }} label={r.name} icon="crew" />)}
           </div>
         </>
       )}

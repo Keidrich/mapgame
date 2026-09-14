@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { select } from '@sim/index';
 import { PLAYER, type Id, type ProductKind, type Safehouse, type World } from '@sim/types';
-import { AUTHORITY_KINDS, POSTURES } from '@content/authority';
+import { POSTURES } from '@content/authority';
 import { PRODUCTION_DEFS, PRODUCTION_UPGRADE_MULT, PRODUCT_INFO, RACKET_DEFS, RECIPES, SAFEHOUSE_TIERS } from '@content/rackets';
 import { PRODUCTS, crewName, districtName, fmtMoney, influenceRows, safehouseAt, stashLine } from '@ui/derive';
 import { openSheet, useWorld } from '@ui/store';
@@ -11,6 +11,7 @@ import { Act, AmountPicker, Disclosure, SceneAct } from './Act';
 import { BizRow } from './Rows';
 import { Info, Term, TermChip } from './Info';
 import { WalkHere } from './Walk';
+import { Icon } from '@ui/icons';
 
 export function BlockSheet({ blockId }: { blockId: Id }) {
   const w = useWorld();
@@ -26,7 +27,7 @@ export function BlockSheet({ blockId }: { blockId: Id }) {
   const closeness = w.districts[b.districtId]?.closeness;
 
   return (
-    <Sheet title={b.name} subtitle={`${districtName(w, b)} · ${select.factionName(w, ctrl)}${ctrl ? ' turf' : ''}${b.tags.includes('home') ? ' · 🏠 Home turf' : ''}`} accent={select.factionColor(w, ctrl)}>
+    <Sheet title={b.name} subtitle={`${districtName(w, b)} · ${select.factionName(w, ctrl)}${ctrl ? ' turf' : ''}${b.tags.includes('home') ? ' · home turf' : ''}`} accent={select.factionColor(w, ctrl)}>
       {(b.tags.includes('home') || b.tags.includes('school') || b.tags.includes('police') || select.nearPolice(w, b.id)) && (
         <div className="chips mb8">
           {b.tags.includes('home') && <TermChip id="homeTurf" tone="var(--gold)">Home turf</TermChip>}
@@ -38,7 +39,7 @@ export function BlockSheet({ blockId }: { blockId: Id }) {
       <div className="row between mb8"><span className="small muted"><Term id="influence">Influence</Term></span></div>
       {select.isHere(w, b.id)
         ? <div className="chips mb8">
-            <span className="chip" style={{ color: 'var(--gold)' }}>🚶 You are here</span>
+            <span className="chip" style={{ color: 'var(--gold)' }}><Icon name="you" size={12} /> You are here</span>
             {ctrl === PLAYER && <TermChip id="turf" tone="var(--green)">Your turf: free to move through</TermChip>}
           </div>
         : <div className="mb8">
@@ -67,7 +68,7 @@ export function BlockSheet({ blockId }: { blockId: Id }) {
       {b.abandoned && (
         <div className="card mt12" style={{ borderColor: b.abandoned.claimedBy === PLAYER ? 'var(--green)' : 'var(--orange)' }}>
           <div className="row between">
-            <b>🏚️ Derelict</b>
+            <b><Icon name="claim_abandoned" size={14} /> Derelict</b>
             <TermChip id={b.abandoned.claimedBy === PLAYER ? 'claimed' : 'abandoned'} tone={b.abandoned.claimedBy === PLAYER ? 'var(--green)' : undefined}>
               {b.abandoned.claimedBy === PLAYER ? 'Yours' : b.abandoned.claimedBy ? select.factionName(w, b.abandoned.claimedBy) : 'Unclaimed'}
             </TermChip>
@@ -81,28 +82,28 @@ export function BlockSheet({ blockId }: { blockId: Id }) {
       )}
       {crew && (
         <div className="card mt12" style={{ borderColor: '#9a7b4f' }}>
-          <div className="row between"><b>🚩 The {crew.name}<Info id="streetCrew" /></b><span className="chip">{crew.tribute === PLAYER ? 'On your payroll' : crew.tribute ? `Under ${select.factionName(w, crew.tribute)}` : `Strength ${Math.round(crew.strength)}`}</span></div>
+          <div className="row between"><b><Icon name="takeover" size={14} /> The {crew.name}<Info id="streetCrew" /></b><span className="chip">{crew.tribute === PLAYER ? 'On your payroll' : crew.tribute ? `Under ${select.factionName(w, crew.tribute)}` : `Strength ${Math.round(crew.strength)}`}</span></div>
           <p className="small muted" style={{ margin: '6px 0' }}>{w.npcs[crew.bossId]?.name} and {crew.soldierIds.length} soldiers hold this corner.{!crew.tribute ? ' Your rackets here pay them a street tax until you deal with them. Left alone, they grow.' : ''}</p>
           <button type="button" className="chip btn mb8" onClick={() => openSheet({ kind: 'npc', npcId: crew.bossId })}>{w.npcs[crew.bossId]?.name}</button>
           {crew.funded && (() => {
             const r = select.fundedRacket(w, crew); const rb = r ? w.businesses[r.businessId] : undefined;
             return (
               <p className="small" style={{ margin: '6px 0' }}>
-                💼 <b>Staked<Info id="stakedCrew" /></b>: they run {r ? RACKET_DEFS[r.kind].label.toLowerCase() : 'something'}{rb ? ` at ${rb.name}` : ''} and send you {Math.round(crew.funded.kick * 100)}%. {fmtMoney(crew.funded.paid)} so far{crew.funded.noticed ? `, and about ${fmtMoney(crew.funded.skimmed)} that never arrived` : ''}.
+                <Icon name="collect" size={13} /> <b>Staked<Info id="stakedCrew" /></b>: they run {r ? RACKET_DEFS[r.kind].label.toLowerCase() : 'something'}{rb ? ` at ${rb.name}` : ''} and send you {Math.round(crew.funded.kick * 100)}%. {fmtMoney(crew.funded.paid)} so far{crew.funded.noticed ? `, and about ${fmtMoney(crew.funded.skimmed)} that never arrived` : ''}.
               </p>
             );
           })()}
           {!crew.tribute && (
             <div className="actions">
-              <SceneAct scene={{ kind: 'parley', npcId: crew.bossId }} label="Parley" icon="🗣️" kind="primary" />
-              <Act action={{ type: 'plan_op', kind: 'takeover', crewIds: select.idleCrew(w).slice(0, 3).map(n => n.id), targetBlockId: b.id }} label="Take the corner" icon="🚩" kind="danger" />
+              <SceneAct scene={{ kind: 'parley', npcId: crew.bossId }} label="Parley" icon="crew" kind="primary" />
+              <Act action={{ type: 'plan_op', kind: 'takeover', crewIds: select.idleCrew(w).slice(0, 3).map(n => n.id), targetBlockId: b.id }} label="Take the corner" icon="takeover" kind="danger" />
             </div>
           )}
         </div>
       )}
       <div className="section-title">Demand / day<Info id="demand" /></div>
       <div className="chips">
-        {PRODUCTS.map(p => <span key={p} className="chip">{PRODUCT_INFO[p].icon} {PRODUCT_INFO[p].label} <span className="muted">{b.demand[p]}</span></span>)}
+        {PRODUCTS.map(p => <span key={p} className="chip"><Icon of="product" id={p} size={12} /> {PRODUCT_INFO[p].label} <span className="muted">{b.demand[p]}</span></span>)}
       </div>
 
       <div className="section-title">Businesses ({b.businessIds.length})</div>
@@ -114,11 +115,11 @@ export function BlockSheet({ blockId }: { blockId: Id }) {
         <div className="section-title">Safehouse</div>
       )}
       <div className="actions mt8">
-        {!sh && <Act action={{ type: 'rent_safehouse', blockId }} label={b.abandoned?.claimedBy === PLAYER ? 'Move in (free)' : 'Rent safehouse here'} icon="🏠" kind="primary" />}
-        <Disclosure label="Sell product here" icon="💊">
+        {!sh && <Act action={{ type: 'rent_safehouse', blockId }} label={b.abandoned?.claimedBy === PLAYER ? 'Move in (free)' : 'Rent safehouse here'} icon="safehouse" kind="primary" />}
+        <Disclosure label="Sell product here" icon="pills">
           <label className="field">Product (you carry {stashLine(carried)})</label>
           <div className="chips mb8">
-            {PRODUCTS.map(p => <button type="button" key={p} className={`chip btn${product === p ? ' sel' : ''}`} onClick={() => setProduct(p)}>{PRODUCT_INFO[p].icon} {PRODUCT_INFO[p].label} <span className="muted">×{Math.round(carried[p])}</span></button>)}
+            {PRODUCTS.map(p => <button type="button" key={p} className={`chip btn${product === p ? ' sel' : ''}`} onClick={() => setProduct(p)}><Icon of="product" id={p} size={12} /> {PRODUCT_INFO[p].label} <span className="muted">×{Math.round(carried[p])}</span></button>)}
           </div>
           <label className="field">Amount (demand here {b.demand[product]}/day, ~{fmtMoney(PRODUCT_INFO[product].price)} each)</label>
           <AmountPicker presets={[1, 5, 10, 25]} prefix="" value={amount} onChange={setAmount} min={1} />
@@ -134,13 +135,13 @@ function SafehouseCard({ w, sh }: { w: World; sh: Safehouse }) {
   const tier = SAFEHOUSE_TIERS[sh.tier - 1];
   const idle = select.idleCrew(w);
   const [restock, setRestock] = useState(7);
-  if (!yours) return <div className="card mt12"><b>🏠 {sh.name}</b><div className="small muted">{select.factionName(w, sh.owner)} safehouse. {tier?.label ?? `Tier ${sh.tier}`}.</div></div>;
+  if (!yours) return <div className="card mt12"><b><Icon name="safehouse" size={14} /> {sh.name}</b><div className="small muted">{select.factionName(w, sh.owner)} safehouse. {tier?.label ?? `Tier ${sh.tier}`}.</div></div>;
   const used = PRODUCTS.reduce((a, p) => a + sh.stash[p], 0);
   return (
     <div className="card gold mt12">
-      <div className="row between"><b>🏠 {sh.name}</b><span className="chip">{tier?.label ?? 'Safehouse'} · T{sh.tier}</span></div>
+      <div className="row between"><b><Icon name="safehouse" size={14} /> {sh.name}</b><span className="chip">{tier?.label ?? 'Safehouse'} · T{sh.tier}</span></div>
       <dl className="kv mt8">
-        <dt><Term id="stash">Stash</Term></dt><dd>{stashLine(sh.stash)} <span className="muted">({Math.round(used)}/{sh.capacity})</span>{PRODUCTS.filter(p => sh.stash[p] > 0 && p !== 'hot_goods').map(p => <TermChip key={p} id="quality" style={{ marginLeft: 4 }}>{PRODUCT_INFO[p].icon} q{select.qualityOf(sh, p)}</TermChip>)}</dd>
+        <dt><Term id="stash">Stash</Term></dt><dd>{stashLine(sh.stash)} <span className="muted">({Math.round(used)}/{sh.capacity})</span>{PRODUCTS.filter(p => sh.stash[p] > 0 && p !== 'hot_goods').map(p => <TermChip key={p} id="quality" style={{ marginLeft: 4 }}><Icon of="product" id={p} size={11} /> q{select.qualityOf(sh, p)}</TermChip>)}</dd>
         <dt><Term id="hiddenCash">Hidden cash</Term></dt><dd className="orange">{fmtMoney(sh.cash)}</dd>
         <dt>Rent</dt><dd>{fmtMoney((tier?.rent ?? 0) / 30)}/day · <Term id="beds">beds</Term> {tier?.crewBeds ?? '?'}</dd>
       </dl>
@@ -159,9 +160,9 @@ function SafehouseCard({ w, sh }: { w: World; sh: Safehouse }) {
                   </div>
                   <div className="small muted mt8">{days} day{days === 1 ? '' : 's'} · worth about {fmtMoney(select.ransomValue(w, n))} to whoever wants them back.</div>
                   <div className="actions mt8">
-                    <Act action={{ type: 'resolve_hostage', npcId: n.id, mode: 'ransom' }} label={`Ransom (${fmtMoney(select.ransomValue(w, n))})`} icon="💰" kind="primary" />
-                    <Act action={{ type: 'resolve_hostage', npcId: n.id, mode: 'leverage' }} label="Squeeze for a favour" icon="👥" />
-                    <Act action={{ type: 'resolve_hostage', npcId: n.id, mode: 'release' }} label="Let them go" icon="🚪" kind="ghost" confirm={`Release ${n.name} with nothing?`} />
+                    <Act action={{ type: 'resolve_hostage', npcId: n.id, mode: 'ransom' }} label={`Ransom (${fmtMoney(select.ransomValue(w, n))})`} icon="dirty" kind="primary" />
+                    <Act action={{ type: 'resolve_hostage', npcId: n.id, mode: 'leverage' }} label="Squeeze for a favour" icon="crew" />
+                    <Act action={{ type: 'resolve_hostage', npcId: n.id, mode: 'release' }} label="Let them go" icon="spring_crew" kind="ghost" confirm={`Release ${n.name} with nothing?`} />
                   </div>
                 </div>
               );
@@ -177,8 +178,8 @@ function SafehouseCard({ w, sh }: { w: World; sh: Safehouse }) {
           return (
             <div key={pid} className="card" style={{ padding: 10 }}>
               <div className="row between">
-                <b>{def.icon} {def.label} <Term id="prodLevel" className="muted small">L{pr.level}</Term></b>
-                <span className="small muted">→ {PRODUCT_INFO[def.product].icon} {pr.lastOutput}/day</span>
+                <b><Icon of="production" id={pr.kind} size={14} /> {def.label} <Term id="prodLevel" className="muted small">L{pr.level}</Term></b>
+                <span className="small muted">→ <Icon of="product" id={def.product} size={12} /> {pr.lastOutput}/day</span>
               </div>
               <div className="small muted"><Term id="stock">Stock</Term> {pr.stock}d · worker {crewName(w, pr.workerId)}{pr.disrupted > 0 && <span className="red"> · <Term id="disrupted">disrupted</Term> {pr.disrupted}d</span>}</div>
               <div className="chips mt8">
@@ -193,7 +194,7 @@ function SafehouseCard({ w, sh }: { w: World; sh: Safehouse }) {
                 <Act action={{ type: 'close_production', productionId: pid }} label="Close" kind="danger" small confirm="Close this production?" />
               </div>
               <div className="row wrap mt8" style={{ gap: 6 }}>
-                <Act action={{ type: 'upgrade_production', productionId: pid }} label={pr.level >= 3 ? 'Max level' : `Upgrade to L${pr.level + 1} (${fmtMoney(Math.round(def.setupCost * PRODUCTION_UPGRADE_MULT[pr.level]))})`} icon="⬆️" small />
+                <Act action={{ type: 'upgrade_production', productionId: pid }} label={pr.level >= 3 ? 'Max level' : `Upgrade to L${pr.level + 1} (${fmtMoney(Math.round(def.setupCost * PRODUCTION_UPGRADE_MULT[pr.level]))})`} icon="upload" small />
                 {select.recipesForKind(w, pr.kind).map(id => <Act key={id} action={{ type: 'set_recipe', productionId: pid, recipe: pr.recipe === id ? undefined : id }} label={pr.recipe === id ? `Drop ${RECIPES[id].label}` : `Use ${RECIPES[id].label}`} small kind={pr.recipe === id ? 'ghost' : undefined} />)}
               </div>
               {select.recipesForKind(w, pr.kind).length === 0 && <p className="small muted mt8">No recipes known for this. Steal a formula (Ops) or recruit someone who knows one.</p>}
@@ -209,20 +210,20 @@ function SafehouseCard({ w, sh }: { w: World; sh: Safehouse }) {
         })}
         {sh.productionIds.length === 0 && <p className="small muted">Nothing cooking yet.</p>}
       </div>
-      <Disclosure label="Start a production" icon="⚗️">
+      <Disclosure label="Start a production" icon="lab">
         <div className="list">
           {(Object.keys(PRODUCTION_DEFS) as (keyof typeof PRODUCTION_DEFS)[]).map(k => {
             const d = PRODUCTION_DEFS[k];
             return (
               <div key={k} className="card offer" style={{ padding: 10 }}>
-                <div><b>{d.icon} {d.label}</b> <span className="muted small">{fmtMoney(d.setupCost)}</span><div className="small muted">{d.blurb} Makes {PRODUCT_INFO[d.product].label}; needs {d.skill}.</div></div>
+                <div><b><Icon of="production" id={k} size={14} /> {d.label}</b> <span className="muted small">{fmtMoney(d.setupCost)}</span><div className="small muted">{d.blurb} Makes {PRODUCT_INFO[d.product].label}; needs {d.skill}.</div></div>
                 <Act action={{ type: 'start_production', safehouseId: sh.id, kind: k }} label={`Build ${d.label}`} block />
               </div>
             );
           })}
         </div>
       </Disclosure>
-      <div className="mt8"><Act action={{ type: 'upgrade_safehouse', safehouseId: sh.id }} label={sh.tier >= 3 ? 'Max tier' : `Upgrade to ${SAFEHOUSE_TIERS[sh.tier]?.label ?? 'next tier'}`} icon="⬆️" block /></div>
+      <div className="mt8"><Act action={{ type: 'upgrade_safehouse', safehouseId: sh.id }} label={sh.tier >= 3 ? 'Max tier' : `Upgrade to ${SAFEHOUSE_TIERS[sh.tier]?.label ?? 'next tier'}`} icon="upload" block /></div>
     </div>
   );
 }
@@ -240,7 +241,7 @@ function Watchers({ blockId }: { blockId: Id }) {
   return (
     <div className="card mt12" style={{ borderColor: seen.some(x => x.authority.posture !== 'routine') ? 'var(--red)' : 'var(--blue)' }}>
       <div className="row between">
-        <b className="small">🚔 Being watched<Info id="authority" /></b>
+        <b className="small"><Icon name="precinct" size={13} /> Being watched<Info id="authority" /></b>
         {added > 0 && <span className="chip">+{added} police here</span>}
       </div>
       <div className="col mt8" style={{ gap: 6 }}>
@@ -248,8 +249,8 @@ function Watchers({ blockId }: { blockId: Id }) {
           const rung = POSTURES[a.posture];
           return (
             <div key={a.id} className="row between small">
-              <span>{AUTHORITY_KINDS[a.kind].icon} {a.name}<span className="muted"> · {hops === 0 ? 'on this block' : `${hops} street${hops === 1 ? '' : 's'} away`}</span></span>
-              <span className={a.posture === 'routine' ? 'muted' : 'red'}>{rung.icon} {rung.label}</span>
+              <span><Icon of="authority" id={a.kind} size={13} /> {a.name}<span className="muted"> · {hops === 0 ? 'on this block' : `${hops} street${hops === 1 ? '' : 's'} away`}</span></span>
+              <span className={a.posture === 'routine' ? 'muted' : 'red'}><Icon of="posture" id={a.posture} size={13} /> {rung.label}</span>
             </div>
           );
         })}
@@ -273,7 +274,7 @@ function Depth({ blockId }: { blockId: Id }) {
   return (
     <div className="card mt12" style={{ borderColor: spreading ? 'var(--gold)' : undefined }}>
       <div className="row between">
-        <b className="small">🏗️ Your ground here<Info id="blockDepth" /></b>
+        <b className="small"><Icon name="territory" size={13} /> Your ground here<Info id="blockDepth" /></b>
         <span className="chip">×{mult.toFixed(2)} influence a day</span>
       </div>
       <p className="small muted mt8" style={{ margin: '8px 0 0' }}>

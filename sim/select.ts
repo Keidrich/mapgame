@@ -395,6 +395,12 @@ export interface Holding {
   id: Id;
   kind: HoldingKind;
   icon: string;
+  /**
+   * The content id behind the row — a business type, a racket kind, a production kind. The UI
+   * draws its own icons from these; `icon` above is still the emoji, which is data and is what a
+   * log line or a share card uses.
+   */
+  typeId: string;
   name: string;
   where: string;
   blockId: Id;
@@ -421,7 +427,7 @@ export function holdings(w: World): Holding[] {
     if (b.flags.includes('torched')) flags.push('burned out');
     if (!b.insured) flags.push('uninsured');
     out.push({
-      id: b.id, kind: 'business', icon: BUSINESS_DEFS[b.type].icon, name: b.name,
+      id: b.id, kind: 'business', icon: BUSINESS_DEFS[b.type].icon, typeId: b.type, name: b.name,
       where: blockName(b.blockId), blockId: b.blockId, districtId: w.blocks[b.blockId]?.districtId,
       income: Math.round(b.baseIncome * (b.condition / 100)), dirty: false,
       saturation: 1, auto: { state: 'manual', label: 'Owned outright', good: true }, flags,
@@ -441,7 +447,7 @@ export function holdings(w: World): Holding[] {
     const reading = product ? supplyReading(w, r, product) : undefined;
     if (reading && reading.available <= 0) flags.push('no stock to sell');
     out.push({
-      id: r.id, kind: 'racket', icon: def.icon, name: def.label,
+      id: r.id, kind: 'racket', icon: def.icon, typeId: r.kind, name: def.label,
       where: b ? `${b.name} · ${blockName(b.blockId)}` : blockName(w.player.currentBlockId),
       blockId: b?.blockId ?? w.player.currentBlockId, districtId: b ? w.blocks[b.blockId]?.districtId : undefined,
       income: Math.round(r.lastIncome), dirty: !!def.dirty,
@@ -464,7 +470,7 @@ export function holdings(w: World): Holding[] {
       if (pr.stock <= 1) flags.push('out of ingredients');
       if (!pr.workerId && !boss) flags.push('nobody working it');
       out.push({
-        id: pr.id, kind: 'production', icon: def.icon, name: `${def.label}${pr.recipe && RECIPES[pr.recipe] ? ` · ${RECIPES[pr.recipe].label}` : ''}`,
+        id: pr.id, kind: 'production', icon: def.icon, typeId: pr.kind, name: `${def.label}${pr.recipe && RECIPES[pr.recipe] ? ` · ${RECIPES[pr.recipe].label}` : ''}`,
         where: `${sh.name} · ${blockName(sh.blockId)}`, blockId: sh.blockId, districtId: w.blocks[sh.blockId]?.districtId,
         // a production does not take cash, it makes stock: value it at what the street pays
         income: Math.round(productionOutput(w, pr) * streetPrice(w, sh.blockId, def.product)),

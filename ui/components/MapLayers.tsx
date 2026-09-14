@@ -5,6 +5,7 @@ import { select } from '@sim/index';
 import { PLAYER, type ProductKind } from '@sim/types';
 import { setLayer, useStore, useWorld, type MapLayer } from '@ui/store';
 import { Info } from './Info';
+import { Icon } from '@ui/icons';
 
 /**
  * Overlays for the map. Every mode shades a per-block field the sim already keeps — nothing
@@ -12,12 +13,12 @@ import { Info } from './Info';
  * first; if there isn't one, that is a simulation change and belongs in `/sim`, not here.
  */
 const LAYERS: { id: MapLayer; label: string; icon: string; hint: string }[] = [
-  { id: 'control', label: 'Control', icon: '🚩', hint: 'Who runs each block.' },
-  { id: 'heat', label: 'Heat', icon: '🔥', hint: 'How hot each block is on you right now.' },
-  { id: 'wealth', label: 'Wealth', icon: '💵', hint: 'What the people here have to take.' },
-  { id: 'police', label: 'Police', icon: '🚔', hint: 'Patrol strength, including what the precincts are putting on it.' },
-  { id: 'influence', label: 'Influence', icon: '🕸️', hint: 'How much of a block belongs to one outfit.' },
-  { id: 'demand', label: 'Demand', icon: '📦', hint: 'What this block would buy in a day.' },
+  { id: 'control', label: 'Control', icon: 'takeover', hint: 'Who runs each block.' },
+  { id: 'heat', label: 'Heat', icon: 'heat', hint: 'How hot each block is on you right now.' },
+  { id: 'wealth', label: 'Wealth', icon: 'cash', hint: 'What the people here have to take.' },
+  { id: 'police', label: 'Police', icon: 'precinct', hint: 'Patrol strength, including what the precincts are putting on it.' },
+  { id: 'influence', label: 'Influence', icon: 'social', hint: 'How much of a block belongs to one outfit.' },
+  { id: 'demand', label: 'Demand', icon: 'hot_goods', hint: 'What this block would buy in a day.' },
 ];
 const RAMP_CSS: Record<Exclude<MapLayer, 'control'>, string> = {
   heat: 'linear-gradient(90deg,#3a2020,#e5484d)',
@@ -46,7 +47,7 @@ export function MapLayers() {
         <Info id="mapLayer" className="layerbar-q" />
         {LAYERS.map(l => (
           <button type="button" key={l.id} className={`chip btn${layer === l.id ? ' sel' : ''}`} onClick={() => setLayer(l.id)} aria-pressed={layer === l.id}>
-            {l.icon} {l.label}
+            <Icon name={l.icon} size={13} /> {l.label}
           </button>
         ))}
         {layer === 'influence' && (
@@ -57,11 +58,11 @@ export function MapLayers() {
         )}
         {layer === 'demand' && (
           <select className="chip btn" value={product} onChange={e => setLayer('demand', { product: e.target.value as ProductKind })} aria-label="Which product">
-            {PRODUCTS.map(p => <option key={p} value={p}>{PRODUCT_INFO[p].icon} {PRODUCT_INFO[p].label}</option>)}
+            {PRODUCTS.map(p => <option key={p} value={p}>{PRODUCT_INFO[p].label}</option>)}
           </select>
         )}
         {layer === 'police' && watching.length > 0 && (
-          <span className="chip red">{POSTURES[select.topPosture(w)].icon} {POSTURES[select.topPosture(w)].label}</span>
+          <span className="chip red"><Icon of="posture" id={select.topPosture(w)} size={12} /> {POSTURES[select.topPosture(w)].label}</span>
         )}
       </div>
     </>

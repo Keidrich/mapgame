@@ -2,6 +2,7 @@ import { select } from '@sim/index';
 import { OP_DEFS } from '@content/rackets';
 import { act, useWorld } from '@ui/store';
 import { Info } from './Info';
+import { Icon } from '@ui/icons';
 
 /**
  * Somebody is in front of you. Nothing else happens until this is answered — and if the day
@@ -21,7 +22,7 @@ export function ConfrontModal() {
   // a complication is the same modal with a different heading: it is a job going wrong, not
   // somebody at your door, and the op it belongs to is what is at stake
   const op = c.kind === 'op' && c.opId ? w.ops[c.opId] : undefined;
-  const title = op ? `${OP_DEFS[op.kind].icon} ${OP_DEFS[op.kind].label} — mid-job` : `⚠️ ${f?.name ?? 'Somebody'}${c.war ? ' — this is war' : ''}`;
+  const title = op ? `${OP_DEFS[op.kind].label} — mid-job` : `${f?.name ?? 'Somebody'}${c.war ? ' — this is war' : ''}`;
   return (
     <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="Confrontation">
       <div className="modal scene" style={{ borderColor: 'var(--red)' }}>
@@ -31,14 +32,14 @@ export function ConfrontModal() {
         </div>
         <p className="mt8">{c.text}</p>
         {carried.length > 0 && (
-          <p className="small muted">You are carrying {carried.map(i => `${i.icon} ${i.label}`).join(', ')}.</p>
+          <p className="small muted">You are carrying {carried.map(i => i.label).join(', ')}.</p>
         )}
         <div className="col mt8">
           {options.map(o => (
             <button type="button" key={o.id} className="opt" disabled={!!o.disabled} onClick={() => act({ type: 'resolve_confrontation', id: c.id, approach: o.id })}>
-              <span className="lbl">{o.icon} {o.label} <span className="odds" style={{ float: 'right' }}>{o.chance}%</span></span>
+              <span className="lbl"><Icon name={o.icon} size={14} /> {o.label} <span className="odds" style={{ float: 'right' }}>{o.chance}%</span></span>
               <span className="det">{o.blurb}</span>
-              <span className="stakes"><b className="green">✓ {o.good}</b> <b className="red">✗ {o.bad}</b></span>
+              <span className="stakes"><b className="green"><Icon name="check" size={11} /> {o.good}</b> <b className="red"><Icon name="cross" size={11} /> {o.bad}</b></span>
               {o.disabled && <span className="cst">{o.disabled}</span>}
             </button>
           ))}

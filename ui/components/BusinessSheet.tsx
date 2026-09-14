@@ -12,6 +12,7 @@ import { NpcRow } from './Rows';
 import { Info, Term, TermChip } from './Info';
 import { MarketSection } from './Kit';
 import { AwayNotice } from './Walk';
+import { Icon } from '@ui/icons';
 
 export function BusinessSheet({ businessId }: { businessId: Id }) {
   const w = useWorld();
@@ -39,7 +40,7 @@ export function BusinessSheet({ businessId }: { businessId: Id }) {
       <div className="row wrap" style={{ gap: 6 }}>
         <span className="chip" style={yours ? { color: 'var(--gold)' } : undefined}>{yours ? 'Yours' : `Owner: ${ownerLabel(w, biz)}`}</span>
         <TermChip id="bizTier" tone={tier === 3 ? 'var(--purple)' : tier === 2 ? 'var(--blue)' : undefined}>{select.tierInfo(biz).label}</TermChip>
-        {prot && <TermChip id={biz.protection!.partner ? 'partner' : 'protection'} tone={select.factionColor(w, biz.protection!.factionId)}>{biz.protection!.partner ? '👥' : '💪'} {prot}</TermChip>}
+        {prot && <TermChip id={biz.protection!.partner ? 'partner' : 'protection'} tone={select.factionColor(w, biz.protection!.factionId)}><Icon name={biz.protection!.partner ? 'crew' : 'protection'} size={11} /> {prot}</TermChip>}
         {biz.insured && <TermChip id="insured">Insured</TermChip>}
         {biz.flags.map(f => <span key={f} className="chip red">{f}</span>)}
       </div>
@@ -76,39 +77,39 @@ export function BusinessSheet({ businessId }: { businessId: Id }) {
       <MarketSection businessId={businessId} />
       <div className="section-title">Actions<Info id="odds" /></div>
       <div className="actions">
-        <Act action={{ type: 'case_joint', businessId }} label={(w.businesses[businessId].casedUntil ?? 0) >= w.day ? 'Cased' : 'Case the joint'} icon="🕵️" />
-        {owner && <SceneAct scene={{ kind: 'visit', npcId: owner.id, businessId }} label="Visit" icon="👥" />}
-        {owner && <SceneAct scene={{ kind: 'threaten', npcId: owner.id, businessId }} label="Threaten" icon="😠" kind="danger" />}
+        <Act action={{ type: 'case_joint', businessId }} label={(w.businesses[businessId].casedUntil ?? 0) >= w.day ? 'Cased' : 'Case the joint'} icon="watching" />
+        {owner && <SceneAct scene={{ kind: 'visit', npcId: owner.id, businessId }} label="Visit" icon="crew" />}
+        {owner && <SceneAct scene={{ kind: 'threaten', npcId: owner.id, businessId }} label="Threaten" icon="intimidate" kind="danger" />}
         {owner && (
-          <Disclosure label="Gift" icon="🎁">
+          <Disclosure label="Gift" icon="gift">
             <AmountPicker presets={[100, 500, 2000]} value={gift} onChange={setGift} min={1} />
             <div className="mt8"><Act action={{ type: 'gift', npcId: owner.id, amount: gift }} label={`Give ${fmtMoney(gift)}`} kind="primary" block /></div>
           </Disclosure>
         )}
-        {!yours && extortable && <SceneAct scene={{ kind: 'shakedown', npcId: biz.ownerId, businessId }} label="Shakedown" icon="👊" kind="danger" />}
+        {!yours && extortable && <SceneAct scene={{ kind: 'shakedown', npcId: biz.ownerId, businessId }} label="Shakedown" icon="fist" kind="danger" />}
         {!yours && extortable && (
-          <Disclosure label="Protect" icon="💪">
+          <Disclosure label="Protect" icon="protection">
             <p className="small muted">The owner pays you a cut of income, every day. They agree when they are afraid of you — or when they trust you <i>and</i> you have a reason beyond that: a turn you did them, their street, or something out of their books.</p>
             <div className="chips mb8">{[0.1, 0.2, 0.3].map(r => <button type="button" key={r} className={`chip btn${rate === r ? ' sel' : ''}`} onClick={() => setRate(r)}>{pct(r)}</button>)}</div>
             <p className="small muted">About {fmtMoney(biz.baseIncome * rate * 3)}/day. Fair rates build trust; greedy ones breed snitches.</p>
             {owner && (route === 'friend'
-              ? <p className="small mt8" style={{ color: 'var(--green)' }}>👥 {owner.name} trusts you and has a reason to say yes. No threats needed.</p>
+              ? <p className="small mt8" style={{ color: 'var(--green)' }}><Icon name="crew" size={12} /> {owner.name} trusts you and has a reason to say yes. No threats needed.</p>
               : route === 'fear'
-                ? <p className="small muted mt8">😠 {owner.name} is frightened enough of you to agree.</p>
+                ? <p className="small muted mt8"><Icon name="intimidate" size={12} /> {owner.name} is frightened enough of you to agree.</p>
                 : <p className="small orange mt8">{select.protectReason(w, owner, rate)}</p>)}
             <Act action={{ type: 'protect', businessId, rate }} label={`Protect at ${pct(rate)}`} kind="primary" block />
           </Disclosure>
         )}
         {!yours && (
-          <Disclosure label="Buy" icon="💰">
+          <Disclosure label="Buy" icon="dirty">
             <label className="field">Offer (asking {fmtMoney(biz.value)})</label>
             <AmountPicker presets={[Math.round(biz.value * 0.8 / 100) * 100, biz.value, Math.round(biz.value * 1.2 / 100) * 100]} value={offer} onChange={setOffer} min={0} />
             <div className="mt8"><Act action={{ type: 'buy_business', businessId, offer }} label={`Offer ${fmtMoney(offer)}`} kind="primary" block /></div>
           </Disclosure>
         )}
-        {yours && <Act action={{ type: 'sell_business', businessId }} label="Sell" icon="🏷️" confirm={`Sell ${biz.name}?`} />}
-        {yours && !biz.insured && <Act action={{ type: 'insure', businessId }} label="Insure" icon="📄" />}
-        {yours && biz.condition < 100 && <Act action={{ type: 'repair', businessId }} label="Repair" icon="🔨" />}
+        {yours && <Act action={{ type: 'sell_business', businessId }} label="Sell" icon="pawn" confirm={`Sell ${biz.name}?`} />}
+        {yours && !biz.insured && <Act action={{ type: 'insure', businessId }} label="Insure" icon="note" />}
+        {yours && biz.condition < 100 && <Act action={{ type: 'repair', businessId }} label="Repair" icon="intimidate" />}
       </div>
 
       <div className="section-title">Rackets ({rackets.length})<Info id="dirtyRacket" /></div>
@@ -117,14 +118,14 @@ export function BusinessSheet({ businessId }: { businessId: Id }) {
         {rackets.length === 0 && <p className="small muted">No rackets running here.</p>}
       </div>
       {available.length > 0 && (
-        <Disclosure label="Start a racket" icon="➕" kind="primary">
+        <Disclosure label="Start a racket" icon="plus" kind="primary">
           <div className="list">
             {outlook.map(({ kind: k, income, saturation, synergy }) => {
               const d = RACKET_DEFS[k];
               const needsProduct = k === 'dealing';
               return (
                 <div key={k} className="card offer" style={{ padding: 10 }}>
-                  <div><b>{d.icon} {d.label}</b> <span className="muted small">{d.setupCost ? fmtMoney(d.setupCost) : 'free'}</span><div className="small muted">{d.blurb} Runner skill: {d.skill}.</div></div>
+                  <div><b><Icon of="racket" id={k} size={14} /> {d.label}</b> <span className="muted small">{d.setupCost ? fmtMoney(d.setupCost) : 'free'}</span><div className="small muted">{d.blurb} Runner skill: {d.skill}.</div></div>
                   {/* what it would actually pay here, with the district's saturation and any
                       synergy folded in — otherwise both mechanics are invisible to the player */}
                   <div className="row wrap mt8" style={{ gap: 4 }}>
@@ -134,7 +135,7 @@ export function BusinessSheet({ businessId }: { businessId: Id }) {
                   </div>
                   {synergy && <p className="tiny muted" style={{ margin: '4px 0 0' }}>{synergy.why}.</p>}
                   {saturation < 1 && <p className="tiny muted" style={{ margin: '4px 0 0' }}>You already run {RACKET_DEFS[k].label.toLowerCase()} elsewhere in this district. Another one here is worth less than the first was — spread out, or run something different.</p>}
-                  {needsProduct && <div className="chips">{PRODUCTS.map(p => <button type="button" key={p} className={`chip btn${dealProduct === p ? ' sel' : ''}`} onClick={() => setDealProduct(p)}>{PRODUCT_INFO[p].icon} {PRODUCT_INFO[p].label}</button>)}</div>}
+                  {needsProduct && <div className="chips">{PRODUCTS.map(p => <button type="button" key={p} className={`chip btn${dealProduct === p ? ' sel' : ''}`} onClick={() => setDealProduct(p)}><Icon of="product" id={p} size={12} /> {PRODUCT_INFO[p].label}</button>)}</div>}
                   <Act action={{ type: 'start_racket', businessId, kind: k, product: needsProduct ? dealProduct : undefined }} label={`Start ${d.label}`} block />
                 </div>
               );
@@ -173,7 +174,7 @@ export function RacketCard({ w, r, showBiz }: { w: World; r: Racket; showBiz?: b
   return (
     <div className="card" style={{ padding: 10, borderColor: yours ? 'rgba(242,201,76,0.4)' : undefined }}>
       <div className="row between">
-        <b>{d.icon} {d.label} <Term id="racketLevel" className="muted small">L{r.level}</Term>{r.product && <span className="small"> · {PRODUCT_INFO[r.product].icon}</span>}</b>
+        <b><Icon of="racket" id={r.kind} size={14} /> {d.label} <Term id="racketLevel" className="muted small">L{r.level}</Term>{r.product && <span className="small"> · <Icon of="product" id={r.product} size={12} /></span>}</b>
         <Term id="dirtyRacket" className={`small ${d.dirty ? 'orange' : 'green'}`}>{fmtMoney(r.lastIncome)}/day</Term>
       </div>
       <div className="small muted">
@@ -221,7 +222,7 @@ export function RacketStock({ w, r }: { w: World; r: Racket }) {
     : r.kind === 'fencing' ? 'hot_goods' : r.kind === 'counterfeiting' ? 'counterfeit' : r.kind === 'knockoffs' ? 'streetwear' : 'hot_goods';
   if (r.kind === 'carding') {
     const cards = select.liveCards(w).length;
-    return <p className="small mt8" style={{ margin: '8px 0 0', color: cards ? 'var(--green)' : 'var(--orange)' }}>💳 {cards ? `${cards} live card${cards === 1 ? '' : 's'} to move.` : 'No cards to move. This one buys the pile you are carrying; go and get some.'}</p>;
+    return <p className="small mt8" style={{ margin: '8px 0 0', color: cards ? 'var(--green)' : 'var(--orange)' }}><Icon name="carding" size={12} /> {cards ? `${cards} live card${cards === 1 ? '' : 's'} to move.` : 'No cards to move. This one buys the pile you are carrying; go and get some.'}</p>;
   }
   const carrying = Math.round(w.player.stash[product] ?? 0);
   const here = w.player.safehouseIds.map(id => w.safehouses[id]).find(s => s && s.blockId === w.businesses[r.businessId]?.blockId && (s.stash[product] ?? 0) > 0);
@@ -231,7 +232,7 @@ export function RacketStock({ w, r }: { w: World; r: Racket }) {
   return (
     <div className="mt8">
       <p className="small" style={{ margin: 0, color: carrying > 0 ? 'var(--green)' : 'var(--orange)' }}>
-        {PRODUCT_INFO[product].icon} {carrying > 0
+        <Icon of="product" id={product} size={12} /> {carrying > 0
           ? `${carrying} ${PRODUCT_INFO[product].label.toLowerCase()} on you to sell.`
           : `Nothing to sell. This moves ${PRODUCT_INFO[product].label.toLowerCase()} out of your own stash.`}
       </p>
@@ -278,7 +279,7 @@ function InstitutionHint({ businessId }: { businessId: Id }) {
   const got = select.hasWayIn(w, owner);
   return (
     <div className="card mt8" style={{ borderColor: got ? 'var(--green)' : 'var(--line)' }}>
-      <b className="small">{got ? '🔓 You have a way in' : '🔒 Nobody here is frightened of you'}</b>
+      <b className="small"><Icon name={got ? 'lockpicks' : 'lock'} size={13} /> {got ? 'You have a way in' : 'Nobody here is frightened of you'}</b>
       <p className="small muted" style={{ margin: '4px 0 0' }}>
         {select.tierInfo(biz).blurb}{' '}
         {thin && owner
@@ -288,7 +289,7 @@ function InstitutionHint({ businessId }: { businessId: Id }) {
       </p>
       {owner && (
         <div className="actions mt8">
-          <button type="button" className="btn" onClick={() => openSheet({ kind: 'npc', npcId: owner.id })}>👤 {owner.name}</button>
+          <button type="button" className="btn" onClick={() => openSheet({ kind: 'npc', npcId: owner.id })}><Icon name="person" size={14} /> {owner.name}</button>
         </div>
       )}
     </div>

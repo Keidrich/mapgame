@@ -2,13 +2,15 @@ import { useState, type FocusEvent, type ReactNode } from 'react';
 import type { Action } from '@sim/actions';
 import { act, check, useStore, type SceneRequest } from '@ui/store';
 import { fmtMoney } from '@ui/derive';
+import { Icon } from '@ui/icons';
 
 /**
  * A button bound to a sim Action. Disabled (with the sim's refusal reason as a
  * caption) when `can()` says no; shows AP / cash cost when the sim reports it.
  */
 export function Act({ action, label, kind = '', block, small, onDone, confirm, icon }: {
-  action: Action; label: ReactNode; kind?: '' | 'primary' | 'danger' | 'ghost'; block?: boolean; small?: boolean; onDone?: () => void; confirm?: string; icon?: string;
+  action: Action; label: ReactNode; kind?: '' | 'primary' | 'danger' | 'ghost'; block?: boolean; small?: boolean; onDone?: () => void; confirm?: string; /** An icon *name* from `ui/icons`, not a glyph. */
+  icon?: string;
 }) {
   useStore(s => s.world); // re-evaluate affordance when the world changes
   const a = check(action);
@@ -23,7 +25,7 @@ export function Act({ action, label, kind = '', block, small, onDone, confirm, i
   return (
     <div className="actwrap">
       <button type="button" className={cls} disabled={!a.ok} onClick={onClick}>
-        <span>{icon && <>{icon} </>}{label}</span>{cost && <span className="cost">{cost}</span>}
+        {icon && <Icon name={icon} size={15} />}<span>{label}</span>{cost && <span className="cost">{cost}</span>}
       </button>
       {!a.ok && <span className="btn-caption">{a.reason}</span>}
     </div>
@@ -60,7 +62,7 @@ export function Disclosure({ label, children, icon, kind }: { label: string; chi
   return (
     <div className={`actwrap${open ? ' open' : ''}`}>
       <button type="button" className={`btn${kind ? ` btn-${kind}` : ''}${open ? ' btn-ghost' : ''}`} onClick={() => setOpen(o => !o)} aria-expanded={open}>
-        <span>{icon && <>{icon} </>}{label} <span className="muted">{open ? '▴' : '▾'}</span></span>
+        {icon && <Icon name={icon} size={15} />}<span>{label}</span><Icon name="caret" size={13} className={`muted${open ? ' flip' : ''}`} />
       </button>
       {open && <div className="card disc-panel mt8">{children}</div>}
     </div>
@@ -83,7 +85,7 @@ export function SceneAct({ scene, label, icon, kind = '' }: { scene: SceneReques
   return (
     <div className="actwrap">
       <button type="button" className={`btn${kind ? ` btn-${kind}` : ''}`} disabled={!a.ok} onClick={() => act(open)}>
-        <span>{icon && <>{icon} </>}{label}</span><span className="cost">{scene.kind === 'broker' ? 2 : 1} AP</span>
+        {icon && <Icon name={icon} size={15} />}<span>{label}</span><span className="cost">{scene.kind === 'broker' ? 2 : 1} AP</span>
       </button>
       {!a.ok && <span className="btn-caption">{a.reason}</span>}
     </div>

@@ -6,6 +6,7 @@ import { fmtMoney } from '@ui/derive';
 import { openSheet, useWorld } from '@ui/store';
 import { Act } from './Act';
 import { Info, Term } from './Info';
+import { Icon } from '@ui/icons';
 
 /**
  * The wire: the cards you are holding, what listening turned up, and the way to clean up after
@@ -53,7 +54,7 @@ function CardRow({ card }: { card: Card }) {
   const [open, setOpen] = useState(false);
   return (
     <div className={`listitem${card.flagged ? ' sel' : ''}`} style={{ alignItems: 'flex-start', borderColor: card.flagged ? 'var(--red)' : undefined }}>
-      <span className="ico">{def.icon}</span>
+      <span className="ico"><Icon name="carding" size={18} /></span>
       <div className="grow" style={{ minWidth: 0 }}>
         <div className="title ellipsis">{def.label} {card.flagged && <span className="red small">· watched</span>}</div>
         <div className="sub ellipsis">{fmtMoney(card.limit)} left · freshness {Math.round(card.freshness)}</div>
@@ -83,7 +84,7 @@ function Secrets({ secrets }: { secrets: Secret[] }) {
           const buyers = Object.values(w.factions).filter(f => f.alive && f.id !== subject?.faction && select.stanceWithPlayer(w, f.id) !== 'war');
           return (
             <div key={s.id} className="listitem" style={{ alignItems: 'flex-start' }}>
-              <span className="ico">🗒️</span>
+              <span className="ico"><Icon name="note" size={18} /></span>
               <div className="grow" style={{ minWidth: 0 }}>
                 <div className="sub" style={{ whiteSpace: 'normal' }}>{s.text}</div>
                 {s.soldTo
@@ -113,7 +114,7 @@ function Scrub() {
   return (
     <div className="card mt8">
       <div className="row between">
-        <b className="small">🚿 Scrub your trail<Info id="scrub" /></b>
+        <b className="small"><Icon name="scrub" size={13} /> Scrub your trail<Info id="scrub" /></b>
         <span className="chip">{Math.round(w.player.cyberHeat ?? 0)} of your <Term id="heat">heat</Term> came off the wire</span>
       </div>
       <p className="small muted mt8" style={{ margin: '8px 0 0' }}>

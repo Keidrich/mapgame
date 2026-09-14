@@ -12,12 +12,13 @@ import type { LatLng, Player, Skills, StartTraitId } from '@sim/types';
 import { newGame } from '@ui/store';
 import { gridChunk, loadChunk, reason } from '@ui/net/chunks';
 import { chunkBounds, chunkKeyAt, chunkNeighbors, type GeoChunk } from '@geo/chunks';
+import { Icon, iconMarkup } from '@ui/icons';
 
 type Mode = 'geo' | 'search' | 'pick';
 /**
  * `lat`/`lng` is where the game will actually start. For a city-level pick that is a
  * corner of the city rather than its pin: `base` keeps the pin, `corner` says which side
- * of town, and the 🎲 button below rolls another one.
+ * of town, and the dice button below rolls another one.
  */
 interface Place { lat: number; lng: number; name: string; precision: PlacePrecision; base?: LatLng; spanM?: number; corner?: string; sector?: number }
 
@@ -159,7 +160,7 @@ export function Onboarding() {
       <div className="section-title">Background</div>
       <div className="segment">
         <button type="button" className={maker === 'preset' ? 'on' : ''} onClick={() => setMaker('preset')}>Pick a life</button>
-        <button type="button" className={maker === 'custom' ? 'on' : ''} onClick={() => setMaker('custom')}>🔧 Build your own</button>
+        <button type="button" className={maker === 'custom' ? 'on' : ''} onClick={() => setMaker('custom')}><Icon name="wrench" size={14} /> Build your own</button>
       </div>
       {maker === 'preset' ? (
         <div className="col mt8">
@@ -176,9 +177,9 @@ export function Onboarding() {
 
       <div className="section-title">Start location</div>
       <div className="segment">
-        <button type="button" className={mode === 'geo' ? 'on' : ''} onClick={() => { setMode('geo'); void locate(); }}>📍 Near me</button>
-        <button type="button" className={mode === 'search' ? 'on' : ''} onClick={() => setMode('search')}>🔎 Search</button>
-        <button type="button" className={mode === 'pick' ? 'on' : ''} onClick={() => setMode('pick')}>🗺️ On the map</button>
+        <button type="button" className={mode === 'geo' ? 'on' : ''} onClick={() => { setMode('geo'); void locate(); }}><Icon name="you" size={14} /> Near me</button>
+        <button type="button" className={mode === 'search' ? 'on' : ''} onClick={() => setMode('search')}><Icon name="search" size={14} /> Search</button>
+        <button type="button" className={mode === 'pick' ? 'on' : ''} onClick={() => setMode('pick')}><Icon name="map" size={14} /> On the map</button>
       </div>
       {mode === 'search' && (
         <div className="mt8">
@@ -209,7 +210,7 @@ export function Onboarding() {
       {mode === 'pick' && <PickMap value={place} onPick={(lat, lng) => setPlace({ lat, lng, name: `${lat.toFixed(3)}, ${lng.toFixed(3)}`, precision: 'exact' })} />}
       {status && <p className="small orange mt8">{status}</p>}
       <div className="row mt8">
-        <button type="button" className="btn btn-ghost grow" onClick={random}>🎲 Random big city</button>
+        <button type="button" className="btn btn-ghost grow" onClick={random}><Icon name="gambling_den" size={14} /> Random big city</button>
       </div>
       {place && (
         <p className="mt8">
@@ -219,7 +220,7 @@ export function Onboarding() {
         </p>
       )}
       {place && shouldJitter(place.precision) && (
-        <button type="button" className="btn btn-ghost btn-block" onClick={reroll}>🎲 Try a different corner of {place.name}</button>
+        <button type="button" className="btn btn-ghost btn-block" onClick={reroll}><Icon name="gambling_den" size={14} /> Try a different corner of {place.name}</button>
       )}
 
       <div className="grow" />
@@ -317,7 +318,7 @@ function PickMap({ value, onPick }: { value: Place | null; onPick: (lat: number,
   useEffect(() => {
     const m = map.current; if (!m) return;
     if (!value) { pin.current?.remove(); pin.current = null; return; }
-    if (!pin.current) { const node = document.createElement('div'); node.className = 'pin-marker'; node.textContent = '📍'; pin.current = new maplibregl.Marker({ element: node, anchor: 'bottom' }).setLngLat([value.lng, value.lat]).addTo(m); }
+    if (!pin.current) { const node = document.createElement('div'); node.className = 'pin-marker'; node.innerHTML = iconMarkup('you', { size: 26, color: '#f5c542' }); pin.current = new maplibregl.Marker({ element: node, anchor: 'bottom' }).setLngLat([value.lng, value.lat]).addTo(m); }
     else pin.current.setLngLat([value.lng, value.lat]);
   }, [value]);
   return <div><div ref={el} className="pickmap" /><p className="small muted mt8">Tap the map to drop your pin.</p></div>;

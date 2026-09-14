@@ -4,6 +4,7 @@ import type { Holding, HoldingSort } from '@sim/select';
 import { fmtMoney } from '@ui/derive';
 import { openSheet, useWorld } from '@ui/store';
 import { Info, Term } from './Info';
+import { Icon, IconTile } from '@ui/icons';
 
 /**
  * The empire ledger: every business, racket and production in one table.
@@ -42,7 +43,8 @@ export function Holdings() {
 
   return (
     <>
-      <div className="card">
+      <div className="brief">
+        <div className="brief-head"><Icon name="empire" size={13} /> Holdings<span className="n">{t.count}</span></div>
         <div className="row between">
           <b>{t.count} holding{t.count === 1 ? '' : 's'}</b>
           <b className="green">{fmtMoney(t.income)}/day</b>
@@ -79,7 +81,7 @@ function Row({ r }: { r: Holding }) {
   const crowded = r.saturation < 1;
   return (
     <button type="button" className="listitem" onClick={open}>
-      <span className="ico">{r.icon}</span>
+      <IconTile of={r.kind} id={r.typeId} size={32} tone={r.income > 0 ? 'gold' : 'muted'} />
       <div className="grow">
         <div className="row between">
           <span className="title">{r.name}</span>
@@ -87,10 +89,10 @@ function Row({ r }: { r: Holding }) {
         </div>
         <div className="sub">{r.where}</div>
         <div className="chips mt4">
-          <span className={`chip ${r.auto.good ? '' : 'orange'}`}>{autoIcon(r)} {r.auto.label}</span>
-          {crowded && <span className="chip orange">🔻 {Math.round((1 - r.saturation) * 100)}% crowded out</span>}
-          {r.synergy && <span className="chip green">🔗 +{Math.round(r.synergy.bonus * 100)}% {r.synergy.why}</span>}
-          {r.flags.map(f => <span key={f} className="chip red">⚠️ {f}</span>)}
+          <span className={`chip ${r.auto.good ? '' : 'orange'}`}><Icon name={autoIcon(r)} size={11} /> {r.auto.label}</span>
+          {crowded && <span className="chip orange"><Icon name="down" size={11} /> {Math.round((1 - r.saturation) * 100)}% crowded out</span>}
+          {r.synergy && <span className="chip green"><Icon name="link" size={11} /> +{Math.round(r.synergy.bonus * 100)}% {r.synergy.why}</span>}
+          {r.flags.map(f => <span key={f} className="chip red"><Icon name="warn" size={11} /> {f}</span>)}
         </div>
       </div>
     </button>
@@ -98,4 +100,4 @@ function Row({ r }: { r: Holding }) {
 }
 
 const autoIcon = (r: Holding) =>
-  r.auto.state === 'foreman' ? '⚙️' : r.auto.state === 'standing' ? '📦' : r.auto.state === 'unmanned' ? '❗' : '✋';
+  r.auto.state === 'foreman' ? 'foreman' : r.auto.state === 'standing' ? 'hot_goods' : r.auto.state === 'unmanned' ? 'warn' : 'hand';

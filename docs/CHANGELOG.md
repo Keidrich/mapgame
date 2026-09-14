@@ -14,6 +14,79 @@ House rules for an entry (see `CLAUDE.md` → *Leave a trail*):
 
 ---
 
+## 2026-09-14 — The tactical HUD: a custom icon set, and chrome to match
+
+**What.** The visual pass. Every emoji in the game is gone from every screen, replaced by a
+hand-drawn line-icon set of our own; the chrome is amber on near-black navy with hard corners,
+corner-bracketed panels and mono/uppercase labelling; the top HUD has a real hierarchy; the map
+draws control as a zone rather than a stain. No mechanics changed — `npm run sim -- 60` comes back
+byte-identical to the run before the pass, which is the check that says so.
+
+**Why.** The look was the platform's, not the game's. An emoji is drawn by whoever made the phone,
+so one row was Apple's art, the next was Google's, Crew and Factions were the same glyph, and an
+older Android drew a tofu box. The tier and crime passes had also pushed a lot more state into a
+HUD that had been cramped since the first time it was looked at live.
+
+**How.**
+
+*The icons.* ~180 glyphs on a 24×24 grid, stroked in `currentColor` at 1.5 with mitred joins and
+square caps. Families share a mark — a crowbar across every heist, a chevron on the armed jobs, a
+signal arc on everything down a wire — so the 63-node op tree reads as families before it is read
+at all. Resolution is by id (`<Icon of="business" id={biz.type} />`), so a new content row gets an
+icon by being named the same thing in both places, and `ui/icons.test.tsx` fails if any id in any
+content table falls through to the fallback. The emoji stay in `/content` as data; nothing on
+screen depends on the device having them.
+
+*The chrome.* `--radius` 14px → 2px. Panels get four corner brackets drawn as background gradients
+(no wrapper divs) and a one-pixel scanline. `.brief` is the mission-document treatment — a panel
+with a titled header bar — and it is on the ops planner, the racket list, the faction cards and the
+ledger. Chips, section titles, stat labels and every number moved to a monospace, tracked out; body
+copy stayed in the system sans, because tracked-out mono is unreadable at paragraph length.
+
+*The HUD.* Three bands instead of two crowded rows: identity (day, place, and the flags that change
+what the day means), the readout strip (clean / dirty / heat / rep, each in its own cell so they
+stop jostling when one grows a digit), and today's budget (AP pips, legwork).
+
+*The map.* Fill opacity roughly halved, boundary width up, and a second hairline set in from the
+first on any block somebody holds — two rules a few pixels apart is what makes an edge read as a
+controlled zone instead of a coloured shape. Markers are the same icon set through `iconMarkup()`,
+because MapLibre builds them from HTML and they would otherwise have been the one place the old
+look survived.
+
+**What the screenshots caught, which the tests could not.** The set was rendered to a contact sheet
+and looked at: `bookmaking` and `script_diversion` were the same drawing, so were `counterfeit_run`
+and `print_shop`, `campaign_wash` and `vote_buying` were near-identical, `task_force` was
+`protection` with a different shield, and `garage` was the safehouse with a different door. Ten
+glyphs were redrawn. Then the screens themselves: the holdings rows were drawing an envelope for
+every racket (the row's `kind` is `'racket'`, not the racket's kind — `Holding` now carries a
+`typeId`), the auto-state icon name was rendering as the literal text "warn", and uppercasing every
+chip turned a sentence-carrying chip into shouting and pushed it off the card.
+
+**Files.** New: `ui/icons/{paths,paths-ops,index}.tsx`, `ui/icons.test.tsx`, `ui/visual.test.tsx`,
+`scripts/shot/render.tsx`. Touched: `ui/styles.css` (token layer rewritten, ~200 lines of tactical
+chrome appended), `ui/components/*` (every emoji site), `ui/derive.ts`, `sim/select.ts` (one
+read-only field: `Holding.typeId`).
+
+**Watch out.**
+
+- **`Act`, `Disclosure` and `SceneAct` take an icon *name* now, not a glyph.** `icon="👥"` became
+  `icon="crew"`. A name that does not exist falls back rather than rendering nothing, so a typo is
+  invisible at runtime — `ui/visual.test.tsx` is what catches it.
+- **`bizIcon()` returns a name, not an emoji**, and `Holding.icon` is still the emoji while
+  `Holding.typeId` is what the UI draws from.
+- **Two inventory assertions changed shape.** They asserted a particular codepoint reached the
+  screen, which was the right test when the bug was a tofu box and is the wrong test now that the
+  glyph is ours; they assert the drawing instead. The emoji-support test in `/sim` is untouched and
+  still guards the content tables.
+- **The screenshot harness lies about the bottom nav.** It collapses to a ~20px band with no icons
+  in headless Chrome here, because `100dvh` and `env(safe-area-inset-bottom)` do not resolve in
+  that context — the *previous* stylesheet collapses identically, which is how it was ruled out.
+  Do not fix the tab bar from one of those screenshots; check it in a browser.
+- Nothing in `/sim` changed behaviour: the honest 60-day soak is identical to the run before this
+  pass, down to the last dollar.
+
+---
+
 ## 2026-09-14 — The crime pass: four rackets, a cut house, five institutions, twenty-two jobs and somebody else's corner
 
 **What.** The content the tier system was built to hold. Four racket kinds for the tier 1–2

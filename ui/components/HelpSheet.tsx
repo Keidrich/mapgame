@@ -5,41 +5,41 @@ import { Sheet } from './Sheet';
 
 /** Testing tools. Temporary, deliberately behind a fold, and every one of them stamps the save as cheated. */
 const CHEATS: { what: CheatKind; label: string; icon: string }[] = [
-  { what: 'cash', label: '+$10,000 clean', icon: '💵' },
-  { what: 'dirty', label: '+$10,000 dirty', icon: '💰' },
-  { what: 'ap', label: 'Refill AP', icon: '⚡' },
-  { what: 'legwork', label: 'Refill legwork', icon: '🚶' },
-  { what: 'heat', label: 'Clear all heat', icon: '❄️' },
-  { what: 'skills', label: 'Every skill to 10', icon: '🎓' },
-  { what: 'crew', label: 'Three people join your crew', icon: '👥' },
-  { what: 'unlock', label: 'Unlock the op tree', icon: '🔓' },
-  { what: 'safehouse', label: 'Tier 3 safehouse here', icon: '🏠' },
-  { what: 'own_block', label: 'Own every business here', icon: '🏪' },
-  { what: 'turf', label: 'Make this block your turf', icon: '👑' },
-  { what: 'reveal', label: 'Reveal people and derelict blocks', icon: '🗺️' },
-  { what: 'stash', label: '+50 of every product', icon: '📦' },
+  { what: 'cash', label: '+$10,000 clean', icon: 'cash' },
+  { what: 'dirty', label: '+$10,000 dirty', icon: 'dirty' },
+  { what: 'ap', label: 'Refill AP', icon: 'ap' },
+  { what: 'legwork', label: 'Refill legwork', icon: 'legwork' },
+  { what: 'heat', label: 'Clear all heat', icon: 'heat' },
+  { what: 'skills', label: 'Every skill to 10', icon: 'gear' },
+  { what: 'crew', label: 'Three people join your crew', icon: 'crew' },
+  { what: 'unlock', label: 'Unlock the op tree', icon: 'lock' },
+  { what: 'safehouse', label: 'Tier 3 safehouse here', icon: 'safehouse' },
+  { what: 'own_block', label: 'Own every business here', icon: 'corner_store' },
+  { what: 'turf', label: 'Make this block your turf', icon: 'crown' },
+  { what: 'reveal', label: 'Reveal people and derelict blocks', icon: 'map' },
+  { what: 'stash', label: '+50 of every product', icon: 'hot_goods' },
   // set up one system so it can actually be exercised; the soak bot drives these same entries
-  { what: 'kit', label: 'Carry a weapon, a tool and a car', icon: '🎒' },
-  { what: 'rackets', label: 'A racket of every useful kind', icon: '🎟️' },
-  { what: 'war', label: 'Somebody goes to war with you', icon: '⚔️' },
-  { what: 'attention', label: 'Every precinct looking hard', icon: '🚔' },
-  { what: 'jail_crew', label: 'Put one of yours in a cell', icon: '🔒' },
-  { what: 'open_case', label: 'Open a case file on you', icon: '🗄️' },
-  { what: 'cards', label: 'Cards, a secret and wire heat', icon: '💳' },
-  { what: 'ratted', label: 'You have been inside everybody', icon: '🕳️' },
-  { what: 'crews', label: 'Street crews on the corners near you', icon: '🚩' },
+  { what: 'kit', label: 'Carry a weapon, a tool and a car', icon: 'kit' },
+  { what: 'rackets', label: 'A racket of every useful kind', icon: 'ticket' },
+  { what: 'war', label: 'Somebody goes to war with you', icon: 'raid_rival' },
+  { what: 'attention', label: 'Every precinct looking hard', icon: 'precinct' },
+  { what: 'jail_crew', label: 'Put one of yours in a cell', icon: 'jail' },
+  { what: 'open_case', label: 'Open a case file on you', icon: 'casefile' },
+  { what: 'cards', label: 'Cards, a secret and wire heat', icon: 'carding' },
+  { what: 'ratted', label: 'You have been inside everybody', icon: 'rat' },
+  { what: 'crews', label: 'Street crews on the corners near you', icon: 'takeover' },
 ];
 
 /** One-screen "how to play" (the README's first five minutes), opened from the ? in the HUD. */
 export function HelpSheet() {
   return (
-    <Sheet title="How to play" subtitle="The first five minutes" icon="❓" onClose={closeHelp}>
+    <Sheet title="How to play" subtitle="The first five minutes" icon="help" onClose={closeHelp}>
       <div className="help">
         <p className="small" style={{ margin: '0 0 10px', color: 'var(--gold)' }}>Anything with a dotted underline, or a ? in a chip, explains itself. Tap it (or hover on a computer) to find out what the number does.</p>
         <ol>
           <li>Tap the bright hex in the middle: that is your block. Open a business and read the owner's traits. Cowards and low-nerve owners fold fast; hotheads and honest owners fight back.</li>
           <li><b>Threaten</b> an owner until their fear is up, then <b>Shakedown</b> for cash today or <b>Protect</b> for a daily cut. Fair rates (10 to 15%) keep owners loyal.</li>
-          <li>You stand on one block at a time, marked 🚶 on the map. Anything face to face needs you there: tap a place or a person and <b>Walk over</b> first. Walking spends <b>legwork</b>, not AP, and legwork comes back every day. Blocks you run are free to walk through, so taking ground makes the city smaller.</li>
+          <li>You stand on one block at a time, marked by the amber pin on the map. Anything face to face needs you there: tap a place or a person and <b>Walk over</b> first. Walking spends <b>legwork</b>, not AP, and legwork comes back every day. Blocks you run are free to walk through, so taking ground makes the city smaller.</li>
           <li>Talk to patrons (<b>Visit</b>). At trust 20 you can <b>Recruit</b> them; assign crew to run rackets so they earn full income and get busted less. Once someone has loyalty 50 and a few days in, make them a <b>lieutenant</b> over a district: rackets there run themselves, but watch the books.</li>
           <li>Add a <b>Numbers</b> racket to a place you protect, rent a <b>safehouse</b> on your block, build a <b>still</b>, stock it, and sell booze on the street or through a <b>Dealing</b> racket.</li>
           <li><b>End Day</b> each turn. Read the event cards. Watch heat: past 60 you get raided, at 100 you get busted. Bribe the captain or pay the sergeant to cool off.</li>
@@ -72,7 +72,7 @@ function Cheats() {
   const cheated = useStore(s => !!s.world?.cheated);
   return (
     <div className="mt12">
-      <Disclosure label="Testing tools" icon="🔧">
+      <Disclosure label="Testing tools" icon="wrench">
         <p className="small muted" style={{ margin: 0 }}>
           For testing this build. Anything here happens instantly and for free, and marks the save as cheated{cheated ? ' — which this one already is.' : '.'}
         </p>

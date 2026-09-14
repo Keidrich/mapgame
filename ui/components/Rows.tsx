@@ -1,8 +1,9 @@
 import type { Business, Npc, World } from '@sim/types';
 import { select } from '@sim/index';
-import { RACKET_DEFS, TRAIT_LABELS } from '@content/rackets';
+import { TRAIT_LABELS } from '@content/rackets';
 import { bizIcon, bizTypeLabel, initials, ownerLabel, protectionLabel, roleLabel } from '@ui/derive';
 import { openSheet } from '@ui/store';
+import { Icon, IconTile } from '@ui/icons';
 
 /** Tappable NPC row → NPC sheet. */
 export function NpcRow({ w, npc, sub, sel }: { w: World; npc: Npc; sub?: string; sel?: boolean }) {
@@ -25,12 +26,12 @@ export function BizRow({ w, biz, sel }: { w: World; biz: Business; sel?: boolean
   const rackets = select.racketsAt(w, biz);
   return (
     <button type="button" className={`listitem${sel ? ' sel' : ''}`} onClick={() => openSheet({ kind: 'business', businessId: biz.id })}>
-      <span className="ico">{bizIcon(biz)}</span>
+      <IconTile name={bizIcon(biz)} size={30} tone={biz.ownedBy === 'player' ? 'gold' : undefined} />
       <div className="grow" style={{ minWidth: 0 }}>
         <div className="title ellipsis">{biz.name}</div>
-        <div className="sub ellipsis">{bizTypeLabel(biz)} · {ownerLabel(w, biz)}{rackets.length > 0 && <> · {rackets.map(r => RACKET_DEFS[r.kind].icon).join(' ')}</>}</div>
+        <div className="sub ellipsis">{bizTypeLabel(biz)} · {ownerLabel(w, biz)}{rackets.length > 0 && <> · {rackets.map(r => <Icon key={r.id} of="racket" id={r.kind} size={11} style={{ display: 'inline-block', verticalAlign: -1, marginRight: 2 }} />)}</>}</div>
       </div>
-      {biz.ownedBy === 'player' ? <span className="chip" style={{ color: 'var(--gold)' }}>Yours</span> : prot && <span className="chip" style={{ color: select.factionColor(w, biz.protection!.factionId) }}>💪</span>}
+      {biz.ownedBy === 'player' ? <span className="chip" style={{ color: 'var(--gold)' }}>Yours</span> : prot && <span className="chip" style={{ color: select.factionColor(w, biz.protection!.factionId) }}><Icon name="protection" size={12} /></span>}
     </button>
   );
 }

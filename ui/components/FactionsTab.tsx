@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react';
 import { useState } from 'react';
 import { select } from '@sim/index';
 import { PLAYER, type Faction, type Id } from '@sim/types';
@@ -8,6 +9,7 @@ import { Meter } from './Meter';
 import { Act, AmountPicker, Disclosure, SceneAct } from './Act';
 import { NpcRow } from './Rows';
 import { Info, Term, TermChip } from './Info';
+import { Icon } from '@ui/icons';
 
 export function FactionsTab() {
   const w = useWorld();
@@ -28,14 +30,14 @@ export function FactionsTab() {
 function CommissionCard() {
   const w = useWorld();
   const c = w.commission;
-  if (!c) return <div className="card mb8"><b>🏛️ No Commission yet</b><p className="small muted mt8">Once three factions share the city, the bosses form a table that rules on peace, taxes and turf. Blocks and respect get you a chair.</p></div>;
+  if (!c) return <div className="card mb8"><b><Icon name="empire" size={14} /> No Commission yet</b><p className="small muted mt8">Once three factions share the city, the bosses form a table that rules on peace, taxes and turf. Blocks and respect get you a chair.</p></div>;
   const ms = select.commissionMembers(w);
   return (
     <div className="card gold mb8">
-      <div className="row between"><b>🏛️ The Commission<Info id="commission" /></b><span className="chip">{c.seat ? 'You have a chair' : 'No chair'}</span></div>
+      <div className="row between"><b><Icon name="empire" size={14} /> The Commission<Info id="commission" /></b><span className="chip">{c.seat ? 'You have a chair' : 'No chair'}</span></div>
       <div className="small muted mt8">Since day {c.formedDay} · {ms.map(f => f.short).join(', ')}{c.seat ? `, ${w.player.name}` : ''} · next meeting day {c.nextMeeting}{c.pending ? ' (on the table now)' : ''}</div>
       {c.rulings.length > 0 && <div className="mt8">{c.rulings.slice(-3).reverse().map((r, i) => <div key={i} className="small"><span className="muted">D{r.day}</span> {r.text}</div>)}</div>}
-      {!c.seat && <div className="mt8"><Act action={{ type: 'petition_seat' }} label="Petition for a chair" icon="💺" block /></div>}
+      {!c.seat && <div className="mt8"><Act action={{ type: 'petition_seat' }} label="Petition for a chair" icon="seat" block /></div>}
       {c.seat && <p className="small muted mt8">Your vote counts, the pot can pay you, and members drift back toward peace with you.</p>}
     </div>
   );
@@ -69,7 +71,8 @@ function FactionCard({ f }: { f: Faction }) {
     : (blockPick ? { kind: 'demand_block', blockId: blockPick } : null);
 
   return (
-    <div className="card" style={{ borderColor: f.alive ? f.color : undefined, opacity: f.alive ? 1 : 0.5 }}>
+    <div className="brief" style={{ borderColor: f.alive ? f.color : undefined, opacity: f.alive ? 1 : 0.5, '--brk-c': f.alive ? f.color : 'var(--line-2)' } as CSSProperties}>
+      <div className="brief-head" style={{ color: f.alive ? f.color : undefined }}><Icon name="factions" size={13} /> {cap(f.temperament)}<span className="n">{blocks.length} blocks</span></div>
       <div className="row between">
         <b style={{ fontSize: 16 }}><span className="swatch" style={{ background: f.color, width: 14, height: 14 }} />{f.name}</b>
         <TermChip id="stance" className={`stance-${stance}`}>{cap(stance)}</TermChip>
@@ -86,7 +89,7 @@ function FactionCard({ f }: { f: Faction }) {
       </div>
       {f.crisis && f.alive && (
         <div className="card mt8" style={{ borderColor: 'var(--orange)' }}>
-          <b>⚖️ <Term id="crisis">Succession crisis</Term></b> <span className="small muted">settles day {f.crisis.resolvesDay}{f.crisis.backing ? ` · you back ${w.npcs[f.crisis.backing]?.name.split(' ')[0]} (${fmtMoney(f.crisis.backedWith)})` : ''}</span>
+          <b><Icon name="lawyer" size={14} /> <Term id="crisis">Succession crisis</Term></b> <span className="small muted">settles day {f.crisis.resolvesDay}{f.crisis.backing ? ` · you back ${w.npcs[f.crisis.backing]?.name.split(' ')[0]} (${fmtMoney(f.crisis.backedWith)})` : ''}</span>
           <p className="small muted mt8">Money and your name tip it. Back the winner and the new boss owes you; back the loser and they never forget.</p>
           <div className="mb8"><AmountPicker presets={[500, 1500, 3000, 6000]} value={backAmt} onChange={setBackAmt} min={500} /></div>
           <div className="list">{f.crisis.candidateIds.map(id => w.npcs[id]).filter(n => n?.alive).map(n => (
@@ -105,13 +108,13 @@ function FactionCard({ f }: { f: Faction }) {
       {f.alive && voice && fights.length > 0 && (
         <div className="mt8">
           <div className="small muted mb8">At {fights.map(o => `${f.stance[o.id]} with ${o.short}`).join(', ')}. <Term id="broker">A truce brokered by you</Term> earns standing on both sides and a fee.</div>
-          <div className="actions">{fights.map(o => <SceneAct key={o.id} scene={{ kind: 'broker', npcId: voice.id, otherFactionId: o.id }} label={`Broker peace with ${o.short}`} icon="🕊️" />)}</div>
+          <div className="actions">{fights.map(o => <SceneAct key={o.id} scene={{ kind: 'broker', npcId: voice.id, otherFactionId: o.id }} label={`Broker peace with ${o.short}`} icon="peace" />)}</div>
         </div>
       )}
 
       {f.alive && (
         <div className="actions mt8">
-          <Disclosure label="Sit-down" icon="💺" kind="primary">
+          <Disclosure label="Sit-down" icon="seat" kind="primary">
             <label className="field"><Term id="sitDown">Your offer</Term></label>
             <select className="select mb8" value={offerKind} onChange={e => setOfferKind(e.target.value as SitDownOffer['kind'])}>
               <option value="truce">Truce</option><option value="tribute">Pay tribute</option><option value="cede_block">Cede a block</option>
@@ -133,13 +136,13 @@ function FactionCard({ f }: { f: Faction }) {
             )}
             {offer ? <Act action={{ type: 'sit_down', factionId: f.id, offer }} label="Propose" kind="primary" block /> : <p className="small muted">Pick a target for the offer.</p>}
           </Disclosure>
-          <Disclosure label="Pay tribute" icon="💵">
+          <Disclosure label="Pay tribute" icon="cash">
             <AmountPicker presets={[500, 1000, 5000]} value={tributeAmt} onChange={setTributeAmt} min={1} />
             <div className="mt8"><Act action={{ type: 'pay_tribute', factionId: f.id, amount: tributeAmt }} label={`Pay ${fmtMoney(tributeAmt)}`} kind="primary" block /></div>
           </Disclosure>
-          {stance !== 'peace' && stance !== 'alliance' && <Act action={{ type: 'declare', factionId: f.id, stance: 'peace' }} label="Offer peace" icon="🕊️" />}
-          {stance !== 'beef' && stance !== 'war' && <Act action={{ type: 'declare', factionId: f.id, stance: 'beef' }} label="Declare beef" icon="🔥" kind="danger" confirm={`Start a beef with ${f.name}?`} />}
-          {stance !== 'war' && <Act action={{ type: 'declare', factionId: f.id, stance: 'war' }} label="Declare war" icon="⚔️" kind="danger" confirm={`Go to war with ${f.name}? They will hit your crew and safehouses.`} />}
+          {stance !== 'peace' && stance !== 'alliance' && <Act action={{ type: 'declare', factionId: f.id, stance: 'peace' }} label="Offer peace" icon="peace" />}
+          {stance !== 'beef' && stance !== 'war' && <Act action={{ type: 'declare', factionId: f.id, stance: 'beef' }} label="Declare beef" icon="heat" kind="danger" confirm={`Start a beef with ${f.name}?`} />}
+          {stance !== 'war' && <Act action={{ type: 'declare', factionId: f.id, stance: 'war' }} label="Declare war" icon="raid_rival" kind="danger" confirm={`Go to war with ${f.name}? They will hit your crew and safehouses.`} />}
         </div>
       )}
     </div>

@@ -5,12 +5,11 @@ import type { GeoJSONSource, Map as MLMap, StyleSpecification } from 'maplibre-g
 import type { Feature as GJFeature, FeatureCollection, Polygon } from 'geojson';
 import { select } from '@sim/index';
 import { PLAYER, type Id, type ProductKind, type World } from '@sim/types';
-import { AUTHORITY_KINDS, POSTURES } from '@content/authority';
-import { BUSINESS_DEFS } from '@content/businesses';
 import { chunkBounds, chunksInBox, type GeoChunk } from '@geo/chunks';
 import { topInfluence } from '@ui/derive';
 import { bumpChunks, explainFog, openSheet, revealNear, useStore, type MapLayer } from '@ui/store';
 import { allCachedChunks, loadChunk, recentlyFailed } from '@ui/net/chunks';
+import { iconMarkup, iconName } from '@ui/icons';
 
 // MapLibre 6 spawns its worker from a file next to its own module, which a bundled build never ships.
 // Point it at the copy Vite bundles for us instead, or every source silently fails to load in production.
@@ -96,25 +95,28 @@ function blockFeature(w: World, blockId: Id, selected: boolean, o: LayerOpts): F
       properties: {
         id: b.id, chunkKey: b.chunkKey,
         color: mix(lo, hi, v),
-        fillOpacity: 0.15 + v * 0.55,
-        line: selected ? '#ffffff' : ctrl === PLAYER ? '#f2c94c' : '#5a6270',
-        lineWidth: selected ? 3 : ctrl === PLAYER ? 1.4 : 0.5,
-        lineOpacity: selected ? 1 : ctrl === PLAYER ? 0.9 : 0.4,
+        fillOpacity: 0.12 + v * 0.42,
+        line: selected ? '#ffffff' : ctrl === PLAYER ? '#f5c542' : '#4a566a',
+        lineWidth: selected ? 3 : ctrl === PLAYER ? 2.2 : 0.5,
+        lineOpacity: selected ? 1 : ctrl === PLAYER ? 1 : 0.4,
         unpopulated: 0, selected: selected ? 1 : 0,
       },
       geometry: { type: 'Polygon', coordinates: ring(b.polygon) },
     };
   }
-  const fillOpacity = ctrl ? 0.12 + (Math.min(100, top.value) / 100) * 0.4 : 0.08;
+  // A controlled block is a *zone*, not a stain: the fill stays low and flat and the edge does
+  // the work. Translucent blobs stacked over a dark basemap turned the whole map to mud as soon
+  // as three outfits held ground next to each other.
+  const fillOpacity = ctrl ? 0.08 + (Math.min(100, top.value) / 100) * 0.16 : 0.05;
   return {
     type: 'Feature',
     properties: {
       id: b.id, chunkKey: b.chunkKey,
-      color: ctrl === PLAYER ? '#f2c94c' : ctrl ? color : '#8a9099',
-      fillOpacity: hot ? Math.max(fillOpacity, 0.22) : fillOpacity,
-      line: selected ? '#ffffff' : hot ? '#e5484d' : ctrl ? color : '#5a6270',
-      lineWidth: selected ? 3 : hot ? 2 : ctrl ? 1.4 : 0.8,
-      lineOpacity: selected ? 1 : ctrl ? 0.9 : 0.75,
+      color: ctrl === PLAYER ? '#f5c542' : ctrl ? color : '#7d8a9d',
+      fillOpacity: hot ? Math.max(fillOpacity, 0.2) : fillOpacity,
+      line: selected ? '#ffffff' : hot ? '#e5484d' : ctrl ? color : '#4a566a',
+      lineWidth: selected ? 3 : hot ? 2.4 : ctrl ? 2.2 : 0.8,
+      lineOpacity: selected ? 1 : ctrl ? 1 : 0.7,
       unpopulated: 0, selected: selected ? 1 : 0,
     },
     geometry: { type: 'Polygon', coordinates: ring(b.polygon) },
@@ -124,7 +126,7 @@ function ghostFeature(c: GeoChunk, i: number): Feature {
   const b = c.blocks[i];
   return {
     type: 'Feature',
-    properties: { id: b.id, chunkKey: c.key, color: '#8a9099', fillOpacity: 0.03, line: '#3a414b', lineWidth: 0.6, lineOpacity: 0.5, unpopulated: 1, selected: 0 },
+    properties: { id: b.id, chunkKey: c.key, color: '#7d8a9d', fillOpacity: 0.02, line: '#2b3a4d', lineWidth: 0.6, lineOpacity: 0.5, unpopulated: 1, selected: 0 },
     geometry: { type: 'Polygon', coordinates: ring(b.polygon) },
   };
 }
@@ -205,6 +207,14 @@ export function MapView() {
       m.addSource('blocks', { type: 'geojson', data: buildGeoJSON(worldRef.current, selRef.current.blockId, layerRef.current) });
       m.addLayer({ id: 'blocks-fill', type: 'fill', source: 'blocks', paint: { 'fill-color': ['get', 'color'], 'fill-opacity': ['get', 'fillOpacity'] } });
       m.addLayer({ id: 'blocks-line', type: 'line', source: 'blocks', paint: { 'line-color': ['get', 'line'], 'line-width': ['get', 'lineWidth'], 'line-opacity': ['get', 'lineOpacity'] } });
+      // The second rule, set in from the first: two hairlines a few pixels apart is what makes a
+      // boundary read as a controlled zone on a HUD instead of as a coloured shape. Drawn only
+      // where somebody actually holds the ground, so an unclaimed block stays a plain outline.
+      m.addLayer({
+        id: 'blocks-line-inner', type: 'line', source: 'blocks',
+        filter: ['>', ['get', 'lineWidth'], 1.5],
+        paint: { 'line-color': ['get', 'line'], 'line-width': 1, 'line-opacity': 0.45, 'line-offset': 3.5 },
+      });
       // cloud sits above the blocks: unwalked streets show through it, faintly
       m.addSource('fog', { type: 'geojson', data: buildFogJSON(worldRef.current, boundsOf(m)) });
       m.addLayer({ id: 'fog-fill', type: 'fill', source: 'fog', paint: { 'fill-color': '#0d1117', 'fill-opacity': 0.82 } });
@@ -273,14 +283,13 @@ export function MapView() {
     const inView = (lat: number, lng: number) => lat >= vb.getSouth() && lat <= vb.getNorth() && lng >= vb.getWest() && lng <= vb.getEast();
     const want = new Map<string, Want>();
     const sb = select.startBlock(w);
-    want.set('start', { html: '★', cls: 'start-marker', lng: sb.center.lng, lat: sb.center.lat });
+    want.set('start', { html: iconMarkup('start', { size: 16 }), cls: 'start-marker', lng: sb.center.lng, lat: sb.center.lat });
     // the law, as a thing on the map. The radius it is watching is the 'police' overlay; this
     // marker is what tells the player the radius exists at all.
     for (const a of select.authorities(w)) {
       const ab = w.blocks[a.blockId]; if (!ab || !inView(ab.center.lat, ab.center.lng)) continue;
-      const rung = POSTURES[a.posture];
       want.set(`law:${a.id}`, {
-        html: `${AUTHORITY_KINDS[a.kind].icon}${a.posture === 'routine' ? '' : rung.icon}`,
+        html: iconMarkup(a.kind, { size: 15 }) + (a.posture === 'routine' ? '' : iconMarkup(a.posture, { size: 13 })),
         cls: `law-marker${a.posture === 'routine' ? '' : ' hot'}`,
         lng: ab.center.lng, lat: ab.center.lat,
         click: () => openSheet({ kind: 'block', blockId: a.blockId }),
@@ -288,23 +297,23 @@ export function MapView() {
     }
     const you = w.blocks[w.player.currentBlockId];
     const offset = (b: World['blocks'][string], dx: number, dy: number) => ({ lng: b.center.lng + dx / (111320 * Math.cos((b.center.lat * Math.PI) / 180)), lat: b.center.lat + dy / 111320 });
-    if (you) want.set('you', { html: '🚶', cls: 'you-marker', ...offset(you, 0, hi ? Math.sqrt(you.areaM2) * 0.22 : 26), click: () => openSheet({ kind: 'block', blockId: you.id }) });
+    if (you) want.set('you', { html: iconMarkup('you', { size: 17 }), cls: 'you-marker', ...offset(you, 0, hi ? Math.sqrt(you.areaM2) * 0.22 : 26), click: () => openSheet({ kind: 'block', blockId: you.id }) });
     for (const b of Object.values(w.blocks)) {
       if (!inView(b.center.lat, b.center.lng)) continue;
-      if (b.heat > 50) want.set(`fire:${b.id}`, { html: '🔥', cls: 'hex-fire', ...offset(b, 0, hi ? Math.sqrt(b.areaM2) * 0.3 : 0) });
+      if (b.heat > 50) want.set(`fire:${b.id}`, { html: iconMarkup('heat', { size: 17, color: '#e5484d' }), cls: 'hex-fire', ...offset(b, 0, hi ? Math.sqrt(b.areaM2) * 0.3 : 0) });
       if (hi) {
         const n = b.businessIds.length;
         b.businessIds.forEach((bid, i) => {
           const biz = w.businesses[bid]; if (!biz) return;
           const a = (i / n) * Math.PI * 2 - Math.PI / 2; const r = n > 1 ? Math.min(90, Math.sqrt(b.areaM2) * 0.28) : 0;
           const yours = biz.ownedBy === 'player' || biz.protection?.factionId === PLAYER;
-          want.set(`biz:${bid}`, { html: BUSINESS_DEFS[biz.type].icon, cls: `biz-marker${yours ? ' yours' : ''}${bid === selRef.current.businessId ? ' sel' : ''}`, ...offset(b, Math.cos(a) * r, Math.sin(a) * r), click: () => openSheet({ kind: 'business', businessId: bid }) });
+          want.set(`biz:${bid}`, { html: iconMarkup(iconName('business', biz.type), { size: 16 }), cls: `biz-marker${yours ? ' yours' : ''}${bid === selRef.current.businessId ? ' sel' : ''}`, ...offset(b, Math.cos(a) * r, Math.sin(a) * r), click: () => openSheet({ kind: 'business', businessId: bid }) });
         });
       } else if (b.businessIds.length && m.getZoom() >= 13.5) {
         want.set(`count:${b.id}`, { html: String(b.businessIds.length), cls: 'hex-badge', lng: b.center.lng, lat: b.center.lat });
       }
       const sh = b.safehouseId ? w.safehouses[b.safehouseId] : undefined;
-      if (sh) want.set(`safe:${sh.id}`, { html: '🏠', cls: `safe-marker${sh.owner === PLAYER ? '' : ' rival'}`, ...(hi ? offset(b, 0, -Math.sqrt(b.areaM2) * 0.2) : { lng: b.center.lng, lat: b.center.lat }), click: () => openSheet({ kind: 'block', blockId: b.id }) });
+      if (sh) want.set(`safe:${sh.id}`, { html: iconMarkup('safehouse', { size: 17 }), cls: `safe-marker${sh.owner === PLAYER ? '' : ' rival'}`, ...(hi ? offset(b, 0, -Math.sqrt(b.areaM2) * 0.2) : { lng: b.center.lng, lat: b.center.lat }), click: () => openSheet({ kind: 'block', blockId: b.id }) });
     }
     for (const [key, k] of markers.current) if (!want.has(key)) { k.mk.remove(); markers.current.delete(key); }
     for (const [key, d] of want) {
@@ -323,7 +332,7 @@ export function MapView() {
   return (
     <>
       <div ref={el} className="map" role="application" aria-label="City map" />
-      {loadingCount > 0 && <div className="map-loading" role="status" style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', top: 10, zIndex: 5, padding: '6px 12px', borderRadius: 14, background: 'rgba(20,23,28,0.9)', border: '1px solid var(--line)', fontSize: 12, color: 'var(--muted)', pointerEvents: 'none' }}>🗺️ Mapping new streets…</div>}
+      {loadingCount > 0 && <div className="map-loading" role="status" style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', top: 10, zIndex: 5, padding: '6px 12px', borderRadius: 2, background: 'rgba(7,10,16,0.92)', border: '1px solid var(--line-2)', fontFamily: 'var(--font-mono)', fontSize: 10.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--muted)', pointerEvents: 'none' }}>Mapping new streets…</div>}
     </>
   );
 }

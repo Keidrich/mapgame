@@ -1,18 +1,22 @@
-/* RACKETS — mobile-first dark theme */
+/* RACKETS — tactical HUD. Amber on near-black navy, hard corners, mono labelling. */
 :root {
-  --bg: #0b0d10;
-  --bg-2: #14171c;
-  --bg-3: #1c2027;
-  --bg-4: #262b34;
-  --line: #2b313b;
-  --text: #e8e6e1;
-  --muted: #8f96a3;
-  --gold: #f2c94c;
-  --gold-dim: rgba(242, 201, 76, 0.18);
-  --green: #4cd88a;
+  /* The ground is navy rather than neutral black: at night, on a phone, a blue-black reads as
+     a screen you are looking *at* and a grey-black reads as a screen that is off. */
+  --bg: #070a10;
+  --bg-2: #0c1119;
+  --bg-3: #111926;
+  --bg-4: #1a2534;
+  --line: #1e2a3a;
+  --line-2: #2b3a4d;
+  --text: #dfe6f0;
+  --muted: #7d8a9d;
+  --gold: #f5c542;
+  --gold-2: rgba(245, 197, 66, 0.55);   /* corner brackets, rules, hairlines */
+  --gold-dim: rgba(245, 197, 66, 0.14);
+  --green: #45d489;
   --orange: #f0954c;
   --red: #e5484d;
-  --blue: #5aa9f0;
+  --blue: #58a6f0;
   --purple: #b07cf0;
   --hud-h: 96px;
   --tab-h: 60px;
@@ -23,8 +27,12 @@
      edge, so ~20px more is all the clearance the indicator needs. Bottom-anchored chrome
      uses this trimmed value; scrolling content keeps the full inset. */
   --sab-nav: min(var(--sab), 20px);
-  --radius: 14px;
+  /* Hard corners everywhere. The one exception is the round things that have to stay round to
+     be recognised as controls — the help button, the avatars, the pips. */
+  --radius: 2px;
   --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  /* Headers, labels, every number: a stencil look is a monospace with the letters pushed apart. */
+  --font-mono: ui-monospace, "SF Mono", SFMono-Regular, "JetBrains Mono", Menlo, Consolas, monospace;
   color-scheme: dark;
 }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -419,3 +427,261 @@ label.field { display: block; font-size: 12px; color: var(--muted); margin-botto
 
 .opt.sel { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold) inset; }
 .opt .stakes { display: flex; gap: 12px; flex-wrap: wrap; font-size: 12px; margin-top: 4px; }
+
+/* ============================================================================================
+   THE TACTICAL PASS
+   ============================================================================================
+   Everything below restyles what is above rather than replacing it, so the class names the
+   components already use keep working and the diff stays readable. Three ideas, applied
+   consistently:
+
+     1. Hard corners and hairlines. A 14px radius reads as a consumer app; 2px and a 1px rule
+        reads as an instrument. The only round things left are the ones that have to be round
+        to be recognised: the help button, avatars, pips, the map pins.
+     2. Corner brackets. Four L-shaped marks at the corners of anything that is a *panel* —
+        drawn as background gradients rather than extra elements, so no component had to grow
+        a wrapper div for them.
+     3. Mono, uppercase, tracked-out labelling. Headers, section titles, chips, stat labels and
+        every number. Body copy stays in the system sans, because tracked-out mono is unreadable
+        at paragraph length and this game has paragraphs.
+   ============================================================================================ */
+
+/* ---------------------------------------------------------------- icons */
+/* Inline by default: most icons in this app sit inside a line of text ("<icon> No Commission
+   yet"), and a block-level SVG puts them on their own line. Flex and grid blockify their own
+   children, so the rows that want them as items are unaffected. */
+.icon { display: inline-block; vertical-align: -0.14em; flex: none; }
+.row > .icon, .icontile > .icon, .btn > .icon, .tab .icon { vertical-align: 0; }
+.icon path { vector-effect: non-scaling-stroke; }
+/* The bordered tile from the reference: a hairline box with its top-left corner notched off, so
+   an icon sits *in* something rather than floating next to a label. */
+.icontile {
+  display: inline-flex; align-items: center; justify-content: center; flex: none;
+  border: 1px solid var(--line-2); background: var(--bg-3); color: var(--muted);
+  clip-path: polygon(7px 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%, 0 7px);
+}
+.icontile-gold { border-color: var(--gold-2); color: var(--gold); background: rgba(245, 197, 66, 0.07); }
+.icontile-live { border-color: rgba(69, 212, 137, 0.5); color: var(--green); background: rgba(69, 212, 137, 0.07); }
+.icontile-danger { border-color: rgba(229, 72, 77, 0.5); color: var(--red); background: rgba(229, 72, 77, 0.07); }
+.icontile-muted { color: var(--muted); }
+.listitem .icontile, .shelfitem .icontile { margin: -1px 0; }
+
+/* ---------------------------------------------------------------- corner brackets */
+.brk {
+  --brk-len: 9px; --brk-w: 1px; --brk-c: var(--gold-2);
+  background-image:
+    linear-gradient(var(--brk-c), var(--brk-c)), linear-gradient(var(--brk-c), var(--brk-c)),
+    linear-gradient(var(--brk-c), var(--brk-c)), linear-gradient(var(--brk-c), var(--brk-c)),
+    linear-gradient(var(--brk-c), var(--brk-c)), linear-gradient(var(--brk-c), var(--brk-c)),
+    linear-gradient(var(--brk-c), var(--brk-c)), linear-gradient(var(--brk-c), var(--brk-c));
+  background-size:
+    var(--brk-len) var(--brk-w), var(--brk-w) var(--brk-len),
+    var(--brk-len) var(--brk-w), var(--brk-w) var(--brk-len),
+    var(--brk-len) var(--brk-w), var(--brk-w) var(--brk-len),
+    var(--brk-len) var(--brk-w), var(--brk-w) var(--brk-len);
+  background-position: 0 0, 0 0, 100% 0, 100% 0, 0 100%, 0 100%, 100% 100%, 100% 100%;
+  background-repeat: no-repeat;
+}
+.brk-dim { --brk-c: var(--line-2); }
+
+/* ---------------------------------------------------------------- typography */
+h1, h2, h3, h4, .sheet-title, .panel h2, .modal h2 {
+  font-family: var(--font-mono); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+}
+.panel h2, .modal h2 { font-size: 16px; color: var(--text); }
+/* A section title is a label on a piece of equipment: a rule, the word, a rule. */
+.section-title {
+  display: flex; align-items: center; gap: 8px;
+  font-family: var(--font-mono); font-size: 10.5px; font-weight: 600; letter-spacing: 0.16em;
+  text-transform: uppercase; color: var(--muted); margin: 18px 0 8px;
+}
+.section-title::after { content: ''; flex: 1; height: 1px; background: linear-gradient(90deg, var(--line-2), transparent); }
+.mono, .stat, .kv dd, .meter .val, .logline .d, .chance, .shelf-price { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.tiny, .small.muted { letter-spacing: 0.01em; }
+/* the tactical label: small, mono, tracked out, never more than three words */
+.tac { font-family: var(--font-mono); font-size: 10px; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted); }
+.tac-gold { color: var(--gold); }
+
+/* ---------------------------------------------------------------- panels and rows */
+/* The bracket corners and the scanline have to live in one `background-image` stack, so the
+   mixin is written once here and every panel opts in by setting `--brk-c`. */
+.card, .brief, .modal, .hud-strip {
+  --brk-len: 9px; --brk-w: 1px; --brk-c: transparent;
+  background-image:
+    linear-gradient(var(--brk-c), var(--brk-c)), linear-gradient(var(--brk-c), var(--brk-c)),
+    linear-gradient(var(--brk-c), var(--brk-c)), linear-gradient(var(--brk-c), var(--brk-c)),
+    linear-gradient(var(--brk-c), var(--brk-c)), linear-gradient(var(--brk-c), var(--brk-c)),
+    linear-gradient(var(--brk-c), var(--brk-c)), linear-gradient(var(--brk-c), var(--brk-c)),
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.016) 0 1px, transparent 1px 3px);
+  background-size:
+    var(--brk-len) var(--brk-w), var(--brk-w) var(--brk-len),
+    var(--brk-len) var(--brk-w), var(--brk-w) var(--brk-len),
+    var(--brk-len) var(--brk-w), var(--brk-w) var(--brk-len),
+    var(--brk-len) var(--brk-w), var(--brk-w) var(--brk-len),
+    auto;
+  background-position: 0 0, 0 0, 100% 0, 100% 0, 0 100%, 0 100%, 100% 100%, 100% 100%, 0 0;
+  background-repeat: no-repeat, no-repeat, no-repeat, no-repeat, no-repeat, no-repeat, no-repeat, no-repeat, repeat;
+}
+.card {
+  --brk-c: var(--line-2);
+  border-radius: var(--radius); border-color: var(--line);
+  background-color: var(--bg-2);
+  padding: 12px 13px;
+}
+.card.gold { --brk-c: var(--gold-2); border-color: var(--gold-2); background-color: rgba(245, 197, 66, 0.04); }
+/* A briefing panel: the mission-document treatment for the screens that are mostly instrument —
+   the racket list, the ops planner, the faction cards, the ledger, holdings, inventory. */
+.brief {
+  --brk-c: var(--gold-2);
+  position: relative; border: 1px solid var(--line-2); border-radius: var(--radius);
+  background-color: var(--bg-2);
+  padding: 12px 13px;
+}
+.brief > .brief-head {
+  display: flex; align-items: center; gap: 8px; margin: -12px -13px 10px; padding: 7px 13px;
+  border-bottom: 1px solid var(--line); background: linear-gradient(180deg, rgba(245, 197, 66, 0.08), transparent);
+  font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--gold);
+}
+.brief > .brief-head .n { margin-left: auto; color: var(--muted); letter-spacing: 0.08em; }
+.listitem, .shelfitem, .opt, .check, .result, .bg-opt, .movebox, .opcard, .logline { border-radius: var(--radius); }
+.listitem, .shelfitem { border-color: var(--line); background: var(--bg-3); }
+.listitem:active, .shelfitem:active { background: var(--bg-4); }
+.listitem.sel, .shelfitem.sel { border-color: var(--gold-2); background: rgba(245, 197, 66, 0.06); }
+.listitem .ico, .shelfitem > .ico { display: flex; align-items: center; justify-content: center; }
+/* the left-edge tick every row in a dense list gets, so a column of rows reads as a readout */
+.listitem { position: relative; padding-left: 12px; }
+.listitem::before { content: ''; position: absolute; left: 0; top: 8px; bottom: 8px; width: 2px; background: var(--line-2); }
+.listitem.sel::before { background: var(--gold); }
+
+/* ---------------------------------------------------------------- controls */
+.btn, .input, .select, .textarea, .segment, .iconbtn, .opnode-btn, .chip { border-radius: var(--radius); }
+.btn { font-family: var(--font-mono); font-size: 12.5px; letter-spacing: 0.08em; text-transform: uppercase; }
+.btn-primary { box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.35); }
+.btn-sm { font-size: 11.5px; }
+.chip, .tinychip { font-family: var(--font-mono); letter-spacing: 0.04em; border-radius: var(--radius); gap: 5px; }
+/* Chips are not all labels: half of them carry a sentence ("+25% the same runners, the same
+   slips"). Mono yes, upper-case no, and they wrap rather than running off the card. */
+.chip { font-size: 11px; white-space: normal; overflow-wrap: anywhere; }
+.tinychip { font-size: 10px; white-space: normal; gap: 4px; }
+.chip.btn { white-space: nowrap; letter-spacing: 0.1em; text-transform: uppercase; }
+.iconbtn { border-radius: var(--radius); border: 1px solid var(--line-2); }
+.segment button { font-family: var(--font-mono); letter-spacing: 0.08em; text-transform: uppercase; font-size: 11.5px; }
+.check .box { border-radius: 0; }
+.avatar { border-radius: 0; font-family: var(--font-mono); border: 1px solid var(--line-2); }
+.hud-help { border-radius: var(--radius); border-color: var(--gold-2); }
+
+/* ---------------------------------------------------------------- sheets, modals, toasts */
+.sheet { border-radius: 0; border-top: 1px solid var(--gold-2); background: var(--bg-2); }
+.sheet-head { border-bottom-color: var(--line-2); }
+.sheet-grab { border-radius: 0; height: 3px; width: 36px; opacity: 0.5; }
+.modal { --brk-c: var(--gold-2); border-radius: var(--radius); border-color: var(--line-2); background-color: var(--bg-2); }
+.scene { background-image: repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.016) 0 1px, transparent 1px 3px); }
+.event-kind { font-family: var(--font-mono); letter-spacing: 0.18em; }
+.toast { border-radius: var(--radius); border-left-width: 3px; }
+.pop { border-radius: var(--radius); }
+.banner { border-radius: var(--radius); }
+
+/* ---------------------------------------------------------------- the top HUD
+   Three bands instead of two crowded rows: identity (day and place), the readout strip, and
+   the day's budget. Every number is mono and right-aligned in its own cell, so they line up
+   down the strip instead of jostling. */
+.hud {
+  padding: calc(var(--sat) + 7px) 12px 7px;
+  background: linear-gradient(180deg, #0a0f18, #070a10);
+  border-bottom: 1px solid var(--line-2);
+  box-shadow: 0 1px 0 rgba(245, 197, 66, 0.12);
+}
+.hud-top { display: flex; align-items: center; gap: 10px; }
+.hud-id { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.hud-day {
+  font-family: var(--font-mono); font-size: 13px; font-weight: 600; letter-spacing: 0.14em;
+  color: var(--gold); white-space: nowrap;
+}
+.hud-place { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+.hud-flags { display: flex; align-items: center; gap: 6px; margin-left: auto; }
+.hud-flag {
+  display: inline-flex; align-items: center; gap: 4px; padding: 2px 6px;
+  border: 1px solid var(--line-2); color: var(--muted);
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase;
+}
+.hud-flag.red { border-color: rgba(229, 72, 77, 0.5); color: var(--red); }
+.hud-flag.gold { border-color: var(--gold-2); color: var(--gold); }
+/* the readout strip */
+.hud-strip { --brk-c: var(--gold-2); display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; margin-top: 7px; background: var(--line); border: 1px solid var(--line); }
+.hud-cell { display: flex; flex-direction: column; gap: 1px; padding: 4px 6px 5px; background: var(--bg-2); min-width: 0; }
+.hud-cell .k { display: flex; align-items: center; gap: 4px; font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
+.hud-cell .v { font-family: var(--font-mono); font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.hud-cell .v.sm { font-size: 12px; }
+.hud-cell.cash .v { color: var(--green); }
+.hud-cell.dirty .v { color: var(--orange); }
+.hud-cell.heat .v { color: var(--text); }
+.hud-cell.hot .v { color: var(--red); }
+.hud-cell .bar { height: 3px; background: var(--bg-4); margin-top: 3px; }
+.hud-cell .bar > i { display: block; height: 100%; background: linear-gradient(90deg, var(--orange), var(--red)); }
+.hud-cell .bar.calm > i { background: linear-gradient(90deg, var(--gold), var(--orange)); }
+/* the budget row: AP pips, legwork, and the two reputation numbers */
+.hud-budget { display: flex; align-items: center; gap: 10px; margin-top: 6px; }
+.pips { gap: 2px; }
+.pip { width: 8px; height: 12px; border-radius: 0; background: var(--bg-4); border: 1px solid var(--line-2); }
+.pip.on { background: var(--gold); border-color: var(--gold); }
+.hud-budget .tac { white-space: nowrap; }
+.hud-budget .n { font-family: var(--font-mono); color: var(--text); font-variant-numeric: tabular-nums; }
+
+/* ---------------------------------------------------------------- bottom nav */
+.tabbar { background: #0a0f18; border-top: 1px solid var(--line-2); }
+.tab { gap: 3px; font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 0.12em; text-transform: uppercase; }
+.tab .ico { display: flex; align-items: center; justify-content: center; }
+.tab.active { color: var(--gold); }
+.tab.active::before { content: ''; position: absolute; top: 0; left: 14%; right: 14%; height: 2px; background: var(--gold); }
+.tab .dot { border-radius: 0; width: 6px; height: 6px; top: 7px; }
+
+/* ---------------------------------------------------------------- map chrome */
+.biz-marker, .law-marker, .safe-marker, .you-marker, .hex-badge {
+  border-radius: 0; color: var(--text);
+}
+.biz-marker { width: 26px; height: 26px; background: rgba(10, 15, 24, 0.92); border: 1px solid var(--line-2); box-shadow: 0 1px 3px rgba(0,0,0,0.7); }
+.biz-marker.yours { border-color: var(--gold); color: var(--gold); box-shadow: 0 0 0 1px var(--gold-dim); }
+.biz-marker.sel { border-color: #fff; color: #fff; }
+.law-marker { min-width: 26px; height: 26px; background: rgba(8, 14, 26, 0.94); border: 1px solid #4d8df6; color: #9cc6ff; gap: 2px; padding: 0 3px; }
+.law-marker.hot { border-color: var(--red); color: #ff9a9c; box-shadow: 0 0 0 2px rgba(229, 72, 77, 0.22); }
+.safe-marker { width: 28px; height: 28px; background: rgba(245, 197, 66, 0.92); color: #05080d; border: 1px solid #05080d; }
+.safe-marker.rival { background: var(--bg-4); color: var(--text); border-color: var(--line-2); }
+.you-marker { border-radius: 0; background: rgba(10, 15, 24, 0.95); border: 1px solid var(--gold); color: var(--gold); }
+.you-marker::after { border-radius: 0; border-color: rgba(245, 197, 66, 0.4); }
+.hex-badge { border-radius: 0; font-family: var(--font-mono); background: rgba(10, 15, 24, 0.88); border-color: var(--line-2); }
+.start-marker { color: var(--gold); }
+.layerbar .chip, .layerkey, .map-legend, .map-hint { border-radius: var(--radius); background: rgba(7, 10, 16, 0.9); }
+.map-legend { border-radius: var(--radius); font-family: var(--font-mono); letter-spacing: 0.08em; }
+.map-legend .sw, .layerkey .ramp { border-radius: 0; }
+.fab { border-radius: var(--radius); font-family: var(--font-mono); letter-spacing: 0.1em; text-transform: uppercase; font-size: 13px; }
+
+/* ---------------------------------------------------------------- the ops tree */
+.opnode-btn { background: var(--bg-3); border-color: var(--line); }
+.opnode.sel .opnode-btn { border-color: var(--gold); background: rgba(245, 197, 66, 0.08); }
+.opnode.done .opnode-btn { border-color: rgba(69, 212, 137, 0.45); }
+.opnode.locked .opnode-btn { opacity: 0.55; border-style: solid; border-color: var(--line); background: var(--bg-2); }
+.opnode-btn b { font-family: var(--font-mono); font-size: 11.5px; letter-spacing: 0.04em; text-transform: uppercase; }
+.opnode-btn .sub { font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 0.06em; }
+.optier-n, .opfam-n, .opbadge, .opedge-lbl { font-family: var(--font-mono); letter-spacing: 0.12em; }
+.opbadge { border-radius: var(--radius); }
+.optier-rule { background: linear-gradient(90deg, var(--line-2), transparent); }
+
+/* ---------------------------------------------------------------- dense readouts */
+.kv { gap: 4px 12px; }
+.kv dt { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; }
+.meter .lbl { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase; }
+.meter-bar, .meter-fill, .heatbar, .heatbar > div, .skill .bar, .steps > div { border-radius: 0; }
+.skill { font-family: var(--font-mono); letter-spacing: 0.08em; }
+/* a column of numbers wants a rule between the rows, not a gap */
+.readout { display: flex; flex-direction: column; border: 1px solid var(--line); }
+.readout > * + * { border-top: 1px solid var(--line); }
+.readout-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; background: var(--bg-2); min-height: 44px; text-align: left; color: var(--text); border: none; width: 100%; }
+.readout-row:active { background: var(--bg-3); }
+.readout-row .grow { min-width: 0; }
+.readout-row .num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+.scene-line { border-radius: 0; border-left-width: 2px; }
+.scene-result, .logline { border-radius: var(--radius); }
+.icon.flip { transform: rotate(180deg); }
+.btn > .icon { margin-right: 2px; }
+.sheet-ico { display: flex; align-items: center; justify-content: center; width: 26px; height: 26px; flex: none; border: 1px solid var(--gold-2); color: var(--gold); }
+.icon.rot90 { transform: rotate(90deg); }

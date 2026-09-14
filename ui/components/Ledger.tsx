@@ -3,6 +3,7 @@ import { select } from '@sim/index';
 import type { LedgerEntry } from '@sim/types';
 import { useWorld } from '@ui/store';
 import { Term, TermChip } from './Info';
+import { Icon } from '@ui/icons';
 
 /**
  * Everything that has passed between you and one person, on one screen.
@@ -23,9 +24,9 @@ export function LedgerPanel({ npcId, collapsed = false }: { npcId: string; colla
   const d = select.dossier(w, n);
 
   return (
-    <div className="card mt12">
+    <div className="brief mt12">
       <button type="button" className="row between" style={{ width: '100%', background: 'none', border: 0, padding: 0, color: 'inherit', font: 'inherit', cursor: 'pointer' }} onClick={() => setOpen(o => !o)} aria-expanded={open}>
-        <b className="small">📓 <Term id="ledger">Your history</Term> with {n.name}</b>
+        <b className="small"><Icon name="accountant" size={13} /> <Term id="ledger">Your history</Term> with {n.name}</b>
         <span className="chip">{open ? '−' : `${d.history.length}`}</span>
       </button>
       {open && (
@@ -58,13 +59,14 @@ export function LedgerPanel({ npcId, collapsed = false }: { npcId: string; colla
 }
 
 const TONE: Record<string, string> = { favour: 'good', deal: 'good', intel: 'good', owed: 'warn', threat: 'warn', harm: 'bad', door: 'bad' };
-const ICON: Record<string, string> = { met: '👋', read: '🕵️', favour: '🎁', owed: '📌', threat: '😠', harm: '💥', deal: '💼', talk: '💬', intel: '📞', door: '⚠️' };
+/** One drawing per kind of line in a dossier, so a page of history can be skimmed by shape. */
+const ICON: Record<string, string> = { met: 'crew', read: 'watching', favour: 'gift', owed: 'link', threat: 'intimidate', harm: 'war_strike', deal: 'collect', talk: 'social', intel: 'rat', door: 'warn' };
 
 function Line({ e }: { e: LedgerEntry }) {
   return (
     <div className={`logline ${TONE[e.kind] ?? 'info'}`}>
       <span className="d">D{e.day}</span>
-      <span>{ICON[e.kind] ?? '•'} {e.text}</span>
+      <span className="row" style={{ alignItems: 'flex-start', gap: 6 }}><Icon name={ICON[e.kind] ?? 'routine'} size={13} style={{ marginTop: 2 }} /> {e.text}</span>
     </div>
   );
 }

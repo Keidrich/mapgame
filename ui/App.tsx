@@ -23,6 +23,7 @@ import { SceneSheet } from './components/SceneSheet';
 import { select } from '@sim/index';
 import { fmtMoney } from './derive';
 import { closeSheets, markVictorySeen, rebuildOnRealStreets, resetGame, setTab, useStore, useWorld } from './store';
+import { Icon } from '@ui/icons';
 
 export function App() {
   const hasWorld = useStore(s => s.world !== null);
@@ -60,8 +61,8 @@ function Game() {
           </div>
         )}
         {pending > 0
-          ? <button type="button" className="fab alert" onClick={() => { /* modal is already open */ }}>⚠️ Resolve events ({pending})</button>
-          : <div className="fab" style={{ padding: 0, background: 'none', boxShadow: 'none' }}><Act action={{ type: 'end_day' }} label="End Day" icon="🌙" kind="primary" /></div>}
+          ? <button type="button" className="fab alert" onClick={() => { /* modal is already open */ }}><Icon name="warn" size={15} /> Resolve events ({pending})</button>
+          : <div className="fab" style={{ padding: 0, background: 'none', boxShadow: 'none' }}><Act action={{ type: 'end_day' }} label="End Day" icon="moon" kind="primary" /></div>}
       </main>
       <TabBar />
       {sheet && (
@@ -78,7 +79,7 @@ function Game() {
       {!recap && <ConfrontModal />}
       {w.victory && !victorySeen && (
         <div className="banner" role="status">
-          <b>🏆 You own the city.</b>
+          <b>You own the city.</b>
           <p className="small" style={{ margin: '4px 0 8px' }}>{select.playerBlocks(w).length} blocks are yours. The sandbox keeps going — hold it.</p>
           <button type="button" className="btn" style={{ background: '#000', color: '#fff', borderColor: '#000', minWidth: 160 }} onClick={markVictorySeen}>Keep playing</button>
         </div>
@@ -114,7 +115,7 @@ function GridBanner() {
   const go = async () => { setErr(null); setStatus('Contacting the map server…'); const e = await rebuildOnRealStreets(setStatus); setStatus(null); if (e) setErr(e); };
   return (
     <div className="banner" role="status" style={{ background: 'var(--bg-2)', color: 'var(--text)', border: '1px solid var(--orange)' }}>
-      <b>🗺️ {w.placeName} is on a grid.</b>
+      <b>{w.placeName} is on a grid.</b>
       <p className="small muted" style={{ margin: '4px 0 8px' }}>{status ?? (err ? `Still no luck: ${err}.` : 'The real streets could not be mapped when this game started. Rebuilding uses the actual blocks; it restarts the game at day 1 in the same place.')}</p>
       <div className="row" style={{ gap: 8 }}>
         <button type="button" className="btn btn-primary grow" disabled={!!status} onClick={() => void go()}>{status ? 'Mapping…' : 'Rebuild on real streets'}</button>

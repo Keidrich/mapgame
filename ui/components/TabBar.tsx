@@ -1,9 +1,15 @@
 import { setTab, useStore, type Tab } from '@ui/store';
 import { activeOps } from '@ui/derive';
+import { Icon } from '@ui/icons';
 
-const TABS: { id: Tab; label: string; ico: string }[] = [
-  { id: 'map', label: 'Map', ico: '🗺️' }, { id: 'crew', label: 'Crew', ico: '👥' }, { id: 'ops', label: 'Ops', ico: '🎯' },
-  { id: 'social', label: 'Social', ico: '🕸️' }, { id: 'factions', label: 'Factions', ico: '👥' }, { id: 'empire', label: 'Empire', ico: '🏛️' },
+/**
+ * Crew and Factions were the same emoji, which is the sort of thing nobody notices and everybody
+ * feels. Every tab has its own drawing now, and the icon name is the tab id, so a new tab gets an
+ * icon by existing.
+ */
+const TABS: { id: Tab; label: string }[] = [
+  { id: 'map', label: 'Map' }, { id: 'crew', label: 'Crew' }, { id: 'ops', label: 'Ops' },
+  { id: 'social', label: 'Social' }, { id: 'factions', label: 'Factions' }, { id: 'empire', label: 'Empire' },
 ];
 
 export function TabBar() {
@@ -14,7 +20,7 @@ export function TabBar() {
     <nav className="tabbar">
       {TABS.map(t => (
         <button type="button" key={t.id} className={`tab${tab === t.id ? ' active' : ''}`} onClick={() => setTab(t.id)} aria-current={tab === t.id ? 'page' : undefined}>
-          <span className="ico">{t.ico}</span>{t.label}
+          <span className="ico"><Icon name={t.id} size={20} /></span>{t.label}
           {t.id === 'ops' && readyOps > 0 && <span className="dot" />}
         </button>
       ))}

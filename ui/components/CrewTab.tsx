@@ -9,6 +9,7 @@ import { openSheet } from '@ui/store';
 import { Info, Term, TermChip } from './Info';
 import { BACKGROUND_BY_ID, START_TRAIT_BY_ID } from '@content/backgrounds';
 import { KitSection } from './Kit';
+import { Icon } from '@ui/icons';
 
 export function CrewTab() {
   const w = useWorld();
@@ -42,7 +43,7 @@ export function CrewTab() {
           <span><Term id="busts">Busts</Term> <b>{p.busts}</b></span>
           <span><Term id="lawyer">Lawyer</Term> <b>{p.lawyer ? 'on retainer' : 'none'}</b></span>
         </div>
-        {!p.lawyer && <div className="mt8"><Act action={{ type: 'hire_lawyer' }} label="Hire lawyer" icon="⚖️" block /></div>}
+        {!p.lawyer && <div className="mt8"><Act action={{ type: 'hire_lawyer' }} label="Hire lawyer" icon="lawyer" block /></div>}
       </div>
 
       <KitSection />
@@ -59,7 +60,7 @@ export function CrewTab() {
           <div className="section-title">Lieutenants<Info id="lieutenant" /></div>
           {lts.map(n => { const a = n.crew!.assignment as { kind: 'lieutenant'; districtId: string }; const d = w.districts[a.districtId]; const take = d ? select.districtIncome(w, d) : 0; return (
             <button type="button" key={n.id} className="card" style={{ display: 'block', width: '100%', textAlign: 'left', color: 'inherit', font: 'inherit' }} onClick={() => openSheet({ kind: 'npc', npcId: n.id })}>
-              <div className="row between"><b>⭐ {n.name}</b><span className="small muted">{d?.name ?? '?'}</span></div>
+              <div className="row between"><b><Icon name="lieutenant" size={13} /> {n.name}</b><span className="small muted">{d?.name ?? '?'}</span></div>
               <div className="row wrap small muted mt8" style={{ gap: 10 }}>
                 <span>Take <b className="gold">{fmtMoney(take)}/day</b></span>
                 <span>Cut <b>{fmtMoney(n.crew!.cut)}/day</b></span>

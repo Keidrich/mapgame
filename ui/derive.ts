@@ -6,6 +6,7 @@ import { OP_DEFS, PRODUCT_INFO, RACKET_DEFS, PRODUCTION_DEFS } from '@content/ra
 import { BUSINESS_DEFS } from '@content/businesses';
 import { select } from '@sim/index';
 import { PLAYER, type Assignment, type Block, type Business, type FactionId, type Id, type Npc, type Op, type ProductKind, type Stash, type World, type Stance } from '@sim/types';
+import { iconName } from '@ui/icons';
 
 export const PRODUCTS: ProductKind[] = ['booze', 'green', 'pills', 'hot_goods', 'counterfeit'];
 export const STANCES: Stance[] = ['alliance', 'peace', 'tension', 'beef', 'war'];
@@ -46,7 +47,8 @@ export function protectionLabel(w: World, biz: Business): string | undefined {
   if (biz.protection.partner) return `Your partner runs it (${pct(biz.protection.rate)})`;
   return biz.protection.factionId === PLAYER ? `Protected by you (${pct(biz.protection.rate)})` : `Protected by ${select.factionName(w, biz.protection.factionId)}`;
 }
-export function bizIcon(biz: Business) { return BUSINESS_DEFS[biz.type].icon; }
+/** The icon *name* for a business, for `<Icon name={bizIcon(biz)} />` and for the map markers. */
+export function bizIcon(biz: Business) { return iconName('business', biz.type); }
 export function bizTypeLabel(biz: Business) { return BUSINESS_DEFS[biz.type].label; }
 export function roleLabel(n: Npc): string {
   if (n.crew) return 'Crew';

@@ -908,6 +908,57 @@ showed a placeholder in the stash, and the Back-Room Market and several items we
 phone and desktop". Booze was the only product whose icon came from Unicode 9.0. An audit found
 24 across the codebase, the newest from Unicode 14.0 (2021).
 
+### 4.17b The look: a tactical HUD, and an icon set that is ours
+
+The emoji rule above solved the tofu but never solved the *look*: an emoji is drawn by the
+platform, so one row of the app was Apple's art, another was Google's, and none of it was the
+game's. Everything a player sees is now drawn here.
+
+**The icon set.** ~180 glyphs on a 24×24 grid, stroked in `currentColor` at 1.5 with mitred joins
+and square caps — angular, because it is an instrument panel. `ui/icons/paths.ts` holds the
+chrome, content and verb sets; `ui/icons/paths-ops.ts` holds the 63 jobs. Four rules keep it a set
+rather than a pile:
+
+- families share a mark — a crowbar across every heist, a chevron on every armed job, a signal arc
+  on everything that happens down a wire — so the tree reads as families before it is read at all;
+- no text inside a glyph, because a drawn "$" is a smudge at 18px;
+- nothing thinner than about 2 grid units, for the same reason;
+- one drawing per id, resolved by id: `<Icon of="business" id={biz.type} />`. A new business type
+  gets an icon by being named the same thing in both places, and `ui/icons.test.tsx` fails if any
+  row of any content table resolves to the fallback.
+
+The emoji in `/content` are untouched. They are data — a log line, a share card, the emoji-support
+test — and nothing on screen depends on the device having them any more.
+
+**The chrome.** Amber (`#f5c542`) on near-black navy (`#070a10`): at night on a phone a blue-black
+reads as a screen you are looking *at*, where a neutral black reads as a screen that is off. Hard
+corners everywhere (`--radius: 2px`); the only round things left are the ones that have to be round
+to be read as controls. Panels carry four corner brackets, drawn as background gradients rather
+than extra elements so no component had to grow a wrapper div, plus a one-pixel scanline far enough
+under the text to read as material. The screens that are mostly instrument — the ops planner, the
+racket list, the faction cards, the ledger — get `.brief`: the same panel with a titled header bar
+across the top, which is the mission-document treatment.
+
+**Typography.** A monospace, uppercased and tracked out, for every header, section title, chip,
+stat label and number; the system sans stays for body copy, because tracked-out mono is unreadable
+at paragraph length and this game has paragraphs.
+
+**The top HUD** is three bands rather than two crowded rows, in the order you read them under
+pressure: identity (day, place, and any flag that changes what the day means), then the readout
+strip — the four numbers the whole game is played against, each in its own cell so they stop
+jostling when one grows a digit — then today's budget: AP as pips, legwork, and the two reputation
+numbers.
+
+**The map** draws control as a *zone*, not a stain. Fill opacity is low and flat, the boundary does
+the work, and a block somebody holds gets a second hairline set in from the first — two rules a few
+pixels apart is what makes an edge read as a controlled zone rather than as a coloured shape.
+Markers are the same icon set, through `iconMarkup()`, because MapLibre builds them from HTML and
+they were the one place the old look would have survived.
+
+`ui/visual.test.tsx` holds the line: no emoji on any screen, every `data-icon` a real drawing, the
+HUD's three bands, briefing heads where they belong, and skeleton snapshots (class structure with
+the text stripped) so a screen that quietly loses its treatment fails rather than ships.
+
 ### 4.18 Production: recipes, foremen and standing orders
 
 **Recipes are things you make, not a quality slider.** Five per production kind (20 total), each
