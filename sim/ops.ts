@@ -15,7 +15,7 @@ import { opChance } from './select';
 import { complicationHeat, complicationSwing, maybeComplicate } from './complications';
 import { kitHeatMult } from './items';
 import { PLAYER, type Op, type World } from './types';
-import { addHeat, addInfluence, adjustRel, clamp, jailDays, log, money, spreadRep } from './util';
+import { addHeat, addInfluence, adjustRel, bumpStanding, clamp, jailDays, log, money, spreadRep } from './util';
 import { remember } from './ledger';
 import { doFavour } from './standing';
 import { freeOpCrew, shutBusiness } from './reducer';
@@ -334,7 +334,7 @@ export function resolveOp(w: World, o: Op, rng: Rng) {
       }
       case 'intimidate': {
         if (target) { const owner = w.npcs[target.ownerId]; adjustRel(w, owner, { fear: 30, trust: -10 }, 'property'); remember(w, owner, 'harm', `Windows out at ${target.name}, bats swung.`); target.condition = clamp(target.condition - 15); spreadRep(w, target.blockId, { fear: 6 }, 1, 'property'); p.fear = clamp(p.fear + 3);
-          if (target.protection && target.protection.factionId !== PLAYER) { w.factions[target.protection.factionId].standing[PLAYER] -= 10; } }
+          bumpStanding(w, target.protection?.factionId, -10); }
         res.text = `Windows out, bats swung. ${target ? w.npcs[target.ownerId].name : 'The owner'} got the message.`;
         break;
       }
@@ -375,6 +375,26 @@ export function resolveOp(w: World, o: Op, rng: Rng) {
           remember(w, n, 'harm', 'Their phone stopped working for an afternoon and things moved that they did not move.');
         }
         res.text = `${n?.name ?? 'They'} spend the afternoon on hold to somebody who cannot help them. ${money(value)} while they wait.`;
+        break;
+      }
+
+      // ---- the lone-wolf lane. The payoff is what does *not* happen afterwards.
+      case 'ghost_job': {
+        // Loot, and no trail. `OP_DEFS.ghost_job.heat` is 0, so the usual heat is already not
+        // charged; what is worth saying out loud is the reason, because it is the whole lane.
+        const units = Math.max(1, Math.round(value / 140));
+        addProduct(p, 'hot_goods', units, 60);
+        res.text = `${units} units out of ${target?.name ?? 'the place'}, over two nights, at your own pace. Nobody was on the door, nobody was waiting in a car, and there is nobody for anybody to lean on afterwards. No heat at all.`;
+        break;
+      }
+      case 'no_loose_ends': {
+        p.dirty += value; res.cash = value;
+        // Nobody else knew, so nobody else can say. That is respect on the street rather than
+        // fear: what people rate is that it was done and cannot be explained.
+        w.player.respect = clamp(w.player.respect + 5);
+        const n = o.targetNpcId ? w.npcs[o.targetNpcId] : undefined;
+        if (n) remember(w, n, 'harm', 'Something of theirs went, and they never worked out through whom.');
+        res.text = `${money(value)} out of ${n?.name ?? 'them'} over four weeks. You were the only person who knew any part of it, so there is nobody to flip and nothing that leads back. (+5 respect)`;
         break;
       }
 

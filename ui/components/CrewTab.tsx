@@ -72,6 +72,11 @@ export function CrewTab() {
         </>
       )}
       {crew.length === 0 && <div className="card"><b>No crew yet.</b><p className="small muted mt8">Visit patrons at businesses on the map until they trust you, then recruit them. Cowards can be scared into it.</p></div>}
+      {/* Working alone is a way of playing, not only a stage before the real one. Say so where
+          somebody is actually looking at an empty crew list. */}
+      {select.isLoneWolf(w) && (
+        <p className="small mt8"><Term id="loneWolf" className="gold">On your own</Term>: about half the heat, better odds on anything you run alone, the biggest wall you will ever have, and a short lane of work that only exists while there is nobody else involved.</p>
+      )}
       {groups.map(g => { const rows = crew.filter(n => g.test(n.crew?.status)); if (!rows.length) return null; return (
         <div key={g.title}>
           <div className="section-title">{g.title} ({rows.length})</div>

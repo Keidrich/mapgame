@@ -95,4 +95,9 @@ export const OP_ICON_PATHS: Record<string, IconPaths> = {
   bid_rigging: ['M6 3.5h12v17H6z', 'M9 3.5h6v2.5H9z', 'M9 10h6M9 13.5h6', 'M13.5 19.5 19 14l2.5 2.5-5.5 5.5z'],
   campaign_wash: [BALLOT, 'M9 14.5h6', 'M12 3.2a2.6 2.6 0 1 0 0 5.2 2.6 2.6 0 0 0 0-5.2', 'M12 8.4v2.1', 'M6 5.5a2 2 0 1 0 0 4M18 5.5a2 2 0 1 1 0 4'],
   vote_buying: [BALLOT, 'M6.5 14 8 15.5l2-2.5M11.5 14 13 15.5l2-2.5M16.5 14 18 15.5l2-2.5', 'M8 10.5V6h8v4.5', 'M12 3v3'],
+  // ---- the lone-wolf lane: one figure, and nothing behind them ----
+  // a single silhouette where the others in this file draw two or three, which is the lane
+  ghost_job: ['M12 3.5a3.4 3.4 0 1 0 0 6.8 3.4 3.4 0 0 0 0-6.8', 'M5.5 21v-1.5c0-3.2 2.9-5.2 6.5-5.2s6.5 2 6.5 5.2V21', 'M3 12.5h3M18 12.5h3'],
+  // one thread, cut, with nothing left hanging off it
+  no_loose_ends: ['M4 6.5c5 0 5 11 10 11 3 0 4-1.8 4-3.5', 'M16 4.5 20 8.5M20 4.5 16 8.5', 'M5.5 18.5a1.8 1.8 0 1 0 0 3.6 1.8 1.8 0 0 0 0-3.6'],
 };

@@ -12,7 +12,7 @@ import { onJoin } from './production';
 import type { Rng } from './rng';
 import { controller, mkNpc } from './populate';
 import { PLAYER, type Block, type Business, type District, type FactionId, type Id, type Npc, type Racket, type RacketKind, type StreetCrew, type World } from './types';
-import { addHeat, addInfluence, adjustRel, clamp, log, money, nid, spreadRep } from './util';
+import { addHeat, addInfluence, adjustRel, clamp, log, money, nid, releaseGround, spreadRep } from './util';
 import { addMemory } from './people';
 
 const CHANCE_BY_KIND: Record<District['kind'], number> = { docks: 0.25, projects: 0.28, market: 0.14, strip: 0.15, industrial: 0.14, old_quarter: 0.08, downtown: 0.03, heights: 0.03 };
@@ -70,6 +70,10 @@ export function dissolveCrew(w: World, c: StreetCrew, how: 'joined' | 'taken' | 
   for (const id of c.soldierIds) { const n = w.npcs[id]; if (!n) continue; if (how === 'absorbed' && by) { n.faction = by; n.role = 'soldier'; } else { n.role = 'patron'; if (how === 'joined') { n.rel.trust = Math.max(n.rel.trust, 30); n.known = true; } else { n.rel.fear = Math.max(n.rel.fear, 50); } } }
   const boss = w.npcs[c.bossId];
   if (boss) { if (how === 'absorbed' && by) { boss.faction = by; boss.role = 'soldier'; } else if (how === 'taken') { boss.role = 'patron'; boss.rel.fear = Math.max(boss.rel.fear, 60); boss.rel.trust = Math.min(boss.rel.trust, -20); } }
+  // Nothing may still be pointing at them afterwards. A crew that took protection on a business
+  // left its id on `biz.protection` when it was deleted, and buying that business a fortnight
+  // later read `.standing` off nothing — see `releaseGround`.
+  releaseGround(w, c.id);
   delete w.crews[c.id];
 }
 
@@ -152,7 +156,7 @@ function tickFunded(w: World, c: StreetCrew, b: Block, rng: Rng) {
 /** Daily: crews grow when ignored, pay if on your payroll, or get swallowed by the neighbours. */
 export function tickCrews(w: World, rng: Rng) {
   for (const c of Object.values(w.crews)) {
-    const b = w.blocks[c.blockId]; if (!b) { delete w.crews[c.id]; continue; }
+    const b = w.blocks[c.blockId]; if (!b) { releaseGround(w, c.id); delete w.crews[c.id]; continue; }
     if (c.mood !== 0) c.mood += c.mood > 0 ? -1 : 1;
     if (c.funded) tickFunded(w, c, b, rng);
     if (c.tribute === PLAYER) {

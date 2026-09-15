@@ -95,3 +95,47 @@ export function legalCustomSkills(input: Partial<Skills> | undefined): Skills {
 }
 export const spent = (s: Skills) => SKILL_ORDER.reduce((t, k) => t + s[k], 0);
 export const remaining = (s: Skills) => CUSTOM_BUDGET - spent(s);
+
+/**
+ * Working alone as a build, rather than as a shortage.
+ *
+ * Solo play became *viable* when the op tree stopped asking one person for a crew's worth of
+ * skill. That left it correct and characterless: everything a crew player does, minus the parts
+ * that need a crew. This is the other half — things that are true **because** you are on your
+ * own, and stop being true the moment somebody else is involved.
+ *
+ * The line is `activeCrewCount(w) === 0` — nobody alive and out of a cell. Deliberately not
+ * "nobody has ever joined": a lone wolf is a way of working, not a vow, and an outfit that has
+ * been taken apart is alone again in every way that matters here.
+ *
+ * Three payoffs, each of which is a real thing about being one person rather than a number on a
+ * sheet, and each of which an outfit genuinely cannot have:
+ *
+ *  - **Nobody can describe you.** Half the heat, because heat is other people talking and there
+ *    is nobody to talk. This is the big one and it compounds with everything.
+ *  - **Nobody to coordinate with.** A flat bonus on a job you run with nobody on it, because the
+ *    part of a job that goes wrong is usually the part where somebody else had to be somewhere.
+ *  - **Nobody to sell you.** The hole in the wall (`CACHE`) is at full size, and the `alone` ops
+ *    exist at all.
+ */
+export const LONE_WOLF = {
+  /**
+   * Heat multiplier while you are working alone. One person, one description, and a vague one.
+   *
+   * 0.75 and not lower on purpose. At 0.55 — the first number tried — the heat ladder simply
+   * stopped engaging for a solo player: a sixty-day honest run (which is a lone-wolf run, since
+   * the bot's first recruit lands on day 56) went from two rackets to eight and never saw a raid.
+   * That is not a build payoff, it is switching off the game's main pressure system. A quarter off
+   * is a third more work before the ladder fires, which is felt, and the ladder still fires.
+   */
+  heat: 0.75,
+  /** Added to `opChance` on a job you run with nobody on it, while you have nobody. */
+  opBonus: 9,
+  /**
+   * Respect you do not get. The counterweight, and the reason this is a trade rather than a
+   * free win: the street rates an *outfit*, and one person is not one. You draw less attention
+   * and you are also harder to take seriously, which slows every door that respect opens —
+   * protection asked for as a favour, a seat, being somebody worth talking to.
+   */
+  respectDrag: 0.6,
+} as const;

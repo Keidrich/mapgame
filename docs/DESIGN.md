@@ -412,6 +412,17 @@ Erosion is proportional rather than flat for the same reason it is not zero: "a 
 losing stops being one" is right, but a fixed subtraction against a floor of 0 is a deletion, not
 a decline. `sim/nemesis-balance.test.ts` holds all of it.
 
+**And the other direction: what the street calls you.** A lieutenant who kept turning up earned a
+name that replaced theirs everywhere, and the player — the reason any of it happened — stayed
+whatever they typed at the character screen. `playerName(w)` closes that, through the *same*
+function (`withNickname`), so the two cannot drift apart. Which pool it draws from is the point:
+fear and respect are two different ways of being somebody, the game has tracked both since the
+standing rework, and nothing has ever read the difference out loud. Whichever is ahead by
+`STREET_NAME.margin` when you cross `STREET_NAME.at` decides — so the name is a summary of how you
+have actually been playing, not a level-up badge. Set once, never cleared, deterministic from the
+name so a replay reads the same, and `select.factionName(w, PLAYER)` picks it up, which is how it
+reaches the map legend, the holdings rows and the faction screens without any of them knowing.
+
 **The name is a replacement, not an addition.** `populate.ts` gives every boss and lieutenant a
 nickname at generation, and a nemesis is always a lieutenant — so `nemesisName` inserting an
 earned nickname next to the given one produced `Cassandra "the Nail" "Moose" Booker` on *every*
@@ -585,6 +596,32 @@ preset's total and the ceiling below their spike of 8, so a hand-built character
 and brings an edge while a preset is sharper and comes with a perk. `legalCustomSkills()`
 clamps whatever the UI sends, so the rule holds even if the screen is bypassed.
 
+**Working alone, as a build.** The solo pass made one-person play *viable* — the op tree stopped
+asking one person for a crew's worth of skill (§4.4). That left it correct and characterless:
+everything a crew player does, minus the parts needing a crew. `LONE_WOLF` is the other half:
+things that are true **because** you are on your own, and stop being true the moment somebody
+else is involved. The condition is `activeCrewCount(w) === 0` — a way of working, not a vow, so an
+outfit that gets taken apart is alone again in every way that matters here.
+
+- **Heat ×`LONE_WOLF.heat`.** Heat is other people talking about you, and there is nobody to talk.
+  The biggest of the three by far, which is why the number is 0.75 and not lower: at 0.55 the heat
+  ladder simply stopped engaging (a sixty-day honest run went from two rackets to eight and never
+  saw a raid), and switching off the game's main pressure system is not a build payoff.
+- **Respect ×`LONE_WOLF.respectDrag`.** The counterweight, and what makes it a trade: the street
+  rates an *outfit*, and one person is not one.
+- **`LONE_WOLF.opBonus` on a job you run with nobody on it.** Reads `isLoneWolf`, not "how many
+  are on this op" — so a crew player cannot pick it up by leaving everybody at home.
+
+And a lane of its own. **`OpRequires.alone` is not `minCrew: 0`**, and the difference is the whole
+point: a `minCrew: 0` job is one you *can* do alone, an `alone` job is one that stops existing the
+moment there is a second person to be seen, remembered or leaned on. There is no version of
+"nobody can describe you afterwards" with somebody standing next to you. If the lane were only a
+relaxation of crew-gated content it would be a discount; because it is its own content, an outfit
+cannot buy into it at any price. `alone` is the one addition to the gating vocabulary since it was
+frozen, and it earns its place because no existing key expresses it: `crewCount` asks whether
+anybody ever joined, this asks whether anybody is here *now*, and that answer has to be able to go
+back to no.
+
 **Where you start.** A city is one coordinate, so picking a city twice used to mean the
 same kerb twice. `sim/start.ts` moves a *city-level* pick 1–4 km into one eighth of the
 compass first (area-weighted, so most starts land out in the neighbourhoods), and "Try a
@@ -686,6 +723,24 @@ ledger line; the log lines now use it too.
 
 The one case where it really was a duplicate is `alreadyAtTheDoor`: two acts a day can pick the
 same racket twice, and one door gets one crowd.
+
+**Answering the heat yourself.** The heat-60 warning has told the player to "lay low" since the
+game had a heat meter, and there was no such thing: the answers to a rising ladder were paying
+somebody (an official who takes your calls, money you may not have) or scrubbing, which only
+touches the wire. **`lay_low`** is the missing one, and it is paid for in the thing the player
+actually has — their own turns. While you are under, the day arrives with no AP and no legwork,
+heat falls by `LAY_LOW.heatPerDay` on top of the ordinary decay because nobody can find you to add
+to it, and the street rates you a little lower for being nowhere. Money on top: rent and wages do
+not stop for you. It needs nobody, which is the whole point of it existing alongside the bribe.
+
+**The hole in the wall.** A bust seizes 80% of dirty cash. An outfit absorbs that — people carry,
+rackets keep paying, somebody else has a float. One person has one pocket and watched all of it go
+with no way to have hedged. **`cache`** is that hedge, and it is a *solo* mitigation by
+construction rather than by a flag: `cacheCap` falls by `CACHE.perCrew` for every body alive and
+out of a cell, and is zero by the fourth. That is the honest version of why a lone operator can
+hide money and an outfit cannot, and it keeps a bust's stakes intact for everybody else. A bust
+still finds it `CACHE.bustChance` of the time — a hedge, not immunity. People in a cell do not
+count toward the cap, so a bust *widens* the hole afterwards, which is exactly when it matters.
 
 **A bust never takes the last body standing.** Each of your people is rolled independently, so two
 busts back to back could and did leave a player with 8 of 8 jailed, dead or injured and nobody to
@@ -845,6 +900,31 @@ One existing guard needed narrowing: `plan_op` refused any npc-targeted op again
 Violence against one is still refused; an op that declares `requires.officialTarget` is exempt,
 because sitting down and paying for their attention is the entire point of it.
 
+### 4.12b One type, three populations: the crash that keeps coming back
+
+`FactionId` is `Id`, and three different things wear it: `PLAYER`, a real faction in `w.factions`,
+and a **street crew** in `w.crews`. Nothing in the compiler distinguishes them, and the third is
+the dangerous one — factions are marked `alive = false` and left where they are, but crews are
+genuinely `delete`d when their block goes or they get folded in. So `w.factions[someFactionId]` is
+`undefined` for an id every signature says is fine.
+
+Three crashes, all the same shape: `buy_business` reading `.standing` off a crew id, `patronTip`
+reading `.name` off a dead lieutenant, and `offer_sale:buy` reading `.standing` off a crew that had
+been deleted a fortnight earlier — reproducible on seed 33 by day 60, because a street crew takes
+protection on a business exactly like anybody else and the business keeps the reference.
+
+Two lines of defence, and either alone is a half-fix:
+
+1. **`releaseGround(w, id)`** — nothing may still point at an outfit that is gone. A faction's death
+   already did this inline; a crew's did not. One function now, called from both, because the next
+   outfit that can stop existing will otherwise be the third.
+2. **`outfit(w, id)` / `bumpStanding(w, id, by)`** — a read that finds nothing answers instead of
+   throwing. The first line will be missed again one day, and this is what stops that being a
+   crash rather than a no-op.
+
+Write `bumpStanding`, not `w.factions[x].standing[PLAYER] += n`. `sim/stale-faction-refs.test.ts`
+covers both, including sixty days of seed 33.
+
 ### 4.13 The per-target gating family
 
 `rattedTarget` is now the template for four more, all asking about *this mark* rather than about
@@ -992,6 +1072,48 @@ was any way for holding ground to *spread*. So:
   sides adding forever.
 
 Measured across six seeds, honest bot, 60 days: **city control 9.3% → 19.3%**, up on every seed.
+
+### 4.15b Beating somebody, and the husk that used to be left behind
+
+An outfit crushed to nothing used to simply stand there. The only death was **bleeding out**
+(`soldiers <= 0 && cash < 0`), and rebuilding needs `cash > 6000` — so anything sitting between
+those two with nobody on the street could neither die nor recover, and stayed nominally at war for
+ever with nothing anywhere marking that the player had won.
+
+`checkDefeated` closes it with the *street* condition plus the one thing that can undo it: no
+soldiers, no blocks, no lieutenant still walking around, **and not enough left to put anybody back
+out there** (`f.cash < SOLDIER_COST`). That last clause is not bookkeeping — an outfit with money
+and nobody is between hires, not beaten, and finishing it would be wrong. It came out of writing
+the test: the first version asserted that a healthy bank balance should not save an outfit, and the
+sim disagreed, correctly.
+
+What they were holding goes somewhere real rather than evaporating: businesses they collected from
+on ground **you** control come to you as influence, everything else simply opens up — a collapse is
+an opportunity for whoever gets there, not an automatic gift — and their residual influence on
+ground you were already contesting transfers at half. `defeatedBy` credits it to the player when
+they were the ones at war, which is worth respect and fear on the street; an outfit that merely fell
+apart is not credited to anybody. `defeatedDay` is set once and never cleared, so the resolution
+and its log line fire exactly once. `sim/faction-defeat.test.ts`.
+
+### 4.15c The web, as something you can look at
+
+By late game the social layer is the deepest thing in the game — dozens of people met, assets
+inside two outfits, a real nemesis, and the connections graph (§3.6) under all of it deciding how
+word travels. It was only ever a list, and a list is the one shape that cannot show the thing that
+matters most: that your informant inside the Delgados is somebody's cousin, and that cousin is the
+lieutenant who keeps turning up.
+
+`relationshipWeb(w)` is a fourth mode on the Social tab, and it **adds no data** — every field is
+read off `Npc`, `n.connections`, `n.asset`, `n.nemesis`. Four rings: you, then yours (crew and
+assets), then theirs (nemeses and the outfit people you have actually met — an unmet lieutenant is
+not drawn, because the map is your web and not the city's roster), then the connective tissue:
+anybody you have met tied to two or more of the above, which is the whole reason it is a picture.
+
+Layout lives in `/sim`, not in the component, for the ordinary reason — a position that depends on
+who is in the world is a derived value like any other — and it is deterministic, from a stable sort
+on id rather than a roll or iteration order, so the same save draws the same web every time. That
+is what makes it a map rather than a lava lamp, and it is what lets most of `ui/relationship-map.test.tsx`
+test the picture without rendering anything.
 
 ### 4.16 Two rules the event deck and the ops tree had wrong
 

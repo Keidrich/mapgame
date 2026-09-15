@@ -95,3 +95,34 @@ export const DEFECT = {
   cut: 240,           // and expensive, because they were somebody
   influence: 8,       // their district tilts a little toward you
 };
+
+/**
+ * What the street ends up calling *you*.
+ *
+ * The exact mirror of a nemesis's earned nickname, and deliberately built out of the same parts:
+ * a threshold, a deterministic pick from a pool, and `withNickname()` — the same function that
+ * puts a lieutenant's name on them. A lieutenant who kept turning up got a name that replaced
+ * theirs everywhere and the player, who is the reason any of it happened, stayed whatever they
+ * typed at the character screen.
+ *
+ * **Which pool you draw from is the point.** Fear and respect are two different ways of being
+ * somebody, the game has tracked both since the standing rework, and nothing has ever read the
+ * difference out loud. Whichever is ahead when you cross the line decides what they call you —
+ * so the name is a summary of how you have actually been playing, not a level-up badge.
+ */
+export const STREET_NAME = {
+  /** Fear or respect, whichever is higher. Below this you are a name at the character screen. */
+  at: 55,
+  /**
+   * How far ahead one has to be for the name to come from that side rather than the other.
+   * Inside the margin you are simply well known, and the neutral pool says so.
+   */
+  margin: 10,
+} as const;
+
+/** Somebody people are careful around. */
+export const FEARED_NAMES = ['the Hammer', 'Bad News', 'Sunday', 'the Wolf', 'Teeth', 'Cold', 'the Quiet One', 'Boots'];
+/** Somebody people go to. */
+export const RESPECTED_NAMES = ['the Mayor', 'the Banker', 'the Deacon', 'Goldie', 'the Chairman', 'Sunshine', 'the Doctor', 'Pop'];
+/** Known, without the street having decided which kind. */
+export const KNOWN_NAMES = ['the Name', 'Big', 'Lucky', 'the Player', 'Slick', 'Handsome'];

@@ -7,13 +7,16 @@ import { distanceM } from '@geo/project';
 import { STEP_M } from './populate';
 import type { Rng } from './rng';
 import { PLAYER, type Block, type Faction, type FactionId, type World } from './types';
-import { addInfluence, clamp, factionOf, log, standingCap } from './util';
+import { addInfluence, clamp, factionOf, log, spreadRep, standingCap } from './util';
 import { alreadyAtTheDoor, queueConfrontation } from './combat';
 import { leaderFor, nemesisName } from './nemesis';
 import { warnedBy } from './informants';
 import { bossChurn, successionOrDeath, tickCrisis } from './politics';
 export { standingCap };
 import { addMemory } from './people';
+
+/** What the tick charges to put one more body on the street. Read by `checkDefeated`. */
+const SOLDIER_COST = 2500;
 
 export function runFaction(w: World, f: Faction, rng: Rng) {
   if (!f.alive) return;
@@ -51,7 +54,7 @@ export function runFaction(w: World, f: Faction, rng: Rng) {
 
   // 2. spend: recruit or expand
   const aggressive = f.temperament === 'aggressive';
-  if (f.cash > 6000 && f.soldiers < 22 && rng.chance(aggressive ? 0.35 : 0.2)) { f.cash -= 2500; f.soldiers++; }
+  if (f.cash > 6000 && f.soldiers < 22 && rng.chance(aggressive ? 0.35 : 0.2)) { f.cash -= SOLDIER_COST; f.soldiers++; }
   const pushCost = 1500 + controlled.length * 200;
   const pushes = headless ? 0 : f.cash > pushCost ? (aggressive && rng.chance(0.5) ? 2 : rng.chance(0.7) ? 1 : 0) : 0;
   for (let i = 0; i < pushes; i++) {
@@ -137,6 +140,69 @@ export function runFaction(w: World, f: Faction, rng: Rng) {
     }
   }
   if (f.soldiers <= 0 && f.cash < 0) { log(w, `${f.name} has bled out.`, 'warn', { factionId: f.id }); successionOrDeath(w, { ...f, lieutenantIds: [] }); f.alive = false; }
+  else if (!f.defeatedDay) checkDefeated(w, f, controlled);
+}
+
+/**
+ * The moment somebody is actually finished, and what happens to what they were holding.
+ *
+ * A faction with no soldiers and no ground used to simply sit there — still nominally at war,
+ * still "alive", still listed, with nothing anywhere marking that the player had won. Bleeding
+ * out (`soldiers <= 0 && cash < 0`) was the only death, so an outfit crushed in the street while
+ * its bank account was healthy became a permanent husk you could neither fight nor finish.
+ *
+ * Defeat is the street condition plus the one thing that can undo it: nobody to send, nothing to
+ * send them to, and **not enough left to put anybody back out there**. That last clause is not
+ * bookkeeping — the tick above hires a soldier whenever `f.cash > 6000`, so an outfit with money
+ * and nobody is not beaten, it is between hires, and finishing it would be wrong.
+ *
+ * Which also names the gap this closes exactly. The old death needed `cash < 0`; rebuilding needs
+ * `cash > 6000`. An outfit sitting between those two with nobody on the street could neither die
+ * nor recover, and simply stood there at war for ever. That is the husk.
+ */
+function checkDefeated(w: World, f: Faction, controlled: Block[]): void {
+  if (f.soldiers > 0 || controlled.length > 0) return;
+  // somebody with people still in the field is not finished, whatever the map says
+  if (f.lieutenantIds.some(id => w.npcs[id]?.alive)) return;
+  // and neither is somebody who can still pay for one. SOLDIER_COST is what the tick charges.
+  if (f.cash >= SOLDIER_COST) return;
+  f.defeatedDay = w.day;
+  f.alive = false;
+  f.crisis = undefined;
+  for (const other of Object.keys(f.stance)) f.stance[other] = 'peace';
+
+  // What they were still nominally holding goes somewhere real. Ground the player already stands
+  // on comes to them; everything else opens up, because an outfit's collapse is an opportunity
+  // for whoever gets there, not an automatic gift.
+  let taken = 0, opened = 0;
+  for (const b of Object.values(w.businesses)) {
+    if (b.protection?.factionId !== f.id) continue;
+    b.protection = undefined;
+    if (factionOf(w, b.blockId) === PLAYER) { addInfluence(w, b.blockId, PLAYER, 4); taken++; } else opened++;
+  }
+  for (const b of Object.values(w.blocks)) {
+    if (!b.influence[f.id]) continue;
+    const theirs = b.influence[f.id];
+    delete b.influence[f.id];
+    // their hold on a block you were already contesting is the clearest thing you inherit
+    if ((b.influence[PLAYER] ?? 0) > 0) addInfluence(w, b.id, PLAYER, Math.min(20, theirs * 0.5));
+  }
+  const by = defeatedBy(w, f);
+  f.defeatedBy = by;
+  addMemory(w, w.player.homeBlockId, 'faction_gone', `${f.name} are finished.`, { });
+  if (by === PLAYER) {
+    w.player.respect = clamp(w.player.respect + 10);
+    w.player.fear = clamp(w.player.fear + 8);
+    spreadRep(w, w.player.currentBlockId, { respect: 6, fear: 5 }, 2, 'grave');
+  }
+  log(w, `${f.name} are finished. ${by === PLAYER ? 'You broke them' : 'Nobody is left to answer for them'} — no soldiers, no corners, nobody to send.${taken ? ` ${taken} of the places they collected from are on your ground now.` : ''}${opened ? ` ${opened} more are paying nobody.` : ''}`, by === PLAYER ? 'good' : 'warn', { factionId: f.id });
+}
+
+/** Whose doing it was. The player, if they were the ones at war with them at the end. */
+function defeatedBy(w: World, f: Faction): FactionId | undefined {
+  if ((f.stance[PLAYER] === 'war' || f.stance[PLAYER] === 'beef' || (f.standing[PLAYER] ?? 0) <= -50)) return PLAYER;
+  const rival = Object.values(w.factions).find(o => o.alive && o.id !== f.id && (f.standing[o.id] ?? 0) <= -50);
+  return rival?.id;
 }
 
 function stanceOf(f: Faction) { return f.stance[PLAYER]; }

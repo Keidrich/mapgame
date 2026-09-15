@@ -1,5 +1,6 @@
+import { LONE_WOLF } from '@content/backgrounds';
 import { Rng } from './rng';
-import type { Id, LogEntry, Npc, World, FactionId, Block } from './types';
+import type { Id, LogEntry, Npc, World, FactionId, Faction, Block } from './types';
 import { PLAYER } from './types';
 import { distanceM } from '@geo/project';
 import { STEP_M } from './populate';
@@ -54,6 +55,10 @@ function applyRel(w: World, n: Npc, d: { trust?: number; fear?: number; respect?
 }
 
 export function addHeat(w: World, amount: number, blockId?: Id) {
+  // Heat is other people talking about you. Working alone there is one person to describe and
+  // nobody to describe them — the single biggest thing being a lone wolf is actually worth, and
+  // it stops the day somebody else is on the books. `LONE_WOLF.heat`.
+  if (amount > 0 && activeCrewCount(w) === 0) amount *= LONE_WOLF.heat;
   if (amount > 0 && blockId && blockId === w.player.homeBlockId) amount *= 0.8; // home turf: people look the other way
   if (amount > 0 && blockId && w.blocks[blockId]?.tags.includes('school')) amount *= 1.5; // near a school everybody calls it in
   const before = w.player.heat;
@@ -87,12 +92,59 @@ export function spreadRep(w: World, blockId: Id, d: { respect?: number; fear?: n
 
 /** The same, seeded from the people it actually happened to. */
 export function spreadFrom(w: World, seeds: Npc[], d: { respect?: number; fear?: number; trust?: number }, degrees = 1, stake: Stake = 'words') {
+  // The other side of `LONE_WOLF.heat`: the street rates an outfit, and one person is not one.
+  // Half the attention, and harder to take seriously — which is the trade, not a free win.
+  const drag = activeCrewCount(w) === 0 ? LONE_WOLF.respectDrag : 1;
   for (const { npc, weight } of propagation(w, seeds, degrees)) {
-    bleedRel(w, npc, { respect: (d.respect ?? 0) * weight, fear: (d.fear ?? 0) * weight, trust: (d.trust ?? 0) * weight }, stake);
+    bleedRel(w, npc, { respect: (d.respect ?? 0) * weight * drag, fear: (d.fear ?? 0) * weight, trust: (d.trust ?? 0) * weight }, stake);
   }
 }
 
 export function factionOf(w: World, blockId: Id): FactionId | undefined { return controller(w.blocks[blockId]); }
+
+/**
+ * A `FactionId` that actually resolves to an outfit with a standing track, or nothing.
+ *
+ * `FactionId` is three populations wearing one type: `PLAYER`, a real faction in `w.factions`,
+ * and a **street crew** in `w.crews`. Crew ids are the dangerous ones, because unlike factions
+ * (which are marked `alive = false` and left in place) crews are genuinely `delete`d when their
+ * block goes or they are folded in — so `w.factions[id]` comes back `undefined` for an id that
+ * every type signature says is fine.
+ *
+ * That is what crashed `offer_sale:buy` on seed 33: a street crew takes protection on a business
+ * (`crews.ts`, `biz.protection = { factionId: c.id }`), the crew is later deleted, the business
+ * keeps the stale reference, and buying it read `.standing` off nothing. It is the same shape as
+ * the `patronTip` crash and the `buy_business` one before it, which is why it is a function now
+ * rather than a third guard bolted onto a third call site: the next person to write
+ * `w.factions[someProtectionId]` should find this instead.
+ */
+export function outfit(w: World, id?: FactionId): Faction | undefined {
+  if (!id || id === PLAYER) return undefined;
+  return w.factions[id];
+}
+
+/**
+ * Move an outfit's standing with the player, if there is an outfit there to move. A no-op for the
+ * player themselves, a street crew (they track `mood`, not standing) and a dangling id.
+ */
+export function bumpStanding(w: World, id: FactionId | undefined, by: number): void {
+  const f = outfit(w, id); if (!f) return;
+  f.standing[PLAYER] = clamp(f.standing[PLAYER] + by, -100, 100);
+}
+
+/**
+ * Let go of everything an outfit was holding, so nothing points at it afterwards.
+ *
+ * The guard above stops a stale id *crashing*; this stops it existing. A faction's death already
+ * did this inline in `successionOrDeath`, and a street crew's did not — which is how a deleted
+ * crew's id stayed on a business's `protection` and took down `offer_sale:buy` a fortnight later.
+ * One function now, called from both, because the next outfit that can stop existing will
+ * otherwise be the third.
+ */
+export function releaseGround(w: World, id: FactionId): void {
+  for (const b of Object.values(w.blocks)) delete b.influence[id];
+  for (const b of Object.values(w.businesses)) if (b.protection?.factionId === id) b.protection = undefined;
+}
 
 export function playerSkill(w: World, k: keyof Npc['skills']): number { return w.player.skills[k]; }
 

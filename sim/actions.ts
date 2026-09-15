@@ -52,6 +52,9 @@ export type Action =
   | { type: 'move_stash'; from: 'player' | Id; to: 'player' | Id; product: ProductKind; amount: number }
   | { type: 'sell_product'; product: ProductKind; amount: number; blockId: Id } // 1 AP street sale
   | { type: 'launder'; amount: number } // via laundering rackets capacity (auto at tick too)
+  // --- answering the heat yourself (content/events.ts) ---
+  | { type: 'lay_low'; days: number }                          // go off the street: your own days for heat
+  | { type: 'cache'; amount: number; take?: true }             // dirty cash into the hole in the wall, or back out
   | { type: 'launder_with_fixer'; npcId: Id; amount: number } // 1 AP: a fixer washes it at their own worse rate, up to their daily cap
   // --- the wire (content/cyber.ts) ---
   | { type: 'run_card'; cardId: Id; mode: 'small' | 'big' }   // work one card yourself

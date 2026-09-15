@@ -116,6 +116,15 @@ export interface OpRequires {
   /** Something in your hand: these are jobs you do not walk into empty-handed. */
   weapon?: boolean;
   /**
+   * Work that only exists because there is nobody else involved.
+   *
+   * Not the same thing as `minCrew: 0`, and the difference is the whole point of the lone-wolf
+   * lane: a `minCrew: 0` job is one you *can* do alone, and this is one you can *only* do alone.
+   * A second pair of hands does not make these harder, it makes them impossible — there is no
+   * version of "nobody can describe you afterwards" with somebody else standing there.
+   */
+  alone?: boolean;
+  /**
    * Per-target, not per-player: you must have been inside *this person's* business before.
    * Every other condition here asks about the empire; this one asks about the mark, so it is
    * checked against the op's own target rather than against global history.
@@ -236,6 +245,13 @@ export const OP_DEFS: Record<OpKind, OpDef> = {
   corporate_extortion: { label: 'Lean on the Board', icon: '🏢', blurb: 'Not a shop and not a man behind a counter. A company, a quarterly number, and something they would rather nobody read.', planDays: 3, minCrew: 2, maxCrew: 4, needs: { brains: 11, charm: 9 }, difficulty: 60, payout: [10000, 32000], heat: 13, target: 'npc', tier: 3, requires: { rattedTarget: true, crewCount: 3 } },
 
   // ---- elite: the two that reach the whole city ----
+  // ---------------------------------------------------------------- the lone-wolf lane
+  // `alone: true`, not `minCrew: 0` — see `OpRequires.alone`. These are not jobs you may do by
+  // yourself, they are jobs that stop working the moment there is a second person to be seen,
+  // remembered, followed or leaned on. That is what makes going solo a build rather than a
+  // shortage: an outfit cannot buy its way into this lane at any price.
+  ghost_job:       { label: 'Nobody Saw Anybody', icon: '🕶️', blurb: 'You take a place apart at your own pace and walk out. There is no second person for anybody to describe, and no second story for anybody to check.', planDays: 2, minCrew: 0, maxCrew: 0, needs: { brains: 8, tech: 6, wheels: 4 }, difficulty: 48, payout: [2500, 8000], lootKind: 'hot_goods', heat: 0, target: 'business', tier: 2, requires: { alone: true, safehouseTier: 1 } },
+  no_loose_ends:   { label: 'No Loose Ends', icon: '✂️', blurb: 'Weeks of being the only person who knows any of it, against somebody whose business you have already been inside. Nobody to flip, nobody to place you, nothing that comes back.', planDays: 4, minCrew: 0, maxCrew: 0, needs: { brains: 10, charm: 7, tech: 5 }, difficulty: 58, payout: [11000, 32000], heat: 4, target: 'npc', tier: 3, requires: { alone: true, rattedTarget: true, priorOps: ['ghost_job'] } },
   crypto_wash:     { label: 'Wash It Sideways', icon: '💱', blurb: 'Money in one shape, out in another, through enough hands that nobody is sure which were yours. The tech-flavoured cousin of an offshore account.', family: 'wire', planDays: 4, minCrew: 0, maxCrew: 3, needs: { tech: 11, brains: 5 }, difficulty: 60, payout: [0, 0], heat: 9, target: 'none', tier: 4, requires: { priorOps: ['wire_fraud', 'shell_company'], safehouseTier: 2 } },
   vote_buying:     { label: 'Buy the Ward', icon: '🗳️', blurb: 'Not a bribe to one man. A ward, paid for door by door, and a result that everybody can see and nobody can prove.', planDays: 4, minCrew: 2, maxCrew: 5, needs: { charm: 13, brains: 10 }, difficulty: 66, payout: [0, 0], cost: 20000, heat: 15, target: 'district', tier: 4, requires: { crewCount: 4, priorOps: ['campaign_wash'] } },
 };

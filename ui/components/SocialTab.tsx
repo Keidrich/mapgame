@@ -5,6 +5,7 @@ import { initials, roleLabel } from '@ui/derive';
 import { openSheet, useWorld } from '@ui/store';
 import { Info } from './Info';
 import { NoteEditor } from './Note';
+import { RelationshipMap } from './RelationshipMap';
 import { Icon } from '@ui/icons';
 
 /**
@@ -16,9 +17,12 @@ import { Icon } from '@ui/icons';
  * who they answer to. Tapping somebody opens their ties in place, and tapping a tie walks you
  * along it, so you can follow a family across the district without losing your place.
  */
-type GroupMode = 'connections' | 'district' | 'faction';
+type GroupMode = 'web' | 'connections' | 'district' | 'faction';
 
 const MODES: { id: GroupMode; label: string }[] = [
+  // The picture first: by late game it is the only view that shows the shape of the thing
+  // rather than its contents. The three lists it sits alongside are unchanged.
+  { id: 'web', label: 'Web' },
   { id: 'connections', label: 'Ties' },
   { id: 'district', label: 'District' },
   { id: 'faction', label: 'Faction' },
@@ -26,6 +30,9 @@ const MODES: { id: GroupMode; label: string }[] = [
 
 export function SocialTab() {
   const w = useWorld();
+  // The roster stays the landing view. The web is first in the chip row because it is the
+  // overview, but this tab is mostly used as a directory — by late game it is four hundred rows
+  // you search rather than read — and opening on a picture would put a tap in front of that.
   const [mode, setMode] = useState<GroupMode>('connections');
   const [q, setQ] = useState('');
   const [openId, setOpenId] = useState<Id | null>(null);
@@ -37,7 +44,7 @@ export function SocialTab() {
     ? met.filter(n => `${n.name} ${roleLabel(n)} ${n.playerNote ?? ''}`.toLowerCase().includes(needle))
     : met;
 
-  const groups = useMemo(() => groupPeople(w, people, mode), [w, people, mode]);
+  const groups = useMemo(() => (mode === 'web' ? [] : groupPeople(w, people, mode as Exclude<GroupMode, 'web'>)), [w, people, mode]);
 
   /** Walk a tie: open that person here if you know them, otherwise their sheet. */
   const goTo = (n: Npc) => {
@@ -57,9 +64,11 @@ export function SocialTab() {
           <button type="button" key={m.id} className={mode === m.id ? 'on' : ''} onClick={() => setMode(m.id)}>{m.label}</button>
         ))}
       </div>
-      <input className="input mt8" placeholder="Search a name or your own notes…" value={q} onChange={e => setQ(e.target.value)} aria-label="Search people you have met" autoComplete="off" />
+      {mode === 'web' ? <RelationshipMap /> : (
+        <input className="input mt8" placeholder="Search a name or your own notes…" value={q} onChange={e => setQ(e.target.value)} aria-label="Search people you have met" autoComplete="off" />
+      )}
 
-      {people.length === 0 && <p className="small muted mt12">{met.length ? 'Nobody here matches that.' : 'You have not met anybody yet. Open a business on your block and size up whoever is inside.'}</p>}
+      {mode !== 'web' && people.length === 0 && <p className="small muted mt12">{met.length ? 'Nobody here matches that.' : 'You have not met anybody yet. Open a business on your block and size up whoever is inside.'}</p>}
 
       {groups.map(g => (
         <div key={g.title}>

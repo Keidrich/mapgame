@@ -2,7 +2,7 @@
 import { PRODUCT_INFO, RACKET_DEFS } from '@content/rackets';
 import type { Rng } from './rng';
 import { PLAYER, type GameEvent, type World } from './types';
-import { addHeat, addInfluence, adjustRel, bleedRel, clamp, factionOf, log, money, nid, spreadRep } from './util';
+import { addHeat, addInfluence, adjustRel, bleedRel, bumpStanding, clamp, factionOf, log, money, nid, spreadRep } from './util';
 import { doFavour } from './standing';
 import { LIEUTENANT } from '@content/rackets';
 import { flipLieutenant, lieutenants } from './lieutenants';
@@ -341,7 +341,7 @@ export function resolveEventOption(w: World, e: GameEvent, opt: string, rng: Rng
     case 'debtor:break': if (n) { adjustRel(w, n, { fear: 40, trust: -40 }, 'violence'); spreadRep(w, n.homeBlockId, { fear: 8 }, 2, 'violence'); addHeat(w, 6, n.homeBlockId); p.fear = clamp(p.fear + 4); log(w, `${n.name} will walk with a limp. The block is quieter now. (+8 fear nearby)`, 'warn', e.refs); } break;
     case 'debtor:week': if (n) { doFavour(w, n, 'gave them a week'); adjustRel(w, n, { trust: 15, respect: 5 }); if (rng.chance(0.5)) { const r = e.refs.racketId ? w.rackets[e.refs.racketId] : undefined; const owed = Math.round((r?.float ?? 1000) * 0.2); p.dirty += owed; log(w, `${n.name} pays up a week later, with thanks. (+${money(owed)})`, 'money', e.refs); } else log(w, `${n.name} is grateful. The money never shows.`, 'info', e.refs); } break;
     case 'debtor:work': if (n && !n.crew) { n.crew = { loyalty: 35, cut: 0, status: 'idle', statusDays: 0, joinedDay: w.day }; n.role = 'crew'; p.crewIds.push(n.id); for (const bid of n.favouriteBusinessIds) w.businesses[bid].patronIds = w.businesses[bid].patronIds.filter(id => id !== n.id); log(w, `${n.name} works for you now. Free labour, low loyalty.`, 'info', e.refs); } break;
-    case 'offer_sale:buy': if (n && biz) { biz.ownedBy = 'player'; p.businessIds.push(biz.id); if (biz.protection && biz.protection.factionId !== PLAYER) { w.factions[biz.protection.factionId].standing[PLAYER] -= 8; } biz.protection = undefined; n.faction = PLAYER; adjustRel(w, n, { trust: 10 }); addInfluence(w, biz.blockId, PLAYER, 12); log(w, `${biz.name} is yours.`, 'good', e.refs); } break;
+    case 'offer_sale:buy': if (n && biz) { biz.ownedBy = 'player'; p.businessIds.push(biz.id); bumpStanding(w, biz.protection?.factionId, -8); biz.protection = undefined; n.faction = PLAYER; adjustRel(w, n, { trust: 10 }); addInfluence(w, biz.blockId, PLAYER, 12); log(w, `${biz.name} is yours.`, 'good', e.refs); } break;
     case 'defect:match': if (n && biz?.protection) { biz.protection.rate = 0.1; adjustRel(w, n, { trust: 10 }); log(w, `${n.name} stays at 10%.`, 'info', e.refs); } break;
     case 'defect:threaten': if (n) { adjustRel(w, n, { fear: 20, trust: -15 }, 'backed'); log(w, `${n.name} goes pale and keeps paying.`, 'warn', e.refs); } break;
     case 'defect:release': if (n && biz && f) { const rid = biz.racketIds.find(id => w.rackets[id].kind === 'protection' && w.rackets[id].owner === PLAYER); if (rid) { biz.racketIds = biz.racketIds.filter(id => id !== rid); p.racketIds = p.racketIds.filter(id => id !== rid); delete w.rackets[rid]; } biz.protection = { factionId: f.id, rate: 0.1, since: w.day }; n.faction = f.id; f.standing[PLAYER] = clamp(f.standing[PLAYER] + 5, -100, 100); addInfluence(w, biz.blockId, PLAYER, -8); log(w, `${f.short} take over ${biz.name}.`, 'info', e.refs); } break;

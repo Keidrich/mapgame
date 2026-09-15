@@ -1,10 +1,12 @@
 /** Income formulas for rackets and productions. Shared by the tick and by estimates. */
 import { FIXER, LIEUTENANT, PRODUCTION_DEFS, PRODUCTION_LEVEL, PRODUCT_INFO, RACKET_DEFS, RECIPES } from '@content/rackets';
+import { CACHE } from '@content/events';
 import { yieldMult } from './territory';
 import { PLAYER_HANDS, playerWorks } from './production';
 import { coverFor } from './lieutenants';
 import type { Business, Id, Npc, Production, Racket, World } from './types';
 import { familiar, familiarReason, favours, leverageOver } from './standing';
+import { activeCrewCount } from './util';
 
 /** An owner has a place, a name and a living to lose, so they take far more talking round than a regular —
  *  and the better the place is doing, the less your offer is worth to them. */
@@ -150,6 +152,39 @@ export function fixerCapLeft(w: World, n: Npc): number {
 /** Every fixer the player has come across, nearest first. */
 export function fixersKnown(w: World): Npc[] {
   return Object.values(w.npcs).filter(n => n.role === 'fixer' && n.alive);
+}
+
+// ---------------------------------------------------------------- working alone, on purpose
+/**
+ * Nobody on the books, alive and out of a cell. The condition every lone-wolf payoff reads.
+ *
+ * `activeCrewCount` rather than `crewEver`, because this is a way of working and not a vow —
+ * and because an outfit that has just been taken apart is genuinely one person again, which is
+ * exactly when the payoffs should be helping.
+ */
+export function isLoneWolf(w: World): boolean { return activeCrewCount(w) === 0; }
+
+// ---------------------------------------------------------------- going to ground, and the hole in the wall
+/** Are you off the street right now? */
+export function layingLow(w: World): boolean { return (w.player.layLowUntil ?? 0) > w.day; }
+/** Days left under, for the HUD and the end-day summary. */
+export function layLowLeft(w: World): number { return Math.max(0, (w.player.layLowUntil ?? 0) - w.day); }
+
+/**
+ * How much you can have hidden, which falls with every pair of eyes on you.
+ *
+ * Dead and jailed crew do not count: the cap is about who could follow you to it, and neither of
+ * those can. That also means a bust, which jails people, *widens* the hole afterwards — which is
+ * the right shape, because rebuilding from nothing is exactly when it matters.
+ */
+export function cacheCap(w: World): number {
+  return Math.max(0, CACHE.base - activeCrewCount(w) * CACHE.perCrew);
+}
+export function cacheCapLeft(w: World): number { return Math.max(0, cacheCap(w) - (w.player.cache ?? 0)); }
+/** Why there is no hole in the wall, in the words the screen should use. */
+export function cacheReason(w: World): string | undefined {
+  if (cacheCap(w) > 0) return undefined;
+  return 'Too many people know where you sleep. A hole in the wall is a thing one person has.';
 }
 
 export function productionOutput(w: World, p: Production): number {

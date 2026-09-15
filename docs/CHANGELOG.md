@@ -14,6 +14,157 @@ House rules for an entry (see `CLAUDE.md` → *Leave a trail*):
 
 ---
 
+## 2026-09-15 — The crash that keeps coming back, two answers to pressure, and a lane of your own
+
+**What.** A reproducible crash and its whole family, plus six things playtesting asked for: an
+active answer to rising heat, a solo hedge against a bust, a street name for the player, real
+closure when a faction is beaten, a picture of the social web, and an identity for going solo.
+
+---
+
+### 1. The crash, and the pattern under it
+
+`offer_sale:buy` read `w.factions[biz.protection.factionId].standing[PLAYER]` without checking the
+protector still existed — reproducible on `everything`, seed 33, by day 60.
+
+**The sweep found the real cause, which is a type-level hole, not a bad line.** `FactionId` is
+`Id`, and three populations wear it: `PLAYER`, a faction in `w.factions`, and a **street crew** in
+`w.crews`. Factions never vanish — they are marked `alive = false` and left in place — but crews
+are genuinely `delete`d. And crews take protection on businesses exactly like anybody else
+(`crews.ts`), so a deleted crew's id sits on `biz.protection` for ever. That is all three crashes
+this session: `buy_business` on a crew id, `patronTip` on a dead lieutenant, and this one.
+
+So the fix is two functions rather than a third guard on a third call site:
+
+- **`releaseGround(w, id)`** — nothing may still point at an outfit that is gone. A faction's death
+  already did this inline; a crew's dissolution did not. Now called from both.
+- **`outfit(w, id)` / `bumpStanding(w, id, by)`** — a read that finds nothing answers instead of
+  throwing, because line 1 will be missed again one day.
+
+Swept call sites: `events.ts:344` (the reported one), **`ops.ts:337`** (the same read, on a
+takeover — the second live instance), and `select.stanceWithPlayer`, which indexed `w.factions`
+unguarded and is called with crew ids. `sim/stale-faction-refs.test.ts` covers both defences and
+plays seed 33 for sixty days. The sweep was then verified empirically as well as by grep: **9
+scenarios × 12 seeds × 60 days, 108 runs, no crashes.**
+
+### 2. Lay low
+
+The heat-60 warning has said *"Lay low, bribe the captain, or pay a sergeant"* since the game had a
+heat meter, and only two of those three existed. `lay_low` is paid for in the thing the player
+actually has — **their own turns**: while you are under the day arrives with no AP and no legwork,
+heat falls `LAY_LOW.heatPerDay` on top of the ordinary decay, and the street rates you lower for
+being nowhere. Cash on top; rent and wages do not stop for you. It needs nobody, which is exactly
+why it belongs next to the bribe rather than inside it.
+
+A week under is roughly 60 points of distance and most of a fortnight's earning. `sim/lay-low.test.ts`.
+
+### 3. The hole in the wall
+
+A bust seizes 80% of dirty cash. An outfit absorbs that; one person has one pocket. `cache` is the
+hedge, and it is **solo by construction rather than by a flag**: capacity falls `CACHE.perCrew` per
+body alive and out of a cell, and is zero by the fourth. That is the honest reason a lone operator
+can hide money and an outfit cannot, and it leaves a bust's stakes intact for everybody else. They
+still find it `CACHE.bustChance` of the time — a hedge, not immunity. People in a cell do not count,
+so a bust *widens* the hole afterwards, which is when it matters most.
+
+### 4. A street name for the player
+
+A lieutenant who kept turning up earned a name that replaced theirs everywhere; the player stayed
+whatever they typed at the character screen. `playerName(w)` closes it through the **same**
+function — `withNickname`, factored out of `nemesisName` — so the two cannot drift.
+
+**Which pool it draws from is the point.** Fear and respect are two different ways of being
+somebody and nothing has ever read the difference out loud. Ahead on fear by `STREET_NAME.margin`
+and you are *the Hammer*, *Sunday*, *Cold*; ahead on respect and you are *the Mayor*, *the Deacon*,
+*Pop*; neck and neck and the street just calls you *Big*. Set once, deterministic from the name, and
+`select.factionName(w, PLAYER)` picks it up — which is how it reaches the map legend, holdings and
+the faction screens without any of them knowing it exists.
+
+### 5. Beating somebody actually ends
+
+The only death was bleeding out (`soldiers <= 0 && cash < 0`); rebuilding needs `cash > 6000`.
+Anything between those two with nobody on the street could **neither die nor recover** — a husk,
+still nominally at war, for ever. That is the gap.
+
+`checkDefeated` uses the street condition plus the one thing that undoes it: no soldiers, no blocks,
+no lieutenant still walking, **and not enough left to hire anybody**. That last clause came out of
+writing the test — the first version asserted a healthy bank balance should not save an outfit, and
+the sim disagreed, correctly: with money and nobody they are between hires, not beaten.
+
+Their ground goes somewhere real: places they collected from on ground *you* hold come to you,
+everything else opens up (a collapse is an opportunity, not a gift), residual influence where you
+were already pushing transfers at half. `defeatedBy` credits it to you when you were the one at war
+— worth respect and fear — and an outfit that merely fell apart is credited to nobody. Fires once.
+
+### 6. The web, drawn
+
+A fourth mode on the Social tab, and it **adds no data**: every field comes off `Npc`,
+`n.connections`, `n.asset`, `n.nemesis`. Four rings — you, yours, theirs, and the connective tissue
+(anybody you have met tied to two or more of the above), which is the whole reason it is a picture
+rather than a fifth list: it is where *"my informant inside the Delgados is the nemesis's cousin"*
+lives.
+
+Layout is computed in `/sim` and is deterministic from a stable sort on id, so the same save draws
+the same web every time — a map, not a lava lamp. Writing the test caught two real things: it was
+drawing faction lieutenants the player had **never met** (leaking the roster and burying the people
+who actually matter), and it ignored earned nicknames, so the nemesis on the map was not the one in
+the log.
+
+### 7. Lone wolf, as a build
+
+The earlier pass made solo *viable*. This gives it an identity, and the line it has to hold is:
+**`OpRequires.alone` is not `minCrew: 0`.** A `minCrew: 0` job is one you *can* do alone; an
+`alone` job stops existing the moment there is a second person to be seen, remembered or leaned on.
+If the lane were a relaxation of crew-gated content it would be a discount — because it is its own
+content, an outfit cannot buy in at any price.
+
+- Two ops only a lone operator can run: **Nobody Saw Anybody** (tier 2, loot, and *zero heat* —
+  there is no second story to check) and **No Loose Ends** (tier 3, behind the first).
+- `LONE_WOLF.heat` — heat is other people talking, and there is nobody to talk.
+- `LONE_WOLF.respectDrag` — the counterweight: the street rates an *outfit*, and you are not one.
+- `LONE_WOLF.opBonus` on a job run with nobody on it, reading `isLoneWolf` rather than "who is on
+  this op", so a crew player cannot pick it up by leaving everybody at home.
+
+**A number I got wrong first and measured.** `LONE_WOLF.heat` started at 0.55, and at that value
+the heat ladder simply stopped engaging: a sixty-day honest run — which *is* a lone-wolf run, since
+the bot's first recruit lands on day 56 — went from two rackets to eight and never saw a raid.
+Switching off the game's main pressure system is not a build payoff. 0.75 is a third more work
+before the ladder fires, which is felt, and the ladder still fires.
+
+---
+
+**Files.** `sim/util.ts` (`outfit`, `bumpStanding`, `releaseGround`, the heat and respect terms) ·
+`sim/events.ts`, `sim/ops.ts`, `sim/select.ts`, `sim/crews.ts`, `sim/politics.ts` (the sweep) ·
+`sim/factions.ts` (`checkDefeated`) · `sim/nemesis.ts` (`withNickname`, `playerName`,
+`earnStreetName`) · `sim/relationships.ts` (new) · `sim/tick.ts`, `sim/reducer.ts`,
+`sim/actions.ts`, `sim/types.ts`, `sim/economy.ts` · `content/events.ts` (`LAY_LOW`, `CACHE`),
+`content/nemesis.ts` (`STREET_NAME` + pools), `content/backgrounds.ts` (`LONE_WOLF`),
+`content/rackets.ts` (`alone`, two ops), `content/glossary.ts` ·
+`ui/components/RelationshipMap.tsx` (new), `SocialTab`, `EmpireTab`, `Hud`, `CrewTab`,
+`ui/icons/paths-ops.ts`, `ui/styles.css` · seven new test files.
+
+**Watch out.**
+
+- **No `WORLD_VERSION` bump.** `layLowUntil`, `cache`, `street`, `defeatedDay`, `defeatedBy` are all
+  optional; old saves load with none of them and behave exactly as before until they earn one.
+- **The honest 60-day curve moved, and this entry is where that is stated.** cash 3 → 45, dirty
+  254 → 4,259, rackets 3 → 5, control 11.1% → 15.6%. Cause is `LONE_WOLF.heat`, and it is not an
+  accident: **the honest bot is a lone wolf for 55 of its 60 days** — its first recruit lands on
+  day 56 — so the discount applies to almost the whole run. That is the mechanic working, not
+  leaking. If a later pass wants the honest curve to mean "ordinary play" again, the thing to
+  change is the bot's recruiting, not this number.
+- **Balance shift for every player, not only solo ones.** Everybody starts with no crew, so the
+  opening of every game now draws less heat and earns less respect until the first recruit.
+- **`alone` is the first addition to the op gating vocabulary since it was frozen**, and
+  `sim/ops-progression.test.ts`'s allow-list was widened deliberately, with the reasoning inline.
+  No existing key expresses it: `crewCount` asks whether anybody *ever* joined; this asks whether
+  anybody is here *now*, and that answer has to be able to go back to no.
+- **Deliberately not done.** The two new ops are in `OP_DEFS` and the sweep runs them, but neither
+  has a bespoke complication, and `ghost_job`'s zero heat is enforced by its `heat: 0` rather than
+  by a rule that would survive somebody editing that number. Worth a guard if the lane grows.
+
+---
+
 ## 2026-09-14 — Six things bot playtesting found, and what they actually were
 
 **What.** Six findings from playing all eight scenarios end to end. Four were real bugs, one was a

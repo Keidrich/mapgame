@@ -4,7 +4,7 @@
  */
 import type { Rng } from './rng';
 import { PLAYER, type Faction, type GameEvent, type Id, type Npc, type World } from './types';
-import { addInfluence, adjustRel, clamp, log, money, nid, standingCap } from './util';
+import { addInfluence, adjustRel, clamp, log, money, nid, releaseGround, standingCap } from './util';
 import { stanceFor } from './generate';
 import { addMemory } from './people';
 import { candidatesFor, nemesisName, notoriety, successionWeight } from './nemesis';
@@ -20,7 +20,7 @@ export function successionOrDeath(w: World, f: Faction) {
   if (lts.length >= 2 && !f.crisis) { startCrisis(w, f, lts.slice(0, 2)); return; }
   const lt = lts[0];
   if (lt) { crown(w, f, lt, 'quiet'); }
-  else { f.alive = false; f.crisis = undefined; log(w, `${f.name} is finished. Their blocks are up for grabs.`, 'warn', { factionId: f.id }); for (const b of Object.values(w.blocks)) delete b.influence[f.id]; for (const b of Object.values(w.businesses)) if (b.protection?.factionId === f.id) b.protection = undefined; }
+  else { f.alive = false; f.crisis = undefined; log(w, `${f.name} is finished. Their blocks are up for grabs.`, 'warn', { factionId: f.id }); releaseGround(w, f.id); }
 }
 
 function startCrisis(w: World, f: Faction, cands: Npc[]) {

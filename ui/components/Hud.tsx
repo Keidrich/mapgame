@@ -42,7 +42,12 @@ export function Hud() {
       <div className="hud-top">
         <div className="hud-id">
           <span className="hud-day">DAY {w.day}</span>
-          <span className="hud-place ellipsis" title={w.placeName}>{w.placeName}</span>
+          {/* What the street calls you, once you have earned it — the player's side of a nemesis
+              nickname. It takes the place name's slot rather than fighting it for room: the city
+              is the same word every day and is on the map anyway, this one you had to earn. */}
+          {p.street
+            ? <Term id="streetName"><span className="hud-street">&ldquo;{p.street}&rdquo;</span></Term>
+            : <span className="hud-place ellipsis" title={w.placeName}>{w.placeName}</span>}
         </div>
         <div className="hud-flags">
           {p.lawyer && <Term id="lawyer"><span className="hud-flag gold"><Icon name="lawyer" size={12} />Lawyer</span></Term>}

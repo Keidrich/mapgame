@@ -6,7 +6,9 @@ import { applyDailyInfluence, updateTenure, yieldMult } from './territory';
 import { foremanOf, haulHeat, tickAutomation } from './automation';
 import { tickIntel } from './intel';
 import { tickAssets } from './informants';
-import { launderCapacity, productionOutput, racketIncome, streetPrice } from './economy';
+import { launderCapacity, layLowLeft, layingLow, productionOutput, racketIncome, streetPrice } from './economy';
+import { CACHE, LAY_LOW } from '@content/events';
+import { earnStreetName } from './nemesis';
 import { LAUNDER_RATE, PRISON_WING } from '@content/rackets';
 import { resolveConfrontation } from './combat';
 import { tickCards, tickHackCrew, tickTaps } from './cyber';
@@ -227,9 +229,26 @@ export function endDay(w: World): World {
 
   // ---- reputation settles ----
   if (w.day % 3 === 0) { p.fear = clamp(p.fear - 1); }
+  // ...and once it is high enough, the street decides what to call you
+  earnStreetName(w);
 
   // ---- events, day summary, endgame ----
-  p.ap = p.apMax; p.legworkMax = legworkFor(p.skills.wheels); p.legwork = p.legworkMax; p.launderedToday = 0; w.day++;
+  // ---- off the street ----
+  // Laying low is paid for in turns, not in a multiplier: while you are under, the day arrives
+  // with nothing in it. Heat comes off fast because nobody can find you to add to it.
+  const under = layingLow(w);
+  if (under) {
+    p.heat = clamp(p.heat - LAY_LOW.heatPerDay);
+    p.respect = clamp(p.respect - LAY_LOW.respectPerDay);
+  }
+  p.legworkMax = legworkFor(p.skills.wheels); p.launderedToday = 0; w.day++;
+  // AP is set *after* the day rolls over, against the day being handed to the player: the last
+  // day under is still a day off the street, and the day you surface is a full one.
+  const stillUnder = layingLow(w);
+  p.ap = stillUnder ? 0 : p.apMax;
+  p.legwork = stillUnder ? 0 : p.legworkMax;
+  if (under && !stillUnder) log(w, 'You come back out. Whatever was being said about you has moved on to somebody else.', 'good');
+  else if (stillUnder) log(w, `Another day nowhere. ${layLowLeft(w)} to go.`, 'info');
   const share = controlShare(w);
   if (!w.victory && share >= 0.6) { w.victory = true; log(w, `You run ${Math.round(share * 100)}% of ${w.placeName}. This is your city now.`, 'good'); }
   if (p.cash + p.dirty < -2000 && !p.businessIds.length && !p.racketIds.length && !p.crewIds.some(id => w.npcs[id].crew?.status !== 'dead')) {
@@ -284,6 +303,10 @@ function raid(w: World, rng: import('./rng').Rng) {
 function bust(w: World, rng: import('./rng').Rng) {
   const p = w.player; p.busts++;
   const lostDirty = Math.round(p.dirty * 0.8); p.dirty -= lostDirty;
+  // The hole in the wall. They turn the place over and usually do not find it — a hedge for
+  // somebody working alone, not immunity, and they only ever have one pocket to hedge with.
+  let cacheLost = 0;
+  if ((p.cache ?? 0) > 0 && rng.chance(CACHE.bustChance)) { cacheLost = p.cache!; p.cache = 0; }
   for (const k of Object.keys(p.stash) as (keyof typeof p.stash)[]) p.stash[k] = 0;
   let jailed = 0;
   // Somebody was out that night.
@@ -308,7 +331,7 @@ function bust(w: World, rng: import('./rng').Rng) {
   for (const id of p.racketIds.slice()) if (w.rackets[id]?.kind === 'gambling_den' && rng.chance(0.5)) closeRacket(w, id);
   p.heat = 40; p.respect = clamp(p.respect - 10);
   if (w.blocks[p.homeBlockId]) addMemory(w, p.homeBlockId, 'bust', 'The task force took you away in front of everybody.');
-  log(w, `BUSTED. The task force came through everything at once. ${money(lostDirty)} dirty cash and all product seized, ${jailed} of your people jailed, every racket dark for 5 days. Heat resets to 40.`, 'bad');
+  log(w, `BUSTED. The task force came through everything at once. ${money(lostDirty)} dirty cash and all product seized, ${jailed} of your people jailed, every racket dark for 5 days. Heat resets to 40.${cacheLost ? ` They found the wall, too — ${money(cacheLost)} gone.` : (p.cache ?? 0) > 0 ? ` They did not find the wall. ${money(p.cache!)} is still there.` : ''}`, 'bad');
   for (const f of Object.values(w.factions)) if (f.alive) f.standing[PLAYER] = clamp(f.standing[PLAYER] - 5, -100, 100);
   void factionOf;
 }

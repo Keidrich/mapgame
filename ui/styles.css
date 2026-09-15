@@ -602,6 +602,11 @@ h1, h2, h3, h4, .sheet-title, .panel h2, .modal h2 {
   color: var(--gold); white-space: nowrap;
 }
 .hud-place { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+/* What the street calls you. Amber, because it is yours and it was earned — and it never gets
+   squeezed: the place name is the same word every day, this one you had to earn. */
+.hud-street { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.08em; color: var(--gold); white-space: nowrap; flex: none; }
+.hud-id { min-width: 0; }
+.hud-id .hud-place { flex: 0 1 auto; min-width: 0; }
 .hud-flags { display: flex; align-items: center; gap: 6px; margin-left: auto; }
 .hud-flag {
   display: inline-flex; align-items: center; gap: 4px; padding: 2px 6px;
@@ -789,3 +794,19 @@ h1, h2, h3, h4, .sheet-title, .panel h2, .modal h2 {
 .chip.red, .chip.orange, .chip.green { border-color: currentColor; background: rgba(255, 255, 255, 0.03); }
 .small.muted, .tiny.muted, .shelf-detail, .map-hint { color: var(--faint); }
 .sub, .listitem .sub { color: var(--muted); }
+
+/* ---------------------------------------------------------------- the relationship web
+   A picture of the social layer, not a chart: no axes, no grid, and the only three colours the
+   rest of the app uses — amber is yours, red is trouble, grey is everybody else. */
+.webmap { border: 1px solid var(--line); background: var(--bg-2); padding: 6px; }
+.webmap svg { display: block; width: 100%; height: auto; }
+.webnode { cursor: pointer; }
+.webnode circle { transition: none; }
+.webnode:active circle { fill: var(--bg-2); }
+.weblegend {
+  display: flex; flex-wrap: wrap; gap: 4px 12px; padding: 8px 4px 2px;
+  font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 0.08em; text-transform: uppercase;
+}
+.weblegend span { display: inline-flex; align-items: center; gap: 4px; }
+/* the map's own <svg> is width:100% by the rule above; the legend's little icons must not be */
+.weblegend .icon { width: 11px; height: 11px; flex: none; }

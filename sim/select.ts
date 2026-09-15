@@ -37,18 +37,25 @@ export { protectRoute, protectReason, PROTECT_TRUST, PROTECT_FAVOUR_RATE } from 
 // informants and assets: a standing arrangement, and an introduction
 export { assets, assetOf, assetReason, hearsAbout, referrals, referralReason, goneCold } from './informants';
 // the lieutenant who keeps turning up
-export { nemesisName, isNemesis, notoriety, candidatesFor, successionWeight } from './nemesis';
+export { nemesisName, isNemesis, notoriety, candidatesFor, successionWeight, playerName, withNickname } from './nemesis';
+import { playerName } from './nemesis';
+import { isLoneWolf } from './economy';
+import { LONE_WOLF } from '@content/backgrounds';
+import { activeCrewCount } from './util';
 export { defectReason } from './defect';
 // the systemic core: how well you know somebody, what you have over them, and what they owe you
 export { daysKnown, familiar, familiarReason, favours, leverageOver, concessionReason, trustCeiling, fearCeiling } from './standing';
 // the personal history screen, and what a conversation can do with it
 export { dossier, ledgerOf, owedToThem, LEDGER_MAX } from './ledger';
+// the social layer as a picture: layout only, computed from data that already exists
+export { relationshipWeb, WEB_MAX, type Web, type WebNode, type WebLink, type WebKind } from './relationships';
 export { personalPull } from './commission';
 // business tiers: what a place can host, what it costs, and whether fear is a door at all
 export { racketsAllowed, setupCost, tierOf, tierInfo, extortReason, wayIn, hasWayIn, canHost } from './tiers';
 export { agendaKnown, agendaMoves, agendaCost, agendaChance, agendaReason, agendaTargetName, sharedConnections } from './agendas';
 export { talkOptions, isTalk, TALK } from './conversation';
 export { fixerRate, fixerDailyCap, fixerUsedToday, fixerCapToday, fixerCapLeft, fixersKnown } from './economy';
+export { layingLow, layLowLeft, cacheCap, cacheCapLeft, cacheReason, isLoneWolf } from './economy';
 export { knownRecipes, recipesForKind, restockCost, qualityOf, sellMult, shortageActive, saturationActive, productionQuality, playerWorks, playerWorked, PLAYER_HANDS } from './production';
 import { distanceM } from '@geo/project';
 import { STEP_M } from './populate';
@@ -64,7 +71,7 @@ export function factionColor(w: World, f?: FactionId): string {
   return w.factions[f]?.color ?? '#666a70';
 }
 export function factionName(w: World, f?: FactionId): string {
-  if (!f) return 'Unclaimed'; if (f === PLAYER) return w.player.name; if (w.crews[f]) return `The ${w.crews[f].name}`; return w.factions[f]?.name ?? '?';
+  if (!f) return 'Unclaimed'; if (f === PLAYER) return playerName(w); if (w.crews[f]) return `The ${w.crews[f].name}`; return w.factions[f]?.name ?? '?';
 }
 export function businessesIn(w: World, blockId: Id): Business[] { return w.blocks[blockId].businessIds.map(id => w.businesses[id]).filter(b => b && !b.shut); }
 export function patronsOf(w: World, biz: Business): Npc[] { return biz.patronIds.map(id => w.npcs[id]).filter(n => n.alive); }
@@ -73,7 +80,8 @@ export function idleCrew(w: World): Npc[] { return crew(w).filter(n => n.crew?.s
 export function playerBlocks(w: World): Block[] { return Object.values(w.blocks).filter(b => controller(b) === PLAYER); }
 export function blocksOf(w: World, f: FactionId): Block[] { return Object.values(w.blocks).filter(b => controller(b) === f); }
 export function officials(w: World): Npc[] { return Object.values(w.npcs).filter(n => n.official); }
-export function stanceWithPlayer(w: World, f: FactionId): Stance { return w.factions[f].stance[PLAYER] ?? 'peace'; }
+/** Where an outfit stands with the player. A street crew or a dangling id is at peace by default. */
+export function stanceWithPlayer(w: World, f: FactionId): Stance { return w.factions[f]?.stance[PLAYER] ?? 'peace'; }
 export function racketsAt(w: World, biz: Business) { return biz.racketIds.map(id => w.rackets[id]); }
 export function availableRackets(w: World, biz: Business): RacketKind[] {
   const present = new Set(racketsAt(w, biz).map(r => r.kind));
@@ -128,8 +136,11 @@ export function opChance(w: World, kind: OpKind, crewIds: Id[], approach?: OpApp
   // Somebody of yours already inside their people. An asset is standing, not a favour spent, so
   // it pays on every job against them — which is what separates it from a one-off introduction.
   const inside = assetBonus(w, tgt);
+  // Nobody else to be somewhere at the wrong moment. Only on a job you are genuinely running
+  // alone while you *are* alone — bringing somebody turns it off, which is the point of it.
+  const solo = crewIds.length === 0 && isLoneWolf(w) ? LONE_WOLF.opBonus : 0;
   const base = 50 + (ratio - 1) * 70 - (d.difficulty + (ap?.difficulty ?? 0) + cased + route + authority - 50) * 0.6 - w.player.heat * 0.15;
-  return Math.max(3, Math.min(97, Math.round(base + inside)));
+  return Math.max(3, Math.min(97, Math.round(base + inside + solo)));
 }
 /** People at a target who trust you enough to be an inside man (best first). */
 export function insidersFor(w: World, businessId?: Id): Npc[] {
@@ -210,6 +221,10 @@ export function opLocked(w: World, kind: OpKind, target?: { npcId?: Id; business
     return `War work. Nobody is at ${req.stance.join(' or ')} with you${req.stance.includes('beef') ? ' yet' : ''}.`;
   }
   if (req.weapon && !equippedItems(w).some(i => i.category === 'weapon')) return 'You do not walk into this one empty-handed. Carry a weapon.';
+  if (req.alone && !isLoneWolf(w)) {
+    const n = activeCrewCount(w);
+    return `Work for one person. You have ${n} ${n === 1 ? 'person' : 'people'} on the books, and there is no version of this with somebody else standing there.`;
+  }
   // The per-target family, all cut from the same template as rattedTarget below: each asks about
   // *this mark* rather than about the empire, so each takes the op's own target. With no target
   // in hand (browsing the tree) they ask only whether any valid mark exists at all.

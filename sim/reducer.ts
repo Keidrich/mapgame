@@ -47,6 +47,8 @@ import { ITEM_DEFS } from '@content/items';
 import { moveProduct, onJoin, recipesForKind, restockCost, sellMult } from './production';
 import { PRODUCTION_UPGRADE_MULT, RECIPES } from '@content/rackets';
 import { FIXER, LAUNDER_RATE, LIEUTENANT } from '@content/rackets';
+import { LAY_LOW } from '@content/events';
+import { layingLow, cacheCap, cacheCapLeft } from './economy';
 import { activeCrewCount, officialTrust, addHeat, addInfluence, adjustRel, clamp, factionOf, log, money, nid, rngOf, spreadRep, takeCash } from './util';
 
 const no = (reason: string): Affordance => ({ ok: false, reason });
@@ -375,6 +377,22 @@ function gate(w: World, a: Action): Affordance {
       return yes({ ap: 1 });
     }
     case 'launder': { if (a.amount <= 0) return no('Amount?'); if (p.dirty < a.amount) return no('Not that much dirty cash.'); const cap = launderCapLeft(w); if (cap <= 0) return no('No laundering capacity left today. Start a laundering racket, or take it to a fixer.'); return yes(); }
+    case 'lay_low': {
+      if (layingLow(w)) return no(`You are already off the street until day ${p.layLowUntil}.`);
+      if (a.days < LAY_LOW.minDays || a.days > LAY_LOW.maxDays) return no(`Between ${LAY_LOW.minDays} and ${LAY_LOW.maxDays} days.`);
+      if (p.heat < 20) return no('Nobody is looking for you. Going to ground now just costs you the week.');
+      const c = a.days * LAY_LOW.costPerDay; const r = cash(c); return r ? no(r) : yes({ cash: c });
+    }
+    case 'cache': {
+      if (a.amount <= 0) return no('Amount?');
+      if (a.take) return (p.cache ?? 0) < a.amount ? no('There is not that much in it.') : yes();
+      const room = cacheCapLeft(w);
+      if (cacheCap(w) <= 0) return no('Too many people know where you sleep. A hole in the wall is a thing one person has.');
+      if (room <= 0) return no('It is full. Anything more would be a pile, not a hiding place.');
+      if (p.dirty < a.amount) return no('Not that much dirty cash.');
+      if (a.amount > room) return no(`Only ${money(room)} more fits.`);
+      return yes();
+    }
     case 'launder_with_fixer': {
       const n = npc(a.npcId); if (!n?.alive) return no('They are gone.');
       if (n.role !== 'fixer') return no(`${n.name} does not move money.`);
@@ -819,6 +837,17 @@ function apply(w: World, a: Action, rng: Rng, done: () => void, bonus = 0): Worl
       p.stash[a.product] -= sold; p.dirty += take;
       addHeat(w, PRODUCT_INFO[a.product].heat, b.id); addInfluence(w, b.id, PLAYER, 2);
       log(w, `Moved ${sold} ${PRODUCT_INFO[a.product].label.toLowerCase()} on ${b.name} for ${money(take)}.${sold < a.amount ? ' The block could not take more today.' : ''}`, 'money', { blockId: b.id });
+      break;
+    }
+    case 'lay_low': {
+      takeCash(w, a.days * LAY_LOW.costPerDay);
+      p.layLowUntil = w.day + a.days;
+      log(w, `You are off the street for ${a.days} days. Nobody knows where, and nothing of yours gets done while you are gone.`, 'info');
+      break;
+    }
+    case 'cache': {
+      if (a.take) { const amt = Math.min(a.amount, p.cache ?? 0); p.cache = (p.cache ?? 0) - amt; p.dirty += amt; log(w, `You take ${money(amt)} back out of the wall.`, 'money'); }
+      else { p.dirty -= a.amount; p.cache = (p.cache ?? 0) + a.amount; log(w, `${money(a.amount)} goes somewhere only you know about.`, 'money'); }
       break;
     }
     case 'launder': {

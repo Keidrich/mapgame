@@ -11,11 +11,12 @@
  *
  * The one genuinely new thing is `Npc.nemesis`, and it holds one number.
  */
-import { MILESTONES, NEMESIS } from '@content/nemesis';
+import { FEARED_NAMES, KNOWN_NAMES, MILESTONES, NEMESIS, RESPECTED_NAMES, STREET_NAME } from '@content/nemesis';
 import { STAKES, type Stake } from '@content/standing';
 import { remember } from './ledger';
 import { connectionsOf } from './connections';
 import type { Rng } from './rng';
+import { hashString } from './rng';
 import { PLAYER, type Faction, type Id, type Nemesis, type Npc, type World } from './types';
 import { clamp, log } from './util';
 
@@ -28,12 +29,42 @@ import { clamp, log } from './util';
  * `Cassandra "the Nail" "Moose" Booker`. Strip whatever is already in quotes, then insert.
  */
 const GIVEN_NICKNAME = /\s*"[^"]*"\s*/;
-export function nemesisName(n: Npc): string {
-  const nick = n.nemesis?.nickname;
-  const given = n.name.replace(GIVEN_NICKNAME, ' ').trim();
-  if (!nick) return n.name;
-  const parts = given.split(' ');
+/**
+ * Put an earned name on somebody, in place of whatever they were called before. One function,
+ * because the player earns one of these the same way a lieutenant does and there is no reason
+ * for two implementations of "what are they called now" to drift apart.
+ */
+export function withNickname(name: string, nick?: string): string {
+  if (!nick) return name;
+  const parts = name.replace(GIVEN_NICKNAME, ' ').trim().split(' ');
   return `${parts[0]} "${nick}" ${parts.slice(1).join(' ')}`.trim();
+}
+export function nemesisName(n: Npc): string { return withNickname(n.name, n.nemesis?.nickname); }
+
+// ---------------------------------------------------------------- and the other direction
+/**
+ * What the street calls the player. `w.player.street` once they have earned one, their given
+ * name until then — and every caller that already reads `select.factionName(w, PLAYER)` gets it
+ * without knowing this exists, which is the same trick `nemesisName` plays on the log.
+ */
+export function playerName(w: World): string { return withNickname(w.player.name, w.player.street); }
+
+/**
+ * Have they crossed the line, and what does that make them? Called once a day from the tick.
+ *
+ * Deterministic from the name, not from a roll, for the same reason the lieutenant's is: a replay
+ * of the same seed has to produce the same city, and a street name is part of the city.
+ */
+export function earnStreetName(w: World): void {
+  const p = w.player;
+  if (p.street) return;
+  const top = Math.max(p.fear, p.respect);
+  if (top < STREET_NAME.at) return;
+  const pool = p.fear - p.respect >= STREET_NAME.margin ? FEARED_NAMES
+    : p.respect - p.fear >= STREET_NAME.margin ? RESPECTED_NAMES
+    : KNOWN_NAMES;
+  p.street = pool[hashString(p.name + p.background) % pool.length];
+  log(w, `Somebody says it to your face and it sticks: they call you ${p.street} now. Nobody asked what was on your birth certificate.`, 'good');
 }
 
 export function isNemesis(n: Npc | undefined): boolean { return !!n?.nemesis && n.nemesis.notoriety >= NEMESIS.known; }

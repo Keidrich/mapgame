@@ -504,6 +504,27 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
     body: 'Most rackets pay in dirty cash. Laundering and no-show jobs pay clean. Orange numbers are dirty, green are clean.',
   },
 
+  layLow: {
+    title: 'Laying low',
+    body: 'Going off the street on purpose. Heat falls fast while you are gone, because heat is people talking about you and nobody can find you to talk about. You get nothing done in the meantime: no action points, no legwork, and the street rates you a little lower for being nowhere.',
+    note: 'Paid for in days, not in a percentage. A week under is most of a fortnight\'s earning — which is the point, because the alternative is a bust.',
+  },
+  cache: {
+    title: 'The wall',
+    body: 'Dirty cash put somewhere only you know about. A bust seizes most of what is on you and usually cannot reach this — usually.',
+    note: 'How much fits falls with every person on your books, and by the fourth there is no hole at all. One person can hide money; an outfit cannot.',
+  },
+  loneWolf: {
+    title: 'Working alone',
+    body: 'With nobody on the books you draw about half the heat — one person to describe and nobody to describe them — jobs you run alone go better, the wall is at its biggest, and a short lane of work opens that only exists when there is nobody else involved.',
+    note: 'It is a way of working, not a vow: take somebody on and it stops, and an outfit that gets taken apart is alone again.',
+  },
+  streetName: {
+    title: 'What they call you',
+    body: 'Once enough of the city is afraid of you or owes you, somebody says a name to your face and it sticks. Which name depends on which of the two got you there.',
+    note: 'The same thing that happens to a lieutenant who keeps beating you, pointed the other way.',
+  },
+
   // ---------------------------------------------------------------- production
   quality: {
     title: 'Quality',

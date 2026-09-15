@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
 import { select } from '@sim/index';
 import { LAUNDER_RATE, SAFEHOUSE_TIERS } from '@content/rackets';
+import { LAY_LOW } from '@content/events';
 import { fmtMoney, pct, playerBusinesses, playerRackets, playerSafehouses } from '@ui/derive';
 import { focus, getState, importWorld, openSheet, resetGame, toast, useWorld } from '@ui/store';
 import { Act, AmountPicker, Disclosure } from './Act';
@@ -40,7 +41,7 @@ export function EmpireTab() {
       <Holdings />
 
       <Inventory />
-      <div className="actions mt8"><Launder /></div>
+      <div className="actions mt8"><Launder /><GoToGround /><TheWall /></div>
 
       <div className="section-title">Businesses ({biz.length})</div>
       <div className="list">{biz.map(b => <BizRow key={b.id} w={w} biz={b} />)}{biz.length === 0 && <p className="small muted">You own nothing yet. Buy a business or protect one.</p>}</div>
@@ -103,6 +104,59 @@ function Launder() {
       <Fixers />
       <AmountPicker presets={[500, 1000, 5000, Math.max(1, Math.floor(w.player.dirty))]} value={amount} onChange={setAmount} min={1} />
       <div className="mt8"><Act action={{ type: 'launder', amount }} label={`Launder ${fmtMoney(amount)}`} kind="primary" block /></div>
+    </Disclosure>
+  );
+}
+
+/**
+ * Something to *do* when the heat ladder fires. The warning has said "lay low" since the game had
+ * a heat meter, and until now there was no such thing — the only answers were paying somebody or
+ * waiting. This one is paid for in your own turns.
+ */
+function GoToGround() {
+  const w = useWorld();
+  const [days, setDays] = useState(3);
+  const under = select.layingLow(w);
+  return (
+    <Disclosure label={under ? `Laying low (${select.layLowLeft(w)}d)` : 'Lay low'} icon="safehouse">
+      <p className="small muted">
+        <Term id="layLow">Off the street</Term> for a few days. Heat comes off fast because nobody can find you to add to it — and you get nothing done while you are gone: no <Term id="ap">AP</Term>, no legwork, and the street rates you a little lower for being nowhere. {fmtMoney(LAY_LOW.costPerDay)} a day.
+      </p>
+      {under
+        ? <p className="small mt8">You surface on day {w.player.layLowUntil}.</p>
+        : <>
+            <AmountPicker presets={[LAY_LOW.minDays, 3, 5, LAY_LOW.maxDays]} value={days} onChange={setDays} prefix="" min={LAY_LOW.minDays} max={LAY_LOW.maxDays} />
+            <div className="mt8"><Act action={{ type: 'lay_low', days }} label={`Go to ground for ${days}d (−${Math.round(days * LAY_LOW.heatPerDay)} heat, ${fmtMoney(days * LAY_LOW.costPerDay)})`} kind="primary" block /></div>
+          </>}
+    </Disclosure>
+  );
+}
+
+/**
+ * The hole in the wall: a bust takes 80% of what is on you, and one person has one pocket.
+ * Capacity falls with every body on the books, so it is a solo hedge by construction.
+ */
+function TheWall() {
+  const w = useWorld();
+  const [amount, setAmount] = useState(500);
+  const cap = select.cacheCap(w);
+  const held = w.player.cache ?? 0;
+  const why = select.cacheReason(w);
+  return (
+    <Disclosure label="The wall" icon="lockpicks">
+      <p className="small muted">
+        <Term id="cache">Somewhere only you know</Term>. {fmtMoney(held)} in it{cap > 0 ? ` of ${fmtMoney(cap)}` : ''}. A bust usually cannot reach it — usually.
+      </p>
+      {why
+        ? <p className="small mt8">{why}</p>
+        : <>
+            <AmountPicker presets={[250, 500, 1000, Math.max(1, Math.min(select.cacheCapLeft(w), Math.floor(w.player.dirty)))]} value={amount} onChange={setAmount} min={1} />
+            <div className="row mt8" style={{ gap: 6 }}>
+              <Act action={{ type: 'cache', amount }} label={`Put ${fmtMoney(amount)} away`} kind="primary" />
+              <Act action={{ type: 'cache', amount, take: true }} label="Take it back" kind="ghost" />
+            </div>
+          </>}
+      {held > 0 && why && <div className="mt8"><Act action={{ type: 'cache', amount: held, take: true }} label={`Take back ${fmtMoney(held)}`} kind="primary" block /></div>}
     </Disclosure>
   );
 }

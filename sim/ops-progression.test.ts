@@ -193,7 +193,11 @@ describe('the expanded roster', () => {
   });
 
   it('reuses only gating patterns that already existed', () => {
-    const allowed = new Set(['crewCount', 'safehouseTier', 'racketKinds', 'businessOwned', 'priorOps', 'stance', 'weapon', 'rattedTarget', 'officialTarget', 'jailedTarget', 'casedTarget', 'caseTarget', 'derelictTarget']);
+    // `alone` is the one addition since this list was written, and it is deliberate: it is the
+    // mechanism the whole lone-wolf lane rests on, and it is not expressible with any of the
+    // others — `crewCount` asks whether anybody ever joined, this asks whether anybody is here
+    // now, and the answer has to be able to go back to no. Everything else still has to reuse.
+    const allowed = new Set(['crewCount', 'safehouseTier', 'racketKinds', 'businessOwned', 'priorOps', 'stance', 'weapon', 'alone', 'rattedTarget', 'officialTarget', 'jailedTarget', 'casedTarget', 'caseTarget', 'derelictTarget']);
     for (const k of Object.keys(OP_DEFS) as OpKind[]) {
       for (const key of Object.keys(OP_DEFS[k].requires ?? {})) expect(allowed.has(key), `${k}.requires.${key}`).toBe(true);
     }

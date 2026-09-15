@@ -364,7 +364,9 @@ export type OpKind =
   | 'illegal_dumping' | 'arson_hire' | 'bust_out' | 'boiler_room' | 'bid_rigging'
   | 'campaign_wash' | 'prison_supply' | 'corporate_extortion'
   // elite: the two that reach the whole city
-  | 'crypto_wash' | 'vote_buying';
+  | 'crypto_wash' | 'vote_buying'
+  // ---- the lone-wolf lane: work that only exists because nobody else is involved ----
+  | 'ghost_job' | 'no_loose_ends';
 
 export type OpStatus = 'planning' | 'ready' | 'done' | 'failed' | 'aborted';
 
@@ -428,6 +430,10 @@ export interface Faction {
   brokenTruces: number;   // by the player; each one lowers the best standing you can ever reach with them
   crisis?: SuccessionCrisis; // the boss is gone and two lieutenants want the chair
   owed?: number;          // favours the current boss owes the player (backing them in a crisis); spent at sit-downs
+  /** The day they were confirmed finished, and their ground handed on. Set once; never cleared. */
+  defeatedDay?: number;
+  /** Who broke them, when it was somebody. `PLAYER` reads as a win on the empire screen. */
+  defeatedBy?: FactionId;
 }
 
 export interface SuccessionCrisis { since: number; resolvesDay: number; candidateIds: Id[]; backing?: Id; backedWith: number }
@@ -530,6 +536,15 @@ export interface Player {
   cards?: Card[];        // stolen cards waiting to be run or dumped
   secrets?: Secret[];    // what listening turned up; leverage, or a thing to sell
   cyberHeat?: number;    // the share of your heat that came off the wire, and the only part scrubbing can touch
+  /** Day you surface again, while you are off the street on purpose. See `LAY_LOW`. */
+  layLowUntil?: number;
+  /** Dirty cash put somewhere only you know. A bust usually cannot reach it. See `CACHE`. */
+  cache?: number;
+  /**
+   * What the street calls you, once fear or respect has earned it. The player's side of a
+   * nemesis's nickname: set once, never cleared, and read through `playerName()` everywhere.
+   */
+  street?: string;
   quality?: Partial<Record<ProductKind, number>>; // running average quality of the carried stash
   recipes?: string[]; // RECIPES ids unlocked (stolen formulas, specialists)
   crewIds: Id[];
