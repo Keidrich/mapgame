@@ -22,7 +22,7 @@ export type Counter =
   | 'lines_built' | 'lines_self_worked' | 'street_sales' | 'solo_ops'
   | 'intel_ratted' | 'skims' | 'routes' | 'route_used' | 'consigns' | 'offshores' | 'lanes' | 'offshore_filed'
   // conversations and the agendas they can settle
-  | 'talks' | 'talk_openers' | 'talk_closed' | 'agendas_settled' | 'agendas_trapped' | 'favours_owed'
+  | 'talks' | 'talk_openers' | 'talk_closed' | 'opener_history' | 'opener_nemesis' | 'opener_street' | 'agendas_settled' | 'agendas_trapped' | 'favours_owed'
   // the lieutenant who keeps turning up, and the people who work for you without being crew
   | 'nemesis_met' | 'nemesis_made' | 'defections' | 'assets_turned' | 'asset_warnings' | 'referrals'
   // the corners: parleying with a street crew, and the third thing you can do with one
@@ -83,6 +83,12 @@ export const SYSTEMS: { label: string; needs: Counter[]; hint: string }[] = [
   { label: 'institutional intel', needs: ['intel_ratted'], hint: 'nobody inside an institution was ever got at, so the five buildings that pay out only through the wire do nothing in the sweep' },
   { label: 'offshore accounts', needs: ['offshores'], hint: 'the accountant lane never opened, so the biggest laundering capacity in the game and its paper trail are both untested' },
   { label: 'conversations', needs: ['talks'], hint: 'every scene was a single button press; the opener/closer path is untested' },
+  // Dialogue that reads state. The soak cannot judge whether a line is any good, but it can say
+  // whether the branch was ever reached by a real world rather than only by a hand-built fixture —
+  // which is the difference between "tested" and "tested against the game".
+  { label: 'openers that read history', needs: ['opener_history'], hint: 'no opening line ever brought up something from a ledger, so the callback path only ever ran in tests' },
+  { label: 'a nemesis opener', needs: ['opener_nemesis'], hint: 'nobody with a record ever opened their mouth, so the nemesis dialogue pool never ran' },
+  { label: 'your name arriving first', needs: ['opener_street'], hint: 'no stranger ever reacted to an earned street name, so the reputation opener never ran' },
   { label: 'settling an agenda', needs: ['agendas_settled'], hint: 'nobody ever had their problem settled, so reciprocity never arrives from the only system that generates it on demand' },
   { label: 'using one against them', needs: ['agendas_trapped'], hint: 'the dark half of agenda resolution never ran — it is half a shipped feature with no coverage' },
   { label: 'a nemesis', needs: ['nemesis_made'], hint: 'no lieutenant was ever met often enough to be changed by it, so the whole recurring-antagonist arc is untested' },

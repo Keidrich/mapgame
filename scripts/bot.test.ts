@@ -142,6 +142,12 @@ const SLOW_OR_TERMINAL = new Set([
   // The upstart is spawned on day 12 by design, so a sixteen-day run watches it for four of them
   // and whether it has pushed anywhere by then is a coin toss. It grows reliably over sixty.
   'a rival who grows',
+  // Somebody has to become a nemesis before they can open their mouth as one, and that means
+  // `NEMESIS.known` — twenty notoriety, which is several meetings. Sixteen days does not have
+  // them. This is a property of the arc, not of the bot: loosening the throttle on the bot's
+  // nemesis conversations from one day in five to one in three changed nothing here, which is
+  // how it was established that run length rather than eagerness is the limit.
+  'a nemesis opener',
 ]);
 
 describe('coverage', () => {
@@ -226,6 +232,12 @@ describe('coverage', () => {
       // to trip vitest's worker RPC timeout, which failed the gate with every test passing.
       'a rival who grows': { scenario: 'fortune', days: 60, seed: 7 },
       'succession': { scenario: 'legacy', days: 32 },
+      // Also this run, deliberately, for the same cached-soak reason as the two rows above: a
+      // nemesis has to reach `NEMESIS.known` before there is one to talk to, and `fortune` at
+      // seed 7 has made one by day 60. If this ever fails, check whether anybody is becoming a
+      // nemesis at all before touching the days — a zero here and a zero on `a nemesis` together
+      // mean the arc broke, not the dialogue.
+      'a nemesis opener': { scenario: 'fortune', days: 60, seed: 7 },
     };
     const reached = new Set<string>();
     for (const name of SCENARIO_NAMES) {

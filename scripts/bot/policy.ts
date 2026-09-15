@@ -513,12 +513,30 @@ export function workTheStreet(c: Ctx) {
 
 
 /**
+ * Which of the history-reading openers this conversation would actually produce.
+ *
+ * Read-only and deliberately so: `sceneFor` is pure, takes no rng and changes nothing, so asking it
+ * a question costs the run nothing and cannot move the honest day. The soak is structurally unable
+ * to say whether a line reads well — what it *can* say is whether these branches are ever reached
+ * by a played world rather than only by a test that hand-built the state, which is the thing three
+ * previous passes got wrong.
+ */
+function noteOpener(c: Ctx, scene: 'visit' | 'shakedown' | 'threaten', npcId: Id) {
+  const n = c.w.npcs[npcId]; if (!n) return;
+  if (select.ledgerCallback(c.w, n)) bump(c.cov, 'opener_history');
+  if (select.isNemesis(n)) bump(c.cov, 'opener_nemesis');
+  if (c.w.player.street && (n.rel.contacts ?? 0) === 0 && n.rel.metDay === undefined) bump(c.cov, 'opener_street');
+  void scene;
+}
+
+/**
  * Have a real conversation with somebody, the way the UI now does: open it, work an opener if
  * one is on offer, then close on the scene's own approach. The bot used to dispatch `visit` and
  * `threaten` straight, which is still legal and still what most of its day is — this exists so
  * the opener/closer path has coverage at all, because nothing else in the sweep touches it.
  */
 export function haveAConversation(c: Ctx, scene: 'visit' | 'shakedown' | 'threaten', npcId: Id, businessId?: Id): boolean {
+  noteOpener(c, scene, npcId);
   if (!tryAct(c, { type: 'talk', scene, npcId, businessId })) return false;
   bump(c.cov, 'talks');
   let guard = 0;

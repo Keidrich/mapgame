@@ -14,6 +14,79 @@ House rules for an entry (see `CLAUDE.md` → *Leave a trail*):
 
 ---
 
+## 2026-09-15 — Dialogue that reads the history the game was already keeping
+
+**What.** Every opening and result pool grown from 1–2 lines to 4–6, and `openingLine` now reads
+three pieces of state it had never touched: a person's `ledger`, their `nemesis` record, and the
+player's earned `street` name.
+
+**Why.** The pools were the smaller problem — a player shaking down a second coward got the same
+sentence, and by day forty a run had printed it a dozen times. The larger one is that the game
+tracked a great deal about every relationship and the dialogue read none of it. What somebody said
+to you was a function of their trait and your trust bar, so the conversation *after* you did them a
+favour opened exactly like the one before it, and a hothead lieutenant who had beaten you three
+times read from the same six sentences as a hothead shopkeeper met once. The recurring-antagonist
+arc worked perfectly and sounded like furniture.
+
+**How.**
+
+- **Volume.** `OPENING` and `RESULT` filled out to 4–6 per key, same voice, same length, no new
+  mechanics. `content/lines-volume.test.ts` holds a floor of 4 so a new trait key or approach
+  cannot ship with one placeholder line.
+- **A worse bug underneath it.** The index was `(w.day + n.id.length) % lines.length`. Npc ids are
+  `n3` and `n47`, so `id.length` took about two values across the whole city and **everybody with a
+  two-character id said the same sentence on the same day**. Filling the pools out would have
+  hidden that. It is `hashString` over scene, key, id and day now — still pure, so reopening a
+  sheet never rerolls — and the volume test also asserts the pools *reach* the player, because a
+  pool of five that always prints entry zero is a pool of one.
+- **The ledger clause.** The most recent entry within 20 days, `met` excluded, picked from a pool
+  keyed by the entry's **kind** — a favour and a threat are different conversations, and the kind
+  is the part worth saying out loud. `{when}` becomes the words somebody would use. The ledger's
+  own `text` is not spliced in: it is narration ("You gave them $500.") and does not survive being
+  put inside quotation marks. It fires at 45%, resolved deterministically, because somebody opening
+  with the same favour nine visits running is a worse repetition than a small pool.
+- **The nemesis pool replaces the trait pool** rather than adding to it: past `NEMESIS.known` the
+  record is the thing in the room. `{name}` resolves through `nemesisName`, so the street's name for
+  them is the dialogue's; lines that count the meetings are filtered out below two wins, because
+  "we have done this 1 times" is worse than silence.
+- **The reputation clause** is `lifestyleLine`'s pattern, deliberately, not a second mechanism —
+  read one piece of player state, return a clause or nothing. First meetings only: a reputation is
+  what people know about you when they do not know you.
+
+**Numbers.** Honest 60-day curve **byte-identical** to baseline, verified by diff. 1364 → 1496
+tests. Coverage table 44 → 47 rows.
+
+**Files.** `content/lines.ts` (the pools, plus `NEMESIS_OPENING`, `REPUTATION_OPENING`,
+`LEDGER_CALLBACK`), `sim/scenes.ts` (`pick`, `ledgerCallback`, `reputationLine`, the nemesis
+branch), `sim/conversation.ts`, `sim/select.ts`, `content/glossary.ts`, `ui/components/SceneSheet.tsx`,
+`scripts/bot/{policy,run,coverage}.ts`, `scripts/bot.test.ts`, `docs/DESIGN.md` §3.5b. Tests:
+`content/lines-volume.test.ts`, `sim/ledger-callback.test.ts`, `sim/nemesis-dialogue.test.ts`,
+`sim/reputation-opener.test.ts`.
+
+**Watch out.**
+
+- **The conversation screen was already printing `(Last time: ...)`.** Now that the opening speaks
+  to the same entry in voice, that receipt is suppressed *for that entry only* —
+  `sim/conversation.ts` asks `ledgerCallback` the same deterministic question and gets the same
+  answer, rather than a flag being threaded between two files. On the days the callback does not
+  fire, the receipt is still there, and a test holds both halves.
+- **All six guards were mutation-tested**, including the original weak index: removing the ledger
+  clause, making a nemesis fall back to the trait table, letting the reputation line fire on every
+  meeting, shrinking a pool to one entry, collapsing the picker to `items[0]`, and restoring
+  `(day + id.length)` each fail the relevant file.
+- **Teaching the bot moved a scenario, and the suite caught it.** All three new coverage rows read
+  ✗ first time — the bot only ever talked to shopkeepers it had already met. Sending it to a
+  nemesis unthrottled displaced the ordinary conversation on most days of every scenario, which
+  pushed `legacy` past the day it loses its player and broke the `succession` row. It is one day in
+  five now. Loosening to one in three changed nothing, which is how it was established that **run
+  length, not the bot's eagerness, is the limit**: a nemesis needs `NEMESIS.known` notoriety and
+  sixteen days does not have it. So `a nemesis opener` joins `SLOW_OR_TERMINAL` and `SLOW_ROWS`,
+  pointed at the `fortune`/60/seed-7 run two other rows already use — no extra soak.
+- **Nothing here is new per-NPC state.** No `WORLD_VERSION` bump; every save loads, and every line
+  is composed at read time from fields that already existed.
+
+---
+
 ## 2026-09-15 — Per-crewmate kit, and a character sheet to put it on
 
 **What.** `Npc` now carries its own `items` / `equipped`, exactly like `Player`. Kit can be bought

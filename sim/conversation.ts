@@ -91,12 +91,18 @@ export function openingFor(w: World, scene: SceneKind, n: Npc | undefined): stri
     owed > 0 ? `They straighten up when they see you. ` :
     owe > 0 ? `They look like somebody who is owed something. ` :
     n.grudge ? `They do not get up. ` : '';
-  const post = last && w.day - last.day <= 20 && last.kind !== 'met' ? ` (Last time: ${last.text})` : '';
+  // The factual receipt — but only when the opening did not already speak to that same entry.
+  // `openingLine` now brings the last thing up in voice (`ledgerCallback`), and printing both is
+  // the game saying it twice in one breath. Asking the same deterministic function gets the same
+  // answer without threading a flag between two files that could drift apart.
+  const spoken = ledgerCallback(w, n)?.entry;
+  const post = last && w.day - last.day <= 20 && last.kind !== 'met' && !(spoken && spoken.day === last.day && spoken.text === last.text)
+    ? ` (Last time: ${last.text})` : '';
   return `${pre}${sceneLine(w, scene, n)}${post}`;
 }
 
 // the opening-line table lives in scenes.ts, which owns the trait selection
-import { sceneFor } from './scenes';
+import { ledgerCallback, sceneFor } from './scenes';
 function sceneLine(w: World, scene: SceneKind, n: Npc): string {
   return sceneFor(w, scene, n.id).line;
 }

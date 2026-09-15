@@ -53,7 +53,10 @@ export function SceneSheet() {
           </div>
         </div>
 
-        <p className="scene-line">{c.text}</p>
+        {/* The opener is composed from world state, not scripted — see `docs/DESIGN.md` §3.5b. The
+            explainer sits on it because a player who does not know that reads a callback to a
+            favour they did as flavour rather than as information. */}
+        <p className="scene-line">{c.text}<Info id="opening" /></p>
         {t.reply && <p className="scene-line" style={{ borderLeftColor: t.bonus >= 0 ? 'var(--green)' : 'var(--red)' }}>{t.reply}</p>}
         {t.bonus !== 0 && (
           <p className="tiny" style={{ color: t.bonus > 0 ? 'var(--green)' : 'var(--red)' }}>

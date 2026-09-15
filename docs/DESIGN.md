@@ -358,6 +358,73 @@ is the whole point — expanding into new ground means starting cold there, soci
 existing save loads with everybody a stranger, which is the right answer for anyone the player
 has not dealt with since.
 
+### 3.5b What the opening line actually reads
+
+The line somebody opens with is composed at read time from world state — a pick from a small table
+plus a sequence of clauses, each of which reads one thing and returns a sentence or nothing. There
+is no stored dialogue state on anybody, and the result is a pure function of the world: reopening a
+sheet never rerolls, and a replay of a seed says the same things in the same order.
+
+The order is fixed and it means something: **what they pick from**, then *what is between you*
+(a grudge, then the last thing on their ledger), then *what they notice about you* (the life, then
+the name), then *what they have heard* (neighbourhood gossip, on a visit). History first, because
+it is what they are reacting to; the coat is only what they see while doing it.
+
+**Which pool.** `OPENING[kind]` keyed on the most telling thing about them — friendly, frightened,
+or their first trait that the table has a key for, falling back to `default`. **Except** for
+somebody with a record: a nemesis past `NEMESIS.known` reads from `NEMESIS_OPENING` *instead*, and
+that is the one substitution rather than an addition. A hothead met once and a hothead who has
+beaten you three times were reading from the same six sentences, which made the whole
+recurring-antagonist arc — notoriety, milestones, an earned nickname that replaces their name
+everywhere — sound like furniture in the one place a player would have noticed it. When somebody
+with a record walks in, the record is the thing in the room. `{name}` resolves through
+`nemesisName`, the same function the log goes through, so the street's name for them is the name
+the dialogue uses; a line that counts the meetings out loud is filtered out until there are at
+least two, because "we have done this 1 times" is worse than saying nothing.
+
+**The ledger clause.** `sim/ledger.ts` has recorded every meaningful exchange with every person
+since the standing pass, and the opening line never looked at it: what somebody said to you was a
+function of their trait and your trust bar, so the conversation after you did them a good turn
+opened exactly like the one before it. `ledgerCallback` takes the most recent entry inside
+`CALLBACK_DAYS` (20), skips `met` — which is news to nobody and exists for everybody — and picks
+from a pool keyed by that entry's **kind**, because the kind is the part worth saying out loud: a
+favour and a threat are different conversations. `{when}` becomes the words somebody would actually
+use ("yesterday", "a couple of weeks back"). The ledger's own `text` is deliberately *not* spliced
+in — it is written as narration ("You gave them $500.") and does not survive being put inside
+quotation marks.
+
+It is a **chance**, not a rule: `CALLBACK_CHANCE` at 45%, resolved deterministically from who and
+when. Somebody who opens with the same favour on nine consecutive visits is a worse kind of
+repetitive than a small line pool. On the days it does not fire they simply say whatever their
+trait was going to say — and on those days the conversation screen's factual `(Last time: ...)`
+receipt still appears. When it *does* fire, that receipt is suppressed for the same entry:
+`sim/conversation.ts` asks `ledgerCallback` the same question and gets the same answer, rather than
+a flag being threaded between two files that can drift apart.
+
+**The reputation clause.** `w.player.street` is the mirror of a nemesis's earned nickname — cross a
+fear-or-respect threshold and the street stops using what you typed at the character screen — and
+nobody had ever said it to your face. `reputationLine` is deliberately built as `lifestyleLine`'s
+pattern and not a second mechanism: read one piece of player state, return a clause or an empty
+string, let the caller append it. What differs is what it reads. The car and the coat are things in
+front of them; a reputation is the one thing that arrives before you do, so it fires on a **first**
+meeting and nowhere else. The sixth conversation with the same shopkeeper repeating your street
+name back at you would be the line that finally made the system look like a system.
+
+**Picking from a pool.** `hashString` over the scene, the key, the npc id and the day. It was
+`(w.day + n.id.length) % lines.length`, which is barely a hash — npc ids are `n3` and `n47`, so
+`id.length` took about two values across the whole city and **everybody with a two-character id
+said the same sentence on the same day**. Filling the pools out from one or two entries to four to
+six, which is the other half of this pass, would have hidden that rather than fixed it. Both halves
+are guarded together in `content/lines-volume.test.ts`: the floor on pool size, and that the volume
+actually reaches the player — a pool of five that always prints entry zero is a pool of one.
+
+**What the soak can say about this.** Not whether a line reads well; nothing automated can. What it
+can say is whether each branch is reached by a played world rather than only by a test that
+hand-built the state, which is what three earlier passes got wrong — hence three coverage rows
+(`openers that read history`, `a nemesis opener`, `your name arriving first`) fed by a read-only
+probe in the bot's conversation step. All three read ✗ the first time they ran, which is the table
+doing its job: the bot only ever talked to shopkeepers it had already met.
+
 ### 3.8 Conversations, agendas, and the ledger
 
 Three pieces that only work because §3.7 exists.

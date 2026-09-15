@@ -148,6 +148,35 @@ function haveARealConversation(c: Ctx) {
   const near = Object.values(c.w.blocks)
     .filter(b => select.distanceFromStart(c.w, b.id) <= 1)
     .flatMap(b => select.businessesIn(c.w, b.id));
+
+  /**
+   * Two openings the bot could not reach by talking to the same shopkeeper every day, and the
+   * coverage table said so rather than anybody noticing: it read ✗ on both the first time it ran.
+   *
+   * Both are gated on late state the **honest run never has** — it earns no street name in sixty
+   * days and makes no nemesis — so neither of these fires there and the frozen day is untouched.
+   * That is checked by diffing the soak, not assumed.
+   */
+  // Somebody who has never dealt with you, once the street has given you a name. The reputation
+  // clause fires on a first meeting and nowhere else, so revisiting the same owner can never
+  // produce it however many days the sweep runs.
+  if (c.w.player.street) {
+    const shop = near.find(b => { const o = c.w.npcs[b.ownerId]; return o?.alive && (o.rel.contacts ?? 0) === 0 && o.rel.metDay === undefined; });
+    if (shop && goTo(c, shop.blockId) && haveAConversation(c, 'visit', shop.ownerId, shop.id)) return;
+  }
+  // …and the lieutenant who keeps turning up. The bot only ever talked to owners and patrons, so
+  // the whole recurring-antagonist pool was unreachable by the one thing that reads it.
+  //
+  // Every fifth day rather than whenever one is nearby: taken unthrottled this displaced the
+  // ordinary conversation on most days of every scenario, which is not a coverage win but a
+  // different bot. It pushed `legacy` past the day it loses its player and broke the succession
+  // row in `scripts/bot.test.ts` — a real signal that the change had altered the run rather than
+  // added to it. One day in five still reaches the pool on the runs long enough to have a nemesis.
+  if (c.w.day % 5 === 0) {
+    const foe = Object.values(c.w.npcs).find(n => n.alive && select.isNemesis(n) && (select.travelCost(c.w, n.homeBlockId) ?? 9) <= 1);
+    if (foe && goTo(c, foe.homeBlockId) && haveAConversation(c, 'visit', foe.id)) return;
+  }
+
   const spot = near.find(b => c.w.npcs[b.ownerId]?.alive);
   if (!spot) return;
   if (!goTo(c, spot.blockId)) return;

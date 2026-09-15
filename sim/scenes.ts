@@ -4,10 +4,13 @@
  * with the same odds, so what the player sees is what they get.
  */
 import { PLAYER } from './types';
-import { APPROACHES, OPENING, RESULT, type SceneKind } from '@content/lines';
-import type { Rng } from './rng';
+import { APPROACHES, LEDGER_CALLBACK, NEMESIS_OPENING, OPENING, REPUTATION_OPENING, RESULT, type SceneKind } from '@content/lines';
+import { hashString, type Rng } from './rng';
 import { activeCrewCount } from './util';
 import { crewOfBoss, fundReason } from './crews';
+import { isNemesis, nemesisName } from './nemesis';
+import { ledgerOf } from './ledger';
+import { contacts } from './standing';
 import { ownerResistance } from './economy';
 import type { Business, Id, Npc, World } from './types';
 import { bedsTotal } from './fortune';
@@ -21,17 +24,104 @@ export function sceneFor(w: World, kind: SceneKind, npcId: Id, businessId?: Id, 
   return { kind, npcId, businessId, line: openingLine(w, kind, n), options: APPROACHES[kind].map(a => ({ ...a, chance: approachChance(w, kind, a.id, n, businessId ? w.businesses[businessId] : undefined, otherFactionId), costAp: kind === 'broker' ? 2 : 1, costCash: kind === 'visit' && a.id === 'drinks' ? 50 : kind === 'broker' && a.id === 'split' ? 4000 : 0, disabled: disabledReason(w, kind, a.id, n, otherFactionId) })) };
 }
 
+/**
+ * Which entry of a pool this person, on this day, reads from.
+ *
+ * It was `(w.day + n.id.length) % lines.length`, which is barely a hash: npc ids are `n3`, `n47`,
+ * so `id.length` takes about two values across the whole city and **everybody with a two-character
+ * id said the same line on the same day**. Filling the pools out would have hidden that rather than
+ * fixed it. `hashString` over the id and the salt mixes properly, and is still a pure function of
+ * world state — reopening a sheet never rerolls, and a replay of a seed says the same things.
+ */
+function pick<T>(items: readonly T[], salt: string): T { return items[hashString(salt) % items.length]; }
+
+/** How long ago, in the words somebody would actually use. Fills `{when}` in a callback line. */
+function whenAgo(days: number): string {
+  if (days <= 0) return 'this morning';
+  if (days === 1) return 'yesterday';
+  if (days <= 3) return 'the other day';
+  if (days <= 9) return 'last week';
+  if (days <= 20) return 'a couple of weeks back';
+  return 'a while back';
+}
+
+/** How recent a thing has to be before somebody opens with it rather than letting it go. */
+const CALLBACK_DAYS = 20;
+/**
+ * How often a recent entry actually gets spoken about, as a percentage.
+ *
+ * Not every time. A person who opens with the same favour on nine consecutive visits is a worse
+ * kind of repetitive than one with a small line pool — so the callback is a *chance*, resolved
+ * deterministically from who and when, and on the days it does not fire they simply say whatever
+ * their trait was going to say.
+ */
+const CALLBACK_CHANCE = 45;
+
+/**
+ * The last thing that passed between you, if it was recent enough to bring up and today is a day
+ * they would. `undefined` otherwise, and the caller says nothing about it.
+ *
+ * Exported because `sim/conversation.ts` appends a factual `(Last time: ...)` receipt of the same
+ * entry, and printing both is saying it twice. One function, asked twice, same answer — rather than
+ * threading a flag between two files that can drift apart.
+ */
+export function ledgerCallback(w: World, n: Npc): { entry: { day: number; kind: string; text: string }; line: string } | undefined {
+  // 'met' is excluded: "we have met" is not news to either of you, and it is the one kind that
+  // exists for every single person the player has ever spoken to.
+  const entry = ledgerOf(n).filter(e => e.kind !== 'met' && w.day - e.day <= CALLBACK_DAYS).slice(-1)[0];
+  if (!entry) return undefined;
+  const pool = LEDGER_CALLBACK[entry.kind];
+  if (!pool?.length) return undefined;
+  // Salted with the entry's own day as well as today's, so the line changes when the history does
+  // rather than only when the calendar does.
+  if (hashString(`cb:${n.id}:${w.day}:${entry.day}`) % 100 >= CALLBACK_CHANCE) return undefined;
+  return { entry, line: pick(pool, `cbl:${n.id}:${w.day}:${entry.day}`).replace(/\{when\}/g, whenAgo(w.day - entry.day)) };
+}
+
 function openingLine(w: World, kind: SceneKind, n: Npc): string {
-  const table = OPENING[kind];
-  const key = n.rel.trust >= 40 && table.friend ? 'friend' : n.rel.fear >= 50 && table.scared ? 'scared' : n.traits.find(t => table[t]) ?? 'default';
-  const lines = table[key as keyof typeof table] ?? table.default ?? ['...'];
-  let line = lines[(w.day + n.id.length) % lines.length];
+  // Somebody with a record reads from their own pool instead of their trait's. A hothead met once
+  // and a hothead who has beaten you three times were saying the same six things; see
+  // `NEMESIS_OPENING`. Replaces rather than adds, because the record is the thing in the room.
+  let line: string;
+  if (isNemesis(n)) {
+    const wins = n.nemesis?.wins ?? 0;
+    // A line that counts the times only comes up when there is a number worth saying out loud.
+    const pool = NEMESIS_OPENING[kind].filter(l => wins >= 2 || !l.includes('{wins}'));
+    line = pick(pool.length ? pool : NEMESIS_OPENING[kind], `nem:${n.id}:${w.day}`)
+      .replace(/\{name\}/g, nemesisName(n))
+      .replace(/\{wins\}/g, String(wins));
+  } else {
+    const table = OPENING[kind];
+    const key = n.rel.trust >= 40 && table.friend ? 'friend' : n.rel.fear >= 50 && table.scared ? 'scared' : n.traits.find(t => table[t]) ?? 'default';
+    const lines = table[key as keyof typeof table] ?? table.default ?? ['...'];
+    line = pick(lines, `open:${kind}:${key}:${n.id}:${w.day}`);
+  }
   if (n.grudge && kind !== 'visit') line += ` "And I haven't forgotten last time."`;
   else if (n.grudge) line += ` They are cool with you; the whole block heard about last time.`;
+  // What has actually passed between you, before what they notice about you: history first,
+  // because it is what they are reacting to, and the coat is only what they see while doing it.
+  line += ledgerCallback(w, n)?.line ?? '';
   line += lifestyleLine(w);
+  line += reputationLine(w, n);
   if (kind === 'visit') line += gossipLine(w, n);
   if (n.homeBlockId === w.player.homeBlockId && kind === 'visit') line += ` (Home turf.)`;
   return line;
+}
+
+/**
+ * What a stranger says about a name they have only heard.
+ *
+ * The same shape as `lifestyleLine` below and deliberately not a second mechanism: read one piece
+ * of player state, return a clause or an empty string, let the caller append it. The difference is
+ * what it reads. The car and the coat are things in front of them; a reputation is the one thing
+ * that arrives before you do — so this fires on a **first** meeting and nowhere else. Somebody who
+ * has dealt with you six times knows what you are called, and saying it back at you would be the
+ * line that finally made the system look like a system.
+ */
+function reputationLine(w: World, n: Npc): string {
+  if (!w.player.street) return '';
+  if (contacts(n) > 0 || n.rel.metDay !== undefined) return '';
+  return pick(REPUTATION_OPENING, `rep:${n.id}:${w.day}`).replace(/\{street\}/g, w.player.street);
 }
 
 /**

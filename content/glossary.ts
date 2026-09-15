@@ -143,6 +143,11 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
     body: 'One item of each kind — one weapon, one tool, one car — counted across everybody on the job, yours and theirs together. Where two people brought the same kind of thing, the dearer one is the one that counts, and it counts whole: its help and its cost both.',
     note: 'So arming five people with the same gun buys you nothing, and arming them with different things buys you all of it. Armour is the exception: it never goes on the job at all, because it protects the person wearing it and nobody else. And if you are in a cell or off the street when a job runs, it goes out on your crew\u2019s kit alone.',
   },
+  opening: {
+    title: 'What they open with',
+    body: 'Nobody has a script. What somebody says when you walk in is put together on the spot out of what they are like, what has actually passed between you, what you are visibly worth now, and what the block has been talking about.',
+    note: 'So the line is worth reading. A person who brings up a favour you did them is telling you where you stand with them, and somebody who has never met you using the name the street gave you is telling you how far it has travelled.',
+  },
   connections: {
     title: 'Family and friends',
     body: 'Who this person actually has. Everybody in the city has people — a household of relatives, a couple of old friends, usually both. Anyone with more backup than their neighbours is harder to frighten and slower to trust a stranger, whoever they are.',

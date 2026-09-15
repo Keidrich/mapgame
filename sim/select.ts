@@ -50,6 +50,8 @@ export { defectReason } from './defect';
 export { daysKnown, familiar, familiarReason, favours, leverageOver, concessionReason, trustCeiling, fearCeiling, recruitRoleReason, RECRUITABLE_ROLES } from './standing';
 // the personal history screen, and what a conversation can do with it
 export { dossier, ledgerOf, owedToThem, LEDGER_MAX } from './ledger';
+// the opening line's history clause — read-only, and the soak asks it whether the branch was reached
+export { ledgerCallback } from './scenes';
 // the social layer as a picture: layout only, computed from data that already exists
 export { headlines, hasNews } from './news';
 export { trophies, type Trophy } from './trophies';
