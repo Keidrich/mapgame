@@ -55,7 +55,7 @@ import { hireReason, hiredOn, rolesFor, specialistFee } from './specialists';
 import { onTheWay } from './encounters';
 import { bedsTotal, ceilingAt, ceilingPrice, favourPrice, safehouseLimit, favourReason, legitimacy, legitimacyGain, legitimacyReason, lifestyleAt, nextStep } from './fortune';
 import { layingLow, cacheCap, cacheCapLeft } from './economy';
-import { activeCrewCount, officialTrust, addHeat, addInfluence, adjustRel, clamp, factionOf, log, money, nid, rngOf, spreadRep, takeCash } from './util';
+import { activeCrewCount, officialTrust, addHeat, addInfluence, adjustRel, bumpLoyalty, clamp, factionOf, heatNote, log, loyaltyNote, money, nid, rngOf, spreadRep, takeCash } from './util';
 
 const no = (reason: string): Affordance => ({ ok: false, reason });
 const yes = (cost?: { ap?: number; cash?: number }): Affordance => ({ ok: true, cost });
@@ -659,7 +659,7 @@ function apply(w: World, a: Action, rng: Rng, done: () => void, bonus = 0): Worl
         if (n.rel.fear >= 40 && caseWitnessOf(w, n.id)) silenceWitness(w, n.id, 'scared');
       } else {
         adjustRel(w, n, { trust: -10, respect: -3, fear: 3 }); addHeat(w, ap_ === 'crew' ? 4 : 2, n.homeBlockId);
-        if (ap_ === 'family' && (n.traits.includes('honest') || n.rel.trust < -30)) { addHeat(w, 6); log(w, `${n.name} went straight to the precinct. (+6 heat)`, 'bad', { npcId: n.id }); }
+        if (ap_ === 'family' && (n.traits.includes('honest') || n.rel.trust < -30)) { const h = addHeat(w, 6); log(w, `${n.name} went straight to the precinct.${heatNote(h)}`, 'bad', { npcId: n.id }); }
         else log(w, `${resultLine('threaten', ap_, false, rng)} ${n.name} is not impressed. ${n.traits.includes('hothead') ? 'They are looking for a fight now.' : 'Word gets around.'}`, 'bad', { npcId: n.id });
         if (n.traits.includes('hothead') || n.traits.includes('connected')) addGrudge(w, n, `${n.name} stared you down and you blinked.`);
         if (n.faction && w.factions[n.faction]) w.factions[n.faction].standing[PLAYER] -= 5;
@@ -702,7 +702,7 @@ function apply(w: World, a: Action, rng: Rng, done: () => void, bonus = 0): Worl
       p.crewIds = p.crewIds.filter(id => id !== n.id);
       clearAssignment(w, n);
       n.role = 'patron'; n.crew = undefined; adjustRel(w, n, { trust: angry ? -40 : -10 });
-      if (angry && rng.chance(0.3)) { addHeat(w, 8); log(w, `${n.name} leaves bitter and talks to the wrong people. (+8 heat)`, 'bad', { npcId: n.id }); }
+      if (angry && rng.chance(0.3)) { const h = addHeat(w, 8); log(w, `${n.name} leaves bitter and talks to the wrong people.${heatNote(h)}`, 'bad', { npcId: n.id }); }
       else log(w, `${n.name} is out.`, 'info', { npcId: n.id });
       break;
     }
@@ -726,8 +726,8 @@ function apply(w: World, a: Action, rng: Rng, done: () => void, bonus = 0): Worl
       const sharp = p.skills.brains * 8 + rng.int(0, 40) > 35;
       if (!sharp) { log(w, `You go over ${n.name}'s numbers for ${d?.name ?? 'the district'}. They look fine. Maybe they are.`, 'info', { npcId: n.id }); break; }
       if (c.skim && c.skim > 0) {
-        const back = Math.round(c.skim * 0.6); p.dirty += back; c.skim = 0; c.loyalty = clamp(c.loyalty - 10);
-        log(w, `The book does not add up. ${n.name} has been skimming ${d?.name ?? 'the district'}. You get ${money(back)} of it back and they know you are watching now. (−10 loyalty)`, 'bad', { npcId: n.id });
+        const back = Math.round(c.skim * 0.6); p.dirty += back; c.skim = 0; const ly = bumpLoyalty(n, -10);
+        log(w, `The book does not add up. ${n.name} has been skimming ${d?.name ?? 'the district'}. You get ${money(back)} of it back and they know you are watching now.${loyaltyNote(ly)}`, 'bad', { npcId: n.id });
       } else { c.loyalty = clamp(c.loyalty - 2); log(w, `${n.name}'s book for ${d?.name ?? 'the district'} is clean. They noticed you checking.`, 'good', { npcId: n.id }); }
       break;
     }
@@ -746,7 +746,7 @@ function apply(w: World, a: Action, rng: Rng, done: () => void, bonus = 0): Worl
       if (o.kind === 'captain') { const cut = Math.round(a.amount / 250); p.heat = clamp(p.heat - cut); buryEvidence(w, a.amount); log(w, `${n.name} pockets ${money(a.amount)}. Some files get lost. (-${cut} heat${(w.cases ?? []).some(c => c.status === 'open') ? ', open cases slip' : ''})`, 'money', { npcId: n.id }); }
       else if (o.kind === 'judge') log(w, `${n.name} accepts your "campaign contribution". Your people will see lighter sentences.`, 'money', { npcId: n.id });
       else log(w, `${n.name} takes ${money(a.amount)} and remembers your name. Permits will be easier.`, 'money', { npcId: n.id });
-      if (n.rel.trust < 40 && rng.chance(0.15)) { addHeat(w, 6); log(w, `${n.name} took the money and also told a reporter. (+6 heat)`, 'bad'); }
+      if (n.rel.trust < 40 && rng.chance(0.15)) { const h = addHeat(w, 6); log(w, `${n.name} took the money and also told a reporter.${heatNote(h)}`, 'bad'); }
       break;
     }
 

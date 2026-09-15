@@ -135,7 +135,7 @@ function GoToGround() {
         ? <p className="small mt8">You surface on day {w.player.layLowUntil}.</p>
         : <>
             <AmountPicker presets={[LAY_LOW.minDays, 3, 5, LAY_LOW.maxDays]} value={days} onChange={setDays} prefix="" min={LAY_LOW.minDays} max={LAY_LOW.maxDays} />
-            <div className="mt8"><Act action={{ type: 'lay_low', days }} label={`Go to ground for ${days}d (−${Math.round(days * LAY_LOW.heatPerDay)} heat, ${fmtMoney(days * LAY_LOW.costPerDay)})`} kind="primary" block /></div>
+            <div className="mt8"><Act action={{ type: 'lay_low', days }} label={`Go to ground for ${days}d (−${Math.min(Math.round(w.player.heat), Math.round(days * LAY_LOW.heatPerDay))} heat, ${fmtMoney(days * LAY_LOW.costPerDay)})`} kind="primary" block /></div>
           </>}
     </Disclosure>
   );

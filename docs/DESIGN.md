@@ -1244,6 +1244,47 @@ The legend gained a second key to match (**Ground** and **Places**), with the ti
 as outlines rather than fills, because a business marker is a hairline chip with a coloured drawing
 in it and a solid swatch would promise the wrong shape next to the solid territory swatches above.
 
+### 4.17d A number in a log line is the number that happened
+
+For most of this game's life the log printed the figure a caller *asked for*, and several systems
+sit between that and the player's bar. The worst of them is `addHeat`, which is the only door heat
+comes through and applies five multipliers on the way — working alone, bought legitimacy, the hour,
+home turf, a school on the corner. A 16-heat job on a quiet night announced **"+16 heat"** and moved
+the bar by 9. Every clamped stat had the same hole at its ceiling: "+25 loyalty" at 96 is +4,
+"−15 heat" at 5 is −5.
+
+**The rule.** Every mutator that can move a number by less than it was asked for **returns what
+actually landed**, and a log line prints that return value — never its own argument.
+
+| Mutator | Returns |
+| --- | --- |
+| `addHeat(w, n, blockId?)` | the applied delta, after multipliers and the 0–100 clamp |
+| `loseHeat(w, n)` | the applied delta, negative |
+| `gainFear` / `gainRespect` | the applied delta on the player's own standing |
+| `bumpLoyalty(npc, n)` | the applied delta on one crew member |
+
+`statNote(applied, label)` builds the parenthetical — `" (+9 heat)"` — and returns an **empty
+string** when nothing moved, because "(+0 loyalty)" is noise and a figure the bar did not move is
+worse. `heatNote`, `fearNote`, `respectNote` and `loyaltyNote` are the named forms.
+
+**One copy of the arithmetic.** The multiplier stack came out of `addHeat` into `heatMult(w,
+blockId)`, a pure function. `addHeat` applies it and `select.opHeat` predicts with it, so the
+planner and the log cannot drift apart — which is how the planner ended up promising 16 next to
+"Difficulty 60" while the resolver put on 9. `opHeat` deliberately leaves out only the clean-job
+discount (a margin over 30 pays 0.6), because nobody knows before the night whether it went that
+well; it is the honest upper end of an ordinary result.
+
+**Where the numbers live afterwards.** `OpResult.heat` is overwritten with the applied figure
+before the result is stored, so the card on the ops tab, the log line, and anything reading the
+result later all say one number.
+
+**The guard.** `sim/honest-numbers.test.ts` greps every non-test source file for a hardcoded
+`(+N heat)`-shaped literal and fails on it. That is the part that matters: the mutators were easy
+to fix once, and the failure mode is somebody adding a new line next year with a figure typed into
+it. Two things are deliberately *not* printed as figures — a `spreadRep` fear number (capped per
+person by what the act cost and by how well they know you, so there is no one number anybody got)
+and an `adjustRel` trust number, for the same reason. Those lines say what happened instead.
+
 ### 4.18 Production: recipes, foremen and standing orders
 
 **Recipes are things you make, not a quality slider.** Five per production kind (20 total), each

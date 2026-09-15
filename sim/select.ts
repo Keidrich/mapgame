@@ -24,7 +24,7 @@ import { productionOutput } from './economy';
 import { laneDiscount, routeDiscount } from './intel';
 import { rawRacketIncome, streetPrice } from './economy';
 import { playerWorks, qualityOf, sellMult } from './production';
-import { equippedItems, kitApproachBias, kitSkillBoost } from './items';
+import { equippedItems, kitApproachBias, kitHeatMult, kitSkillBoost } from './items';
 export { confrontations, activeConfrontation, confrontOptions, confrontChance, backupCrew, CONFRONT_AS } from './combat';
 export { cards, liveCards, cardById, cardValue, runOdds, dumpValue, tapped, daysTapped, tapRisk, secrets, secretsAbout, unsoldSecrets, dirtPrice, scrubPower, cyberHeat } from './cyber';
 /** Rackets a faction has marked: the ones 'Dig In' answers. */
@@ -44,7 +44,7 @@ import { LONE_WOLF } from '@content/backgrounds';
 import { DAYPARTS, DEFAULT_HOUR, daypartAt } from '@content/timeofday';
 import { specialistWorth } from './specialists';
 export { rolesFor, isSetPiece, candidatesFor as specialistsFor, specialistFee, reliability, hireReason, hiredOn } from './specialists';
-import { activeCrewCount } from './util';
+import { activeCrewCount, heatMult } from './util';
 export { defectReason } from './defect';
 // the systemic core: how well you know somebody, what you have over them, and what they owe you
 export { daysKnown, familiar, familiarReason, favours, leverageOver, concessionReason, trustCeiling, fearCeiling } from './standing';
@@ -120,6 +120,24 @@ export function crewSkillSum(w: World, ids: Id[]): Record<string, number> {
   for (const id of ids) { const n = w.npcs[id]; if (!n) continue; for (const k of Object.keys(s)) s[k] += n.skills[k as keyof typeof n.skills]; }
   return s;
 }
+/**
+ * What a job would actually put on your heat bar, as the planner should show it.
+ *
+ * `OpDef.heat` is the job's *rating*, not a promise: the approach, the kit in your hands and then
+ * the whole `heatMult` stack — working alone, bought legitimacy, the hour, home turf, a school on
+ * the corner — all sit between it and the bar. Printing the raw rating next to "Difficulty 60" was
+ * the planner half of the bug where a 16-heat job announced "+16" and moved the bar by 9.
+ *
+ * Deliberately the *typical* case: the one term left out is the clean-job discount (a margin over
+ * 30 pays 0.6), because nobody can know before the night whether it went that well. So this is the
+ * honest upper end of an ordinary result, not a floor.
+ */
+export function opHeat(w: World, kind: OpKind, opts: { approach?: OpApproach; blockId?: Id } = {}): number {
+  const def = OP_DEFS[kind];
+  const ap = opts.approach ? OP_APPROACHES[opts.approach] : undefined;
+  return Math.round(def.heat * (ap?.heat ?? 1) * kitHeatMult(w) * heatMult(w, opts.blockId));
+}
+
 export interface OpTarget { businessId?: Id; npcId?: Id; caseId?: Id; factionId?: FactionId }
 /** Old call sites pass a business id; newer ops need a person or a file, so both are accepted. */
 function asTarget(t?: Id | OpTarget): OpTarget { return typeof t === 'string' ? { businessId: t } : (t ?? {}); }

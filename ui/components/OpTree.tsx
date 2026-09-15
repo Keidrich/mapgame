@@ -83,7 +83,7 @@ export function OpTree({ selected, onPick }: { selected?: OpKind; onPick: (k: Op
                   </button>
                   {why
                     ? <Info id="opLocked" title={`${d.label}: not yet`} body={why} note={d.blurb} className="opnode-q" />
-                    : <Info title={d.label} body={d.blurb} note={`Difficulty ${d.difficulty}, heat +${d.heat}.${done.has(k) ? ' You have pulled this off before.' : ''}`} className="opnode-q" />}
+                    : <Info title={d.label} body={d.blurb} note={`Difficulty ${d.difficulty}, heat +${select.opHeat(w, k)}.${done.has(k) ? ' You have pulled this off before.' : ''}`} className="opnode-q" />}
                 </div>
               );
             })}

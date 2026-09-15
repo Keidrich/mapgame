@@ -57,28 +57,99 @@ function applyRel(w: World, n: Npc, d: { trust?: number; fear?: number; respect?
   if (d.respect) n.rel.respect = clamp(n.rel.respect + d.respect);
 }
 
-export function addHeat(w: World, amount: number, blockId?: Id) {
-  const raw = amount;
+/**
+ * Put heat on the player, and **say how much actually landed**.
+ *
+ * The return value exists because the log used to lie. Every multiplier below — lone wolf,
+ * legitimacy, the hour, home turf, a school on the corner — sits between what a caller asks for
+ * and what the player's heat bar does, and for as long as callers printed their own argument a
+ * job that asked for 16 could put on 9 and still announce "+16 heat". A number in a log line has
+ * to be the number that happened, so callers print **this**, never their own figure.
+ *
+ * It is the applied delta after the 0–100 clamp, so at heat 98 a big hit honestly reports +2.
+ */
+/**
+ * Everything that sits between a heat figure being asked for and it landing, as one pure number.
+ *
+ * Extracted so there is exactly one copy of this stack: `addHeat` applies it, and the screens
+ * that quote a job's heat *before* you run it predict with it. Two copies is how the planner ends
+ * up promising 16 and the log reporting 9.
+ *
+ * Order matters and is not obvious. The floor goes last and is measured against the **raw**
+ * figure, so every discount above stacks freely underneath and only the total is clamped.
+ */
+export function heatMult(w: World, blockId?: Id): number {
+  let m = 1;
   // Heat is other people talking about you. Working alone there is one person to describe and
   // nobody to describe them — the single biggest thing being a lone wolf is actually worth, and
   // it stops the day somebody else is on the books. `LONE_WOLF.heat`.
-  if (amount > 0 && activeCrewCount(w) === 0) amount *= LONE_WOLF.heat;
+  if (activeCrewCount(w) === 0) m *= LONE_WOLF.heat;
   // Money spent on looking respectable, discounting every point of heat in the game — `addHeat`
   // is the only door heat comes through, so there are no per-source special cases to keep honest.
-  if (amount > 0) amount *= legitimacyHeatMult(w);
-  if (amount > 0) amount *= DAYPARTS[daypartAt(w.hour ?? DEFAULT_HOUR)].heat;
-  if (amount > 0 && blockId && blockId === w.player.homeBlockId) amount *= 0.8; // home turf: people look the other way
-  if (amount > 0 && blockId && w.blocks[blockId]?.tags.includes('school')) amount *= 1.5; // near a school everybody calls it in
+  m *= legitimacyHeatMult(w);
+  m *= DAYPARTS[daypartAt(w.hour ?? DEFAULT_HOUR)].heat;
+  if (blockId && blockId === w.player.homeBlockId) m *= 0.8;                        // home turf: people look the other way
+  if (blockId && w.blocks[blockId]?.tags.includes('school')) m *= 1.5;              // near a school everybody calls it in
   // …and a floor under all of it together. Alone *and* respectable is the hardest man in the city
   // to look at, and it still must not be a police off-switch — the mistake `LONE_WOLF.heat` made
-  // at 0.55 the first time. Applied last, against the raw figure, so every other term stacks
-  // freely underneath and only the total is clamped.
-  if (amount > 0) amount = Math.max(amount, raw * LEGITIMACY.heatFloor);
+  // at 0.55 the first time.
+  return Math.max(m, LEGITIMACY.heatFloor);
+}
+
+export function addHeat(w: World, amount: number, blockId?: Id): number {
+  if (amount > 0) amount *= heatMult(w, blockId);
   const before = w.player.heat;
   w.player.heat = clamp(w.player.heat + amount);
   if (blockId && w.blocks[blockId]) w.blocks[blockId].heat = clamp(w.blocks[blockId].heat + amount * 2);
   for (const t of [45, 60, 80]) if (before < t && w.player.heat >= t) log(w, t === 45 ? 'Heat 45: cops are starting to notice. Raids begin above 60.' : t === 60 ? 'Heat 60: raids can hit your rackets and safehouses tonight. Lay low, bribe the captain, or pay a sergeant.' : 'Heat 80: one more loud night and the task force comes through everything. Bust at 100.', 'warn');
+  return w.player.heat - before;
 }
+
+/**
+ * Every number in this file's family of mutators is "what actually landed", and this is how a log
+ * line prints one: `" (+9 heat)"`, or nothing at all.
+ *
+ * Empty when nothing moved — a line reading "(+0 loyalty)" is noise, and one quoting a figure the
+ * bar did not move is worse, which is the whole reason these exist. **A log line must never print
+ * the argument it passed in.** Every stat below is clamped to 0–100 and heat is multiplied on top
+ * of that, so the asked-for figure and the applied one part company constantly: at 96 loyalty
+ * "+25" is +4, and a 16-heat job on a quiet night at home is +9.
+ */
+export function statNote(applied: number, label: string): string {
+  const n = Math.round(applied);
+  return n === 0 ? '' : ` (${n > 0 ? '+' : '−'}${Math.abs(n)} ${label})`;
+}
+export const heatNote = (applied: number) => statNote(applied, 'heat');
+
+/** Heat coming *off*: a bribe, a story spiked, a week spent nowhere. `by` is positive. */
+export function loseHeat(w: World, by: number): number {
+  const before = w.player.heat;
+  w.player.heat = clamp(w.player.heat - Math.abs(by));
+  return w.player.heat - before;
+}
+
+/** The player's own standing, clamped, reporting what landed. */
+export function gainFear(w: World, by: number): number {
+  const before = w.player.fear;
+  w.player.fear = clamp(w.player.fear + by);
+  return w.player.fear - before;
+}
+export function gainRespect(w: World, by: number): number {
+  const before = w.player.respect;
+  w.player.respect = clamp(w.player.respect + by);
+  return w.player.respect - before;
+}
+export const fearNote = (applied: number) => statNote(applied, 'fear');
+export const respectNote = (applied: number) => statNote(applied, 'respect');
+
+/** One crew member's loyalty, same contract. Undefined crew is a no-op, as everywhere else. */
+export function bumpLoyalty(n: Npc | undefined, by: number): number {
+  if (!n?.crew) return 0;
+  const before = n.crew.loyalty;
+  n.crew.loyalty = clamp(n.crew.loyalty + by);
+  return n.crew.loyalty - before;
+}
+export const loyaltyNote = (applied: number) => statNote(applied, 'loyalty');
 
 export function addInfluence(w: World, blockId: Id, f: FactionId, amount: number) {
   const b = w.blocks[blockId];

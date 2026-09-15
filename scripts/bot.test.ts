@@ -192,12 +192,27 @@ describe('coverage', () => {
 
   it('every system in the table is reachable by some scenario', () => {
     // A system nobody can reach is a bug in the table or in the game, not a bot problem. Taken
-    // across the whole sweep, because that is the claim: somewhere in the scenarios, every row
-    // in that table is a thing that actually happens.
+    // across the whole sweep, because that is the claim: somewhere in the scenarios, every row in
+    // that table is a thing that actually happens.
+    //
+    // Sixteen days for the sweep, because twelve scenarios at sixty would put a minute on the
+    // gate. One row genuinely needs longer — standing between two outfits is a random walk with a
+    // grievance on top, and it does not *conclude* inside a fortnight — so it gets one sixty-day
+    // `ambitious` run of its own rather than a weaker assertion. If that ever fails, faction
+    // independence has actually broken; do not add rows to this list to make it green.
+    const SLOW_ROWS: Record<string, { scenario: Parameters<typeof run>[0]['scenario']; days: number }> = {
+      'factions on their own': { scenario: 'ambitious', days: 60 },
+    };
     const reached = new Set<string>();
     for (const name of SCENARIO_NAMES) {
       const r = canon(name);
       for (const s of SYSTEMS) if (s.needs.some(n => count(r.cov, n) > 0)) reached.add(s.label);
+    }
+    for (const [label, how] of Object.entries(SLOW_ROWS)) {
+      if (reached.has(label)) continue;
+      const s = SYSTEMS.find(x => x.label === label)!;
+      const r = soak(how.scenario, how.days, SEED);
+      if (s.needs.some(n => count(r.cov, n) > 0)) reached.add(label);
     }
     const gaps = SYSTEMS.map(s => s.label).filter(l => !reached.has(l));
     expect(gaps, `no scenario reaches: ${gaps.join(', ')}`).toEqual([]);

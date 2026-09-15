@@ -23,7 +23,7 @@ import { resolveOp } from './ops';
 import { closeRacket, stashTotal } from './reducer';
 import { controlShare } from './select';
 import { PLAYER, type World } from './types';
-import { addHeat, addInfluence, adjustRel, clamp, collectors, factionOf, jailDays, log, money, rngOf } from './util';
+import { addHeat, addInfluence, adjustRel, bumpLoyalty, clamp, collectors, factionOf, heatNote, jailDays, log, loyaltyNote, money, rngOf } from './util';
 import { LIEUTENANT } from '@content/rackets';
 import { coverFor, tickLieutenants } from './lieutenants';
 import { addProduct, productionQuality, recipeFor, sellMult } from './production';
@@ -71,7 +71,7 @@ export function endDay(w: World): World {
     if (c.status === 'dead') continue;
     if (c.cut > 0) {
       if (p.cash + p.dirty >= c.cut) { spend(w, c.cut); summary.spent += c.cut; }
-      else { c.loyalty = clamp(c.loyalty - 10); log(w, `You could not pay ${n.name}. (−10 loyalty)`, 'bad', { npcId: n.id }); }
+      else { const ly = bumpLoyalty(n, -10); log(w, `You could not pay ${n.name}.${loyaltyNote(ly)}`, 'bad', { npcId: n.id }); }
     }
     if (c.assignment?.kind === 'guard') { gain(c.assignment.blockId, 3); w.blocks[c.assignment.blockId].heat = clamp(w.blocks[c.assignment.blockId].heat + 0.5); }
     if (c.loyalty < 15 && rng.chance(0.2)) { p.crewIds = p.crewIds.filter(x => x !== n.id); n.crew = undefined; n.role = 'patron'; n.rel.trust = -30; log(w, `${n.name} walked. Nobody saw them go.`, 'bad', { npcId: n.id }); }
@@ -131,7 +131,7 @@ export function endDay(w: World): World {
         // owners under protection drift: fair rates build trust, high rates build resentment. A partner is crew: neither applies.
         if (!b.protection?.partner) {
           if ((b.protection?.rate ?? 0.15) <= 0.15) { if (rng.chance(0.2)) adjustRel(w, owner, { trust: 1 }); } else if (rng.chance(0.3)) adjustRel(w, owner, { trust: -1 });
-          if (owner.rel.trust < -40 && owner.rel.fear < 30 && rng.chance(0.1)) { addHeat(w, 6, b.blockId); log(w, `${owner.name} at ${b.name} talked to the police. (+6 heat)`, 'bad', { businessId: b.id, npcId: owner.id }); }
+          if (owner.rel.trust < -40 && owner.rel.fear < 30 && rng.chance(0.1)) { const h = addHeat(w, 6, b.blockId); log(w, `${owner.name} at ${b.name} talked to the police.${heatNote(h)}`, 'bad', { businessId: b.id, npcId: owner.id }); }
         }
         break;
       }

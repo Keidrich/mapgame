@@ -16,7 +16,7 @@ import { connectionsOf } from './connections';
 import { hunters } from './legacy';
 import type { Rng } from './rng';
 import { PLAYER, type Block, type Npc, type World } from './types';
-import { addHeat, adjustRel, clamp, log, money } from './util';
+import { addHeat, adjustRel, heatNote, log, money } from './util';
 
 /** Chance per move. Low on purpose: this is texture, and texture that fires often is noise. */
 export const ENCOUNTER_CHANCE = 0.13;
@@ -61,8 +61,8 @@ const TABLE: Encounter[] = [
     const them = hunters(w)[0] ?? Object.values(w.npcs).find(n => n.alive && n.faction && n.faction !== PLAYER && n.role === 'lieutenant');
     if (!them) return false;
     if (rng.chance(0.5)) {
-      w.player.heat = clamp(w.player.heat + 2);
-      log(w, `A car you have seen before goes past twice. You are in a doorway before the second pass, and it keeps going. (+2 heat)`, 'warn', { npcId: them.id, blockId: b.id });
+      const h = addHeat(w, 2, b.id);
+      log(w, `A car you have seen before goes past twice. You are in a doorway before the second pass, and it keeps going.${heatNote(h)}`, 'warn', { npcId: them.id, blockId: b.id });
     } else {
       adjustRel(w, them, { fear: 2 }, 'backed');
       log(w, `${them.name} is on the other side of the street. Neither of you does anything. Everybody on the pavement can feel it.`, 'warn', { npcId: them.id, blockId: b.id });
@@ -82,8 +82,8 @@ const TABLE: Encounter[] = [
   // --- the law, looking at you and not stopping
   { weight: 2, run: (w, b) => {
     if (w.player.heat < 25) return false;
-    addHeat(w, 1, b.id);
-    log(w, 'A patrol car slows right down, has a good look at you, and carries on. Somebody wrote something down. (+1 heat)', 'warn', { blockId: b.id });
+    const h = addHeat(w, 1, b.id);
+    log(w, `A patrol car slows right down, has a good look at you, and carries on. Somebody wrote something down.${heatNote(h)}`, 'warn', { blockId: b.id });
     return true;
   } },
 ];

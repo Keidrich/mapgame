@@ -5,7 +5,7 @@
  */
 import type { Rng } from './rng';
 import { PLAYER, type Faction, type GameEvent, type Proposal, type World } from './types';
-import { addInfluence, clamp, log, money, nid, standingCap } from './util';
+import { addInfluence, clamp, gainRespect, log, money, nid, respectNote, standingCap } from './util';
 import { stanceFor } from './generate';
 import { familiar, favours, leverageOver } from './standing';
 import { owedToThem } from './ledger';
@@ -202,6 +202,6 @@ export function petition(w: World, rng: Rng) {
   const c = w.commission!; const p = w.player; const ms = members(w);
   const avg = ms.reduce((s, f) => s + f.standing[PLAYER], 0) / Math.max(1, ms.length);
   const chance = 25 + p.skills.charm * 4 + p.respect * 0.4 + avg * 0.5 + (ms.some(f => f.stance[PLAYER] === 'alliance') ? 15 : 0);
-  if (rng.int(1, 100) <= chance) { c.seat = true; c.memberIds.push(PLAYER); p.respect = clamp(p.respect + 10); log(w, 'The table votes you a chair. Your vote counts now, the pot pays you, and members drift back toward peace with you. (+10 respect)', 'good'); }
+  if (rng.int(1, 100) <= chance) { c.seat = true; c.memberIds.push(PLAYER); const rp = gainRespect(w, 10); log(w, `The table votes you a chair. Your vote counts now, the pot pays you, and members drift back toward peace with you.${respectNote(rp)}`, 'good'); }
   else { for (const f of ms) if (f.temperament === 'paranoid') f.standing[PLAYER] = clamp(f.standing[PLAYER] - 5, -100, 100); log(w, `"Not yet." ${ms.find(f => f.temperament === 'paranoid')?.short ?? 'Somebody'} made sure of it. Come back with more blocks, or a friend at the table.`, 'warn'); }
 }

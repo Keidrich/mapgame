@@ -173,7 +173,7 @@ function Planner() {
             <b><Icon of="op" id={kind} size={15} /> {def.label}</b>
             <button type="button" className="chip btn" onClick={reset}>Change</button>
           </div>
-          <p className="small muted mt8">{def.blurb} Needs: {Object.entries(def.needs).map(([k, v]) => `${k} ${v}`).join(', ')}. Difficulty {def.difficulty}, heat +{def.heat}. {def.planDays > 0 && <><Term id="planDays">{def.planDays} days to plan</Term>.</>}</p>
+          <p className="small muted mt8">{def.blurb} Needs: {Object.entries(def.needs).map(([k, v]) => `${k} ${v}`).join(', ')}. Difficulty {def.difficulty}, heat +{select.opHeat(w, kind, { approach, blockId: target.businessId ? w.businesses[target.businessId]?.blockId : undefined })}. {def.planDays > 0 && <><Term id="planDays">{def.planDays} days to plan</Term>.</>}</p>
           {needsTarget && (
             <>
               <div className="section-title">Target</div>

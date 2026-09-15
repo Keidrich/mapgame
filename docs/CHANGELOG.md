@@ -14,6 +14,66 @@ House rules for an entry (see `CLAUDE.md` → *Leave a trail*):
 
 ---
 
+## 2026-09-15 — The log was lying about its own numbers
+
+**What.** Every figure a log line prints is now the figure that actually happened. It was not:
+a job announcing **"+16 heat"** was routinely putting 9 on the bar.
+
+**Why.** `addHeat` is the only door heat comes through and it applies five multipliers on the way
+in — working alone (×0.75), bought legitimacy, the hour, home turf (×0.8), a school on the corner
+(×1.5), with a floor under the lot. Every call site printed the figure it *passed in*. The lone-wolf
+and legitimacy discounts have been there for two passes and time-of-day for one, so the gap has
+been widening quietly the whole time. The same hole existed at every clamp: "+25 loyalty" at 96 is
++4, "−15 heat" at heat 5 is −5, "+10 respect" at 100 is nothing at all.
+
+**How.**
+
+- **The mutators return what landed.** `addHeat` returns the applied delta after multipliers *and*
+  the 0–100 clamp; `loseHeat`, `gainFear`, `gainRespect` and `bumpLoyalty` are its siblings for the
+  other clamped stats. `statNote(applied, label)` builds the `" (+9 heat)"` parenthetical and
+  returns **empty** when nothing moved — "(+0 loyalty)" is noise, and a figure the bar did not move
+  is worse.
+- **The multiplier stack is now one piece of arithmetic**, `heatMult(w, blockId)`, pulled out of
+  `addHeat`. `addHeat` applies it and `select.opHeat` predicts with it, so the **planner** stopped
+  lying too: it printed `def.heat` raw next to "Difficulty 60", which is the job's rating, not a
+  promise. `opHeat` leaves out only the clean-job discount, because nobody knows before the night
+  whether it went that well.
+- **`OpResult.heat` is overwritten with the applied figure** before the result is stored, so the
+  ops-tab card, the log line and any later reader all say one number.
+- **Two things are deliberately not printed as figures**: a `spreadRep` fear number and an
+  `adjustRel` trust number. Both are capped per person by what the act cost and by how well the
+  person knows you, so there is no single number anybody got. Those lines now say what happened.
+- **The encounter that bypassed `addHeat`** — a near miss with a hunter wrote `w.player.heat`
+  directly — goes through the front door like everything else.
+
+**Twenty-six log lines across nine files**, plus three screens.
+
+**Files.** `sim/util.ts` (the helpers and `heatMult`), `sim/select.ts` (`opHeat`), `sim/ops.ts`,
+`sim/events.ts`, `sim/production.ts`, `sim/reducer.ts`, `sim/tick.ts`, `sim/people.ts`,
+`sim/hostages.ts`, `sim/encounters.ts`, `sim/commission.ts`, `ui/components/OpsTab.tsx`,
+`ui/components/OpTree.tsx`, `ui/components/EmpireTab.tsx`, and a new `sim/honest-numbers.test.ts`
+(11 tests).
+
+**Watch out.**
+
+- **The guard is a grep over the source.** `sim/honest-numbers.test.ts` reads every non-test `.ts`
+  and `.tsx` file and fails on any `(+N heat)`-shaped literal. It found four I had missed by hand
+  on its first run, which is exactly why it exists: the mutators were easy to fix once, and the
+  real failure mode is a new line next year with a figure typed into it. If you add a line that
+  legitimately cannot name a number, phrase it in words rather than adding an exception.
+- **Numbers in the log got smaller, and nothing got easier.** No balance changed — the multipliers
+  were always applied. Only the reporting was wrong. A player who thought heat was cheaper than the
+  log implied was right.
+- **The honest 60-day curve moved by $3** (cash 40 → 43, everything else identical), from routing
+  that one encounter through `addHeat`: it now puts heat on the block as well as the player, as
+  every other source always has.
+- **`scripts/bot.test.ts`'s union test gained one targeted long run.** Faction-vs-faction war does
+  not conclude inside sixteen days, so that row alone is checked with a sixty-day `ambitious` run
+  rather than by weakening the assertion. **Do not add rows to that list to make it green** — if it
+  fails, faction independence has actually broken.
+
+---
+
 ## 2026-09-15 — The map, in colour, and sooner
 
 **What.** Business markers appear further out before collapsing to a count badge, and each one is

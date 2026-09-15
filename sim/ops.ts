@@ -15,7 +15,7 @@ import { opChance } from './select';
 import { complicationHeat, complicationSwing, maybeComplicate } from './complications';
 import { kitHeatMult } from './items';
 import { PLAYER, type Op, type World } from './types';
-import { addHeat, addInfluence, adjustRel, bumpStanding, clamp, jailDays, log, money, spreadRep } from './util';
+import { addHeat, addInfluence, adjustRel, bumpStanding, clamp, gainRespect, heatNote, jailDays, log, money, respectNote, spreadRep } from './util';
 import { remember } from './ledger';
 import { doFavour } from './standing';
 import { freeOpCrew, shutBusiness } from './reducer';
@@ -429,10 +429,10 @@ export function resolveOp(w: World, o: Op, rng: Rng) {
         p.dirty += value; res.cash = value;
         // Nobody else knew, so nobody else can say. That is respect on the street rather than
         // fear: what people rate is that it was done and cannot be explained.
-        w.player.respect = clamp(w.player.respect + 5);
+        const rp = gainRespect(w, 5);
         const n = o.targetNpcId ? w.npcs[o.targetNpcId] : undefined;
         if (n) remember(w, n, 'harm', 'Something of theirs went, and they never worked out through whom.');
-        res.text = `${money(value)} out of ${n?.name ?? 'them'} over four weeks. You were the only person who knew any part of it, so there is nobody to flip and nothing that leads back. (+5 respect)`;
+        res.text = `${money(value)} out of ${n?.name ?? 'them'} over four weeks. You were the only person who knew any part of it, so there is nobody to flip and nothing that leads back.${respectNote(rp)}`;
         break;
       }
 
@@ -621,11 +621,14 @@ export function resolveOp(w: World, o: Op, rng: Rng) {
     if ((o.kind === 'sim_swap' || o.kind === 'crypto_wash') && !success) cyberHeat(w, Math.round(def.heat * 0.5));
     for (const n of crew) if (n.crew) n.crew.loyalty = clamp(n.crew.loyalty - 8);
   }
-  addHeat(w, res.heat, blockId);
+  // `res.heat` up to this point has been the *request*; every multiplier in `addHeat` sits
+  // between that and the player's bar. Overwrite it with what actually landed before the result
+  // is stored, so the card on the ops tab, the log line and any later reader all say one number.
+  res.heat = Math.round(addHeat(w, res.heat, blockId));
   o.status = success ? 'done' : 'failed'; o.result = res;
   freeOpCrew(w, o);
   w.player.opIds = w.player.opIds.filter(id => id !== o.id);
-  log(w, res.text + (hiredLines.length ? ` ${hiredLines.join(' ')}` : '') + (res.heat ? ` (+${res.heat} heat)` : ''), success ? 'good' : 'bad', { opId: o.id, businessId: target?.id, blockId });
+  log(w, res.text + (hiredLines.length ? ` ${hiredLines.join(' ')}` : '') + heatNote(res.heat), success ? 'good' : 'bad', { opId: o.id, businessId: target?.id, blockId });
 }
 
 export { successionOrDeath } from './politics';

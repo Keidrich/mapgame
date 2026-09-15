@@ -6,7 +6,7 @@ import { connectionsOf, familyOf } from './connections';
 import { resolveScheme, schemeTarget } from './nemesis';
 import type { Rng } from './rng';
 import { PLAYER, type Agenda, type AgendaKind, type Block, type BlockMemory, type GameEvent, type Id, type Npc, type World } from './types';
-import { addHeat, bleedRel, clamp, log, money, nid } from './util';
+import { addHeat, bleedRel, clamp, heatNote, log, money, nid } from './util';
 
 export const AGENDA_LABEL: Record<AgendaKind, string> = {
   debt: 'owes money to the wrong people', leave: 'wants out of this life', revenge: 'wants to get even', ambition: 'wants to be somebody', family: 'is protecting their family',
@@ -79,7 +79,7 @@ function milestone(w: World, n: Npc, a: Agenda, at: 50 | 100, rng: Rng) {
       const grudgeAgainstYou = !!n.grudge;
       if (at === 50 && known) log(w, `${n.name} has been asking around about ${grudgeAgainstYou ? 'you' : f ? f.short : 'somebody'}.`, 'warn', { npcId: n.id });
       if (at === 100) {
-        if (grudgeAgainstYou || n.rel.trust < -30) { addHeat(w, 10); log(w, `${n.name} sat down with a detective and told them everything they know about you. (+10 heat)`, 'bad', { npcId: n.id }); }
+        if (grudgeAgainstYou || n.rel.trust < -30) { const h = addHeat(w, 10); log(w, `${n.name} sat down with a detective and told them everything they know about you.${heatNote(h)}`, 'bad', { npcId: n.id }); }
         else if (f && f.alive && n.rel.trust >= 20) ev('agenda_revenge', `${n.name} wants to hurt ${f.short}`, `"They ruined me. I know where ${w.npcs[f.lieutenantIds[0] ?? f.bossId]?.name ?? 'their lieutenant'} keeps the week's take. I'll tell you. Just make it hurt."`, [
           { id: 'take', label: 'Take the tip', detail: `A raid on ${f.short} with no planning time` }, { id: 'pass', label: 'Not interested' },
         ], { npcId: n.id, factionId: f.id });
@@ -102,7 +102,7 @@ function milestone(w: World, n: Npc, a: Agenda, at: 50 | 100, rng: Rng) {
       const who = kin ? `${kin.name}, their ${tie},` : 'their family';
       if (at === 50 && known) log(w, `${n.name} is scared for ${kin ? `${kin.name} (${tie})` : 'their family'}. Pressure will push them to the police; kindness will not be forgotten.`, 'info', { npcId: n.id });
       if (at === 100) {
-        if (n.rel.fear >= 40 && n.rel.trust < 20) { addHeat(w, 8); log(w, `${n.name} went to the police to keep ${who} out of it. (+8 heat)`, 'bad', { npcId: n.id }); }
+        if (n.rel.fear >= 40 && n.rel.trust < 20) { const h = addHeat(w, 8); log(w, `${n.name} went to the police to keep ${who} out of it.${heatNote(h)}`, 'bad', { npcId: n.id }); }
         else if (n.rel.trust >= 30) { bleedRel(w, n, { trust: 15 }); if (kin) bleedRel(w, kin, { trust: 8 }); log(w, `${n.name} says you're the only one who never went near ${who} (+15 trust)`, 'good', { npcId: n.id }); }
       }
       break;

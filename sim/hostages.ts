@@ -10,7 +10,7 @@
 import { effectivePolice } from './authority';
 import type { Rng } from './rng';
 import { PLAYER, type Id, type Npc, type Safehouse, type World } from './types';
-import { addHeat, adjustRel, clamp, log, money, spreadRep } from './util';
+import { addHeat, adjustRel, clamp, heatNote, log, money, spreadRep } from './util';
 import { openCase } from './cases';
 import { addMemory } from './people';
 
@@ -81,8 +81,8 @@ export function tickHostages(w: World, rng: Rng) {
     if (!rng.chance(holdRisk(w, n))) continue;
     const roll = rng.float();
     if (roll < 0.4) {
-      addHeat(w, 6 + days, b.id);
-      log(w, `Somebody on ${b.name} heard ${n.name} through the wall and called it in. (+${6 + days} heat)`, 'bad', { npcId: n.id, blockId: b.id });
+      const h = addHeat(w, 6 + days, b.id);
+      log(w, `Somebody on ${b.name} heard ${n.name} through the wall and called it in.${heatNote(h)}`, 'bad', { npcId: n.id, blockId: b.id });
       if (!(w.cases ?? []).some(c => c.status === 'open' && c.refs.npcId === n.id)) {
         openCase(w, 'hit', `${n.name.split(' ').slice(-1)[0]} disappearance`, { npcId: n.id, blockId: b.id }, w.player.crewIds.slice(0, 2), rng, 20);
       }
@@ -91,9 +91,9 @@ export function tickHostages(w: World, rng: Rng) {
       n.grudge = { since: w.day, reason: 'you held them in a basement', spread: 0 };
       adjustRel(w, n, { trust: -40, fear: 20 }, 'grave');
       spreadRep(w, b.id, { fear: 6, trust: -4 }, 2, 'grave');
-      addHeat(w, 8, b.id);
+      const h = addHeat(w, 8, b.id);
       addMemory(w, b.id, 'escape', `${n.name} got out of a cellar here and told everyone.`, { npcId: n.id });
-      log(w, `${n.name} got loose and made it to the street. Everybody on ${b.name} knows now. (+8 heat)`, 'bad', { npcId: n.id, blockId: b.id });
+      log(w, `${n.name} got loose and made it to the street. Everybody on ${b.name} knows now.${heatNote(h)}`, 'bad', { npcId: n.id, blockId: b.id });
     } else {
       const guard = w.player.crewIds.map(id => w.npcs[id]).find(c => c.crew && c.crew.status === 'idle');
       if (guard?.crew) { guard.crew.status = 'injured'; guard.crew.statusDays = rng.int(2, 5); log(w, `${n.name} put up a fight. ${guard.name} is laid up ${guard.crew.statusDays} days.`, 'bad', { npcId: guard.id }); }
