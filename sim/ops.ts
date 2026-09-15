@@ -13,7 +13,7 @@ import { CRYPTO_WASH, OP_APPROACHES, OP_DEFS, PRISON_WING, WARD } from '@content
 import type { Rng } from './rng';
 import { opChance } from './select';
 import { complicationHeat, complicationSwing, maybeComplicate } from './complications';
-import { kitHeatMult } from './items';
+import { jobHeatMult } from './items';
 import { PLAYER, type Op, type World } from './types';
 import { addHeat, addInfluence, adjustRel, bumpStanding, clamp, gainRespect, heatNote, jailDays, log, money, respectNote, spreadRep } from './util';
 import { remember } from './ledger';
@@ -57,8 +57,9 @@ export function resolveOp(w: World, o: Op, rng: Rng) {
   // money is actually in the building. `content/timeofday.ts` holds both halves of that trade.
   const when = DAYPARTS[daypartAt(o.hour ?? w.hour ?? DEFAULT_HOUR)].payout;
   const value = Math.round(lo + (hi - lo) * rng.float() * (0.7 + Math.min(1, Math.max(0, margin) / 60)) * (ap?.payout ?? 1) * when);
-    // the kit you carried changes what the job leaves behind, the same way the approach does
-    res.heat = Math.round(def.heat * (margin > 30 ? 0.6 : 1) * (ap?.heat ?? 1) * kitHeatMult(w) * complicationHeat(o)
+    // the kit that was on the job changes what it leaves behind, the same way the approach does —
+    // yours and the crew's together, one item per category (`jobKit`)
+    res.heat = Math.round(def.heat * (margin > 30 ? 0.6 : 1) * (ap?.heat ?? 1) * jobHeatMult(w, o.crewIds) * complicationHeat(o)
       * (o.kind === 'heist_armored' && routeFor(w, o.targetBusinessId) ? ROUTE.heatMult : 1));
     if (o.insideId && w.npcs[o.insideId]) adjustRel(w, w.npcs[o.insideId], { trust: 5, respect: 5 });
     switch (o.kind) {
@@ -591,7 +592,7 @@ export function resolveOp(w: World, o: Op, rng: Rng) {
     p.respect = clamp(p.respect + (def.difficulty >= 60 ? 6 : 2));
     for (const n of crew) if (n.crew) n.crew.loyalty = clamp(n.crew.loyalty + 5);
   } else {
-    res.heat = Math.round(def.heat * 1.4 * (ap?.heat ?? 1) * kitHeatMult(w) * complicationHeat(o));
+    res.heat = Math.round(def.heat * 1.4 * (ap?.heat ?? 1) * jobHeatMult(w, o.crewIds) * complicationHeat(o));
     const bad = -margin > 30; // badly failed
     if (o.insideId && w.npcs[o.insideId]) { const ins = w.npcs[o.insideId]; ins.rel.trust = -50; ins.notes.push('Burned as an inside man.'); if (target) adjustRel(w, w.npcs[target.ownerId], { trust: -30, fear: 10 }, 'property'); }
     if (o.approach === 'loud' && bad && crew.length && rng.chance(0.3)) { const v = rng.pick(crew); if (v.crew && v.crew.status !== 'dead') { v.crew.status = 'dead'; v.crew.assignment = undefined; v.alive = false; } }

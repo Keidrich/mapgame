@@ -40,7 +40,7 @@ import { petition, seatReason } from './commission';
 import { abandonedBlocks, claimedByPlayer, makeAbandoned } from './abandoned';
 import { isHeld, resolveHostage, roomFor } from './hostages';
 import { PLAYER_NOTE_MAX, opCost, opLocked } from './select';
-import { EQUIP_MAX, buyPrice, equipSlotsLeft, isMarket, marketStock, ownedCount, sellPrice } from './items';
+import { EQUIP_MAX, buyPrice, equipSlotsLeft, isMarket, marketStock, ownedCount, sellPrice, type Kitted } from './items';
 import { activeConfrontation, confrontOptions, confrontations, resolveConfrontation } from './combat';
 import { addCard, cardById, cyberHeat, dumpCards, endTap, learnSecret, liveCards, rollCard, runCard, scrubPower, scrubTrail, secrets, sellDirt } from './cyber';
 import { SCRUB } from '@content/cyber';
@@ -58,6 +58,29 @@ import { onTheWay } from './encounters';
 import { bedsTotal, ceilingAt, ceilingPrice, favourPrice, safehouseLimit, favourReason, legitimacy, legitimacyGain, legitimacyReason, lifestyleAt, nextStep } from './fortune';
 import { layingLow, cacheCap, cacheCapLeft } from './economy';
 import { activeCrewCount, officialTrust, addHeat, addInfluence, adjustRel, bumpLoyalty, clamp, factionOf, heatNote, log, loyaltyNote, money, nid, rngOf, spreadRep, takeCash } from './util';
+
+/**
+ * Whose pockets an action is about. No id means the player's, which is what every kit action meant
+ * before the crew had any of their own — so an old call site and an old save both still read right.
+ */
+function pocketsOf(w: World, npcId?: Id): Kitted { return npcId ? w.npcs[npcId] : w.player; }
+
+/**
+ * Whether you can get at this person's kit at all, as a refusal or null.
+ *
+ * One rule for all three kit actions, because they are all the same physical act: standing next to
+ * somebody and moving a thing between you. Only your own crew — kit on a patron you have met twice
+ * is an inventory no rule in the game reads — and only somebody who is actually reachable. A man in
+ * a cell cannot be handed a shotgun, and his pockets are not yours to rearrange while he is in it.
+ */
+function handsReason(w: World, npcId: Id, verb: 'hand' | 'take' | 'kit'): string | null {
+  const n = w.npcs[npcId];
+  if (!n) return 'No such person.';
+  if (!n.crew) return `${n.name} does not work for you.`;
+  if (!n.alive || n.crew.status === 'dead') return `${n.name} is dead.`;
+  if (n.crew.status === 'jailed') return verb === 'hand' ? `${n.name} is inside. Nothing reaches them in there.` : `${n.name} is inside, and so is everything they were carrying.`;
+  return null;
+}
 
 const no = (reason: string): Affordance => ({ ok: false, reason });
 const yes = (cost?: { ap?: number; cash?: number }): Affordance => ({ ok: true, cost });
@@ -320,22 +343,30 @@ function gate(w: World, a: Action): Affordance {
       const item = ITEM_DEFS[a.itemId]; if (!item) return no('No such thing.');
       if (!marketStock(b).some(i => i.id === item.id)) return no(`${b.name} has no ${item.label.toLowerCase()} on the shelf.`);
       const h = hereBiz(b); if (h) return no(h);
+      const bad = a.forNpcId ? handsReason(w, a.forNpcId, 'hand') : null; if (bad) return no(bad);
       const r = cash(buyPrice(item)); return r ? no(r) : yes({ cash: buyPrice(item) });
     }
     case 'sell_item': {
       const b = biz(a.businessId); if (!b) return no('No such place.');
       if (!isMarket(b)) return no(`${b.name} is not buying.`);
       const item = ITEM_DEFS[a.itemId]; if (!item) return no('No such thing.');
-      if (!ownedCount(w, item.id)) return no(`You do not have a ${item.label.toLowerCase()}.`);
+      const bad = a.forNpcId ? handsReason(w, a.forNpcId, 'take') : null; if (bad) return no(bad);
+      const who = pocketsOf(w, a.forNpcId);
+      if (!ownedCount(w, item.id, who)) return no(a.forNpcId ? `${w.npcs[a.forNpcId].name} does not have a ${item.label.toLowerCase()}.` : `You do not have a ${item.label.toLowerCase()}.`);
       const h = hereBiz(b); if (h) return no(h);
       return yes();
     }
     case 'equip': {
       const item = ITEM_DEFS[a.itemId]; if (!item) return no('No such thing.');
-      if (!a.on) return (p.equipped ?? []).includes(item.id) ? yes() : no('Not on you.');
-      if (!ownedCount(w, item.id)) return no(`You do not own a ${item.label.toLowerCase()}.`);
-      if ((p.equipped ?? []).filter(id => id === item.id).length >= ownedCount(w, item.id)) return no(`You are already carrying ${ownedCount(w, item.id) > 1 ? 'all of those' : 'it'}.`);
-      if (equipSlotsLeft(w) <= 0) return no(`You can carry ${EQUIP_MAX} things. Leave something at home first.`);
+      const bad = a.npcId ? handsReason(w, a.npcId, 'kit') : null; if (bad) return no(bad);
+      const who = pocketsOf(w, a.npcId);
+      const them = a.npcId ? w.npcs[a.npcId].name : null;
+      if (!a.on) return (who.equipped ?? []).includes(item.id) ? yes() : no(them ? `${them} is not carrying it.` : 'Not on you.');
+      const have = ownedCount(w, item.id, who);
+      if (!have) return no(them ? `${them} does not own a ${item.label.toLowerCase()}.` : `You do not own a ${item.label.toLowerCase()}.`);
+      if ((who.equipped ?? []).filter(id => id === item.id).length >= have) return no(`${them ?? 'You'} ${them ? 'is' : 'are'} already carrying ${have > 1 ? 'all of those' : 'it'}.`);
+      // EQUIP_MAX is per person: three things each, and your crew's slots are not yours.
+      if (equipSlotsLeft(w, who) <= 0) return no(`${them ?? 'You'} can carry ${EQUIP_MAX} things. ${them ? 'Take something off them' : 'Leave something at home'} first.`);
       return yes();
     }
     case 'start_racket': {
@@ -1009,32 +1040,46 @@ function apply(w: World, a: Action, rng: Rng, done: () => void, bonus = 0): Worl
       const b = w.businesses[a.businessId]; const item = ITEM_DEFS[a.itemId];
       const price = buyPrice(item);
       takeCash(w, price);                                  // clean cash, like every other purchase
-      p.items = [...(p.items ?? []), item.id];
+      // You pay either way; whose bag it lands in is the only thing `forNpcId` changes.
+      const to = pocketsOf(w, a.forNpcId);
+      to.items = [...(to.items ?? []), item.id];
       adjustRel(w, npc(b.ownerId), { trust: 2, respect: 1 }); // a paying customer is a customer
-      log(w, `${item.label} — ${money(price)} at ${b.name}.`, 'money', { businessId: b.id });
+      const them = a.forNpcId ? w.npcs[a.forNpcId] : undefined;
+      // Kit bought for somebody is a thing done for them, and the game already knows what that is
+      // worth: it goes on their ledger like a gift, because that is what it is.
+      if (them?.crew) {
+        // Worth what it cost, on the same curve a gift uses and capped the same way — a bat is not
+        // a plate carrier, and neither of them buys a man outright.
+        bumpLoyalty(them, Math.max(1, Math.min(8, Math.round(Math.sqrt(price) / 8))));
+        remember(w, them, 'favour', `You put a ${item.label.toLowerCase()} in their hands and did not ask for it back.`);
+      }
+      log(w, `${item.label} — ${money(price)} at ${b.name}${them ? `, for ${them.name}` : ''}.`, 'money', { businessId: b.id, npcId: them?.id });
       break;
     }
     case 'sell_item': {
       const b = w.businesses[a.businessId]; const item = ITEM_DEFS[a.itemId];
       const paid = sellPrice(w, item);
-      const owned = [...(p.items ?? [])];
+      const from = pocketsOf(w, a.forNpcId);
+      const owned = [...(from.items ?? [])];
       owned.splice(owned.indexOf(item.id), 1);
-      p.items = owned;
-      // it goes out of your hands whether you were carrying it or not
-      const carried = [...(p.equipped ?? [])];
+      from.items = owned;
+      // it goes out of their hands whether they were carrying it or not
+      const carried = [...(from.equipped ?? [])];
       const worn = carried.indexOf(item.id);
       if (worn >= 0 && carried.filter(id => id === item.id).length > owned.filter(id => id === item.id).length) carried.splice(worn, 1);
-      p.equipped = carried;
-      p.dirty += paid;                                     // back-room money is dirty money
-      log(w, `${b.name} takes the ${item.label.toLowerCase()} off you for ${money(paid)}. Used goods, used prices.`, 'money', { businessId: b.id });
+      from.equipped = carried;
+      p.dirty += paid;                                     // back-room money is dirty money, and it is yours
+      const off = a.forNpcId ? w.npcs[a.forNpcId].name : 'you';
+      log(w, `${b.name} takes the ${item.label.toLowerCase()} off ${off} for ${money(paid)}. Used goods, used prices.`, 'money', { businessId: b.id, npcId: a.forNpcId });
       break;
     }
     case 'equip': {
       const item = ITEM_DEFS[a.itemId];
-      const carried = [...(p.equipped ?? [])];
+      const who = pocketsOf(w, a.npcId);
+      const carried = [...(who.equipped ?? [])];
       if (a.on) carried.push(item.id);
       else carried.splice(carried.indexOf(item.id), 1);
-      p.equipped = carried;
+      who.equipped = carried;
       break;
     }
     case 'run_card': {

@@ -14,6 +14,82 @@ House rules for an entry (see `CLAUDE.md` → *Leave a trail*):
 
 ---
 
+## 2026-09-15 — Per-crewmate kit, and a character sheet to put it on
+
+**What.** `Npc` now carries its own `items` / `equipped`, exactly like `Player`. Kit can be bought
+for a named crew member, equipped from a new per-person character sheet, and — the point of all of
+it — an op's kit bonus now comes from whoever is actually on the op rather than always from the
+player's pockets.
+
+**Why.** "Give the good gun to the man doing the job" had no representation at all: the three kit
+functions read `w.player.equipped` and nothing else, so the man holding the shotgun and the man
+doing the job were the same person by construction. On a job with `minCrew: 3` the game already
+says your hands are not what it is about, and then counted your gun anyway.
+
+**How — the decision, stated rather than left to fall out.** A job carries **one item per category,
+across everybody on it, whole**: one weapon, one tool, one vehicle, and where two people brought the
+same kind of thing the **dearest** one counts, with its whole `mods` block — its help and its cost
+together.
+
+- *Not a sum.* Heat is multiplicative: five crew with a sawn-off each would be ×5.4 heat on one job,
+  and `approachBias` feeds a `1 + bias` multiplier on every skill weight, so fifteen items of bias
+  would swamp the roll outright. That does not need balancing, it needs not doing.
+- *Not best-value-per-mod*, the other obvious answer. Taking the quietest heat off one gun and the
+  biggest muscle off another lets you carry both and keep only the good half of each, which
+  dissolves every tradeoff the catalogue was rebuilt on last pass.
+- **Armour is out of the pool entirely.** Its only job-facing mod is a penalty for wearing it
+  (`wheels −3` on a plate carrier) and its real effect, `cover`, is personal. Pooling it would let a
+  second man in a light vest cancel the first man's plates. `kitCover` stays per person.
+- **Whose hands:** the assigned crew, plus you unless you are unavailable. Ops resolve at End Day
+  whether or not you can be there (`sim/tick.ts`), so a job running while you are in a cell or off
+  the street is a real state — and it goes out on your crew's kit alone. This is about kit, not
+  skill: `opChance`'s `minCrew: 0` rule for folding in the player's *skills* is untouched.
+
+Mechanically, the three formulas moved onto a plain list of items (`skillBoostOf`,
+`approachBiasOf`, `heatMultOf`) and **whose kit it is became the caller's question** —
+`kitSkillBoost` for one person, `jobSkillBoost` for an op, `poolKit` for a fight at your door. That
+is what stopped this forking the heat maths three ways. Every reader takes a `Kitted` defaulting to
+`w.player`, so every old call site still reads "the player", which is what it always meant.
+
+`buy_item` / `sell_item` take `forNpcId`, `equip` takes `npcId`; one gate (`handsReason`) covers all
+three because they are the same physical act — your own crew only, alive, not in a cell. Buying
+somebody kit bumps loyalty on the gift curve and goes on their ledger.
+
+**Numbers.** Honest 60-day curve **byte-identical** to the pre-change baseline (day 60: $0 clean,
+$212 dirty, paid $568, heat 3) — verified by diff, not by eye. Coverage table 42 → 44 rows; union
+still "every system was exercised at least once". 1341 → 1364 tests.
+
+**Files.** `sim/types.ts` (`Npc.items`/`equipped`), `sim/items.ts` (the rewrite: `Kitted`, `poolKit`,
+`handsOn`, `jobKit`, `job*`), `sim/select.ts`, `sim/ops.ts`, `sim/combat.ts` (the three call sites),
+`sim/actions.ts` + `sim/reducer.ts` (the per-person fields and gate), `ui/components/CharacterSheet.tsx`
+(new), `ui/components/NpcSheet.tsx`, `ui/components/Kit.tsx` (the "Buying for" picker),
+`ui/components/OpsTab.tsx`, `content/glossary.ts` (`jobKit`), `scripts/bot/policy.ts` +
+`scripts/bot/coverage.ts`, `docs/DESIGN.md` §4.7d. Tests: `sim/npc-kit.test.ts`,
+`sim/kit-migration.test.ts`, `ui/character-sheet.test.tsx`.
+
+**Watch out.**
+
+- **No `WORLD_VERSION` bump and no migration step, deliberately** — every existing save loads. The
+  cost is that nothing anywhere may assume the arrays exist; `sim/kit-migration.test.ts` walks the
+  whole kit surface against people who have neither field and then runs a day. One
+  `n.equipped.length` in an uncovered path throws at End Day and takes the save with it.
+- **The honest run needed an explicit gate.** `armTheCrew` is skipped when `c.reserve <= 0` (the
+  existing flag for "this scenario runs jobs"). Without it the frozen honest close moved to $378
+  dirty / heat 0 — a real, measured drift, caught by diffing the soak rather than by reading it.
+- **All four guards were mutation-tested**: making the pool a sum, making the hands the whole crew
+  instead of the assigned ones, making `equip` ignore `npcId`, and making an `Npc` array
+  non-optional each fail the relevant file. A test that only checked the crew member's array would
+  have passed against a reducer writing to both, so the UI test asserts the player's kit is
+  *unchanged*.
+- **Balance shift, on purpose and mild:** a `minCrew > 0` op that used to get the player's kit for
+  free can now be beaten in a category by a crew member's dearer piece — and its heat with it. On an
+  old save nobody has anything, so day one after this ships is identical to day zero.
+- Deliberately out of scope: handing an item from your pockets straight into theirs. Kit reaches a
+  crew member by being bought for them at a shop, which is one act in one place; an
+  inventory-to-inventory transfer would need its own rules about who is standing where.
+
+---
+
 ## 2026-09-15 — The map opens on the city, not on a guess (tablet fix)
 
 **What.** The map now frames the whole city when a world loads, instead of jumping to a coordinate

@@ -33,9 +33,11 @@ export type Action =
   | { type: 'insure'; businessId: Id }
   | { type: 'repair'; businessId: Id }
   // --- kit (content/items.ts) ---
-  | { type: 'buy_item'; businessId: Id; itemId: string }    // clean cash, at a market, face to face
-  | { type: 'sell_item'; businessId: Id; itemId: string }   // dirty cash back, like anything else sold out of a back room
-  | { type: 'equip'; itemId: string; on: boolean }          // carry it or leave it at home; free
+  // `forNpcId` / `npcId` name whose pockets this is about. Absent means yours, which is what all
+  // three of these meant before the crew had any of their own.
+  | { type: 'buy_item'; businessId: Id; itemId: string; forNpcId?: Id }   // clean cash, at a market, face to face; bought for one of your crew if named
+  | { type: 'sell_item'; businessId: Id; itemId: string; forNpcId?: Id }  // dirty cash back, like anything else sold out of a back room
+  | { type: 'equip'; itemId: string; on: boolean; npcId?: Id }            // carry it or leave it at home; free. EQUIP_MAX is per person
   // --- rackets ---
   | { type: 'start_racket'; businessId: Id; kind: RacketKind; product?: ProductKind }
   | { type: 'upgrade_racket'; racketId: Id }

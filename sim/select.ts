@@ -14,7 +14,7 @@ import { abandonedBlocks } from './abandoned';
 import { activeHelp, helpAgainst } from './informants';
 export { openCases, caseWitnessOf } from './cases';
 export { connectionsOf, familyOf, backingOf } from './connections';
-export { ownedItems, equippedItems, isEquipped, ownedCount, equippedCount, equipSlotsLeft, kitSkillBoost, kitApproachBias, kitHeatMult, kitMods, isMarket, marketStock, buyPrice, sellPrice, EQUIP_MAX } from './items';
+export { ownedItems, equippedItems, isEquipped, ownedCount, equippedCount, equipSlotsLeft, kitSkillBoost, kitApproachBias, kitHeatMult, kitMods, handsOn, jobKit, jobSkillBoost, jobApproachBias, jobHeatMult, isMarket, marketStock, buyPrice, sellPrice, EQUIP_MAX } from './items';
 import { authorityDifficulty, buyCaseCost, buyDownCost } from './authority-ops';
 import { saturationMult, synergyFor } from './territory';
 import { coverFor } from './lieutenants';
@@ -24,7 +24,7 @@ import { productionOutput } from './economy';
 import { laneDiscount, routeDiscount } from './intel';
 import { rawRacketIncome, streetPrice } from './economy';
 import { playerWorks, qualityOf, sellMult } from './production';
-import { equippedItems, kitApproachBias, kitHeatMult, kitSkillBoost } from './items';
+import { equippedItems, jobApproachBias, jobHeatMult, jobSkillBoost } from './items';
 export { confrontations, activeConfrontation, confrontOptions, confrontChance, backupCrew, CONFRONT_AS } from './combat';
 export { cards, liveCards, cardById, cardValue, runOdds, dumpValue, tapped, daysTapped, tapRisk, secrets, secretsAbout, unsoldSecrets, dirtPrice, scrubPower, cyberHeat } from './cyber';
 /** Rackets a faction has marked: the ones 'Dig In' answers. */
@@ -170,10 +170,13 @@ export function crewSkillSum(w: World, ids: Id[]): Record<string, number> {
  * 30 pays 0.6), because nobody can know before the night whether it went that well. So this is the
  * honest upper end of an ordinary result, not a floor.
  */
-export function opHeat(w: World, kind: OpKind, opts: { approach?: OpApproach; blockId?: Id } = {}): number {
+export function opHeat(w: World, kind: OpKind, opts: { approach?: OpApproach; blockId?: Id; crewIds?: readonly Id[] } = {}): number {
   const def = OP_DEFS[kind];
   const ap = opts.approach ? OP_APPROACHES[opts.approach] : undefined;
-  return Math.round(def.heat * (ap?.heat ?? 1) * kitHeatMult(w) * heatMult(w, opts.blockId));
+  // The kit term is `jobKit`'s, not the player's alone: the planner has to price the crew you are
+  // about to send, or it quotes one number and the night charges another. With no crew picked yet
+  // that is just your own kit, which is what it always was.
+  return Math.round(def.heat * (ap?.heat ?? 1) * jobHeatMult(w, opts.crewIds ?? []) * heatMult(w, opts.blockId));
 }
 
 export interface OpTarget { businessId?: Id; npcId?: Id; caseId?: Id; factionId?: FactionId }
@@ -189,10 +192,11 @@ export function opChance(w: World, kind: OpKind, crewIds: Id[], approach?: OpApp
   // hiring somebody with tech 11 is a long way past where these ops sit in the tree. Jobs that
   // *require* crew are untouched on purpose: their balance is the crew you bring, not you.
   if (d.minCrew === 0) for (const k of Object.keys(s)) s[k] += w.player.skills[k as keyof typeof w.player.skills];
-  // what the player is carrying counts: kit adds to the crew's hands, and it pulls an
-  // approach's weights up or down — a sawn-off makes a loud job better and a quiet one worse
-  for (const [k, v] of Object.entries(kitSkillBoost(w))) s[k] = (s[k] ?? 0) + (v ?? 0);
-  const bias = 1 + kitApproachBias(w, approach);
+  // what the people on the job are carrying counts: kit adds to the crew's hands, and it pulls an
+  // approach's weights up or down — a sawn-off makes a loud job better and a quiet one worse. One
+  // item per category across everybody on it, whichever is the dearest of its kind; see `jobKit`.
+  for (const [k, v] of Object.entries(jobSkillBoost(w, crewIds))) s[k] = (s[k] ?? 0) + (v ?? 0);
+  const bias = 1 + jobApproachBias(w, crewIds, approach);
   let ratio = 0, n = 0;
   for (const [k, need] of Object.entries(d.needs)) { const wgt = (ap?.skillWeight[k as keyof typeof ap.skillWeight] ?? 1) * bias; ratio += Math.min(1.3, (s[k] * wgt) / (need || 1)); n++; }
   ratio = n ? ratio / n : 1;

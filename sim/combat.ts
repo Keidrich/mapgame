@@ -21,7 +21,7 @@ import { kinChance, resolveKin } from './kin';
 import { freeOpCrew } from './reducer';
 import { complicationBias, complicationOptions } from './complications';
 import { resolveOp } from './ops';
-import { kitApproachBias, kitHeatMult, kitSkillBoost } from './items';
+import { approachBiasOf, heatMultOf, poolKit, skillBoostOf } from './items';
 import type { Rng } from './rng';
 import { PLAYER, type Confrontation, type ConfrontApproach, type Faction, type Id, type TalkMove, type World } from './types';
 import { resolveTalk, talkOptions } from './conversation';
@@ -54,6 +54,11 @@ export function backupCrew(w: World): Id[] {
   return w.player.crewIds.filter(id => { const c = w.npcs[id]?.crew; return c && (c.status === 'idle' || c.status === 'assigned'); });
 }
 
+/** The kit standing in the doorway: yours, plus whoever could turn up, one item per category. */
+function confrontKit(w: World, crew: readonly Id[]) {
+  return poolKit(w, [w.player, ...crew.map(id => w.npcs[id]).filter(Boolean)]);
+}
+
 /**
  * The odds for one answer. Muscle and numbers against their soldiers, with the carried kit
  * folded in the way `opChance` does it: skillBoost adds to your side, approachBias scales it.
@@ -62,8 +67,11 @@ export function confrontChance(w: World, c: Confrontation, approach: ConfrontApp
   const f = w.factions[c.factionId];
   const p = w.player;
   const crew = backupCrew(w);
-  const kit = kitSkillBoost(w);
-  const bias = 1 + kitApproachBias(w, CONFRONT_AS[approach]);
+  // The kit in the doorway is yours and theirs together, one item per category — the same rule an
+  // op runs on (`jobKit`), over a different set of hands. You are always one of them here: answering
+  // at all means you are standing there, which is exactly what `absent` is the alternative to.
+  const kit = skillBoostOf(confrontKit(w, crew));
+  const bias = 1 + approachBiasOf(confrontKit(w, crew), CONFRONT_AS[approach]);
   const muscle = p.skills.muscle + (kit.muscle ?? 0);
   const wheels = p.skills.wheels + (kit.wheels ?? 0);
   const brains = p.skills.brains + (kit.brains ?? 0);
@@ -194,7 +202,7 @@ export function resolveConfrontation(w: World, c: Confrontation, given: Confront
   // whoever came is who this happened with, and it goes on their page like anybody else's
   const led = c.byNpcId ? w.npcs[c.byNpcId] : undefined;
   const stake: Stake = c.kind === 'you' || c.kind === 'loved' ? 'grave' : c.kind === 'crew' ? 'violence' : c.kind === 'business' || c.kind === 'racket' ? 'property' : 'backed';
-  const heat = (n: number) => addHeat(w, Math.round(n * kitHeatMult(w)), c.blockId);
+  const heat = (n: number) => addHeat(w, Math.round(n * heatMultOf(confrontKit(w, backupCrew(w)))), c.blockId);
   const won = approach !== 'absent' && rng.int(1, 100) <= confrontChance(w, c, approach);
 
   if (approach === 'absent') {

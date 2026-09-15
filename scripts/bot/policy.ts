@@ -189,6 +189,10 @@ export function planAnOp(c: Ctx): boolean {
     const action: Action = { type: 'plan_op', kind, crewIds: idle, approach, ...target } as Action;
     if (!tryAct(c, action)) continue;
     bump(c.cov, 'ops_planned'); bumpOp(c.cov, kind);
+    // Did anything a crew member owns actually go on this job? `jobKit` says what counts, so ask it
+    // rather than re-deriving: a gun that loses its category to the player's better one is not
+    // coverage of the crew's kit reaching a job, and this is the row that says so.
+    if (idle.some(id => (c.w.npcs[id]?.equipped ?? []).length) && select.jobKit(c.w, idle).length) bump(c.cov, 'crew_kit_on_job');
     if ((def.tier ?? 0) >= 2) bump(c.cov, 'tier2_ops');
     if (kind === 'buy_down' || kind === 'spring_crew' || kind === 'buy_case') {
       bump(c.cov, 'law_ops');
@@ -356,6 +360,45 @@ export function buyKit(c: Ctx) {
   }
   for (const item of select.ownedItems(c.w)) {
     if (select.equipSlotsLeft(c.w) > 0 && !select.isEquipped(c.w, item.id)) tryAct(c, { type: 'equip', itemId: item.id, on: true });
+  }
+  armTheCrew(c);
+}
+
+/**
+ * Buy somebody of yours a gun, and make sure it ends up in their hands.
+ *
+ * Its own step rather than more lines in `buyKit`, because the two fail differently: the player's
+ * kit is bought once and carried forever, while a crew member's is bought per person and has to
+ * survive them being reassigned, jailed and coming back. Both halves are counted separately for the
+ * same reason — the purchase is not the feature, the gun being on a job is.
+ *
+ * The bot arms **one** crew member, not all of them, and that is deliberate: `jobKit` takes one
+ * item per category across everybody on a job, so five identically-armed people prove nothing that
+ * one armed person does not. One is also what a player does.
+ */
+function armTheCrew(c: Ctx) {
+  const w = c.w;
+  // Only on a scenario that actually sends people on jobs. `reserve` is already the flag for that
+  // (`run.ts` sets it from `opsPerDay`), and the honest run plans no ops — so buying somebody a gun
+  // there would spend its cash and its legwork on kit that never goes anywhere, which is exactly
+  // the kind of "improvement" to the frozen run that CLAUDE.md forbids. Measured: without this the
+  // honest 60-day close moved from $212 dirty / heat 3 to $378 / heat 0.
+  if (c.reserve <= 0) return;
+  if (w.player.cash < 1500) return;
+  const mine = w.player.crewIds.map(id => w.npcs[id]).filter(n => n?.crew && n.alive && n.crew.status !== 'dead' && n.crew.status !== 'jailed');
+  // Somebody with a free slot. Once one of them is carrying something this step costs nothing.
+  const them = mine.find(n => select.equipSlotsLeft(w, n) > 0);
+  if (!them) return;
+  const unarmed = !(them.equipped ?? []).length;
+  if (unarmed) {
+    const shop = Object.values(w.businesses).filter(b => select.isMarket(b) && (select.travelCost(w, b.blockId) ?? 9) <= 1)[0];
+    const want = shop && select.marketStock(shop).filter(i => i.category !== 'armor' && !(them.items ?? []).includes(i.id)).sort((a, b) => b.cost - a.cost).find(i => i.cost < w.player.cash * 0.5);
+    if (shop && want && goTo(c, shop.blockId) && tryAct(c, { type: 'buy_item', businessId: shop.id, itemId: want.id, forNpcId: them.id })) bump(c.cov, 'crew_kitted');
+  }
+  // Re-read: `tryAct` replaces the world, so the record from before the purchase is stale.
+  const now = c.w.npcs[them.id];
+  for (const item of select.ownedItems(c.w, now)) {
+    if (select.equipSlotsLeft(c.w, now) > 0 && !select.isEquipped(c.w, item.id, now)) tryAct(c, { type: 'equip', itemId: item.id, on: true, npcId: them.id });
   }
 }
 

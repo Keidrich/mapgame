@@ -135,8 +135,13 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
   },
   kit: {
     title: 'Kit',
-    body: 'The equipment you personally own and carry: weapons, tools, tech, a car. You can have three things on you at once, and only what you are carrying counts on a job. Three kinds of place sell it: a pawn shop has a bit of everything, a computer store has tech and nothing else, and a back room has what neither of them will put on a shelf.',
+    body: 'Equipment: weapons, tools, tech, a car. Three things on you at once, and only what is carried counts on a job. Everybody in your crew has their own three — buy for them at a shop by picking their name under "Buying for", and equip it from their character sheet. Three kinds of place sell it: a pawn shop has a bit of everything, a computer store has tech and nothing else, and a back room has what neither of them will put on a shelf.',
     note: 'Every piece is a tradeoff. A sawn-off makes a loud job far better and a quiet one much worse; lockpicks do the reverse; a desktop tower is the most tech you can own and the last thing you want to be carrying through a door. Nothing here is a flat upgrade.',
+  },
+  jobKit: {
+    title: 'What goes on a job',
+    body: 'One item of each kind — one weapon, one tool, one car — counted across everybody on the job, yours and theirs together. Where two people brought the same kind of thing, the dearer one is the one that counts, and it counts whole: its help and its cost both.',
+    note: 'So arming five people with the same gun buys you nothing, and arming them with different things buys you all of it. Armour is the exception: it never goes on the job at all, because it protects the person wearing it and nobody else. And if you are in a cell or off the street when a job runs, it goes out on your crew\u2019s kit alone.',
   },
   connections: {
     title: 'Family and friends',

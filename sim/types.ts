@@ -260,6 +260,17 @@ export interface Npc {
   /** The day somebody took them, if somebody has. Only ever set on the player's loved one. */
   taken?: number;
   playerNote?: string;        // the player's memory aid, set from the Social tab or their sheet. The sim never writes it.
+  /**
+   * Their own kit — the same pair, the same meaning and the same defaulting as `Player.items` /
+   * `Player.equipped`, because a crew member carrying a shotgun is the player carrying a shotgun
+   * from the sim's point of view. Optional for the same reason: every save made before crew had
+   * pockets has neither, and every read goes through `sim/items.ts`, which defaults them.
+   *
+   * Only ever set on somebody in your crew. Nothing hands kit to a stranger, and `can()` refuses
+   * to, because an inventory on a patron you have met once is a thing no rule reads.
+   */
+  items?: Id[];
+  equipped?: Id[];
 }
 
 export type AgendaKind = 'debt' | 'leave' | 'revenge' | 'ambition' | 'family';

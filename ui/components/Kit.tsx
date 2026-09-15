@@ -1,5 +1,6 @@
+import { useState } from 'react';
 import { select } from '@sim/index';
-import type { Id } from '@sim/types';
+import type { Id, Npc } from '@sim/types';
 import { CATEGORY_LABELS, FAMILY_LABELS, ITEM_DEFS, type ItemDef } from '@content/items';
 import { fmtMoney } from '@ui/derive';
 import { useWorld } from '@ui/store';
@@ -55,17 +56,44 @@ function KitRow({ item }: { item: ItemDef }) {
   );
 }
 
-/** A pawn shop's shelf, or a back room's. Buying takes clean cash; selling pays dirty, like anything else. */
+/**
+ * A pawn shop's shelf, or a back room's. Buying takes clean cash; selling pays dirty, like anything
+ * else.
+ *
+ * **Who it is for** is picked once, at the top, and every row obeys it — rather than a second Buy
+ * button on each of five rows, which is the same choice asked five times and a shelf you cannot
+ * read on a phone. The picker is the only door kit has into a crew member's hands, so it is absent
+ * only when you genuinely have nobody to buy for.
+ */
 export function MarketSection({ businessId }: { businessId: Id }) {
   const w = useWorld();
   const biz = w.businesses[businessId];
+  // Somebody you could actually hand a thing to. The reducer's rule, mirrored: yours, alive, and
+  // not in a cell. A narrower list here than the one `can()` allows is how the last three
+  // door-missing bugs happened, so this is the same three conditions and nothing else.
+  const crew = w.player.crewIds.map(id => w.npcs[id]).filter((n): n is Npc => !!n?.crew && n.alive && n.crew.status !== 'dead' && n.crew.status !== 'jailed');
+  const [forId, setForId] = useState<Id | ''>('');
   if (!biz || !select.isMarket(biz)) return null;
+  const buyer = forId ? w.npcs[forId] : undefined;
   const stock = select.marketStock(biz);
-  const mine = [...new Set((w.player.items ?? []))].map(id => ITEM_DEFS[id]).filter(Boolean);
+  // Whoever is selling is whoever is buying: the "they will take these off you" list is theirs when
+  // the picker is on them, or there is no way to get a thing back out of a crew member's bag.
+  const seller = buyer ?? w.player;
+  const mine = [...new Set((seller.items ?? []))].map(id => ITEM_DEFS[id]).filter(Boolean);
   return (
     <>
       <div className="section-title">On the shelf<Info id="kit" /></div>
-      <div className="col" style={{ gap: 6 }}>
+      {crew.length > 0 && (
+        <div className="row mt8">
+          <label className="field" htmlFor="market-for">Buying for</label>
+          <select id="market-for" className="select grow" value={forId} onChange={e => setForId(e.target.value as Id | '')}>
+            <option value="">Yourself</option>
+            {crew.map(n => <option key={n.id} value={n.id}>{n.name}</option>)}
+          </select>
+        </div>
+      )}
+      {buyer && <p className="small muted mt8">It goes straight into {buyer.name}&rsquo;s hands, and they will remember it. Equip it from their character sheet.</p>}
+      <div className="col mt8" style={{ gap: 6 }}>
         {stock.map(item => (
           <div key={item.id} className="shelfitem">
             <IconTile of="item" id={item.id} size={32} />
@@ -77,17 +105,17 @@ export function MarketSection({ businessId }: { businessId: Id }) {
               <div className="shelf-meta">
                 <span className="tinychip">{item.family ? FAMILY_LABELS[item.family] : CATEGORY_LABELS[item.category]}</span>
                 {item.underCounter && <span className="tinychip warn">under the counter</span>}
-                {(w.player.items ?? []).includes(item.id) && <span className="tinychip own">you own one</span>}
+                {(seller.items ?? []).includes(item.id) && <span className="tinychip own">{buyer ? 'they own one' : 'you own one'}</span>}
               </div>
               <p className="shelf-detail">{item.detail}</p>
             </div>
-            <Act action={{ type: 'buy_item', businessId, itemId: item.id }} label="Buy" kind="primary" small />
+            <Act action={{ type: 'buy_item', businessId, itemId: item.id, forNpcId: forId || undefined }} label={buyer ? `Buy for ${buyer.name.split(' ')[0]}` : 'Buy'} kind="primary" small />
           </div>
         ))}
       </div>
       {mine.length > 0 && (
         <>
-          <div className="section-title">They will take these off you</div>
+          <div className="section-title">They will take these off {buyer ? buyer.name : 'you'}</div>
           <div className="col" style={{ gap: 6 }}>
             {mine.map(item => (
               <div key={item.id} className="shelfitem">
@@ -99,7 +127,7 @@ export function MarketSection({ businessId }: { businessId: Id }) {
                   </div>
                   <div className="shelf-meta"><span className="tinychip"><Term id="dirty">dirty cash</Term></span></div>
                 </div>
-                <Act action={{ type: 'sell_item', businessId, itemId: item.id }} label="Sell" kind="ghost" small />
+                <Act action={{ type: 'sell_item', businessId, itemId: item.id, forNpcId: forId || undefined }} label="Sell" kind="ghost" small />
               </div>
             ))}
           </div>

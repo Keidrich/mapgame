@@ -11,16 +11,23 @@ import { OpTree } from './OpTree';
 import { Icon } from '@ui/icons';
 
 
-/** What the kit you are carrying is doing to the approach on the table. */
-function KitOnApproach({ approach }: { approach?: OpApproach }) {
+/**
+ * What the kit going on this job is doing to the approach on the table.
+ *
+ * `jobKit`, not your own pockets: one item of each kind across everybody you have picked, whichever
+ * is the dearest of its kind. Showing the player's kit here while the night used the crew's would
+ * be the planner half of exactly the bug the heat pass fixed — a panel that quotes one number and a
+ * result that charges another.
+ */
+function KitOnApproach({ approach, crewIds }: { approach?: OpApproach; crewIds: Id[] }) {
   const w = useWorld();
-  const carried = select.equippedItems(w);
-  if (!carried.length) return <p className="small muted mt8">You are carrying nothing. A weapon, a lockpick set or a car changes these odds — kit is on the Crew tab, and markets sell it.</p>;
-  const heat = select.kitHeatMult(w);
+  const carried = select.jobKit(w, crewIds);
+  if (!carried.length) return <p className="small muted mt8">Nobody on this is carrying anything. A weapon, a lockpick set or a car changes these odds — your kit is on the Crew tab, your crew&rsquo;s is on their character sheets, and markets sell it for either of you.</p>;
+  const heat = select.jobHeatMult(w, crewIds);
   return (
     <div className="card mt8">
       <div className="row between">
-        <b className="small"><Icon name="kit" size={13} /> What you are carrying<Info id="kit" /></b>
+        <b className="small"><Icon name="kit" size={13} /> What is going with you<Info id="jobKit" /></b>
         {heat !== 1 && <span className={`chip ${heat > 1 ? 'red' : 'green'}`}>Heat ×{heat.toFixed(2)}</span>}
       </div>
       <div className="col mt8" style={{ gap: 4 }}>
@@ -172,7 +179,7 @@ function Planner() {
             <b><Icon of="op" id={kind} size={15} /> {def.label}</b>
             <button type="button" className="chip btn" onClick={reset}>Change</button>
           </div>
-          <p className="small muted mt8">{def.blurb} Needs: {Object.entries(def.needs).map(([k, v]) => `${k} ${v}`).join(', ')}. Difficulty {def.difficulty}, heat +{select.opHeat(w, kind, { approach, blockId: target.businessId ? w.businesses[target.businessId]?.blockId : undefined })}. {def.planDays > 0 && <><Term id="planDays">{def.planDays} days to plan</Term>.</>}</p>
+          <p className="small muted mt8">{def.blurb} Needs: {Object.entries(def.needs).map(([k, v]) => `${k} ${v}`).join(', ')}. Difficulty {def.difficulty}, heat +{select.opHeat(w, kind, { approach, crewIds, blockId: target.businessId ? w.businesses[target.businessId]?.blockId : undefined })}. {def.planDays > 0 && <><Term id="planDays">{def.planDays} days to plan</Term>.</>}</p>
           {needsTarget && (
             <>
               <div className="section-title">Target</div>
@@ -258,7 +265,7 @@ function Planner() {
                     </button>
                   ); })}
               </div>
-              <KitOnApproach approach={approach} />
+              <KitOnApproach approach={approach} crewIds={crewIds} />
 
               {/* when you go. The clock at launch is the clock that counts — see content/timeofday.ts */}
               <div className="section-title">When<Info id="timeOfDay" /></div>

@@ -825,6 +825,80 @@ and at the heavy end a real `skillBoost` penalty: a plate carrier is `wheels −
 not make a burglary louder, it makes *you* slower. That is a mobility cost expressed in the field
 the game already reads for mobility, not a special case.
 
+### 4.7d Kit belongs to a person, and a job runs on the kit of the people on it
+
+For its whole life the kit maths read `w.player.equipped` and nothing else, so "who is holding the
+shotgun" and "who is doing the job" were the same person by construction. `Npc` now carries the
+same `items` / `equipped` pair, with the same meaning and the same defaulting — optional on both
+types, every read through `sim/items.ts`, no `WORLD_VERSION` bump and no migration step. `EQUIP_MAX`
+is **per person**: three things each, however many of you there are.
+
+Everything in `sim/items.ts` therefore takes a `Kitted` and defaults it to `w.player`, which is what
+the old single-subject signatures always meant, spelled out. The formulas themselves
+(`skillBoostOf`, `approachBiasOf`, `heatMultOf`) sit over a plain list of items, and **whose kit it
+is stays the caller's question** — one person, everybody on an op, or whoever turned up to a fight
+at your door. That separation is what stopped this pass forking the heat maths three ways.
+
+**The decision: one item per category, across everybody on the job, whole.** This is the thing the
+feature turns on, so it is a decision and not a consequence.
+
+*Not the sum of everybody's kit.* Heat is **multiplicative** — five crew each carrying a sawn-off at
+×1.4 would be ×5.4 heat on one job — and `approachBias` feeds a `1 + bias` multiplier on every skill
+weight, so fifteen items of bias would swamp the roll outright. Summing does not need balancing; it
+needs not doing.
+
+*Not the best value per mod*, which is the other obvious answer and the worse one. Taking the
+quietest `heatMult` off one gun and the biggest `skillBoost` off another lets a player carry both
+and keep only the good half of each — which would dissolve every tradeoff §4.7c is built on. A
+Benelli is dearer than an 870 *and* quieter, and the whole point is that you choose.
+
+So a job carries one weapon, one tool, one vehicle. Whichever is the **dearest of its kind** anybody
+brought is the one that counts, and its whole `mods` block counts with it — its help and its cost
+together. Cost is the only scalar the catalogue has for how serious a piece of kit is, and it is
+used here for exactly that; it deliberately still does *not* order mod quality inside a family.
+Ties break on id so the answer is stable.
+
+**Armour is excluded from the pool outright.** Its one job-facing mod is a penalty for wearing it
+(`wheels −3` on a plate carrier) and its real effect is `cover`, which is personal. Pooling it would
+mean a second man in a light vest could cancel the first man's plates, which is nonsense — so the
+wearer keeps both halves and neither reaches the job. `kitCover` stays strictly per person and is
+still read only by `personalCover`.
+
+**Whose hands are on it.** The crew assigned to the op, plus you — unless you are not available to
+be anywhere. Ops resolve at End Day whether or not the player can be there (`sim/tick.ts` runs them
+unconditionally), so a job running while you are in a cell or deliberately off the street is a real
+state, and on those nights it goes out on your crew's kit alone. That is the sharpest reason in the
+game to have bought them any. Note this is about *kit*, not skill: whether the player's own hands
+count toward the skill total is a separate and older rule (`opChance` folds them in on `minCrew: 0`
+jobs only), and this pass deliberately does not touch it.
+
+A fight at your door pools the same way over a different set of hands — you plus `backupCrew` — and
+you are always one of them there, because answering at all means you are standing in the doorway;
+`absent` is the alternative that exists for the other case.
+
+**Getting kit to a crew member.** `buy_item` and `sell_item` take a `forNpcId`, and `equip` takes an
+`npcId`; absent means yours, which is what all three meant before. One gate covers all three
+(`handsReason`), because they are the same physical act: standing next to somebody and moving a
+thing between you. Your own crew only — kit on a patron you have met twice is an inventory no rule
+in the game reads — alive, and not in a cell. Buying somebody a piece of kit bumps their loyalty on
+the same curve a gift uses and goes on their ledger, because that is what it is.
+
+**In the app.** The market has one "Buying for" picker at the top that every row obeys, rather than
+a second Buy button on each of five rows; the same picker decides whose bag the sell list is
+reading, or there would be no way to get a thing back out. `CharacterSheet` is the per-person view —
+status, traits, nerve, loyalty, skills and their loadout, with Carry/Leave on each row — and it is
+named on the panel itself, because equipping the wrong person is the mistake worth designing
+against. The ops planner reads `jobKit` rather than the player's pockets: showing your kit while the
+night used the crew's would be the planner half of exactly the bug §4.17d fixed.
+
+**What the soak can and cannot see.** Two rows, not one: `kitting out the crew` (somebody was bought
+a weapon) and `crew kit on a job` (that weapon reached a job that ran). They fail for different
+reasons and the second is the feature. The step is gated on `c.reserve > 0` — the existing flag for
+"this scenario runs jobs" — because the honest run plans no ops, and buying it a gun there would
+spend its cash and its legwork on kit that never goes anywhere. Without that gate the honest 60-day
+close moved from $212 dirty / heat 3 to $378 / heat 0, which is precisely the frozen-run
+"improvement" CLAUDE.md forbids.
+
 ### 4.8 When they come for you
 
 A faction's tick used to resolve its attacks alone: you read in the morning that your numbers

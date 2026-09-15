@@ -14,7 +14,7 @@ export type Counter =
   | 'tier2_ops' | 'complications' | 'complications_answered' | 'complications_absent'
   | 'confrontations' | 'law_ops' | 'attention_bought' | 'sprung' | 'cases_killed'
   | 'cards_run' | 'cards_dumped' | 'taps' | 'secrets_sold' | 'scrubs'
-  | 'items_bought' | 'rackets_started' | 'businesses_bought' | 'crew_hired'
+  | 'items_bought' | 'crew_kitted' | 'crew_kit_on_job' | 'rackets_started' | 'businesses_bought' | 'crew_hired'
   | 'launders' | 'fixer_launders' | 'raids' | 'busts' | 'moves'
   // the production pack: automation, distribution, and what a bank or a depot is worth
   | 'foremen' | 'foreman_switches' | 'supply_set' | 'supply_delivered'
@@ -71,6 +71,10 @@ export const SYSTEMS: { label: string; needs: Counter[]; hint: string }[] = [
   { label: 'the wire', needs: ['cards_run', 'cards_dumped', 'taps', 'secrets_sold'], hint: 'no cards, taps or dirt: the whole cyber lane is untested' },
   { label: 'scrubbing wire heat', needs: ['scrubs'], hint: 'wire heat was never cleaned up' },
   { label: 'kit', needs: ['items_bought'], hint: 'nothing was ever bought or carried' },
+  // Two rows, not one, because they fail for different reasons and the second is the whole point:
+  // buying a crew member a gun is a purchase, and getting that gun onto a job is the feature.
+  { label: 'kitting out the crew', needs: ['crew_kitted'], hint: 'nobody was ever bought a weapon of their own, so per-person kit is untested' },
+  { label: 'crew kit on a job', needs: ['crew_kit_on_job'], hint: 'no job ever ran with a crew member carrying something, so the pooling rule that decides what a job is worth never ran' },
   { label: 'foremen', needs: ['foremen'], hint: 'no production was ever put on automation, so recipe-switching and auto-restock are untested' },
   { label: 'making a product', needs: ['lines_built'], hint: 'no production line was ever built, so the whole make-it-yourself opening — the one a player with no crew and no rackets actually has — is untested' },
   { label: 'selling it yourself', needs: ['street_sales'], hint: 'nothing was ever sold on a corner by hand, so street price, demand and quality are untested outside the racket tick' },

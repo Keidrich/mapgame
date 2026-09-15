@@ -11,6 +11,7 @@ import { Info, Term, TermChip } from './Info';
 import { AwayNotice } from './Walk';
 import { NoteEditor } from './Note';
 import { LedgerPanel } from './Ledger';
+import { CharacterSheet } from './CharacterSheet';
 import { whereabouts } from './SocialTab';
 import { Icon, IconTile } from '@ui/icons';
 
@@ -72,6 +73,7 @@ export function NpcSheet({ npcId }: { npcId: Id }) {
       {n.notes.length > 0 && <ul className="small muted mt8" style={{ paddingLeft: 18, margin: 0 }}>{n.notes.map((x, i) => <li key={i}>{x}</li>)}</ul>}
       <Disclosure label={n.playerNote ? 'Edit your note' : 'Make a note'} icon="note"><NoteEditor npcId={npcId} /></Disclosure>
 
+      {n.crew && <CharacterSheet npcId={npcId} />}
       {n.crew && <CrewSection npcId={npcId} />}
 
       <AwayNotice blockId={select.npcReachBlock(w, n)} what={n.name} />
