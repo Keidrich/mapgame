@@ -1,4 +1,7 @@
 import { LONE_WOLF } from '@content/backgrounds';
+import { LEGITIMACY } from '@content/fortune';
+import { DAYPARTS, DEFAULT_HOUR, daypartAt } from '@content/timeofday';
+import { legitimacyHeatMult } from './fortune';
 import { Rng } from './rng';
 import type { Id, LogEntry, Npc, World, FactionId, Faction, Block } from './types';
 import { PLAYER } from './types';
@@ -55,12 +58,22 @@ function applyRel(w: World, n: Npc, d: { trust?: number; fear?: number; respect?
 }
 
 export function addHeat(w: World, amount: number, blockId?: Id) {
+  const raw = amount;
   // Heat is other people talking about you. Working alone there is one person to describe and
   // nobody to describe them — the single biggest thing being a lone wolf is actually worth, and
   // it stops the day somebody else is on the books. `LONE_WOLF.heat`.
   if (amount > 0 && activeCrewCount(w) === 0) amount *= LONE_WOLF.heat;
+  // Money spent on looking respectable, discounting every point of heat in the game — `addHeat`
+  // is the only door heat comes through, so there are no per-source special cases to keep honest.
+  if (amount > 0) amount *= legitimacyHeatMult(w);
+  if (amount > 0) amount *= DAYPARTS[daypartAt(w.hour ?? DEFAULT_HOUR)].heat;
   if (amount > 0 && blockId && blockId === w.player.homeBlockId) amount *= 0.8; // home turf: people look the other way
   if (amount > 0 && blockId && w.blocks[blockId]?.tags.includes('school')) amount *= 1.5; // near a school everybody calls it in
+  // …and a floor under all of it together. Alone *and* respectable is the hardest man in the city
+  // to look at, and it still must not be a police off-switch — the mistake `LONE_WOLF.heat` made
+  // at 0.55 the first time. Applied last, against the raw figure, so every other term stacks
+  // freely underneath and only the total is clamped.
+  if (amount > 0) amount = Math.max(amount, raw * LEGITIMACY.heatFloor);
   const before = w.player.heat;
   w.player.heat = clamp(w.player.heat + amount);
   if (blockId && w.blocks[blockId]) w.blocks[blockId].heat = clamp(w.blocks[blockId].heat + amount * 2);

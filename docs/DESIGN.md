@@ -1388,6 +1388,133 @@ decision — the same shape as a lieutenant's skim, for the same reason:
 Coming over to you, or losing the corner to you, hands it back — you did pay for it. All four
 outcomes run through `dissolveCrew`, which is where ownership is settled in one place.
 
+### 4.24 What a fortune is for
+
+For four passes the late game had nothing to spend on. Rackets pay, laundering washes, and then
+the number goes up for ever. Five sinks fix that, and the rule they all share is that each one
+buys something **permanent and already in the game** rather than a new currency:
+
+**Tier 4 — chartered.** A fourth rung on the ladder that already had three (`content/businesses.ts`):
+casino, merchant bank, shipping line, development company. Real clean income, `valueMult` 65–80,
+and `TIER_EXCLUDES[4]` leaves only laundering — the point is not the racket you run inside one,
+it is that owning one is what the money is for. Entry is gated **arithmetically**, the same shape
+tier 2 and 3 already used: `standingOf(respect, fear) = respect + fear / 2` against the tier's
+`standingFloor` (55). Adding a tier 5 would need no new branch in `sim/tiers.ts`, which is the
+test of whether a gate is really arithmetic or a hardcoded check wearing a formula's clothes.
+
+**Buying a favour.** Cash to a Commission boss or a city official, and they owe you one. It plugs
+into `personalPull()` and `owedToThem` — the machinery the whole standing layer already runs on —
+so a bought favour is indistinguishable from an earned one at the point of use, and *more*
+expensive each time (`escalator` 3.2). You cannot buy your way in cold: `minTrust` 15 means
+somebody has to know you first, and a grudge cannot be bought off at any price.
+
+**Lifestyle.** Three ladders of three rungs — home, car, security — each a real purchase with
+permanent `respect`/`fear`. It is not a vanity screen: `securityCover` and the home rung feed
+`personalCover`, which is subtracted on the specific night somebody comes for you (4.25). It also
+changes how NPCs open with you, through `standingShow`.
+
+**Legitimacy.** Philanthropy and public image, bought in visible chunks, decaying `0.9`/day so it
+is a standing cost rather than a purchase. It buys a **real mechanical discount on heat** —
+`legitimacyHeatMult` multiplies inside `addHeat`, down to `heatAtCap` 0.55 — and that is in
+deliberate tension with the rest of the game: the money that buys it is the money you made doing
+things that generate heat. The `heatFloor` (0.4 of the raw figure, applied *last*) is what stops
+this and `LONE_WOLF.heat` together removing the police.
+
+**Ceilings.** Late money buys permanent increases to caps that already exist — crew capacity and
+safehouse count — rather than adding new caps. Escalating price, hard maximum, and the extra beds
+fold into the arithmetic `assign` already enforced (`bedsTotal`).
+
+### 4.25 Stakes: what you can actually lose
+
+**They come for you.** Once a nemesis passes the `named` or `connected` milestone they stop
+waiting for you to come to them. `comeForThePlayer` queues an ordinary confrontation of kind
+`'you'`, resolved through the machinery every other doorstep uses, and a loss runs `landOnPlayer`:
+`rng.int(0,100) + severity*30 - personalCover(w)`. Under 45 you are walking and everybody saw;
+45–78 puts you in a room for days and takes 30% of your dirty money; over 78 is a killing.
+
+This is where the lifestyle ladder stops being a respect vending machine. `personalCover` is men
+who are awake, people who would get in the way, and a house with a gate — and it is subtracted
+**on that night**, not displayed on a screen.
+
+> A note for whoever changes `actAgainstPlayer` next: the personal move must stay at the **front**
+> of that chain. Written as its last arm it was dead code for anybody with a crew, because the
+> racket/business/crew arms between them cover every roll a player with an outfit can produce.
+
+**Somebody to protect.** One person outside all of it, generated with the world and connected into
+the neighbourhood web like anybody else. They are not a game piece: they hold no racket, take no
+assignment and have no stat line you spend. What they are is the softer target — `PERSONAL_ODDS.lovedShare`
+sends a hunter at them first when there is one — and the thing `GO_STRAIGHT` requires you to have.
+
+**Succession — and the decision behind it.** *Control genuinely passes.* Same save, same world, new
+protagonist. This was decided before a line of it was written, because it falls out of a first
+implementation otherwise and then nobody knows whether it was chosen. `succeed()` turns the old
+player into an ordinary dead NPC of the world (so old log lines and ledgers still resolve), and
+the best heir by `heirs()` takes over: their skills replace yours, respect and fear are inherited
+at `SUCCESSION.inherits` (0.45), the street name and the legitimacy are **lost** — those were
+yours, not the outfit's — and the estate, the blocks and the rackets are all still there. With
+nobody fit to take over, the game ends (`gameOver.reason = 'gone'`), because an outfit with
+nobody left to run it is simply over.
+
+**Getting out.** Four conditions at once for a fortnight: $750,000 clean sitting there, nothing
+dirty on the books, heat under 15, and 45 of bought legitimacy — plus somebody to go straight
+*for*. `tickGoStraight` resets the clock the moment any one of them lapses, which makes it a
+fortnight of discipline rather than a lucky morning, and it ends in a real epilogue rather than a
+stat moving.
+
+### 4.26 A world that does not wait
+
+**Factions acting on their own.** Standing between two outfits used to drift at random and never
+*conclude*. Three things make it move, all written with the stance/standing machinery that was
+already there rather than a second diplomacy layer: a **grievance** (the stronger side decides the
+weaker is standing on something of theirs) pushes standing hard so wars start for a reason; a
+**sit-down** ends one, so peace is something that happens rather than something that decays; and a
+war with a clear winner **absorbs** the loser — ground, soldiers, earners and people change hands
+— so the map consolidates over a long game. An outfit is only worth swallowing if it holds ground
+or has living lieutenants; one man on one corner is beaten, not absorbed.
+
+**The upstart.** One rival operation that starts genuinely small (one soldier, $2,200, day 12) and
+grows on its own money: it takes blocks, buys soldiers, and promotes a lieutenant at strength 4.
+It is meant to feel like a **race** rather than a siege — you are not defending against it, you
+are watching somebody else do what you did, faster than is comfortable. Growth is deliberately
+slow (`growth` 0.02, a `wageDays` 12 reserve, only positive cash compounds): the first version
+reached eleven soldiers by day 22 and then starved.
+
+**Time of day.** One number, `w.hour`, turning "when" into a decision that buys and costs
+*different* things rather than being a flat bonus. Night is quiet work and empty tills (+9 chance,
+×0.8 payout, ×0.7 heat) against a patrol with nothing else to look at (×1.25 police). Afternoon is
+the opposite and the more interesting half: worse odds, bigger take, because that is when the
+money is in the building. An op takes the hour it was **created** with, so the clock at planning
+is the clock that counts.
+
+### 4.27 Content: specialists, landmarks, headlines, encounters, the record
+
+**Heist specialists.** One-off people hired for one job and one night — a safecracker, a wheelman,
+a face — recruited through the recruit/trust/leverage machinery that already existed rather than a
+parallel hiring system. Each has a price (discounted by trust, cut hard by `leverageOver`) and a
+**reliability** under 1: a cheap specialist is cheap because they might not turn up. Your own crew
+are not for hire; they already work for you.
+
+**Landmarks.** Five named one-off places — The Grand, the County Courthouse, the Port Authority,
+Union Station, the Old Observatory — each carrying a job that exists **only** there, gated through
+the `landmarkTarget` member of the per-target gating family (4.13). They are made by **converting**
+an existing generated business, consuming **zero RNG**, because adding one shifted every downstream
+draw and broke five unrelated test files.
+
+**The news ticker.** Headlines built entirely off `w.log` — no new tracking, no parallel record. If
+a system stops logging something its headline stops appearing, which is correct rather than a bug
+to route around. It is the *city's* view: late, slightly wrong, and about what got out.
+
+**Street encounters.** Rare texture on the way somewhere (13% a move). Deliberately **not** a
+second event deck: `sim/events.ts` asks you to decide something, these resolve themselves as you
+pass, and the most any of them does is move a number you already have or leave a name in your
+pocket. If one ever needs a modal it belongs in the event deck instead.
+
+**The record.** A trophy screen aggregated entirely from data already tracked — the log, the
+ledgers, the ops, the factions, the player's own counters. **No new state**, which is what makes
+it worth having rather than a scoreboard: it can only report what the game actually recorded at
+the time, so it reads like a file somebody kept on you. Empty rows are kept rather than hidden —
+"First body — never" is part of a record, and arguably the most interesting line on the page.
+
 ## 5.5 The law, the map, and the edge of the map
 
 ### 5.5.1 Authority — not a faction

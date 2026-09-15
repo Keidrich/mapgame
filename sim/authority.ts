@@ -22,6 +22,7 @@ import { AUTHORITY, AUTHORITY_KINDS, POSTURES, POSTURE_ORDER, type AuthorityKind
 import { openCases } from './cases';
 import { PLAYER, type Authority, type Id, type Npc, type World } from './types';
 import { clamp, log } from './util';
+import { DAYPARTS, DEFAULT_HOUR, daypartAt } from '@content/timeofday';
 
 export function authorities(w: World): Authority[] { return Object.values(w.authorities ?? {}); }
 export function authorityById(w: World, id?: Id): Authority | undefined { return id ? w.authorities?.[id] : undefined; }
@@ -99,7 +100,9 @@ export function monitoringAt(w: World, blockId: Id): number {
  */
 export function effectivePolice(w: World, blockId: Id): number {
   const b = w.blocks[blockId]; if (!b) return 0;
-  return clamp(b.police + monitoringAt(w, blockId));
+  // ...and what time it is. A patrol at four in the morning has nothing else to look at, which is
+  // the counterweight to night being the best time to work — see `content/timeofday.ts`.
+  return clamp((b.police + monitoringAt(w, blockId)) * DAYPARTS[daypartAt(w.hour ?? DEFAULT_HOUR)].police);
 }
 
 // ---------------------------------------------------------------- the ladder

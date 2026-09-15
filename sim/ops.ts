@@ -23,6 +23,8 @@ import { addMemory } from './people';
 import { crewAt, dissolveCrew } from './crews';
 import { claim, revealOne } from './abandoned';
 import { take as takeHostage } from './hostages';
+import { DAYPARTS, DEFAULT_HOUR, daypartAt } from '@content/timeofday';
+import { rollSpecialists, specialistWorth } from './specialists';
 
 /** Resolve one launched op. Called from the tick. */
 export function resolveOp(w: World, o: Op, rng: Rng) {
@@ -34,18 +36,27 @@ export function resolveOp(w: World, o: Op, rng: Rng) {
   if (maybeComplicate(w, o, rng)) return;
 
   const swing = complicationSwing(o, !!o.complication?.won, o.complication?.answered ?? 'absent');
-  const chance = clamp(opChance(w, o.kind, o.crewIds, o.approach, { businessId: o.targetBusinessId, npcId: o.targetNpcId, caseId: o.targetCaseId, factionId: o.targetFactionId }) + swing, 3, 97);
+  // The night decides who actually turned up. The planner quoted their *expected* worth (each
+  // one's value times how reliable they are); this rolls each of them and uses what really
+  // happened, which is the whole reason a cheap wheelman is cheap.
+  const hired = rollSpecialists(w, o, rng);
+  const chance = clamp(opChance(w, o.kind, o.crewIds, o.approach, { businessId: o.targetBusinessId, npcId: o.targetNpcId, caseId: o.targetCaseId, factionId: o.targetFactionId }) - specialistWorth(w, o) + hired.bonus + swing, 3, 97);
   const roll = rng.int(1, 100);
   const success = roll <= chance;
   const crew = o.crewIds.map(id => w.npcs[id]).filter(Boolean);
   const target = o.targetBusinessId ? w.businesses[o.targetBusinessId] : undefined;
   const blockId = target?.blockId ?? o.targetBlockId ?? (o.targetNpcId ? w.npcs[o.targetNpcId].homeBlockId : undefined);
   const res = { success, cash: 0, loot: {} as Partial<Record<string, number>>, heat: 0, text: '' };
+  // name which part went, so a half-worked set-piece reads as one rather than as a low number
+  const hiredLines = hired.lines;
   const margin = chance - roll; // positive = clean success
 
   if (success) {
     const [lo, hi] = def.payout;
-    const value = Math.round(lo + (hi - lo) * rng.float() * (0.7 + Math.min(1, Math.max(0, margin) / 60)) * (ap?.payout ?? 1));
+    // ...and when it ran. A daylight job is worse odds and a bigger take, because that is when the
+  // money is actually in the building. `content/timeofday.ts` holds both halves of that trade.
+  const when = DAYPARTS[daypartAt(o.hour ?? w.hour ?? DEFAULT_HOUR)].payout;
+  const value = Math.round(lo + (hi - lo) * rng.float() * (0.7 + Math.min(1, Math.max(0, margin) / 60)) * (ap?.payout ?? 1) * when);
     // the kit you carried changes what the job leaves behind, the same way the approach does
     res.heat = Math.round(def.heat * (margin > 30 ? 0.6 : 1) * (ap?.heat ?? 1) * kitHeatMult(w) * complicationHeat(o)
       * (o.kind === 'heist_armored' && routeFor(w, o.targetBusinessId) ? ROUTE.heatMult : 1));
@@ -378,6 +389,33 @@ export function resolveOp(w: World, o: Op, rng: Rng) {
         break;
       }
 
+      // ---- the five landmarks. One address each, and each pays in its own currency.
+      case 'count_night': case 'manifest_swap': case 'dome_job': case 'left_luggage': {
+        if (o.kind === 'manifest_swap' || o.kind === 'dome_job') {
+          const units = Math.max(1, Math.round(value / 150));
+          addProduct(p, 'hot_goods', units, o.kind === 'dome_job' ? 80 : 55);
+          res.text = o.kind === 'dome_job'
+            ? `Whatever was under that dome had not been counted since before anybody working there was born. ${units} units of it are in your safehouse.`
+            : `One piece of paper, and nine miles of fence stopped mattering. ${units} units came out on a lorry with somebody else's name on it.`;
+        } else {
+          p.dirty += value; res.cash = value;
+          res.text = o.kind === 'count_night'
+            ? `Everything that came through those doors this month was in one room, and then it was not. ${money(value)}. They will be counting what is missing for a week.`
+            : `Forty thousand people went past and not one of them looked at you. ${money(value)}.`;
+        }
+        break;
+      }
+      case 'records_room': {
+        // pays in what the building is actually full of: something on everybody
+        const marks = Object.values(w.npcs).filter(n => n.alive && (n.official || n.role === 'boss' || n.role === 'lieutenant'));
+        const got = marks.slice(0, 3);
+        for (const n of got) { n.rel.trust = clamp(n.rel.trust + 4, -100, 100); remember(w, n, 'read', 'You have read their file. All of it.'); }
+        res.text = got.length
+          ? `Boxes, a basement, and one man on the door who was looking the other way. You came out knowing things about ${got.map(n => n.name).join(', ')} that they thought had been thrown away.`
+          : 'Boxes, a basement, and nothing in them worth carrying out.';
+        break;
+      }
+
       // ---- the lone-wolf lane. The payoff is what does *not* happen afterwards.
       case 'ghost_job': {
         // Loot, and no trail. `OP_DEFS.ghost_job.heat` is 0, so the usual heat is already not
@@ -587,7 +625,7 @@ export function resolveOp(w: World, o: Op, rng: Rng) {
   o.status = success ? 'done' : 'failed'; o.result = res;
   freeOpCrew(w, o);
   w.player.opIds = w.player.opIds.filter(id => id !== o.id);
-  log(w, res.text + (res.heat ? ` (+${res.heat} heat)` : ''), success ? 'good' : 'bad', { opId: o.id, businessId: target?.id, blockId });
+  log(w, res.text + (hiredLines.length ? ` ${hiredLines.join(' ')}` : '') + (res.heat ? ` (+${res.heat} heat)` : ''), success ? 'good' : 'bad', { opId: o.id, businessId: target?.id, blockId });
 }
 
 export { successionOrDeath } from './politics';

@@ -99,7 +99,10 @@ describe('the payoffs are things an outfit genuinely cannot have', () => {
     const lone = solo(0), crewed = solo(1);
     addHeat(lone, 20); addHeat(crewed, 20);
     expect(lone.player.heat).toBeLessThan(crewed.player.heat);
-    expect(lone.player.heat - 20).toBeCloseTo(20 * LONE_WOLF.heat, 5);
+    // the ratio, not the figure: `addHeat` also multiplies by the time of day and by how
+    // respectable you look, and this claim is about the crew term alone
+    const before = solo(0).player.heat;
+    expect((lone.player.heat - before) / (crewed.player.heat - before)).toBeCloseTo(LONE_WOLF.heat, 5);
   });
 
   it('better odds on a job you are genuinely running alone', () => {

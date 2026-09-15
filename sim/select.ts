@@ -41,6 +41,9 @@ export { nemesisName, isNemesis, notoriety, candidatesFor, successionWeight, pla
 import { playerName } from './nemesis';
 import { isLoneWolf } from './economy';
 import { LONE_WOLF } from '@content/backgrounds';
+import { DAYPARTS, DEFAULT_HOUR, daypartAt } from '@content/timeofday';
+import { specialistWorth } from './specialists';
+export { rolesFor, isSetPiece, candidatesFor as specialistsFor, specialistFee, reliability, hireReason, hiredOn } from './specialists';
 import { activeCrewCount } from './util';
 export { defectReason } from './defect';
 // the systemic core: how well you know somebody, what you have over them, and what they owe you
@@ -48,14 +51,24 @@ export { daysKnown, familiar, familiarReason, favours, leverageOver, concessionR
 // the personal history screen, and what a conversation can do with it
 export { dossier, ledgerOf, owedToThem, LEDGER_MAX } from './ledger';
 // the social layer as a picture: layout only, computed from data that already exists
+export { headlines, hasNews } from './news';
+export { trophies, type Trophy } from './trophies';
 export { relationshipWeb, WEB_MAX, type Web, type WebNode, type WebLink, type WebKind } from './relationships';
 export { personalPull } from './commission';
 // business tiers: what a place can host, what it costs, and whether fear is a door at all
-export { racketsAllowed, setupCost, tierOf, tierInfo, extortReason, wayIn, hasWayIn, canHost } from './tiers';
+export { racketsAllowed, setupCost, tierOf, tierInfo, extortReason, wayIn, hasWayIn, canHost, standingReason } from './tiers';
 export { agendaKnown, agendaMoves, agendaCost, agendaChance, agendaReason, agendaTargetName, sharedConnections } from './agendas';
 export { talkOptions, isTalk, TALK } from './conversation';
 export { fixerRate, fixerDailyCap, fixerUsedToday, fixerCapToday, fixerCapLeft, fixersKnown } from './economy';
+export { DAYPARTS, DEFAULT_HOUR, daypartAt, HOURS } from '@content/timeofday';
+/** The part of the day the next job would run in. */
+export const daypart = (w: World) => daypartAt(w.hour ?? DEFAULT_HOUR);
 export { layingLow, layLowLeft, cacheCap, cacheCapLeft, cacheReason, isLoneWolf } from './economy';
+// what a fortune is for: prices, caps and the quotes the screens read
+export { lovedOne, lovedStatus, isLoved, heirs, hunters, willComeForYou, personalCover, goStraightReason, goStraightDays, GO_STRAIGHT } from './legacy';
+// the outfit that started after you did. Read-only: nothing outside `tickUpstart` moves it.
+export { upstart, hasArrived, UPSTART } from './upstart';
+export { favourPrice, favourReason, lifestyleAt, nextStep, lifestyleOwned, standingShow, securityCover, legitimacy, legitimacyHeatMult, legitimacyGain, legitimacyReason, ceilingAt, ceilingPrice, extraBeds, safehouseLimit, bedsTotal } from './fortune';
 export { knownRecipes, recipesForKind, restockCost, qualityOf, sellMult, shortageActive, saturationActive, productionQuality, playerWorks, playerWorked, PLAYER_HANDS } from './production';
 import { distanceM } from '@geo/project';
 import { STEP_M } from './populate';
@@ -92,6 +105,8 @@ export function availableRackets(w: World, biz: Business): RacketKind[] {
 export function opTargets(w: World, kind: OpKind): Business[] {
   const d = OP_DEFS[kind];
   if (d.target !== 'business') return [];
+  // a landmark job has exactly one address, and the planner should offer exactly that one
+  if (d.requires?.landmarkTarget) return Object.values(w.businesses).filter(b => b.landmark === d.requires!.landmarkTarget && !b.shut);
   return Object.values(w.businesses).filter(b => {
     if (b.shut) return false;   // a bust-out leaves a building, not a business
     if (d.ownBusiness) return b.ownedBy === 'player';
@@ -109,7 +124,7 @@ export interface OpTarget { businessId?: Id; npcId?: Id; caseId?: Id; factionId?
 /** Old call sites pass a business id; newer ops need a person or a file, so both are accepted. */
 function asTarget(t?: Id | OpTarget): OpTarget { return typeof t === 'string' ? { businessId: t } : (t ?? {}); }
 
-export function opChance(w: World, kind: OpKind, crewIds: Id[], approach?: OpApproach, target?: Id | OpTarget): number {
+export function opChance(w: World, kind: OpKind, crewIds: Id[], approach?: OpApproach, target?: Id | OpTarget, op?: { kind: OpKind; specialists?: { role: string; npcId: Id }[] }): number {
   const d = OP_DEFS[kind]; const s = crewSkillSum(w, crewIds); const ap = approach ? OP_APPROACHES[approach] : undefined;
   const tgt = asTarget(target); const targetBusinessId = tgt.businessId;
   // On a job you can do alone, you are one of the hands. Without this a minCrew-0 op with no crew
@@ -139,8 +154,13 @@ export function opChance(w: World, kind: OpKind, crewIds: Id[], approach?: OpApp
   // Nobody else to be somewhere at the wrong moment. Only on a job you are genuinely running
   // alone while you *are* alone — bringing somebody turns it off, which is the point of it.
   const solo = crewIds.length === 0 && isLoneWolf(w) ? LONE_WOLF.opBonus : 0;
+  // when you run it. Quiet hours help the odds and cost the take; see `content/timeofday.ts`
+  const when = DAYPARTS[daypartAt(w.hour ?? DEFAULT_HOUR)].chance;
   const base = 50 + (ratio - 1) * 70 - (d.difficulty + (ap?.difficulty ?? 0) + cased + route + authority - 50) * 0.6 - w.player.heat * 0.15;
-  return Math.max(3, Math.min(97, Math.round(base + inside + solo)));
+  // The people hired for one night, at their expected value — the planner shows what they are
+  // worth *on average*, and the night itself rolls each of them separately (`rollSpecialists`).
+  const hired = op ? specialistWorth(w, op) : 0;
+  return Math.max(3, Math.min(97, Math.round(base + inside + solo + when + hired)));
 }
 /** People at a target who trust you enough to be an inside man (best first). */
 export function insidersFor(w: World, businessId?: Id): Npc[] {
@@ -221,6 +241,12 @@ export function opLocked(w: World, kind: OpKind, target?: { npcId?: Id; business
     return `War work. Nobody is at ${req.stance.join(' or ')} with you${req.stance.includes('beef') ? ' yet' : ''}.`;
   }
   if (req.weapon && !equippedItems(w).some(i => i.category === 'weapon')) return 'You do not walk into this one empty-handed. Carry a weapon.';
+  if (req.landmarkTarget) {
+    const here = target?.businessId ? w.businesses[target.businessId] : undefined;
+    const any = Object.values(w.businesses).find(b => b.landmark === req.landmarkTarget && !b.shut);
+    if (!any) return 'There is no such place in this city.';
+    if (here && here.landmark !== req.landmarkTarget) return `Only at ${any.name}. There is one of those.`;
+  }
   if (req.alone && !isLoneWolf(w)) {
     const n = activeCrewCount(w);
     return `Work for one person. You have ${n} ${n === 1 ? 'person' : 'people'} on the books, and there is no version of this with somebody else standing there.`;

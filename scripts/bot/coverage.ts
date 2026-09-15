@@ -26,7 +26,16 @@ export type Counter =
   // the lieutenant who keeps turning up, and the people who work for you without being crew
   | 'nemesis_met' | 'nemesis_made' | 'defections' | 'assets_turned' | 'asset_warnings' | 'referrals'
   // the corners: parleying with a street crew, and the third thing you can do with one
-  | 'parleys' | 'crews_funded' | 'funded_kicks';
+  | 'parleys' | 'crews_funded' | 'funded_kicks'
+  // what a fortune is for: the five sinks, each counted separately because each is a separate
+  // claim about where late money goes, and a table that lumped them would hide four failures
+  | 'tier4_bought' | 'favours_bought' | 'lifestyle_bought' | 'legitimacy_bought' | 'ceilings_bought'
+  // what is at stake: the personal risk, the person outside it, and the two ways out
+  | 'hunted' | 'loved_hit' | 'succession' | 'went_straight'
+  // a world that moves without you, and the clock it moves on
+  | 'faction_wars' | 'faction_absorbs' | 'upstart_grew' | 'hours_set'
+  // the content pack: one-off people, one-off places, and the texture between them
+  | 'specialists_hired' | 'landmark_ops' | 'headlines' | 'encounters';
 
 export interface Coverage {
   counts: Record<Counter, number>;
@@ -77,6 +86,26 @@ export const SYSTEMS: { label: string; needs: Counter[]; hint: string }[] = [
   { label: 'staked crews', needs: ['crews_funded'], hint: 'no crew was ever fronted a racket, so the third mode — somebody else running your money — is untested' },
   { label: 'laundering', needs: ['launders', 'fixer_launders'], hint: 'dirty money never got washed' },
   { label: 'police pressure', needs: ['raids', 'busts'], hint: 'the police never actually did anything' },
+  // --- the money sinks. Late cash had nowhere to go for four passes; these are where it goes now.
+  { label: 'the fourth tier', needs: ['tier4_bought'], hint: 'no institution was ever bought, so the top of the ladder and its standing gate are untested' },
+  { label: 'buying a favour', needs: ['favours_bought'], hint: 'nobody important was ever paid to owe you one, so cash-for-pull is untested' },
+  { label: 'lifestyle', needs: ['lifestyle_bought'], hint: 'no home, car or security was ever bought, so what a fortune buys you personally is untested' },
+  { label: 'buying legitimacy', needs: ['legitimacy_bought'], hint: 'nobody ever bought respectability, so the heat discount and its tension with the rest of the game are untested' },
+  { label: 'raising a ceiling', needs: ['ceilings_bought'], hint: 'no hard cap was ever bought upward, so permanent headroom is untested' },
+  // --- what is actually at stake
+  { label: 'they come for you', needs: ['hunted'], hint: 'nobody ever came for the player personally, so the whole point of a nemesis passing `named` is untested' },
+  { label: 'somebody to protect', needs: ['loved_hit'], hint: 'nobody ever went near the person outside all this, so the stake the rest of it is for never came due' },
+  { label: 'succession', needs: ['succession'], hint: 'the outfit never changed hands, so the one thing that happens after the player dies is untested' },
+  { label: 'getting out', needs: ['went_straight'], hint: 'nobody ever went straight, so the clean ending exists only in the reducer' },
+  // --- a world that does not wait
+  { label: 'factions on their own', needs: ['faction_wars', 'faction_absorbs'], hint: 'no outfit ever moved on another without the player, so the map only ever changes when you touch it' },
+  { label: 'a rival who grows', needs: ['upstart_grew'], hint: 'the upstart never got anywhere, so the race — as opposed to the siege — is untested' },
+  { label: 'the clock', needs: ['hours_set'], hint: 'every job ran at the same hour, so time of day is a screen with no consequences behind it' },
+  // --- content
+  { label: 'specialists', needs: ['specialists_hired'], hint: 'no set-piece ever hired a specialist, so price, reliability and the leverage door are untested' },
+  { label: 'landmark jobs', needs: ['landmark_ops'], hint: 'not one of the one-off places was ever worked, so the jobs that exist in exactly one building never ran' },
+  { label: 'the front page', needs: ['headlines'], hint: 'the desk never printed anything, which means the log never carried a line worth printing' },
+  { label: 'street encounters', needs: ['encounters'], hint: 'nothing ever happened on the way anywhere, so the texture between the systems is untested' },
 ];
 
 /**
@@ -119,6 +148,18 @@ export function report(c: Coverage): string[] {
     ['assets turned', count(c, 'assets_turned')], ['warnings received', count(c, 'asset_warnings')], ['introductions', count(c, 'referrals')],
   ] as const;
   out.push(`  nemesis & assets: ${people.map(([k, n]) => `${k} ${n}`).join(', ')}`);
+  const fortune = [
+    ['institutions', count(c, 'tier4_bought')], ['favours bought', count(c, 'favours_bought')], ['lifestyle rungs', count(c, 'lifestyle_bought')],
+    ['legitimacy bought', count(c, 'legitimacy_bought')], ['ceilings raised', count(c, 'ceilings_bought')],
+    ['came for you', count(c, 'hunted')], ['went near your people', count(c, 'loved_hit')], ['handed over', count(c, 'succession')], ['got out', count(c, 'went_straight')],
+  ] as const;
+  out.push(`  fortune & stakes: ${fortune.map(([k, n]) => `${k} ${n}`).join(', ')}`);
+  const world = [
+    ['wars not yours', count(c, 'faction_wars')], ['outfits swallowed', count(c, 'faction_absorbs')], ['upstart pushes', count(c, 'upstart_grew')],
+    ['clock changes', count(c, 'hours_set')], ['specialists hired', count(c, 'specialists_hired')], ['landmark jobs', count(c, 'landmark_ops')],
+    ['headlines', count(c, 'headlines')], ['encounters', count(c, 'encounters')],
+  ] as const;
+  out.push(`  world & content: ${world.map(([k, n]) => `${k} ${n}`).join(', ')}`);
   for (const warning of c.warnings) out.push(`  ! ${warning}`);
   return out;
 }

@@ -525,6 +525,41 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
     note: 'The same thing that happens to a lieutenant who keeps beating you, pointed the other way.',
   },
 
+  lifestyle: {
+    title: 'What it is all for',
+    body: 'A home, a car, people who are paid to be awake. Not decoration: every step is permanent respect or fear, and both of those are what every scene in the game reads. People open conversations differently once the city can see how you live.',
+    note: 'Security is worth something real on the night somebody comes for you personally, not just on the sheet.',
+  },
+  legitimacy: {
+    title: 'Looking respectable',
+    body: 'Money given away in public, which discounts every point of heat you draw afterwards. The only thing in the game you spend crime money on specifically to look less like a criminal.',
+    note: 'It fades daily, so it is something you keep paying for. There is a floor on how invisible any of this can make you.',
+  },
+  trophies: {
+    title: 'The record',
+    body: 'Everything you did, read back off things the game was already writing down — the log, what people remember about you, the jobs, the outfits that are no longer there.',
+    note: 'An empty line is part of the record too.',
+  },
+  timeOfDay: {
+    title: 'When you go',
+    body: 'Night is quieter and pays less — nobody is about, and nothing is in the tills. Daylight is worse odds and a bigger take, because that is when the money is in the building. A patrol at four in the morning has nothing else to look at.',
+    note: 'The clock at launch is the clock that counts; changing it later will not move a job already out.',
+  },
+  specialist: {
+    title: 'Hired for one job',
+    body: 'Somebody who does one thing — a safecracker, a wheelman, somebody who works there. One fee, up front, and they are not on the payroll afterwards.',
+    note: 'They are not reliable. A cheap one is cheap because they are a coin toss; what you see in the planner is what they are worth on average, and the night rolls each of them.',
+  },
+  loved: {
+    title: 'Somebody outside it',
+    body: 'A person with nothing to do with any of this. They are the only one a rival can use against you — crew know what they signed up for.',
+    note: 'Keep the heat down and they never find out the half of it.',
+  },
+  goStraight: {
+    title: 'Getting out',
+    body: 'Clean money, nothing owing, nobody looking, and long enough at all of it at once that it is a decision rather than a good morning. The other way this ends.',
+  },
+
   // ---------------------------------------------------------------- production
   quality: {
     title: 'Quality',

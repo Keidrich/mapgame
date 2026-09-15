@@ -32,9 +32,13 @@ function find(w: World, type: BusinessType): Business | undefined {
 }
 
 describe('every type has a tier, and the tiers describe the city', () => {
-  it('all three tiers exist and have types in them', () => {
-    for (const t of [1, 2, 3] as BusinessTier[]) expect(typesAt(t).length, `tier ${t}`).toBeGreaterThan(0);
-    for (const k of Object.keys(BUSINESS_DEFS) as BusinessType[]) expect([1, 2, 3]).toContain(BUSINESS_DEFS[k].tier);
+  it('every tier exists and has types in it', () => {
+    // Read the ladder off `TIERS` rather than hard-coding its length: adding tier 4 should not
+    // have needed this test edited, and the next tier should not either.
+    const ladder = Object.keys(TIERS).map(Number) as BusinessTier[];
+    expect(ladder.length).toBeGreaterThanOrEqual(3);
+    for (const t of ladder) expect(typesAt(t).length, `tier ${t}`).toBeGreaterThan(0);
+    for (const k of Object.keys(BUSINESS_DEFS) as BusinessType[]) expect(ladder).toContain(BUSINESS_DEFS[k].tier);
   });
 
   it('income really does climb with tier, rather than the multiplier only claiming it does', () => {

@@ -21,7 +21,7 @@ import type { BusinessType, DistrictKind, RacketKind } from '@sim/types';
  *        The only way in is the one banks and armoured depots already had: real leverage or a
  *        settled favour, through ratting, a tap, or an inside job. Never a threat.
  */
-export type BusinessTier = 1 | 2 | 3;
+export type BusinessTier = 1 | 2 | 3 | 4;
 
 export interface BusinessDef {
   label: string;
@@ -44,11 +44,29 @@ export interface BusinessDef {
  * respect is low, and comfortably above `STAKES.words.ceiling` (35) always. Talk alone will not
  * do it; a broken window (`property`, ceiling 80) will.
  */
-export const TIERS: Record<BusinessTier, { label: string; blurb: string; income: number; value: number; nerveFloor: number; extort: boolean }> = {
-  1: { label: 'Street', blurb: 'A counter, a till, and somebody who has to open tomorrow.', income: 1, value: 1, nerveFloor: 0, extort: true },
-  2: { label: 'Established', blurb: 'Books, a lawyer on call, and an owner who has been leaned on before.', income: 1.6, value: 1.25, nerveFloor: 72, extort: true },
-  3: { label: 'Institutional', blurb: 'Nobody here is frightened of you. There is a way in, and it is not a threat.', income: 2.4, value: 1.5, nerveFloor: 90, extort: false },
+export const TIERS: Record<BusinessTier, { label: string; blurb: string; income: number; value: number; nerveFloor: number; extort: boolean; standingFloor: number }> = {
+  1: { label: 'Street', blurb: 'A counter, a till, and somebody who has to open tomorrow.', income: 1, value: 1, nerveFloor: 0, extort: true, standingFloor: 0 },
+  2: { label: 'Established', blurb: 'Books, a lawyer on call, and an owner who has been leaned on before.', income: 1.6, value: 1.25, nerveFloor: 72, extort: true, standingFloor: 0 },
+  3: { label: 'Institutional', blurb: 'Nobody here is frightened of you. There is a way in, and it is not a threat.', income: 2.4, value: 1.5, nerveFloor: 90, extort: false, standingFloor: 0 },
+  /**
+   * Tier 4: the room money alone does not get you into.
+   *
+   * `standingFloor` is the tier-4 gate and it is deliberately the same *shape* as `nerveFloor`,
+   * which is what tiers 2 and 3 are gated with — a number the situation must clear, compared
+   * arithmetically, rather than a branch naming a business type. `nerveFloor` asks whether fear
+   * can reach the owner; `standingFloor` asks whether the player is somebody the room will deal
+   * with at all. Both are read by one comparison and neither knows what it is looking at.
+   *
+   * 55 against `respect + fear / 2`: a player with nothing but money cannot reach it, a feared
+   * player gets halfway there on fear alone, and a respected one walks in. Paired with a `value`
+   * of 3.2 it is the game's largest cash sink by a wide margin — which is the point, because by
+   * the time a player can clear the standing floor money has stopped being the constraint.
+   */
+  4: { label: 'Chartered', blurb: 'A boardroom, a charter and a century of paperwork. Money is the cheap part of getting in here.', income: 3.4, value: 3.2, nerveFloor: 100, extort: false, standingFloor: 55 },
 };
+
+/** What `standingFloor` is measured against: what the city thinks of you, however you got it. */
+export const standingOf = (respect: number, fear: number) => respect + fear / 2;
 
 /**
  * Which rackets a tier will carry at all, intersected with the type's own list.
@@ -69,6 +87,10 @@ export const TIER_EXCLUDES: Record<BusinessTier, RacketKind[] | 'none' | 'all'> 
   1: 'none',
   2: ['numbers', 'policy_bank'],
   3: 'all',
+  // Tier 4 carries the one thing a chartered institution is actually *for*, from the player's
+  // side: moving money. Not a street racket among several — the single racket whose whole
+  // nature is paperwork, run at a scale nothing below this tier can reach.
+  4: ['protection', 'numbers', 'bookmaking', 'gambling_den', 'loansharking', 'fencing', 'chop_shop', 'dealing', 'smuggling', 'carding', 'union_dues', 'counterfeiting', 'after_hours', 'policy_bank', 'parts_stripping', 'relay_export', 'card_supply', 'knockoffs', 'script_diversion'],
 };
 
 export const BUSINESS_DEFS: Record<BusinessType, BusinessDef> = {
@@ -112,6 +134,14 @@ export const BUSINESS_DEFS: Record<BusinessType, BusinessDef> = {
   gallery:       { label: 'Art Gallery',     icon: '🖼️', tier: 3, income: [300, 700],  valueMult: 65, patrons: [0, 2], rackets: [], heistTarget: true, nerve: 80 },
   accountant:    { label: "Accountant's Office", icon: '📇', tier: 3, income: [280, 620], valueMult: 60, patrons: [0, 1], rackets: [], nerve: 88 },
   importer:      { label: 'Import/Export',   icon: '🚢', tier: 3, income: [420, 900],  valueMult: 65, patrons: [0, 1], rackets: [], heistTarget: true, safehouse: true, nerve: 92 },
+  // ---------------------------------------------------------------- tier 4: chartered
+  // The top of the ladder, and the largest cash sink in the game. Each one is a real business
+  // with real clean income — the point is not the racket you can run inside it (only laundering
+  // survives `TIER_EXCLUDES[4]`) but that owning one is what a fortune is *for*.
+  casino:         { label: 'Casino',              icon: '🃏', tier: 4, income: [1400, 3000], valueMult: 70, patrons: [3, 6], rackets: ['laundering'], heistTarget: true, nerve: 95 },
+  merchant_bank:  { label: 'Merchant Bank',       icon: '🏛️', tier: 4, income: [1200, 2600], valueMult: 80, patrons: [1, 3], rackets: ['laundering'], heistTarget: true, nerve: 100 },
+  shipping_line:  { label: 'Shipping Line',       icon: '⚓', tier: 4, income: [900, 2200],  valueMult: 65, patrons: [1, 3], rackets: ['laundering'], nerve: 90 },
+  development_co: { label: 'Development Company', icon: '🏗️', tier: 4, income: [1100, 2400], valueMult: 70, patrons: [1, 2], rackets: ['laundering'], nerve: 92 },
 };
 
 export interface DistrictDef {

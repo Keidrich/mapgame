@@ -810,3 +810,17 @@ h1, h2, h3, h4, .sheet-title, .panel h2, .modal h2 {
 .weblegend span { display: inline-flex; align-items: center; gap: 4px; }
 /* the map's own <svg> is width:100% by the rule above; the legend's little icons must not be */
 .weblegend .icon { width: 11px; height: 11px; flex: none; }
+
+/* ---------------------------------------------------------------- the paper, and the record */
+.news { border: 1px solid var(--line); background: var(--bg-2); padding: 10px; margin-top: 8px; }
+.news-head { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--gold); display: flex; align-items: center; gap: 5px; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
+.news-line { display: flex; gap: 8px; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.05); font-size: 11.5px; color: var(--muted); }
+.news-line:last-child { border-bottom: 0; }
+.news-line.big { color: var(--text); font-weight: 600; }
+.news-day { font-family: var(--font-mono); font-size: 9.5px; color: var(--faint); flex: none; padding-top: 1px; }
+.trophy { border: 1px solid var(--line); background: var(--bg-2); padding: 8px 10px; }
+.trophy.empty { opacity: 0.55; }
+.trophy-label { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--gold); }
+.trophy-value { font-weight: 700; text-align: right; }
+.meterbar { height: 6px; background: var(--bg); border: 1px solid var(--line); }
+.meterfill { height: 100%; background: var(--gold); }

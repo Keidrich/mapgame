@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { select } from '@sim/index';
 import type { Id, Op, OpKind } from '@sim/types';
 import { OP_APPROACHES, OP_DEFS, type OpApproach } from '@content/rackets';
+import { SPECIALISTS } from '@content/specialists';
 import { SKILL_KEYS, activeOps, cap, finishedOps, fmtMoney, opTargetLabel, playerSafehouses } from '@ui/derive';
 import { act, check, openSheet, useWorld } from '@ui/store';
 import { Act } from './Act';
@@ -67,7 +68,7 @@ export function OpsTab() {
 function OpCard({ o }: { o: Op }) {
   const w = useWorld();
   const d = OP_DEFS[o.kind];
-  const chance = select.opChance(w, o.kind, o.crewIds);
+  const chance = select.opChance(w, o.kind, o.crewIds, o.approach, undefined, o);
   const tone = o.status === 'done' ? (o.result?.success ? 'var(--green)' : 'var(--red)') : o.status === 'failed' ? 'var(--red)' : o.status === 'ready' ? 'var(--gold)' : undefined;
   return (
     <div className="brief" style={{ borderColor: tone }}>
@@ -84,12 +85,46 @@ function OpCard({ o }: { o: Op }) {
           <Act action={{ type: 'abort_op', opId: o.id }} label="Abort" kind="danger" small confirm="Abort this op?" />
         </div>
       )}
+      {/* The parts a set-piece has. Hired onto a job that already exists, because that is what a
+          planning week is for — you have the job, now you go and find the man who opens doors. */}
+      {(o.status === 'planning' || o.status === 'ready') && select.isSetPiece(o.kind) && (
+        <div className="mt8">
+          <div className="section-title">Who you need<Info id="specialist" /></div>
+          {select.rolesFor(o.kind).map(role => <SpecialistRow key={role} o={o} role={role} />)}
+        </div>
+      )}
       {o.result && (
         <div className="mt8 small">
           <p>{o.result.text}</p>
           <div className="chips">{o.result.cash !== 0 && <span className="chip green">{fmtMoney(o.result.cash)}</span>}{o.result.heat !== 0 && <span className="chip red">+{o.result.heat} heat</span>}</div>
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * One part of a set-piece: who is on it, or who could be. The fee and the reliability both come
+ * from `/sim` so the quote here is the number the night uses.
+ */
+function SpecialistRow({ o, role }: { o: Op; role: string }) {
+  const w = useWorld();
+  const hired = select.hiredOn(o).find(h => h.role === role);
+  const def = SPECIALISTS[role as keyof typeof SPECIALISTS];
+  if (hired) {
+    const n = w.npcs[hired.npcId];
+    return <div className="small mt4"><span className="gold">{def.label}:</span> {n?.name ?? '?'} — {Math.round(select.reliability(role as never, n) * 100)}% reliable</div>;
+  }
+  const options = select.specialistsFor(w, role as never).filter(n => !select.hireReason(w, role as never, n)).slice(0, 3);
+  return (
+    <div className="mt8">
+      <div className="small muted">{def.label} — {def.blurb}</div>
+      {options.length === 0
+        ? <div className="tiny faint">Nobody you know does that. Meet more people.</div>
+        : <div className="chips mt4">{options.map(n => (
+            <Act key={n.id} action={{ type: 'hire_specialist', opId: o.id, role, npcId: n.id }}
+              label={`${n.name.split(' ')[0]} · ${fmtMoney(select.specialistFee(w, o.kind, role as never, n))} · ${Math.round(select.reliability(role as never, n) * 100)}%`} small />
+          ))}</div>}
     </div>
   );
 }
@@ -225,6 +260,21 @@ function Planner() {
                   ); })}
               </div>
               <KitOnApproach approach={approach} />
+
+              {/* when you go. The clock at launch is the clock that counts — see content/timeofday.ts */}
+              <div className="section-title">When<Info id="timeOfDay" /></div>
+              <div className="chips mb8">
+                {select.HOURS.map(h => {
+                  const part = select.DAYPARTS[select.daypartAt(h.hour)];
+                  const on = (w.hour ?? select.DEFAULT_HOUR) === h.hour;
+                  return (
+                    <button type="button" key={h.hour} className={`chip btn${on ? ' sel' : ''}`} onClick={() => act({ type: 'set_hour', hour: h.hour })}>
+                      {h.label} · {part.label}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="small muted mb8">{select.DAYPARTS[select.daypart(w)].blurb}</p>
               {kind === 'kidnap' && (
                 <>
                   <div className="section-title">Where do they go?</div>

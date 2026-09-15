@@ -3,7 +3,7 @@ import type { GeoChunk } from '@geo/chunks';
 import { chunkKeyAt, hexChunk } from '@geo/chunks';
 import { distanceM } from '@geo/project';
 import { Rng, hashString } from './rng';
-import { BUSINESS_DEFS } from '@content/businesses';
+import { BUSINESS_DEFS, TIERS } from '@content/businesses';
 import { BACKGROUND_BY_ID, BASE_SKILLS, TECH_START_RECIPES, WHEELS_BONUS_LEGWORK, legalCustomSkills } from '@content/backgrounds';
 import { FIXER } from '@content/rackets';
 import { addAuthority, attachOfficials, authorities } from './authority';
@@ -11,7 +11,10 @@ import { connect } from './connections';
 import { addBusiness, mkNpc, populateChunk } from './populate';
 import { unlockRecipe } from './production';
 import { adjustRel } from './util';
-import { PLAYER, type Block, type LatLng, type Npc, type Player, type Skills, type StartTraitId, type World } from './types';
+import { PLAYER, type Block, type District, type Id, type LatLng, type Npc, type Player, type Skills, type StartTraitId, type World } from './types';
+import { LOVED } from './legacy';
+import { LANDMARKS } from '@content/landmarks';
+import { nerveFloorFor } from './tiers';
 
 export { controller, stanceFor, STEP_M } from './populate';
 export const WORLD_VERSION = 8; // 8: the law is an entity (Authority) and the police-station bump is live, not baked
@@ -107,7 +110,61 @@ export function generateWorld(opts: NewGameOptions): World {
   const startOwner = w.npcs[w.businesses[startBlock.businessIds[0]].ownerId];
   startOwner.rel.trust = 20; startOwner.rel.respect = 15;
 
+  // The five places there is only one of.
+  //
+  // **Converted, not added.** An earlier version called `addBusiness`, which puts a new building
+  // and a new owner on a block after the generation passes have already run — and that quietly
+  // moved everything downstream of them: an owner with no connections (the graph pass was over),
+  // a business standing on a block that had already been marked derelict, and enough influence
+  // shifted to change what a block's neighbours inherit. Promoting a building that is already
+  // there changes nothing except what it is called and what it is worth, which is all a landmark
+  // actually needs to be.
+  const promoted = new Set<Id>();
+  for (const lm of LANDMARKS) {
+    const district = Object.values(w.districts).find(d => d.kind === lm.district as District['kind']);
+    // Nothing here rolls: promotion must not consume a single number off `rng`, or every
+    // generated thing after it moves and the world stops being the world that seed makes.
+    // It also leaves anything carrying a real OSM name alone where it can — a landmark should
+    // not eat a building the map actually has.
+    const candidates = (district ? district.blockIds : Object.keys(w.blocks))
+      .flatMap(id => w.blocks[id]?.businessIds ?? [])
+      .map(id => w.businesses[id])
+      .filter(b => b && !promoted.has(b.id) && b.ownedBy === 'npc' && !b.landmark && !w.blocks[b.blockId]?.abandoned)
+      .sort((a, b) => Number(a.flags.includes('real')) - Number(b.flags.includes('real')) || a.id.localeCompare(b.id));
+    const pick = candidates[0] ?? Object.values(w.businesses).find(b => !promoted.has(b.id) && b.ownedBy === 'npc' && !b.landmark);
+    if (!pick) continue;
+    promoted.add(pick.id);
+    const bd = BUSINESS_DEFS[lm.type];
+    const wasTier = TIERS[BUSINESS_DEFS[pick.type].tier].income;
+    pick.type = lm.type;
+    pick.name = lm.name;
+    pick.landmark = lm.id;
+    pick.flags = pick.flags.filter(f => f !== 'real');
+    pick.baseIncome = Math.max(bd.income[0], Math.round(pick.baseIncome * (TIERS[bd.tier].income / wasTier)));
+    pick.value = Math.max(1500, Math.round(pick.baseIncome * bd.valueMult / 100) * 100);
+    // and the owner of a chartered institution was never going to be frightened of anybody
+    const owner = w.npcs[pick.ownerId];
+    if (owner) owner.nerve = Math.max(owner.nerve, nerveFloorFor(lm.type));
+  }
+
+  // Somebody outside all of it. Generated like any other person, then marked — what makes them
+  // different is `w.player.lovedId` and nothing on the record itself, so every existing system
+  // treats them as an ordinary neighbour who happens to trust you completely.
+  const loved = mkNpc(rng, w, nid, { role: 'patron', homeBlockId: startBlock.id });
+  loved.known = true;
+  loved.rel.trust = LOVED.trust; loved.rel.metDay = 1; loved.rel.contacts = 99;
+  loved.favouriteBusinessIds = [];
+  loved.notes.push('Nothing to do with any of it, and it is going to stay that way.');
+  w.player.lovedId = loved.id;
+  // Somebody with no ties to anybody is an anomaly in this city — the connections pass gives
+  // everyone people, and it ran before this one existed. Neighbours, not relatives: they are
+  // the player's family, and the point of them is that they belong to the ordinary world.
+  for (const other of startBlock.businessIds.flatMap(id => w.businesses[id].patronIds).map(id => w.npcs[id]).filter(Boolean).slice(0, 3)) {
+    connect(loved, other, 'friend', 'neighbour');
+  }
+
   w.log.push({ day: 1, text: `You arrive in ${opts.placeName}. ${startBlock.name} is where you'll start. Nobody knows your name yet.`, tone: 'info', refs: { blockId: startBlock.id } });
+  w.log.push({ day: 1, text: `${loved.name} came with you and knows none of it. Keep it that way.`, tone: 'info', refs: { npcId: loved.id } });
   // a tech already knows a trade; a hand-built character brings one edge of their own
   if (opts.background === 'tech') unlockRecipe(w, rng.pick(TECH_START_RECIPES), 'You have been making this since before you needed to.');
   if (opts.background === 'custom' && opts.custom) applyStartTrait(w, opts.custom.trait, startBlock);

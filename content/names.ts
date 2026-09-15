@@ -122,6 +122,11 @@ export const BUSINESS_NAME_PARTS = {
   pharmacy: [['Corner','Rexall','Standard','Keystone','Bright','Union'], ['Pharmacy','Drugs','Chemists','Apothecary','Dispensary']],
   accountant: [['Whitlock','Ferris','Crane','Abbott','Sterling','Pike'], ['& Associates','Accountancy','Tax Services','Bookkeeping','CPA']],
   importer: [['Transpacific','Meridian','Halvorsen','Dockside','Kestrel','Continental'], ['Import/Export','Trading Co.','Shipping','Freight','Forwarding']],
+  // tier 4: names that sound like they were on the building before anybody alive was born
+  casino:         [['The Emerald','The Continental','Regency','The Alhambra','Sovereign','The Bellwether'], ['Rooms','Club','Casino','Gaming House','Palace']],
+  merchant_bank:  [['Whitlock','Ashbourne','Carrow &','Sterne','Hale &','Vandermere'], ['Trust','Merchant Bank','& Partners','Private Bank','Holdings']],
+  shipping_line:  [['Blue Star','Corinthian','Maravel','Northgate','Anchor Line','Trident'], ['Shipping Line','Maritime','Navigation Co.','Lines','Freight Group']],
+  development_co: [['Cornerstone','Highbridge','Vantage','Marlowe','Keystone','Ironworks'], ['Development','Properties','Land Co.','Estates','Group']],
 } as const;
 
 export const FACTION_ARCHETYPES = [

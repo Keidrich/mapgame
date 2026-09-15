@@ -14,6 +14,7 @@ import { warnedBy } from './informants';
 import { bossChurn, successionOrDeath, tickCrisis } from './politics';
 export { standingCap };
 import { addMemory } from './people';
+import { hunters, lovedOne } from './legacy';
 
 /** What the tick charges to put one more body on the street. Read by `checkDefeated`. */
 const SOLDIER_COST = 2500;
@@ -125,11 +126,32 @@ export function runFaction(w: World, f: Faction, rng: Rng) {
   // 5. act on stance
   if (!truce && !headless && (ns === 'beef' || ns === 'war')) actAgainstPlayer(w, f, rng, ns === 'war');
 
-  // 6. faction vs faction: occasional flare-ups shift standing and influence
+  // 6. faction vs faction, on their own initiative
+  //
+  // This drifted at random and never *concluded*: standing wandered, a stance flipped now and
+  // then, and two outfits at war traded a block edge for ever. The city only ever moved when the
+  // player pushed on it. Three things make it move on its own, all of them written with the
+  // stance/standing machinery that was already here rather than a second diplomacy layer:
+  //
+  //  - a **grievance** pushes standing hard in one direction, so wars start for a reason;
+  //  - a **sit-down** ends one, so peace is a thing that happens rather than a thing that decays;
+  //  - and a war with a clear winner **absorbs** the loser, so the map consolidates.
   for (const other of Object.values(w.factions)) {
     if (other.id === f.id || !other.alive) continue;
     const s = f.standing[other.id] ?? 0;
-    const d = (rng.float() - 0.5) * 4 + (f.temperament === 'aggressive' ? -0.3 : f.temperament === 'diplomatic' ? 0.3 : 0);
+    let d = (rng.float() - 0.5) * 4 + (f.temperament === 'aggressive' ? -0.3 : f.temperament === 'diplomatic' ? 0.3 : 0);
+    // A grievance: somebody took something, and it is worth more than a day's drift. Only the
+    // stronger side starts one, because that is who thinks they can afford it.
+    if (!headless && s > -60 && f.soldiers > other.soldiers + 4 && rng.chance(0.04)) {
+      d -= 30;
+      log(w, `${f.name} have decided ${other.short} are standing on something of theirs. Nobody asked the player's opinion.`, 'info', { factionId: f.id });
+    }
+    // A sit-down: two outfits bleeding each other can stop, and the diplomatic ones do it sooner.
+    if (s <= -50 && rng.chance(f.temperament === 'diplomatic' || other.temperament === 'diplomatic' ? 0.07 : 0.03)) {
+      d += 55;
+      f.truceUntil[other.id] = other.truceUntil[f.id] = w.day + 30;
+      log(w, `${f.short} and ${other.short} sat down and it held. Whatever that was about, it is over.`, 'info', { factionId: f.id });
+    }
     f.standing[other.id] = other.standing[f.id] = clamp(s + d, -100, 100);
     const st = stanceFor(f.standing[other.id]);
     if (st !== f.stance[other.id]) { f.stance[other.id] = other.stance[f.id] = st; if (st === 'war' || st === 'beef') log(w, `${f.name} and ${other.name} are at ${st}. Their blocks will be a mess for a while.`, 'info', { factionId: f.id }); }
@@ -138,6 +160,14 @@ export function runFaction(w: World, f: Faction, rng: Rng) {
       const border = Object.values(w.blocks).find(b => factionOf(w, b.id) === other.id && (b.influence[f.id] ?? 0) > 0);
       if (border) { addInfluence(w, border.id, other.id, -8); addInfluence(w, border.id, f.id, 5); other.soldiers = Math.max(1, other.soldiers - 1); border.heat = clamp(border.heat + 5); }
     }
+    // And a war one side is plainly losing ends the way those end: the weaker outfit is not
+    // wiped out, it is swallowed, and the winner takes its ground and its people.
+    // …and an outfit is only worth swallowing if it has something to swallow. One man on one
+    // corner is not absorbed, he is simply beaten — and `checkDefeated` is what finishes him.
+    // Without this the upstart, who starts at one soldier by design, was eaten within a week.
+    const worthTaking = Object.values(w.blocks).some(b => factionOf(w, b.id) === other.id)
+      || other.lieutenantIds.some(id => w.npcs[id]?.alive);
+    if (st === 'war' && worthTaking && other.soldiers <= 2 && f.soldiers > other.soldiers * 3 && rng.chance(0.15)) absorb(w, f, other);
   }
   if (f.soldiers <= 0 && f.cash < 0) { log(w, `${f.name} has bled out.`, 'warn', { factionId: f.id }); successionOrDeath(w, { ...f, lieutenantIds: [] }); f.alive = false; }
   else if (!f.defeatedDay) checkDefeated(w, f, controlled);
@@ -198,6 +228,65 @@ function checkDefeated(w: World, f: Faction, controlled: Block[]): void {
   log(w, `${f.name} are finished. ${by === PLAYER ? 'You broke them' : 'Nobody is left to answer for them'} — no soldiers, no corners, nobody to send.${taken ? ` ${taken} of the places they collected from are on your ground now.` : ''}${opened ? ` ${opened} more are paying nobody.` : ''}`, by === PLAYER ? 'good' : 'warn', { factionId: f.id });
 }
 
+/**
+ * Somebody who has got far enough stops waiting for the player to come to them.
+ *
+ * The whole of this is the existing confrontation machinery pointed inward. A nemesis past the
+ * `named` or `connected` milestone can queue a `you` or a `loved` confrontation — same queue,
+ * same three answers, same kit maths, same "ignore it and End Day lands it" rule. Nothing here
+ * is a new combat system; what is new is that the arrow can point at the player.
+ *
+ * Two brakes, because this is the one attack that can end a run:
+ *  - it is rare (`ODDS`), and rarer still while they are only `named`;
+ *  - and the loved one is only ever taken, never hurt here — they are leverage, and a rival who
+ *    kills them has spent the only thing that was working.
+ */
+const PERSONAL_ODDS = { named: 0.06, connected: 0.13, lovedShare: 0.45 };
+
+function comeForThePlayer(w: World, f: Faction, rng: Rng): boolean {
+  const led = hunters(w).find(n => n.faction === f.id);
+  if (!led) return false;
+  const far = led.nemesis!.earned.includes('connected');
+  if (!rng.chance(far ? PERSONAL_ODDS.connected : PERSONAL_ODDS.named)) return false;
+
+  // Somebody outside it all is the softer target and the crueller one, so it is the first thing
+  // they reach for when there is one — and never while they already have them.
+  const loved = lovedOne(w);
+  if (loved && !loved.taken && rng.chance(PERSONAL_ODDS.lovedShare)) {
+    if (alreadyAtTheDoor(w, { npcId: loved.id })) return false;
+    queueConfrontation(w, { factionId: f.id, kind: 'loved', war: true, npcId: loved.id, blockId: loved.homeBlockId, byNpcId: led.id,
+      warned: warnedBy(w, f, rng)?.id,
+      text: `${nemesisName(led)} is standing outside ${loved.name}'s door with two other men, and they are in no hurry. This is not about a racket.` });
+    return true;
+  }
+  if (alreadyAtTheDoor(w, { blockId: w.player.currentBlockId })) return false;
+  queueConfrontation(w, { factionId: f.id, kind: 'you', war: true, blockId: w.player.currentBlockId, byNpcId: led.id,
+    warned: warnedBy(w, f, rng)?.id,
+    text: `${nemesisName(led)} is across the street and they are looking straight at you. They did not come about a block.` });
+  return true;
+}
+
+/**
+ * One outfit swallowing another. Not an elimination — the loser's ground, soldiers and people
+ * change hands, which is what makes the map consolidate over a long game instead of staying the
+ * same three-way split it was generated as.
+ */
+function absorb(w: World, winner: Faction, loser: Faction): void {
+  for (const b of Object.values(w.blocks)) {
+    const had = b.influence[loser.id]; if (!had) continue;
+    delete b.influence[loser.id];
+    addInfluence(w, b.id, winner.id, Math.min(30, had * 0.7));
+  }
+  for (const b of Object.values(w.businesses)) if (b.protection?.factionId === loser.id) b.protection = { ...b.protection, factionId: winner.id };
+  for (const n of Object.values(w.npcs)) if (n.faction === loser.id) n.faction = winner.id;
+  winner.soldiers += Math.max(1, loser.soldiers);
+  winner.lieutenantIds = [...winner.lieutenantIds, ...loser.lieutenantIds];
+  winner.cash += Math.max(0, loser.cash);
+  loser.soldiers = 0; loser.cash = 0; loser.lieutenantIds = []; loser.alive = false;
+  loser.defeatedDay = w.day; loser.defeatedBy = winner.id;
+  log(w, `${loser.name} are gone. ${winner.name} took what was left of them — the corners, the earners and the people — and nobody needed the player's help to do it.`, 'warn', { factionId: winner.id });
+}
+
 /** Whose doing it was. The player, if they were the ones at war with them at the end. */
 function defeatedBy(w: World, f: Faction): FactionId | undefined {
   if ((f.stance[PLAYER] === 'war' || f.stance[PLAYER] === 'beef' || (f.standing[PLAYER] ?? 0) <= -50)) return PLAYER;
@@ -213,6 +302,16 @@ function actAgainstPlayer(w: World, f: Faction, rng: Rng, war: boolean) {
   const near = (blockId: string) => Object.values(w.blocks).some(b => factionOf(w, b.id) === f.id && distanceM(b.center, w.blocks[blockId].center) <= 3 * STEP_M);
   const acts = war ? 2 : 1;
   for (let i = 0; i < acts; i++) {
+    // The personal move goes first, and it has to.
+    //
+    // It was written as the last arm of the chain below and was therefore dead code for anybody
+    // with a crew: the racket, business and crew arms between them cover every roll a player
+    // with an outfit can produce, so the one thing a nemesis who has passed `named` is *for*
+    // never happened. It is the rarest act in here (6% or 13%, and only when somebody has got
+    // that far), so putting it first costs the ordinary acts almost nothing — and it is the
+    // right order on its own terms: somebody who has decided to come for you personally is not
+    // going to go and lean on one of your bars instead.
+    if (comeForThePlayer(w, f, rng)) continue;
     const roll = rng.float();
     if (roll < 0.45 && myRackets.length) {
       const r = rng.pick(myRackets); const biz = w.businesses[r.businessId];

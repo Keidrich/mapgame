@@ -26,7 +26,8 @@ import { nemesisName, scoreMeeting } from './nemesis';
 import { ASSET } from '@content/informants';
 import type { Stake } from '@content/standing';
 import { remember } from './ledger';
-import { addHeat, adjustRel, clamp, log, nid, spreadRep } from './util';
+import { addHeat, adjustRel, clamp, log, money, nid, spreadRep } from './util';
+import { personalCover, succeed } from './legacy';
 
 /** Which op approach each answer is cut from, for kit and for flavour. */
 export const CONFRONT_AS: Record<ConfrontApproach, OpApproach> = { fight: 'loud', flee: 'quiet', backup: 'inside' };
@@ -164,7 +165,7 @@ export function resolveConfrontation(w: World, c: Confrontation, given: Confront
   const short = f?.short ?? 'They';
   // whoever came is who this happened with, and it goes on their page like anybody else's
   const led = c.byNpcId ? w.npcs[c.byNpcId] : undefined;
-  const stake: Stake = c.kind === 'crew' ? 'violence' : c.kind === 'business' || c.kind === 'racket' ? 'property' : 'backed';
+  const stake: Stake = c.kind === 'you' || c.kind === 'loved' ? 'grave' : c.kind === 'crew' ? 'violence' : c.kind === 'business' || c.kind === 'racket' ? 'property' : 'backed';
   const heat = (n: number) => addHeat(w, Math.round(n * kitHeatMult(w)), c.blockId);
   const won = approach !== 'absent' && rng.int(1, 100) <= confrontChance(w, c, approach);
 
@@ -259,6 +260,13 @@ function land(w: World, c: Confrontation, rng: Rng, severity: number) {
   } else if (c.kind === 'business') {
     const biz = c.businessId ? w.businesses[c.businessId] : undefined;
     if (biz) { biz.condition = clamp(biz.condition - Math.round((c.war ? 25 : 10) * severity)); adjustRel(w, w.npcs[biz.ownerId], { fear: 8 }, 'property'); }
+  } else if (c.kind === 'you') {
+    // They came for you, and nobody stopped them. See `sim/legacy.ts` for what a death means:
+    // control passes, the city does not reset, and the blocks are still there under a new name.
+    landOnPlayer(w, c, rng, severity);
+  } else if (c.kind === 'loved') {
+    const n = c.npcId ? w.npcs[c.npcId] : undefined;
+    if (n) { n.taken = w.day; log(w, `${n.name} is not at home. Somebody left an address and a time.`, 'bad', { npcId: n.id }); }
   } else {
     const n = c.npcId ? w.npcs[c.npcId] : undefined;
     if (n?.crew) {
@@ -268,7 +276,41 @@ function land(w: World, c: Confrontation, rng: Rng, severity: number) {
   }
 }
 
+/**
+ * What it costs when somebody gets to the player themselves.
+ *
+ * Deliberately survivable most of the time and not always: `personalCover` is what men who are
+ * awake and a house with a gate are actually worth, and it is subtracted here, on this night,
+ * rather than being a number on a screen. A severity that gets past all of it is a killing, and
+ * a killing hands the outfit to whoever is left standing (`succeed`).
+ */
+function landOnPlayer(w: World, c: Confrontation, rng: Rng, severity: number) {
+  const p = w.player;
+  const led = c.byNpcId ? w.npcs[c.byNpcId] : undefined;
+  const who = led ? nemesisName(led) : (w.factions[c.factionId]?.short ?? 'They');
+  const got = rng.int(0, 100) + severity * 30 - personalCover(w);
+  if (got > 78) {
+    const gone = `${who} got to you, and there was nobody between you and them.`;
+    log(w, gone, 'bad', refs(c));
+    succeed(w, gone);
+    return;
+  }
+  if (got > 45) {
+    // hurt, and off the street for a while: jailedDays is the existing "you are not available"
+    p.jailedDays = Math.max(p.jailedDays, rng.int(3, 7));
+    p.ap = 0; p.legwork = 0;
+    p.respect = clamp(p.respect - 6);
+    const lost = Math.round(p.dirty * 0.3); p.dirty -= lost;
+    log(w, `${who} put you in a room for a while. You are on your back for days and ${money(lost)} went with them. It could have been the other thing.`, 'bad', refs(c));
+    return;
+  }
+  p.respect = clamp(p.respect - 2);
+  log(w, `${who} came for you and it did not come off. You are walking, and everybody saw how close it was.`, 'warn', refs(c));
+}
+
 function damageLine(w: World, c: Confrontation): string {
+  if (c.kind === 'you') return 'They came for you personally.';
+  if (c.kind === 'loved') { const n = c.npcId ? w.npcs[c.npcId] : undefined; return `They took ${n?.name ?? 'somebody who is nothing to do with any of this'}.`; }
   if (c.kind === 'racket') { const biz = c.businessId ? w.businesses[c.businessId] : undefined; return `They wrecked the racket at ${biz?.name ?? 'your place'} and took what was in the box.`; }
   if (c.kind === 'business') { const biz = c.businessId ? w.businesses[c.businessId] : undefined; return `${biz?.name ?? 'Your place'} is a mess.`; }
   const n = c.npcId ? w.npcs[c.npcId] : undefined;

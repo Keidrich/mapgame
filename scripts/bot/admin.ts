@@ -13,7 +13,7 @@
  */
 import { dispatch, type CheatKind, type World } from '@sim/index';
 
-export type ScenarioName = 'honest' | 'solo' | 'ambitious' | 'boosted' | 'law' | 'wire' | 'war' | 'heists' | 'everything';
+export type ScenarioName = 'honest' | 'solo' | 'ambitious' | 'boosted' | 'law' | 'wire' | 'war' | 'heists' | 'fortune' | 'straight' | 'legacy' | 'everything';
 
 export interface Scenario {
   label: string;
@@ -34,6 +34,15 @@ export interface Scenario {
    * rewritten the one curve that is comparable across passes.
    */
   stillAt?: number;
+  /**
+   * Cash in hand before the bot starts spending on the money sinks — an institution, a favour, a
+   * lifestyle rung, respectability, a ceiling. Absent means never, which is what every scenario
+   * that is not about a fortune gets, `honest` most of all: its curve is frozen and it has never
+   * in sixty days held enough for the cheapest of these anyway.
+   */
+  sinksAt?: number;
+  /** The run is aiming at the clean ending rather than at an empire. See `tryToGetOut`. */
+  goingStraight?: boolean;
 }
 
 const CORE: { what: CheatKind; amount?: number }[] = [
@@ -117,8 +126,69 @@ export const SCENARIOS: Record<ScenarioName, Scenario> = {
     blurb: 'Everything a tier 3–4 job needs, so complications actually get raised.',
     setup: [...CORE, { what: 'cash', amount: 500000 }],
   },
+  /**
+   * A fortune, and the things it is for.
+   *
+   * This exists because the money sinks are the one part of the game that cannot be reached by
+   * playing well — they are reached by having *already* played well, and sixty days is not long
+   * enough. Without a scenario the whole pass would have shipped with five ✗ rows and this file
+   * would have been the third time that happened.
+   *
+   * It is also where the clock, the specialists and the stakes get exercised, because they are
+   * all late-game shapes too: a set-piece with a hired safecracker needs the set-piece to be
+   * plannable in the first place, and nobody comes for you personally until a lieutenant has had
+   * enough meetings with you to be somebody.
+   */
+  fortune: {
+    label: 'fortune', opsPerDay: 3, crewCap: 10, sinksAt: 400000,
+    blurb: 'Money with nowhere to go, and everything that is meant to absorb it.',
+    setup: [
+      ...CORE,
+      { what: 'cash', amount: 2_000_000 },
+      { what: 'nemesis' },   // somebody who has met you often enough to come to your door
+      { what: 'war', amount: 1 },
+    ],
+    // the sinks eat it by design — that is the whole point of them — so keep the pile topped up
+    // or the run buys one casino on day 12 and tests nothing else for the next forty-eight days
+    topUp: { every: 6, cheats: [{ what: 'cash', amount: 800_000 }, { what: 'crew', amount: 4 }, { what: 'nemesis' }] },
+  },
+  /**
+   * The way out. Money, a person to go straight for, and nothing to do but keep it quiet.
+   *
+   * No ops and no crew on purpose: the four conditions in `GO_STRAIGHT` are mutually hostile to
+   * an ordinary day, so a run that also tried to earn would reset `cleanSince` every morning and
+   * report — truthfully — that the clean ending is unreachable. This is the scenario that says
+   * whether it is reachable at all, which is a different question from whether it is easy.
+   */
+  straight: {
+    label: 'straight', opsPerDay: 0, crewCap: 0, goingStraight: true,
+    blurb: 'Enough money to stop, somebody to stop for, and a fortnight of keeping it quiet.',
+    setup: [{ what: 'ap', amount: 10 }, { what: 'cash', amount: 1_500_000 }, { what: 'safehouse' }, { what: 'reveal' }],
+    topUp: { every: 5, cheats: [{ what: 'cash', amount: 200_000 }] },
+  },
+  /**
+   * The other ending: somebody gets to you, and the outfit goes to whoever is left standing.
+   *
+   * The opposite of `fortune` on purpose — no money sinks, so no house with a gate and no
+   * standing detail, because `personalCover` is precisely what stops this happening and a bot
+   * that had bought all of it survived nine attempts in a row. This is what the game looks like
+   * to somebody who spent it all on the business.
+   */
+  legacy: {
+    // Four, not two: the successor needs somebody left to lead, and with a crew of two the run
+    // handed over once and then ended for good the next time somebody got through — which is the
+    // right behaviour ('gone' is a real ending) but tells you nothing about what a successor's
+    // game looks like afterwards.
+    label: 'legacy', opsPerDay: 2, crewCap: 3,
+    blurb: 'A nemesis, a war, and nothing bought to stand between you and them.',
+    setup: [{ what: 'ap', amount: 10 }, { what: 'cash', amount: 60000 }, { what: 'skills', amount: 3 }, { what: 'crew', amount: 3 }, { what: 'safehouse' }, { what: 'own_block' }, { what: 'rackets' }, { what: 'unlock' }, { what: 'reveal' }, { what: 'nemesis' }, { what: 'war', amount: 2 }],
+    // Deliberately no crew in the top-up: every extra body is three more points of
+    // `personalCover`, and a run that kept replacing them survived sixty days of somebody coming
+    // for it twelve times. Three is enough for an heir and not enough to hide behind.
+    topUp: { every: 5, cheats: [{ what: 'nemesis' }, { what: 'war', amount: 2 }] },
+  },
   everything: {
-    label: 'everything', opsPerDay: 3, crewCap: 12,
+    label: 'everything', opsPerDay: 3, crewCap: 12, sinksAt: 300000,
     blurb: 'All of the above at once: the run that should reach every system.',
     setup: [
       ...CORE,

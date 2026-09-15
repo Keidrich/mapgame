@@ -197,7 +197,11 @@ describe('the expanded roster', () => {
     // mechanism the whole lone-wolf lane rests on, and it is not expressible with any of the
     // others — `crewCount` asks whether anybody ever joined, this asks whether anybody is here
     // now, and the answer has to be able to go back to no. Everything else still has to reuse.
-    const allowed = new Set(['crewCount', 'safehouseTier', 'racketKinds', 'businessOwned', 'priorOps', 'stance', 'weapon', 'alone', 'rattedTarget', 'officialTarget', 'jailedTarget', 'casedTarget', 'caseTarget', 'derelictTarget']);
+    // `alone` and `landmarkTarget` are the two additions since this list was frozen, and both
+    // are deliberate. `alone` asks whether anybody is here *now*, which no other key can express.
+    // `landmarkTarget` is the sixth member of the per-target family and asks *which building this
+    // is* — the same shape as `rattedTarget` asking which person. Everything else still reuses.
+    const allowed = new Set(['crewCount', 'safehouseTier', 'racketKinds', 'businessOwned', 'priorOps', 'stance', 'weapon', 'alone', 'landmarkTarget', 'rattedTarget', 'officialTarget', 'jailedTarget', 'casedTarget', 'caseTarget', 'derelictTarget']);
     for (const k of Object.keys(OP_DEFS) as OpKind[]) {
       for (const key of Object.keys(OP_DEFS[k].requires ?? {})) expect(allowed.has(key), `${k}.requires.${key}`).toBe(true);
     }

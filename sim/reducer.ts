@@ -17,7 +17,7 @@ import { DEFECT } from '@content/nemesis';
 import { REFERRAL } from '@content/informants';
 import { defect, defectReason } from './defect';
 import { familyOf } from './connections';
-import { canHost, extortReason, setupCost, tierOf } from './tiers';
+import { canHost, extortReason, setupCost, standingReason, tierOf } from './tiers';
 import { TIERS } from '@content/businesses';
 import { distanceFromStart } from './select';
 import { emptyStash, stanceFor } from './generate';
@@ -48,6 +48,12 @@ import { moveProduct, onJoin, recipesForKind, restockCost, sellMult } from './pr
 import { PRODUCTION_UPGRADE_MULT, RECIPES } from '@content/rackets';
 import { FIXER, LAUNDER_RATE, LIEUTENANT } from '@content/rackets';
 import { LAY_LOW } from '@content/events';
+import { CEILING } from '@content/fortune';
+import { DAYPARTS, DEFAULT_HOUR, HOURS, daypartAt } from '@content/timeofday';
+import { SPECIALISTS, type SpecialistRole } from '@content/specialists';
+import { hireReason, hiredOn, rolesFor, specialistFee } from './specialists';
+import { onTheWay } from './encounters';
+import { bedsTotal, ceilingAt, ceilingPrice, favourPrice, safehouseLimit, favourReason, legitimacy, legitimacyGain, legitimacyReason, lifestyleAt, nextStep } from './fortune';
 import { layingLow, cacheCap, cacheCapLeft } from './economy';
 import { activeCrewCount, officialTrust, addHeat, addInfluence, adjustRel, clamp, factionOf, log, money, nid, rngOf, spreadRep, takeCash } from './util';
 
@@ -274,6 +280,10 @@ function gate(w: World, a: Action): Affordance {
       if (!BUSINESS_DEFS[b.type].valueMult) return no('Not for sale. Ever.');
       if (b.ownedBy !== 'npc') return no('A faction owns this. Take it at a sit-down or by force.');
       const owner = npc(b.ownerId);
+      // The tier-4 door, and it is not a price: a chartered institution does not sell to somebody
+      // the city has never heard of at any number. Arithmetic, on the tier, so tiers 1–3 read this
+      // and get `undefined` without knowing it exists.
+      const shut = standingReason(w, b); if (shut) return no(shut);
       const r = cash(a.offer); if (r) return no(r);
       if (owner.traits.includes('honest') && p.heat > 60) return no(`${owner.name} will not sell to someone this hot.`);
       // A friendly price is a concession, so it wants the same thing every other concession
@@ -337,6 +347,8 @@ function gate(w: World, a: Action): Affordance {
     case 'rent_safehouse': {
       const b = w.blocks[a.blockId]; if (!b) return no('No such block.');
       if (b.safehouseId) return no('There is already a safehouse on this block.');
+      // A cap that existed in spirit and never as a number. Buying headroom raises it.
+      if (p.safehouseIds.length >= safehouseLimit(w)) return no(`You can keep ${safehouseLimit(w)} places at once. Buy the room for another, or give one up.`);
       const c = claimedByPlayer(b) ? 0 : SAFEHOUSE_TIERS[0].rent;   // nobody collects rent on a derelict block you took
       const r = c ? cash(c) : null; if (r) return no(r);
       // Whoever holds this corner may object. `factionOf` returns whoever controls the block,
@@ -382,6 +394,37 @@ function gate(w: World, a: Action): Affordance {
       if (a.days < LAY_LOW.minDays || a.days > LAY_LOW.maxDays) return no(`Between ${LAY_LOW.minDays} and ${LAY_LOW.maxDays} days.`);
       if (p.heat < 20) return no('Nobody is looking for you. Going to ground now just costs you the week.');
       const c = a.days * LAY_LOW.costPerDay; const r = cash(c); return r ? no(r) : yes({ cash: c });
+    }
+    case 'buy_favour': {
+      const n = npc(a.npcId); if (!n) return no('Nobody there.');
+      const why = favourReason(n); if (why) return no(why);
+      const price = favourPrice(n); const r = cash(price); return r ? no(r) : yes({ cash: price });
+    }
+    case 'buy_lifestyle': {
+      const step = nextStep(w, a.kind); if (!step) return no('There is nothing above this.');
+      const r = cash(step.cost); return r ? no(r) : yes({ cash: step.cost });
+    }
+    case 'buy_legitimacy': {
+      const why = legitimacyReason(w, a.amount); if (why) return no(why);
+      const r = cash(a.amount); return r ? no(r) : yes({ cash: a.amount });
+    }
+    case 'buy_ceiling': {
+      const price = ceilingPrice(w, a.kind); if (price === undefined) return no('There is no more room to buy.');
+      const r = cash(price); return r ? no(r) : yes({ cash: price });
+    }
+    case 'set_hour': {
+      if (!HOURS.some(h => h.hour === a.hour)) return no('Not a time anybody works to.');
+      return yes();
+    }
+    case 'hire_specialist': {
+      const o = w.ops[a.opId]; if (!o) return no('No such job.');
+      if (o.status !== 'planning' && o.status !== 'ready') return no('That one has already gone out.');
+      const role = a.role as SpecialistRole;
+      if (!rolesFor(o.kind).includes(role)) return no('This job has no part for that.');
+      if (hiredOn(o).some(h => h.role === role)) return no('You already have somebody on that.');
+      const n = npc(a.npcId); if (!n) return no('Nobody there.');
+      const why = hireReason(w, role, n); if (why) return no(why);
+      const fee = specialistFee(w, o.kind, role, n); const r = cash(fee); return r ? no(r) : yes({ cash: fee });
     }
     case 'cache': {
       if (a.amount <= 0) return no('Amount?');
@@ -845,6 +888,55 @@ function apply(w: World, a: Action, rng: Rng, done: () => void, bonus = 0): Worl
       log(w, `You are off the street for ${a.days} days. Nobody knows where, and nothing of yours gets done while you are gone.`, 'info');
       break;
     }
+    case 'buy_favour': {
+      const n = npc(a.npcId); takeCash(w, favourPrice(n));
+      // straight into the number `personalPull` already reads. It buys the marker, never the vote.
+      doFavour(w, n, 'paid for it');
+      adjustRel(w, n, { trust: 2 });
+      remember(w, n, 'owed', 'You paid them, and they took it. They owe you one.');
+      log(w, `${n.name} takes the envelope without counting it. They owe you one now, and both of you know what it was.`, 'money', { npcId: n.id, factionId: n.faction });
+      break;
+    }
+    case 'buy_lifestyle': {
+      const step = nextStep(w, a.kind)!;
+      takeCash(w, step.cost);
+      p.lifestyle = { ...(p.lifestyle ?? {}), [a.kind]: lifestyleAt(w, a.kind) + 1 };
+      p.respect = clamp(p.respect + step.respect);
+      p.fear = clamp(p.fear + step.fear);
+      // the city sees it, not just the sheet: this is the whole reason it is not decoration
+      spreadRep(w, p.currentBlockId, { respect: step.respect * 0.4, fear: step.fear * 0.4 }, 2, 'words');
+      log(w, `${step.label}. ${step.blurb}`, 'good');
+      break;
+    }
+    case 'buy_legitimacy': {
+      takeCash(w, a.amount);
+      const gained = legitimacyGain(w, a.amount);
+      p.legitimacy = legitimacy(w) + gained;
+      p.respect = clamp(p.respect + Math.round(gained * 0.2));
+      log(w, `${money(a.amount)} to things with your name on them. People who would not have taken your call last month are on the list. (+${Math.round(gained)} respectable)`, 'good');
+      break;
+    }
+    case 'hire_specialist': {
+      const o = w.ops[a.opId]; const n = npc(a.npcId); const role = a.role as SpecialistRole;
+      takeCash(w, specialistFee(w, o.kind, role, n));
+      o.specialists = [...(o.specialists ?? []), { role, npcId: n.id }];
+      remember(w, n, 'deal', `Hired for one night: ${SPECIALISTS[role].label}.`);
+      adjustRel(w, n, { trust: 3 });
+      log(w, `${n.name} is in on ${OP_DEFS[o.kind].label}. ${SPECIALISTS[role].label}, one fee, and they do not want to know anything else.`, 'info', { npcId: n.id, opId: o.id });
+      break;
+    }
+    case 'set_hour': {
+      w.hour = a.hour;
+      log(w, `You will go at ${String(a.hour).padStart(2, '0')}:00. ${DAYPARTS[daypartAt(a.hour)].blurb}`, 'info');
+      break;
+    }
+    case 'buy_ceiling': {
+      const price = ceilingPrice(w, a.kind)!;
+      takeCash(w, price);
+      p.ceilings = { ...(p.ceilings ?? {}), [a.kind]: ceilingAt(w, a.kind) + 1 };
+      log(w, `${CEILING[a.kind].label}. ${CEILING[a.kind].blurb}`, 'good');
+      break;
+    }
     case 'cache': {
       if (a.take) { const amt = Math.min(a.amount, p.cache ?? 0); p.cache = (p.cache ?? 0) - amt; p.dirty += amt; log(w, `You take ${money(amt)} back out of the wall.`, 'money'); }
       else { p.dirty -= a.amount; p.cache = (p.cache ?? 0) + a.amount; log(w, `${money(a.amount)} goes somewhere only you know about.`, 'money'); }
@@ -875,7 +967,9 @@ function apply(w: World, a: Action, rng: Rng, done: () => void, bonus = 0): Worl
     case 'plan_op': {
       const def = OP_DEFS[a.kind]; const price = opCost(w, a.kind, { npcId: a.targetNpcId, caseId: a.targetCaseId }); if (price) takeCash(w, price);
       const insider = a.approach === 'inside' ? insidersFor(w, a.targetBusinessId)[0] : undefined;
-      const o: Op = { id: nid(w, 'o'), kind: a.kind, approach: a.approach, mode: a.mode ?? OP_DEFS[a.kind].modes?.[0]?.id, insideId: insider?.id, targetBusinessId: a.targetBusinessId, targetNpcId: a.targetNpcId, targetFactionId: a.targetFactionId, targetBlockId: a.targetBlockId, targetDistrictId: a.targetDistrictId, targetCaseId: a.targetCaseId, safehouseId: a.safehouseId ?? (a.kind === 'kidnap' ? p.safehouseIds[0] : undefined), crewIds: a.crewIds.slice(), planDays: def.planDays, daysLeft: def.planDays, status: def.planDays === 0 ? 'ready' : 'planning', createdDay: w.day };
+      // the clock at launch is the clock that counts, so changing your mind later does not
+      // retroactively move a job that already went out
+      const o: Op = { hour: w.hour ?? DEFAULT_HOUR, id: nid(w, 'o'), kind: a.kind, approach: a.approach, mode: a.mode ?? OP_DEFS[a.kind].modes?.[0]?.id, insideId: insider?.id, targetBusinessId: a.targetBusinessId, targetNpcId: a.targetNpcId, targetFactionId: a.targetFactionId, targetBlockId: a.targetBlockId, targetDistrictId: a.targetDistrictId, targetCaseId: a.targetCaseId, safehouseId: a.safehouseId ?? (a.kind === 'kidnap' ? p.safehouseIds[0] : undefined), crewIds: a.crewIds.slice(), planDays: def.planDays, daysLeft: def.planDays, status: def.planDays === 0 ? 'ready' : 'planning', createdDay: w.day };
       w.ops[o.id] = o; p.opIds.push(o.id);
       for (const id of a.crewIds) { const n = npc(id); n.crew!.assignment = { kind: 'op', opId: o.id }; n.crew!.status = 'assigned'; }
       log(w, `${def.label}${a.approach ? ` (${OP_APPROACHES[a.approach].label.toLowerCase()}${insider ? `, ${insider.name} inside` : ''})` : ''} is ${o.status === 'ready' ? 'ready to go' : `in planning (${def.planDays} days)`}.`, 'info', { opId: o.id });
@@ -1012,6 +1106,9 @@ function apply(w: World, a: Action, rng: Rng, done: () => void, bonus = 0): Worl
       }
       const far = r.hops.length;
       log(w, `You walk from ${from?.name ?? 'where you were'} to ${to.name}${far > 1 ? ` (${far} blocks)` : ''}. ${r.cost} legwork, ${p.legwork} left.`, 'info', { blockId: to.id });
+      // …and occasionally something happens on the way. See `sim/encounters.ts` for why this is
+      // deliberately not a second event deck: these resolve as you pass rather than asking.
+      onTheWay(w, to.id, rng);
       break;
     }
     case 'sit_down': sitDown(w, a.factionId, a.offer, rng); break;
@@ -1060,8 +1157,9 @@ function apply(w: World, a: Action, rng: Rng, done: () => void, bonus = 0): Worl
 export function stashTotal(s: Record<string, number>): number { return Object.values(s).reduce((a, b) => a + b, 0); }
 
 export function bedsLeft(w: World): number {
-  const beds = 2 + w.player.safehouseIds.reduce((s, id) => s + SAFEHOUSE_TIERS[w.safehouses[id].tier - 1].crewBeds, 0);
-  return beds - w.player.crewIds.filter(id => w.npcs[id].crew?.status !== 'dead').length;
+  // one number, so bought headroom reaches every caller of this rather than the ones that
+  // remembered — `bedsTotal` is the same arithmetic plus `extraBeds`
+  return bedsTotal(w) - w.player.crewIds.filter(id => w.npcs[id].crew?.status !== 'dead').length;
 }
 
 export function launderCapLeft(w: World): number {

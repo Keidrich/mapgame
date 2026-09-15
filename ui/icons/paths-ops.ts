@@ -95,6 +95,13 @@ export const OP_ICON_PATHS: Record<string, IconPaths> = {
   bid_rigging: ['M6 3.5h12v17H6z', 'M9 3.5h6v2.5H9z', 'M9 10h6M9 13.5h6', 'M13.5 19.5 19 14l2.5 2.5-5.5 5.5z'],
   campaign_wash: [BALLOT, 'M9 14.5h6', 'M12 3.2a2.6 2.6 0 1 0 0 5.2 2.6 2.6 0 0 0 0-5.2', 'M12 8.4v2.1', 'M6 5.5a2 2 0 1 0 0 4M18 5.5a2 2 0 1 1 0 4'],
   vote_buying: [BALLOT, 'M6.5 14 8 15.5l2-2.5M11.5 14 13 15.5l2-2.5M16.5 14 18 15.5l2-2.5', 'M8 10.5V6h8v4.5', 'M12 3v3'],
+  // ---- the five landmarks: each one drawn as the building it is ----
+  count_night: ['M4 6.5h16v11H4z', 'M7.5 10h3M7.5 13h3M13.5 10h3M13.5 13h3', 'M12 4v15'],
+  records_room: ['M4 4.5h16v15H4z', 'M4 9.5h16M4 14.5h16', 'M9.5 7h5M9.5 12h5M9.5 17h5'],
+  manifest_swap: ['M3 18.5h18', 'M5 18.5V9h6v9.5M13 18.5V12h6v6.5', 'M5 9 8 5.5 11 9', 'M15 15h2'],
+  left_luggage: ['M4.5 8.5h15v11h-15z', 'M9 8.5V5.5a1.6 1.6 0 0 1 1.6-1.6h2.8A1.6 1.6 0 0 1 15 5.5v3', 'M4.5 13.5h15'],
+  dome_job: ['M4 19.5h16', 'M4.5 19.5a7.5 7.5 0 0 1 15 0', 'M12 4v3', 'M8.5 12.5h7'],
+
   // ---- the lone-wolf lane: one figure, and nothing behind them ----
   // a single silhouette where the others in this file draw two or three, which is the lane
   ghost_job: ['M12 3.5a3.4 3.4 0 1 0 0 6.8 3.4 3.4 0 0 0 0-6.8', 'M5.5 21v-1.5c0-3.2 2.9-5.2 6.5-5.2s6.5 2 6.5 5.2V21', 'M3 12.5h3M18 12.5h3'],

@@ -8,7 +8,10 @@ import { tickIntel } from './intel';
 import { tickAssets } from './informants';
 import { launderCapacity, layLowLeft, layingLow, productionOutput, racketIncome, streetPrice } from './economy';
 import { CACHE, LAY_LOW } from '@content/events';
+import { LEGITIMACY } from '@content/fortune';
 import { earnStreetName } from './nemesis';
+import { tickGoStraight } from './legacy';
+import { tickUpstart } from './upstart';
 import { LAUNDER_RATE, PRISON_WING } from '@content/rackets';
 import { resolveConfrontation } from './combat';
 import { tickCards, tickHackCrew, tickTaps } from './cyber';
@@ -188,6 +191,8 @@ export function endDay(w: World): World {
 
   // ---- factions ----
   for (const f of Object.values(w.factions)) runFaction(w, f, rng);
+  // ...and the one that started from nothing the same week you did
+  tickUpstart(w, rng);
   tickCrews(w, rng);
   tickLieutenants(w, rng, districtTake);
 
@@ -229,8 +234,13 @@ export function endDay(w: World): World {
 
   // ---- reputation settles ----
   if (w.day % 3 === 0) { p.fear = clamp(p.fear - 1); }
+  // A reputation for being respectable is not bought once. A wing with your name on it is old
+  // news in a month, which is what makes legitimacy a sink rather than a purchase.
+  if (p.legitimacy) p.legitimacy = Math.max(0, p.legitimacy - LEGITIMACY.decayPerDay);
   // ...and once it is high enough, the street decides what to call you
   earnStreetName(w);
+  // the other way out: a fortnight of holding every clean condition at once, not a stat crossing
+  tickGoStraight(w);
 
   // ---- events, day summary, endgame ----
   // ---- off the street ----

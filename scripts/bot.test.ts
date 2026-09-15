@@ -10,8 +10,12 @@
  *  - the `honest` scenario is frozen. It is the only run whose economy numbers are comparable
  *    with earlier passes, so its behaviour must not drift. If a change here moves its curve, it
  *    is a bot change wearing a balance change's clothes.
- *  - the `everything` scenario must touch every system. When it stops doing so, either the bot
- *    needs teaching or a system has become unreachable — and both are worth failing over.
+ *  - **the sweep** must touch every system. This used to say "the `everything` scenario", and it
+ *    stopped being possible to say that once the game grew endings: a run that goes straight has
+ *    by definition stopped earning, and a run where somebody gets to you has by definition not
+ *    spent its money on a house with a gate. So the contract is the union across scenarios —
+ *    which is what `npm run sim -- 60 7 all` prints anyway — and `everything` keeps a weaker
+ *    contract of its own below: it must still reach everything that is not an ending.
  */
 import { describe, expect, it } from 'vitest';
 import { OP_DEFS } from '@content/rackets';
@@ -121,11 +125,27 @@ describe('the boosted scenarios reach what honest play cannot', () => {
   }, SLOW);
 });
 
+/**
+ * Rows `everything` is not expected to reach in sixteen days, and why. Nothing is excused here
+ * for being flaky — each one is excluded for a stated structural reason, and the union test
+ * below still holds every one of them to account across the sweep.
+ *
+ *  - the five sinks and the two endings only happen in a run built around them: `everything` is
+ *    a run about *having* an empire, and none of this happens to somebody busy having one;
+ *  - faction-vs-faction war is genuinely slow. Standing between two outfits is a random walk
+ *    with a grievance on top, and sixteen days is not long enough for it to conclude — it turns
+ *    up reliably in a sixty-day `ambitious` run and in the full sweep, which is where it belongs.
+ */
+const SLOW_OR_TERMINAL = new Set([
+  'the fourth tier', 'buying a favour', 'lifestyle', 'buying legitimacy', 'raising a ceiling',
+  'getting out', 'succession', 'factions on their own',
+]);
+
 describe('coverage', () => {
-  it('the everything scenario touches every system', () => {
+  it('the everything scenario touches every system that is not slow or terminal', () => {
     const r = canon('everything');
-    expect(missing(r.cov), `never exercised: ${missing(r.cov).join(', ')}`).toEqual([]);
-    expect(fullyCovered(r.cov)).toBe(true);
+    const gaps = missing(r.cov).filter(l => !SLOW_OR_TERMINAL.has(l));
+    expect(gaps, `never exercised: ${gaps.join(', ')}`).toEqual([]);
   }, SLOW);
 
   it('and gets through a serious slice of the op roster', () => {
@@ -171,11 +191,16 @@ describe('coverage', () => {
   }, SLOW);
 
   it('every system in the table is reachable by some scenario', () => {
-    // a system nobody can reach is a bug in the table or in the game, not a bot problem
-    const r = canon('everything');
-    for (const s of SYSTEMS) {
-      expect(s.needs.some(n => count(r.cov, n) > 0), `${s.label} was never reached`).toBe(true);
+    // A system nobody can reach is a bug in the table or in the game, not a bot problem. Taken
+    // across the whole sweep, because that is the claim: somewhere in the scenarios, every row
+    // in that table is a thing that actually happens.
+    const reached = new Set<string>();
+    for (const name of SCENARIO_NAMES) {
+      const r = canon(name);
+      for (const s of SYSTEMS) if (s.needs.some(n => count(r.cov, n) > 0)) reached.add(s.label);
     }
+    const gaps = SYSTEMS.map(s => s.label).filter(l => !reached.has(l));
+    expect(gaps, `no scenario reaches: ${gaps.join(', ')}`).toEqual([]);
   }, SLOW);
 });
 

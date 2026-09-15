@@ -10,8 +10,9 @@
  * paths mostly need an admin scenario to be reachable at all (see `admin.ts`); the honest
  * scenario will still spend most of its days shaking down bars, which is correct.
  */
-import { PLAYER, can, dispatch, select, type Action, type Id, type OpKind, type ProductKind, type World } from '@sim/index';
+import { PLAYER, can, dispatch, select, type Action, type FactionId, type Id, type OpKind, type ProductKind, type World } from '@sim/index';
 import { OP_DEFS } from '@content/rackets';
+import { LANDMARKS } from '@content/landmarks';
 import type { Rng } from '@sim/rng';
 import { bump, bumpComplication, bumpOp, warn, type Coverage } from './coverage';
 
@@ -27,6 +28,19 @@ export interface Ctx {
   reserve: number;
   /** Cash in hand before the bot will build a production line. See `Scenario.stillAt`. */
   stillAt: number;
+  /**
+   * Cash in hand before the bot spends anything on the money sinks. High by design: these are
+   * what late money is for, and a bot that bought a lifestyle rung out of its first $60,000
+   * would be testing the reducer while lying about the economy. `Infinity` switches the whole
+   * lane off, which is what every scenario that is not about a fortune gets.
+   */
+  sinksAt: number;
+  /**
+   * The bot is trying to get out rather than get on. Changes what a day is for: buy
+   * respectability, wash everything, and stop doing the things that put heat on you. It is a
+   * flag rather than a scenario check because the day loop should not know scenario names.
+   */
+  goingStraight: boolean;
 }
 
 export const tryAct = (c: Ctx, a: Action): boolean => {
@@ -39,9 +53,15 @@ const at = (c: Ctx, blockId?: Id) => !!blockId && c.w.player.currentBlockId === 
 export const goTo = (c: Ctx, blockId?: Id) => {
   if (!blockId) return false;
   if (at(c, blockId)) return true;
+  // A walk writes exactly one line — "You walk from J8 to K7" — and `onTheWay` writes whatever
+  // happened on the way after it. So anything past the first line is an encounter, which is a
+  // more honest count than matching the text of a table that is meant to keep growing.
+  const lines = c.w.log.length;
   const moved = tryAct(c, { type: 'move', toBlockId: blockId });
-  if (moved) bump(c.cov, 'moves');
-  return moved;
+  if (!moved) return false;
+  bump(c.cov, 'moves');
+  if (c.w.log.length > lines + 1) bump(c.cov, 'encounters', c.w.log.length - lines - 1);
+  return true;
 };
 const npcBlock = (c: Ctx, id: Id) => c.w.npcs[id]?.homeBlockId;
 const nearBiz = (c: Ctx) => Object.values(c.w.blocks).filter(b => select.distanceFromStart(c.w, b.id) <= 2).flatMap(b => select.businessesIn(c.w, b.id));
@@ -64,6 +84,11 @@ export function answerEverything(c: Ctx) {
     const isComplication = x.kind === 'op';
     if (isComplication) { bump(c.cov, 'complications'); if (x.complication) bumpComplication(c.cov, x.complication); }
     else bump(c.cov, 'confrontations');
+    // The two personal ones are counted here for the same reason `asset_warnings` is: the queue
+    // is drained by the time any tally runs, so a confrontation that came for the player rather
+    // than for a racket leaves nothing behind to count. This is where it is seen or nowhere.
+    if (x.kind === 'you') bump(c.cov, 'hunted');
+    if (x.kind === 'loved') bump(c.cov, 'loved_hit');
     // counted here rather than in `tallyPeople`: by the time that runs the queue has been
     // answered and drained, and a warning that was acted on leaves nothing behind to count
     if (x.warned) bump(c.cov, 'asset_warnings');
@@ -688,4 +713,203 @@ export function tallyNight(c: Ctx, before: { busts: number; logLen: number }) {
 const seen = new Set<Id>();
 const absent = new Set<Id>();
 /** Reset the per-run memory, so two runs in one process do not pollute each other. */
-export function resetPolicy() { bribedOn = -1; seen.clear(); absent.clear(); seenIntel.clear(); seenCases.clear(); lastRecipe.clear(); madeNemesis.clear(); }
+export function resetPolicy() {
+  bribedOn = -1; seen.clear(); absent.clear(); seenIntel.clear(); seenCases.clear(); lastRecipe.clear(); madeNemesis.clear();
+  landmarked.clear(); pairStance.clear(); swallowed.clear();
+  upstartSize = -1; succeeded = false; wentStraight = false;
+}
+
+// ---------------------------------------------------------------- what a fortune is for
+/**
+ * Spending real money on things that are not another racket.
+ *
+ * Every one of these is a sink that did not exist before this pass, and the reason they are all
+ * in one function is that they compete for the same pile: a bot that bought an institution first
+ * would never have had the cash to test anything else. So the order is cheapest-first — the
+ * clock, a ceiling, a lifestyle rung, a favour, respectability, and an institution last — which
+ * is also roughly the order a player meets them.
+ *
+ * Gated on `sinksAt` rather than a constant: the honest scenario must never reach this, both
+ * because its curve is frozen and because a player on $40 buying a casino would be a lie.
+ */
+export function spendTheFortune(c: Ctx) {
+  const p = c.w.player;
+  if (p.cash < c.sinksAt) return;
+
+  // headroom first: it is the cheapest of these and it unblocks the others by letting the outfit
+  // grow past the caps that would otherwise cap what a big job can field
+  for (const kind of ['crew', 'safehouse'] as const) {
+    const price = select.ceilingPrice(c.w, kind);
+    if (price !== undefined && p.cash > price * 3 && tryAct(c, { type: 'buy_ceiling', kind })) bump(c.cov, 'ceilings_bought');
+  }
+
+  // the three ladders, one rung a visit, cheapest ladder first
+  const rungs = (['home', 'car', 'security'] as const)
+    .map(kind => ({ kind, step: select.nextStep(c.w, kind) }))
+    .filter(x => x.step)
+    .sort((a, b) => a.step!.cost - b.step!.cost);
+  for (const r of rungs) {
+    if (p.cash < r.step!.cost * 2) continue;
+    if (tryAct(c, { type: 'buy_lifestyle', kind: r.kind })) { bump(c.cov, 'lifestyle_bought'); break; }
+  }
+
+  // somebody important, paid to owe you one. Cheapest first for the same reason as everything
+  // else here: the point of the soak is that the path runs, not that it buys the best favour.
+  const marks = Object.values(c.w.npcs)
+    .filter(n => n.alive && !select.favourReason(n))
+    .sort((a, b) => select.favourPrice(a) - select.favourPrice(b));
+  const mark = marks[0];
+  if (mark && p.cash > select.favourPrice(mark) * 2 && tryAct(c, { type: 'buy_favour', npcId: mark.id })) bump(c.cov, 'favours_bought');
+
+  // respectability, in one visible chunk rather than a trickle, so the heat discount is large
+  // enough to actually show up against the rest of the run
+  const spend = Math.min(30000, Math.floor(p.cash * 0.1));
+  if (!select.legitimacyReason(c.w, spend) && tryAct(c, { type: 'buy_legitimacy', amount: spend })) bump(c.cov, 'legitimacy_bought');
+
+  // and the top of the ladder. Only ever one: the second is not a different code path and the
+  // money is better spent proving the rest of this table is reachable.
+  if (!c.w.player.businessIds.some(id => select.tierOf(c.w.businesses[id]) === 4)) {
+    const top = Object.values(c.w.businesses)
+      .filter(b => b.ownerId !== undefined && select.tierOf(b) === 4 && !c.w.player.businessIds.includes(b.id))
+      .sort((a, b) => a.value - b.value)[0];
+    if (top && p.cash > top.value * 1.2 && tryAct(c, { type: 'buy_business', businessId: top.id, offer: Math.round(top.value * 1.15) })) {
+      bump(c.cov, 'tier4_bought'); bump(c.cov, 'businesses_bought');
+    }
+  }
+}
+
+/**
+ * Move the clock. Cycled rather than optimised: the soak's job is to run every daypart through
+ * `opChance`, `addHeat` and `effectivePolice`, and a bot that always picked the best hour would
+ * only ever exercise one of the four.
+ */
+export function pickTheHour(c: Ctx, day: number) {
+  const hours = select.HOURS;
+  const want = hours[day % hours.length].hour;
+  if ((c.w.hour ?? select.DEFAULT_HOUR) === want) return;
+  if (tryAct(c, { type: 'set_hour', hour: want })) bump(c.cov, 'hours_set');
+}
+
+/**
+ * Put a specialist on a set-piece that is waiting to go out.
+ *
+ * On the planned op rather than at planning time, because `hire_specialist` needs an op id —
+ * the same reason the UI puts this on the active-job card rather than in the planner.
+ */
+export function hireSpecialists(c: Ctx) {
+  for (const o of Object.values(c.w.ops)) {
+    if (o.status !== 'ready' || o.launched) continue;
+    if (!select.isSetPiece(o.kind)) continue;
+    for (const role of select.rolesFor(o.kind)) {
+      if (select.hiredOn(o).some(h => h.role === role)) continue;
+      const pro = select.specialistsFor(c.w, role)
+        .filter(n => !select.hireReason(c.w, role, n))
+        .sort((a, b) => select.specialistFee(c.w, o.kind, role, a) - select.specialistFee(c.w, o.kind, role, b))[0];
+      if (!pro) continue;
+      if (tryAct(c, { type: 'hire_specialist', opId: o.id, role, npcId: pro.id })) bump(c.cov, 'specialists_hired');
+    }
+  }
+}
+
+/**
+ * Everything the world did on its own, counted off things it already wrote down.
+ *
+ * Deliberately log-and-state reading rather than hooks in the sim: these are systems that run
+ * *without* the player, so there is no action to count, and a counter the sim had to call would
+ * be test-only code in `/sim`. If a line here stops matching, the system stopped announcing
+ * itself, which is worth knowing on its own.
+ */
+export function tallyTheWorld(c: Ctx) {
+  // --- stance between two outfits, neither of which is the player. Read off state rather than
+  //     the log, because the claim is that the map changes, not that a line got printed.
+  for (const f of Object.values(c.w.factions)) {
+    for (const other of Object.values(c.w.factions)) {
+      if (f.id === other.id) continue;
+      const key = [f.id, other.id].sort().join('>');
+      const now = f.stance[other.id];
+      const was = pairStance.get(key);
+      pairStance.set(key, now);
+      if (was !== undefined && was !== now && (now === 'war' || now === 'beef')) bump(c.cov, 'faction_wars');
+    }
+    // somebody else finished them: absorbed, or simply bled out with nobody left to answer
+    if (f.defeatedDay !== undefined && f.defeatedBy !== undefined && f.defeatedBy !== PLAYER && !swallowed.has(f.id)) {
+      swallowed.add(f.id); bump(c.cov, 'faction_absorbs');
+    }
+  }
+
+  // --- the front page, which is a pure read of the log and so is only ever as good as the log
+  if (select.hasNews(c.w)) bump(c.cov, 'headlines', select.headlines(c.w).length);
+
+  // --- the one-off places
+  for (const o of Object.values(c.w.ops)) {
+    if ((o.status === 'done' || o.status === 'failed') && LANDMARK_OPS.has(o.kind) && !landmarked.has(o.id)) { landmarked.add(o.id); bump(c.cov, 'landmark_ops'); }
+  }
+
+  // --- the upstart, counted by what it has rather than what it said, because growth is the claim
+  const up = select.upstart(c.w);
+  if (up) {
+    const was = upstartSize;
+    upstartSize = up.soldiers + select.blocksOf(c.w, up.id).length;
+    if (was >= 0 && upstartSize > was) bump(c.cov, 'upstart_grew');
+  }
+
+  // --- the two endings
+  if (c.w.player.succeededFrom?.length && !succeeded) { succeeded = true; bump(c.cov, 'succession'); }
+  if (c.w.gameOver?.reason === 'straight' && !wentStraight) { wentStraight = true; bump(c.cov, 'went_straight'); }
+}
+const LANDMARK_OPS = new Set<string>(LANDMARKS.map(l => l.op));
+const landmarked = new Set<Id>();
+const pairStance = new Map<string, string | undefined>();
+const swallowed = new Set<FactionId>();
+let upstartSize = -1;
+let succeeded = false;
+let wentStraight = false;
+
+
+/**
+ * Trying to get out.
+ *
+ * `GO_STRAIGHT` wants four things at once for a fortnight — clean money sitting there, nothing
+ * dirty on the books, nobody looking, and enough bought respectability that somebody might
+ * believe it — and the ordinary bot day breaks at least two of them every morning by design.
+ * So this is its own shape: buy the respectability, wash the takings, and sit still.
+ *
+ * It is the only way the clean ending is reachable inside sixty days, and without it the whole
+ * of that system shipped with a ✗ next to it.
+ */
+export function tryToGetOut(c: Ctx) {
+  const p = c.w.player;
+  // respectability decays daily, so this is a standing order rather than a one-off purchase
+  if (select.legitimacy(c.w) < select.GO_STRAIGHT.legitimacy + 8) {
+    const spend = Math.min(60000, Math.floor(p.cash * 0.05));
+    if (!select.legitimacyReason(c.w, spend) && tryAct(c, { type: 'buy_legitimacy', amount: spend })) bump(c.cov, 'legitimacy_bought');
+  }
+  // nothing you cannot explain. The fixer is worth using here even at his rate: the cap on what
+  // you can wash yourself is the thing most likely to leave a few hundred dirty overnight.
+  if (p.dirty > 0 && tryAct(c, { type: 'launder', amount: p.dirty })) bump(c.cov, 'launders');
+  if (p.dirty > 0) {
+    const fx = select.fixersKnown(c.w)[0];
+    const room = fx ? select.fixerCapLeft(c.w, fx) : 0;
+    if (fx && room > 0 && tryAct(c, { type: 'launder_with_fixer', npcId: fx.id, amount: Math.min(p.dirty, room) })) bump(c.cov, 'fixer_launders');
+  }
+  // and nobody looking. Laying low is the only lever on heat that does not cost a job.
+  if (p.heat > select.GO_STRAIGHT.maxHeat && !select.layingLow(c.w)) tryAct(c, { type: 'lay_low', days: 3 });
+}
+
+
+/**
+ * Walk a landmark before trying to rob it.
+ *
+ * `count_night` wants `casedTarget` and was the one landmark job a sixty-day sweep never ran: the
+ * bot has never cased anything in its life, because until now nothing it could plan asked it to.
+ * One walk a day, at whichever one-off place is not currently cased and is nearest to being
+ * useful — which is also exactly what a player does before a job of that size.
+ */
+export function caseALandmark(c: Ctx) {
+  for (const lm of LANDMARKS) {
+    const biz = Object.values(c.w.businesses).find(b => b.name === lm.name);
+    if (!biz || (biz.casedUntil ?? 0) > c.w.day) continue;
+    if (!goTo(c, biz.blockId)) continue;
+    if (tryAct(c, { type: 'case_joint', businessId: biz.id })) return;
+  }
+}

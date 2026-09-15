@@ -95,7 +95,9 @@ export type BusinessType =
   | 'black_market'   // a back room that trades in kit; see content/items.ts
   // the second bench: street trades the city actually has, and the offices above them
   | 'scrapyard' | 'electronics' | 'boutique' | 'tow_yard'
-  | 'gallery' | 'pharmacy' | 'accountant' | 'importer';
+  | 'gallery' | 'pharmacy' | 'accountant' | 'importer'
+  // ---- tier 4: chartered institutions. Money is the cheap part of getting into one of these ----
+  | 'casino' | 'merchant_bank' | 'shipping_line' | 'development_co';
 
 export interface Protection {
   factionId: FactionId;
@@ -128,6 +130,9 @@ export interface Business {
    * before the crime pass loads with nothing shut.
    */
   shut?: number;
+
+  /** One of the five places in the city there is only one of. Unlocks that landmark's own job. */
+  landmark?: string;
 
   flags: string[];      // free-form markers ('torched', 'raided', ...)
 }
@@ -251,6 +256,8 @@ export interface Npc {
   ledger?: LedgerEntry[];     // what has actually passed between you and them (sim/ledger.ts)
   nemesis?: Nemesis;          // a faction lieutenant who keeps meeting you, and what it has made of them
   asset?: Asset;              // a standing informant or a pair of hands, earned the same way a concession is
+  /** The day somebody took them, if somebody has. Only ever set on the player's loved one. */
+  taken?: number;
   playerNote?: string;        // the player's memory aid, set from the Social tab or their sheet. The sim never writes it.
 }
 
@@ -366,7 +373,9 @@ export type OpKind =
   // elite: the two that reach the whole city
   | 'crypto_wash' | 'vote_buying'
   // ---- the lone-wolf lane: work that only exists because nobody else is involved ----
-  | 'ghost_job' | 'no_loose_ends';
+  | 'ghost_job' | 'no_loose_ends'
+  // ---- the five one-off jobs, each of which exists at exactly one address ----
+  | 'count_night' | 'records_room' | 'manifest_swap' | 'left_luggage' | 'dome_job';
 
 export type OpStatus = 'planning' | 'ready' | 'done' | 'failed' | 'aborted';
 
@@ -396,6 +405,10 @@ export interface Op {
   createdDay: number;
   launched?: boolean;
   result?: OpResult;
+  /** The hour this job was planned for, kept so the clock at launch is the clock that counts. */
+  hour?: number;
+  /** One-off people hired for this job only, by the part they were hired for. */
+  specialists?: { role: string; npcId: Id }[];
 }
 
 export interface OpResult {
@@ -545,6 +558,22 @@ export interface Player {
    * nemesis's nickname: set once, never cleared, and read through `playerName()` everywhere.
    */
   street?: string;
+  // ---- what a fortune is for. See `content/fortune.ts`; all optional, so an old save has none.
+  /** Rungs bought on each lifestyle ladder. Permanent respect and fear, and a visible life. */
+  lifestyle?: Partial<Record<'home' | 'car' | 'security', number>>;
+  /** How respectable you currently look. Decays daily; multiplies every point of heat. */
+  legitimacy?: number;
+  /** Permanent headroom bought on caps that already existed. */
+  ceilings?: Partial<Record<'crew' | 'safehouse', number>>;
+  // ---- what you have to lose, and what outlives you. See `sim/legacy.ts`.
+  /** Somebody outside all of it. The only person a rival can use against you. */
+  lovedId?: Id;
+  /** The npc record the last player became when they went. Kept so their ledger still resolves. */
+  ghostId?: Id;
+  /** Who you took over from, oldest first. The outfit's own line of succession. */
+  succeededFrom?: string[];
+  /** Consecutive days meeting every go-straight condition at once. */
+  cleanSince?: number;
   quality?: Partial<Record<ProductKind, number>>; // running average quality of the carried stash
   recipes?: string[]; // RECIPES ids unlocked (stolen formulas, specialists)
   crewIds: Id[];
@@ -594,7 +623,12 @@ export interface Secret {
 }
 
 // ---------- confrontations: somebody came for you, and you are standing there ----------
-export type ConfrontKind = 'racket' | 'business' | 'crew' | 'op' | 'talk';
+/**
+ * `you` and `loved` are the two that point inward: somebody has come for the player personally,
+ * or for the one person the player has outside all of it. Everything else in this union is
+ * something of the player's being leaned on.
+ */
+export type ConfrontKind = 'racket' | 'business' | 'crew' | 'op' | 'talk' | 'you' | 'loved';
 export type { ComplicationKind };
 /** How you meet it. Each maps onto an op approach, so carried kit reads the same way it does on a job. */
 export type ConfrontApproach = 'fight' | 'flee' | 'backup';
@@ -704,6 +738,13 @@ export interface World {
   log: LogEntry[];
   cheated?: true;          // the testing tools were used on this save
   gameOver?: { reason: string; text: string };
+  /** The one outfit that started from nothing at the same time you did. See `sim/upstart.ts`. */
+  upstartId?: Id;
+  /**
+   * Hour of the day the next job would run, 0..23, and the only time the world keeps.
+   * Optional so an old save simply has no clock and reads as `TIME.default`.
+   */
+  hour?: number;
   victory?: boolean;
   nextId: number;
 }

@@ -12,6 +12,9 @@ import { Info, Term } from './Info';
 import { Inventory } from './Inventory';
 import { Holdings } from './Holdings';
 import { WireSection } from './Wire';
+import { NewsTicker } from './NewsTicker';
+import { TrophyScreen } from './TrophyScreen';
+import { LIFESTYLE } from '@content/fortune';
 import { Icon } from '@ui/icons';
 
 export function EmpireTab() {
@@ -47,6 +50,12 @@ export function EmpireTab() {
       <div className="list">{biz.map(b => <BizRow key={b.id} w={w} biz={b} />)}{biz.length === 0 && <p className="small muted">You own nothing yet. Buy a business or protect one.</p>}</div>
 
       <WireSection />
+
+      {/* what the city read about it afterwards, and the file somebody kept on you */}
+      <NewsTicker />
+      <Lifestyle />
+      <GoStraight />
+      <TrophyScreen />
 
       <div className="section-title">Rackets ({rackets.length})</div>
       <div className="list">{rackets.map(r => <RacketCard key={r.id} w={w} r={r} showBiz />)}{rackets.length === 0 && <p className="small muted">No rackets. Start one from a business sheet.</p>}</div>
@@ -158,6 +167,95 @@ function TheWall() {
           </>}
       {held > 0 && why && <div className="mt8"><Act action={{ type: 'cache', amount: held, take: true }} label={`Take back ${fmtMoney(held)}`} kind="primary" block /></div>}
     </Disclosure>
+  );
+}
+
+/**
+ * The other way this ends: laundering all the way out.
+ *
+ * Deliberately a progress report and not a button. Every condition has to hold *at once* and keep
+ * holding — `sim/legacy.ts` counts the days — so the screen's job is to say which one you are
+ * failing today, which is the only useful thing it could say.
+ */
+function GoStraight() {
+  const w = useWorld();
+  const why = select.goStraightReason(w);
+  const days = w.player.cleanSince ?? 0;
+  const loved = select.lovedOne(w);
+  if (!loved && w.player.cash < select.GO_STRAIGHT.cash / 3) return null;   // not a conversation yet
+  return (
+    <>
+      <div className="section-title">Getting out<Info id="goStraight" /></div>
+      <div className="card" style={{ padding: 10 }}>
+        {why
+          ? <p className="small muted">{why}</p>
+          : <p className="small gold">Everything is in order. {days} of {select.GO_STRAIGHT.days} quiet days. Keep it like this and you are out.</p>}
+        {!why && (
+          <div className="meterbar mt8"><div className="meterfill" style={{ width: `${Math.min(100, (days / select.GO_STRAIGHT.days) * 100)}%` }} /></div>
+        )}
+        {loved && <p className="tiny faint mt8">{select.lovedStatus(w)}</p>}
+      </div>
+    </>
+  );
+}
+
+/**
+ * What a fortune is for, in one place: the life, the legitimacy, and the headroom. Everything
+ * here is a sink — see `content/fortune.ts` — and every one of them spends into a number the rest
+ * of the game already reads, which is why none of them has a screen of its own.
+ */
+function Lifestyle() {
+  const w = useWorld();
+  const [spend, setSpend] = useState(10_000);
+  return (
+    <>
+      <div className="section-title">What it is all for<Info id="lifestyle" /></div>
+      <div className="col" style={{ gap: 6 }}>
+        {(Object.keys(LIFESTYLE) as (keyof typeof LIFESTYLE)[]).map(k => {
+          const at = select.lifestyleAt(w, k);
+          const next = select.nextStep(w, k);
+          return (
+            <div key={k} className="card" style={{ padding: 10 }}>
+              <div className="row between">
+                <b>{k === 'home' ? 'Where you live' : k === 'car' ? 'What you drive' : 'Who is with you'}</b>
+                <span className="small muted">{at} of {LIFESTYLE[k].length}</span>
+              </div>
+              {at > 0 && <div className="small gold mt4">{LIFESTYLE[k][at - 1].label}</div>}
+              {next
+                ? <>
+                    <p className="small muted mt8">{next.label} — {next.blurb} <span className="gold">+{next.respect} respect, +{next.fear} fear</span></p>
+                    <div className="mt8"><Act action={{ type: 'buy_lifestyle', kind: k }} label={`${next.label} (${fmtMoney(next.cost)})`} kind="primary" block /></div>
+                  </>
+                : <p className="small muted mt8">There is nothing above this.</p>}
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="actions mt8">
+        <Disclosure label="Look respectable" icon="lawyer">
+          <p className="small muted">
+            <Term id="legitimacy">Respectable</Term> {Math.round(select.legitimacy(w))} — every point of heat you draw is multiplied by {select.legitimacyHeatMult(w).toFixed(2)}. It fades a little every day, so it is something you keep paying for rather than something you buy.
+          </p>
+          <AmountPicker presets={[5_000, 25_000, 100_000, Math.max(5_000, Math.floor(w.player.cash))]} value={spend} onChange={setSpend} min={5_000} />
+          <div className="mt8"><Act action={{ type: 'buy_legitimacy', amount: spend }} label={`Give away ${fmtMoney(spend)} (+${Math.round(select.legitimacyGain(w, spend))})`} kind="primary" block /></div>
+        </Disclosure>
+        <Disclosure label="More room" icon="safehouse">
+          <p className="small muted">Permanent headroom on what you already have. Beds decide how many people you can keep; places decide how much you can make and hold.</p>
+          {(['crew', 'safehouse'] as const).map(k => {
+            const price = select.ceilingPrice(w, k);
+            return (
+              <div key={k} className="mt8">
+                {price === undefined
+                  ? <p className="small muted">{k === 'crew' ? 'Beds' : 'Places'}: nothing more to buy.</p>
+                  : <Act action={{ type: 'buy_ceiling', kind: k }} label={`${k === 'crew' ? 'Two more beds' : 'Room for another place'} (${fmtMoney(price)})`} block />}
+              </div>
+            );
+          })}
+          <p className="tiny faint mt8">Beds: {select.bedsTotal(w)} · places: {w.player.safehouseIds.length} of {select.safehouseLimit(w)}</p>
+        </Disclosure>
+      </div>
+    </>
   );
 }
 

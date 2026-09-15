@@ -55,6 +55,13 @@ export type Action =
   // --- answering the heat yourself (content/events.ts) ---
   | { type: 'lay_low'; days: number }                          // go off the street: your own days for heat
   | { type: 'cache'; amount: number; take?: true }             // dirty cash into the hole in the wall, or back out
+  // --- what a fortune is for (content/fortune.ts). Every one spends into a number that exists.
+  | { type: 'buy_favour'; npcId: Id }                          // pay somebody important to owe you one
+  | { type: 'buy_lifestyle'; kind: 'home' | 'car' | 'security' } // the next rung: permanent respect and fear
+  | { type: 'buy_legitimacy'; amount: number }                 // look less like a criminal; discounts all heat
+  | { type: 'buy_ceiling'; kind: 'crew' | 'safehouse' }        // permanent headroom on a cap that already exists
+  | { type: 'set_hour'; hour: number }                        // when the next job runs; see content/timeofday.ts
+  | { type: 'hire_specialist'; opId: Id; role: string; npcId: Id }  // one part of a set-piece, one fee, one night
   | { type: 'launder_with_fixer'; npcId: Id; amount: number } // 1 AP: a fixer washes it at their own worse rate, up to their daily cap
   // --- the wire (content/cyber.ts) ---
   | { type: 'run_card'; cardId: Id; mode: 'small' | 'big' }   // work one card yourself

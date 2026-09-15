@@ -116,6 +116,12 @@ export interface OpRequires {
   /** Something in your hand: these are jobs you do not walk into empty-handed. */
   weapon?: boolean;
   /**
+   * This building and no other. The sixth of the per-target family: `rattedTarget` asks about
+   * this person, `casedTarget` about this place's state, and this about *which* place it is.
+   * Holds a `LandmarkId`, matched against `Business.landmark`.
+   */
+  landmarkTarget?: string;
+  /**
    * Work that only exists because there is nobody else involved.
    *
    * Not the same thing as `minCrew: 0`, and the difference is the whole point of the lone-wolf
@@ -245,6 +251,16 @@ export const OP_DEFS: Record<OpKind, OpDef> = {
   corporate_extortion: { label: 'Lean on the Board', icon: '🏢', blurb: 'Not a shop and not a man behind a counter. A company, a quarterly number, and something they would rather nobody read.', planDays: 3, minCrew: 2, maxCrew: 4, needs: { brains: 11, charm: 9 }, difficulty: 60, payout: [10000, 32000], heat: 13, target: 'npc', tier: 3, requires: { rattedTarget: true, crewCount: 3 } },
 
   // ---- elite: the two that reach the whole city ----
+  // ---------------------------------------------------------------- the five landmarks
+  // One job each, at exactly one address in the city, gated on `landmarkTarget` — the sixth
+  // member of the per-target gating family (§4.13), asking about *this building* the way
+  // `rattedTarget` asks about this person. There is nowhere to practise these.
+  count_night:     { label: 'The Count Room', icon: '🃏', blurb: 'One night a month everything that came through the doors is in one room being counted. There is exactly one of those rooms in this city.', planDays: 4, minCrew: 2, maxCrew: 5, needs: { brains: 13, muscle: 9, tech: 9, charm: 6 }, difficulty: 74, payout: [45000, 130000], heat: 30, target: 'business', tier: 4, requires: { landmarkTarget: 'grand_casino', safehouseTier: 2, casedTarget: true } },
+  records_room:    { label: 'The Records Room', icon: '🗄️', blurb: 'Everything anybody ever did to anybody in this city, in boxes, in a basement, with one man on the door.', planDays: 3, minCrew: 1, maxCrew: 3, needs: { brains: 11, charm: 8, tech: 6 }, difficulty: 62, payout: [0, 0], heat: 16, target: 'business', tier: 3, requires: { landmarkTarget: 'courthouse' } },
+  manifest_swap:   { label: 'The Manifest', icon: '⚓', blurb: 'Nine miles of fence, and one piece of paper that says which box is which.', planDays: 3, minCrew: 1, maxCrew: 4, needs: { brains: 10, tech: 8, wheels: 8 }, difficulty: 60, payout: [18000, 52000], lootKind: 'hot_goods', heat: 18, target: 'business', tier: 3, requires: { landmarkTarget: 'port' } },
+  left_luggage:    { label: 'Left Luggage', icon: '🎒', blurb: 'Forty thousand people a day, all carrying something, none of them looking at anybody. Including you.', planDays: 1, minCrew: 0, maxCrew: 2, needs: { charm: 8, brains: 6, wheels: 4 }, difficulty: 44, payout: [2500, 9000], heat: 7, target: 'business', tier: 2, requires: { landmarkTarget: 'central_station' } },
+  dome_job:        { label: 'Under the Dome', icon: '🔭', blurb: 'Nobody has looked at a star from up here in sixty years, and nobody has opened what is under it either.', planDays: 5, minCrew: 2, maxCrew: 4, needs: { tech: 13, brains: 11, muscle: 7 }, difficulty: 72, payout: [30000, 95000], lootKind: 'hot_goods', heat: 24, target: 'business', tier: 4, requires: { landmarkTarget: 'observatory', safehouseTier: 2, priorOps: ['heist_jeweller', 'ghost_job', 'manifest_swap'] } },
+
   // ---------------------------------------------------------------- the lone-wolf lane
   // `alone: true`, not `minCrew: 0` — see `OpRequires.alone`. These are not jobs you may do by
   // yourself, they are jobs that stop working the moment there is a second person to be seen,

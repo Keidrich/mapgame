@@ -10,6 +10,8 @@ import { activeCrewCount } from './util';
 import { crewOfBoss, fundReason } from './crews';
 import { ownerResistance } from './economy';
 import type { Business, Id, Npc, World } from './types';
+import { bedsTotal } from './fortune';
+import { lifestyleAt, standingShow } from './fortune';
 
 export interface SceneOption { id: string; label: string; icon: string; blurb: string; good: string; bad: string; chance: number; costAp: number; costCash: number; disabled?: string }
 export interface Scene { kind: SceneKind; npcId: Id; businessId?: Id; line: string; options: SceneOption[] }
@@ -26,9 +28,30 @@ function openingLine(w: World, kind: SceneKind, n: Npc): string {
   let line = lines[(w.day + n.id.length) % lines.length];
   if (n.grudge && kind !== 'visit') line += ` "And I haven't forgotten last time."`;
   else if (n.grudge) line += ` They are cool with you; the whole block heard about last time.`;
+  line += lifestyleLine(w);
   if (kind === 'visit') line += gossipLine(w, n);
   if (n.homeBlockId === w.player.homeBlockId && kind === 'visit') line += ` (Home turf.)`;
   return line;
+}
+
+/**
+ * What they say about the car, the house and the men waiting outside.
+ *
+ * The lifestyle ladder is only worth buying if the city can see it, and the cheapest honest proof
+ * of that is the first thing somebody says to you. Two rungs is a remark; the whole ladder and
+ * people are careful before you have opened your mouth. It reads `standingShow` rather than the
+ * individual purchases so a player who spread their money across three ladders is as visible as
+ * one who maxed a single one — the thing on show is the life, not the car.
+ */
+function lifestyleLine(w: World): string {
+  const show = standingShow(w);
+  if (show < 0.34) return '';
+  const car = lifestyleAt(w, 'car'), home = lifestyleAt(w, 'home'), guards = lifestyleAt(w, 'security');
+  // pick the one they would actually mention: whatever is in front of them
+  if (guards >= 2 && show >= 0.67) return ` They keep glancing past you at the men by the door, and they are being very polite.`;
+  if (car >= 2) return ` "That yours out front?" They already know it is.`;
+  if (home >= 2) return ` They ask after the house, the way people ask about something they have driven past on purpose.`;
+  return ` They take in the coat, the watch, the whole arrangement, and adjust.`;
 }
 
 /** How long a block keeps talking about something. */
@@ -134,4 +157,5 @@ export function resultLine(kind: SceneKind, id: string, ok: boolean, rng: Rng): 
   return rng.pick(lines);
 }
 
-function bedsLeftFor(w: World): number { const beds = 2 + w.player.safehouseIds.reduce((t, id) => t + [3, 6, 12][w.safehouses[id].tier - 1], 0); return beds - w.player.crewIds.filter(id => w.npcs[id].crew?.status !== 'dead').length; }
+/** The same bed count the reducer enforces, including anything bought. One arithmetic, one place. */
+function bedsLeftFor(w: World): number { return bedsTotal(w) - w.player.crewIds.filter(id => w.npcs[id].crew?.status !== 'dead').length; }

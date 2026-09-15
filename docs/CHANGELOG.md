@@ -14,6 +14,152 @@ House rules for an entry (see `CLAUDE.md` → *Leave a trail*):
 
 ---
 
+## 2026-09-15 — What a fortune is for, what you can lose, and a city that does not wait
+
+**What.** Seventeen things in one pass, in three groups: five **money sinks** so late cash has
+somewhere to go; four **stakes** so there is something to lose; three **world-life** systems so the
+city moves without you; and five pieces of **content** so there is texture between the systems.
+
+**Why.** The game had two holes that had been open for four passes. Money stopped mattering around
+the point you had enough of it — nothing above tier 3 to buy, nothing personal to spend on, no way
+to convert a pile into anything permanent. And nothing was ever *at risk*: you could lose a racket
+or a crew member, never the thing itself, and there was no ending of any kind at either end.
+
+---
+
+### 1. The five money sinks
+
+| Sink | What it buys | Where the numbers live |
+| --- | --- | --- |
+| **Tier 4** | casino / merchant bank / shipping line / development co. | `content/businesses.ts` |
+| **A favour** | somebody important owes you one | `FAVOUR_PRICE` |
+| **Lifestyle** | home, car, security — 3 ladders × 3 rungs | `LIFESTYLE` |
+| **Legitimacy** | a real discount on heat | `LEGITIMACY` |
+| **Ceilings** | permanent headroom on crew and safehouse caps | `CEILING` |
+
+**How, and what each one was chosen against.**
+
+- **Tier 4 is gated arithmetically**, not with a hardcoded check: `standingOf(respect, fear) =
+  respect + fear / 2` against the tier's `standingFloor` of 55, the same shape `nerveFloorFor`
+  already used for tiers 2 and 3. The test of whether a gate is really arithmetic is whether a
+  tier 5 would need a new branch. It would not. `TIER_EXCLUDES[4]` leaves only laundering — the
+  point is owning one, not the racket inside it.
+- **A favour plugs into `personalPull()` and `owedToThem`** rather than being a second relationship
+  system, so a bought favour and an earned one are the same thing at the point of use. Price
+  escalates ×3.2 each time, `minTrust` 15 means you cannot buy in cold, and a grudge is not for
+  sale at any price.
+- **Lifestyle is not a vanity screen**: `securityCover` and the home rung feed `personalCover`,
+  which is subtracted on the night somebody comes for you. That is the whole reason it exists.
+- **Legitimacy is in real tension with the rest of the game** — the money that buys it is the money
+  you made generating heat. `legitimacyHeatMult` multiplies inside `addHeat` down to ×0.55 at the
+  cap, decays 0.9/day so it is a standing cost, and `LEGITIMACY.heatFloor` (0.4 of the **raw**
+  figure, applied last) is what stops this and `LONE_WOLF.heat` together deleting the police.
+- **Ceilings raise caps that already existed** rather than adding new ones. Extra beds fold into
+  the arithmetic `assign` already enforced, via a new `bedsTotal()` that replaced three copies of
+  the same sum.
+
+### 2. Stakes and legacy
+
+**Succession — the decision, stated up front because it was made up front.** *Control genuinely
+passes: same save, same world, new protagonist.* Not an epilogue. `succeed()` turns the old player
+into an ordinary dead NPC (so old log lines and ledgers still resolve) and hands the outfit to the
+best heir by `heirs()`: their skills replace yours, respect and fear inherit at 0.45, the **street
+name and the legitimacy are lost** — those were yours, not the outfit's — and the blocks, rackets
+and estate are all still there under a new name. With nobody fit to take over the game ends
+(`gameOver.reason = 'gone'`). The reasoning is in the header comment of `sim/legacy.ts` so it
+cannot drift out of the code.
+
+**They come for you.** Past the `named`/`connected` milestone a nemesis stops waiting. It queues an
+ordinary confrontation of kind `'you'` and a loss runs `landOnPlayer`: `rng.int(0,100) +
+severity*30 - personalCover(w)` — under 45 you are walking, 45–78 puts you in a room for days and
+takes 30% of your dirty, over 78 is a killing.
+
+**Somebody to protect.** One person outside all of it, generated with the world and wired into the
+neighbourhood web like anybody else. Deliberately **not a game piece**: no racket, no assignment,
+no stat you spend. What they are is the softer target (a hunter goes for them 45% of the time when
+there is one) and the thing `GO_STRAIGHT` requires you to have.
+
+**Getting out.** $750,000 clean, nothing dirty, heat under 15, 45 legitimacy, somebody to go
+straight *for* — all five at once for fourteen days, with the clock resetting the moment one
+lapses. A real epilogue, not a stat moving.
+
+### 3. A world that does not wait
+
+- **Factions act on their own**: a **grievance** starts a war for a reason, a **sit-down** ends
+  one, and a war with a clear winner **absorbs** the loser's ground, soldiers and people. All
+  three are written with the stance/standing machinery that was already there.
+- **An upstart** starts at one soldier on day 12 and grows on its own money — a race, not a siege.
+- **Time of day**: `w.hour`, four dayparts, each buying and costing *different* things. Night is
+  +9 chance, ×0.8 payout, ×0.7 heat, ×1.25 police; afternoon is the mirror. An op takes the hour it
+  was **created** with.
+
+### 4. Content
+
+Five **landmarks** with a job that exists only there; one-off **specialists** hired for one night
+through the existing recruit/trust/leverage machinery, each with a reliability under 1; a **news
+ticker** built purely off `w.log`; **street encounters** at 13% a move; and **the record**, a
+trophy screen aggregated entirely from the log, the ledgers, the ops and the counters — no new
+state, which is what makes it a file somebody kept on you rather than a scoreboard.
+
+---
+
+### What the soak said, and the two bugs it found
+
+`npm run sim -- 60 7 all` now reports **41/41 systems** (was 25/25 against a smaller table), and
+**53 distinct op kinds** against 41 before this pass; ops never run fell 29 → 17. Getting there
+needed three new scenarios and two real fixes:
+
+1. **`comeForThePlayer` was dead code for anybody with a crew.** It was written as the last arm of
+   the `actAgainstPlayer` chain, and the racket/business/crew arms above it cover every roll a
+   player with an outfit can produce. So the one thing a nemesis passing `named` is *for* never
+   happened. It now goes **first** in that chain — it is the rarest act in there (6%/13%) so the
+   ordinary acts barely notice, and it is the right order anyway: somebody who has decided to come
+   for you personally does not go and lean on one of your bars instead.
+2. **The soak played on past the end of the game** — thirty-six days of "The game is over." in the
+   log and nothing else. `run.ts` now stops on `w.gameOver` and names which ending it was.
+
+New scenarios, each existing because the thing it tests is structurally unreachable otherwise:
+`fortune` (money, and everything meant to absorb it), `straight` (the clean ending — no ops, no
+crew, because the four conditions are hostile to an ordinary day), `legacy` (a nemesis and
+**nothing bought to stand between you and them** — a bot that had bought the security ladder
+survived nine attempts in a row, which is the mechanic working).
+
+**Files.** New: `content/fortune.ts`, `content/landmarks.ts`, `content/specialists.ts`,
+`content/timeofday.ts`, `sim/fortune.ts`, `sim/legacy.ts`, `sim/upstart.ts`, `sim/specialists.ts`,
+`sim/encounters.ts`, `sim/news.ts`, `sim/trophies.ts`, `ui/components/NewsTicker.tsx`,
+`ui/components/TrophyScreen.tsx`, and eighteen test files. Changed: `content/businesses.ts`
+(tier 4, `standingFloor`, `standingOf`), `sim/tiers.ts`, `sim/util.ts` (`addHeat` ordering),
+`sim/generate.ts` (landmark conversion, the loved one), `sim/factions.ts`, `sim/combat.ts`,
+`sim/reducer.ts` (six new actions), `sim/tick.ts`, `sim/select.ts`, `ui/components/OpsTab.tsx`,
+`ui/components/EmpireTab.tsx`, and the bot (`scripts/bot/*`, `scripts/bot.test.ts`).
+
+**Watch out.**
+
+- **No `WORLD_VERSION` bump.** Every field added this pass is optional; old saves load and behave
+  exactly as before until they earn one.
+- **The honest 60-day curve moved, and this entry is where that is stated.** cash 45 → 40, dirty
+  4,259 → 6,297, rackets 5 → 4, control unchanged at 15.6%. **This is stream drift, not a balance
+  change**: the loved one is generated through `mkNpc`, which consumes RNG, so every draw after it
+  shifts. Measured across four seeds before and after, the medians are 4,474 and 3,609 dirty —
+  the same distribution, and seed 3 alone swings 47,737 → 920 in one direction while seed 7 swings
+  the other. Do not read a balance change into it. The landmark conversion was written to consume
+  **zero** RNG for exactly this reason; the loved one could not be, because they are a person.
+- **`scripts/bot.test.ts`'s coverage contract changed shape.** "The `everything` scenario touches
+  every system" stopped being possible once the game grew endings — a run that goes straight has by
+  definition stopped earning. The contract is now the **union across scenarios**, with `everything`
+  keeping a weaker one, and the eight excluded rows are excluded for stated structural reasons
+  rather than for being flaky.
+- **Faction-vs-faction war is slow by design** and does not show up in a sixteen-day run. It is
+  reliable in a sixty-day `ambitious` run and in the full sweep. If you shorten the sweep, expect
+  that row to go dark.
+- **`count_night` needed the bot taught to case a joint**, which it had never done in its life. It
+  walks a landmark every fourth day now. That is the only reason all five landmark jobs run.
+- **The heat stack order matters and is not obvious**: lone-wolf ×0.75, legitimacy, daypart,
+  home-turf ×0.8, school ×1.5, and *then* the floor against the raw figure. Changing the order
+  changes which discounts compound.
+
+---
+
 ## 2026-09-15 — The crash that keeps coming back, two answers to pressure, and a lane of your own
 
 **What.** A reproducible crash and its whole family, plus six things playtesting asked for: an

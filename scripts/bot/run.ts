@@ -10,7 +10,7 @@ import { PLAYER, dispatch, generateWorld, select, type World } from '@sim/index'
 import { Rng } from '@sim/rng';
 import { SCENARIOS, setUp, topUp, type ScenarioName } from './admin';
 import { newCoverage, bump, warn, type Coverage } from './coverage';
-import { answerEverything, buyKit, goTo, handleMoney, haveAConversation, launchOps, planAnOp, promoteLieutenants, resetPolicy, resolveEvents, runTheEmpire, sellSomethingOnTheStreet, tallyNight, tallyProduction, tallyPeople, workTheAgendas, workTheBuildings, workTheCorners, workTheRoom, workTheStreet, workTheWire, type Ctx } from './policy';
+import { answerEverything, buyKit, goTo, handleMoney, haveAConversation, caseALandmark, hireSpecialists, launchOps, pickTheHour, planAnOp, promoteLieutenants, resetPolicy, resolveEvents, runTheEmpire, sellSomethingOnTheStreet, spendTheFortune, tallyNight, tallyProduction, tallyPeople, tallyTheWorld, tryToGetOut, workTheAgendas, workTheBuildings, workTheCorners, workTheRoom, workTheStreet, workTheWire, type Ctx } from './policy';
 
 export interface RunOpts {
   days: number;
@@ -38,7 +38,7 @@ export function run(opts: RunOpts): RunResult {
   resetPolicy();
   // Ops need people who are not already running something. A scenario that plans no ops holds
   // nobody back, so the honest day is exactly the shape it always was.
-  const c: Ctx = { w, rng: new Rng(seed * 7 + 1), cov, crewCap: s.crewCap, reserve: (opts.opsPerDay ?? s.opsPerDay) > 0 ? 4 : 0, stillAt: s.stillAt ?? 5000 };
+  const c: Ctx = { w, rng: new Rng(seed * 7 + 1), cov, crewCap: s.crewCap, reserve: (opts.opsPerDay ?? s.opsPerDay) > 0 ? 4 : 0, stillAt: s.stillAt ?? 5000, sinksAt: s.sinksAt ?? Infinity, goingStraight: !!s.goingStraight };
   const startBlockId = select.startBlock(c.w).id;
   const opsPerDay = opts.opsPerDay ?? s.opsPerDay;
 
@@ -71,7 +71,18 @@ export function run(opts: RunOpts): RunResult {
     //    bot goes looking for that mark itself rather than waiting for the deck to offer one.
     //    Gated on opsPerDay so a scenario that plans no ops keeps exactly the day it always had.
     if (opsPerDay > 0) workTheBuildings(c);
+    // The clock is set before anything is planned, because an op takes the hour it was created
+    // with. Setting it after would have moved a number no job ever read, which is exactly the
+    // kind of coverage that looks green and means nothing.
+    if (opsPerDay > 0) pickTheHour(c, d);
+    // …and walk a one-off place every fourth day, because one of the landmark jobs will not be
+    // planned until its target has been cased. Every fourth rather than daily: it is a walk
+    // across town plus 2 AP, and the same AP is what an op would have cost.
+    if (opsPerDay > 0 && d % 4 === 2) caseALandmark(c);
     for (let i = 0; i < opsPerDay; i++) if (!planAnOp(c)) break;
+    // ...and the specialists go on between planning and launch, which is the only window there
+    // is: the job needs an id before anybody can be hired onto it, and it has to still be here.
+    hireSpecialists(c);
     launchOps(c);
     workTheWire(c);
     // Everybody else sells with whatever the jobs did not want. Position matters twice over:
@@ -98,8 +109,14 @@ export function run(opts: RunOpts): RunResult {
     // across town and the AP comes out of the same day an op would have used. It has to come
     // before `workTheStreet`, which spends the day down to the last AP and left this a no-op.
     if (opsPerDay > 0 && d % 2 === 1) workTheCorners(c);
-    workTheStreet(c);
+    // A run that is trying to stop does not shake anybody down: street work is dirty money and
+    // heat, which are two of the four things `GO_STRAIGHT` will not have.
+    if (!c.goingStraight) workTheStreet(c);
     runTheEmpire(c, startBlockId);
+    if (c.goingStraight) tryToGetOut(c);
+    // What a fortune is for, after the day has earned and before the day is banked. Off unless
+    // the scenario sets `sinksAt`, so no existing run's shape moves.
+    spendTheFortune(c);
     handleMoney(c);
 
     // 5. and sleep
@@ -109,7 +126,12 @@ export function run(opts: RunOpts): RunResult {
     tallyNight(c, before);
     tallyProduction(c);
     tallyPeople(c);
+    tallyTheWorld(c);
     check(c, d);
+    // The game can actually end now — somebody got to you and there was nobody to take over, or
+    // you got out. Playing on past it is thirty-six days of "The game is over." in the log and
+    // nothing else, which is how this was found. Stop, and say which ending it was.
+    if (c.w.gameOver) { warn(cov, `the run ended on day ${c.w.day}: ${c.w.gameOver.reason}`); break; }
   }
   return { w: c.w, cov, scenario };
 }
