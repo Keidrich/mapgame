@@ -90,7 +90,7 @@ describe('being attacked', () => {
     provoke(w, f);
     const c = select.activeConfrontation(w)!;
     const bare = { fight: confrontChance(w, c, 'fight'), flee: confrontChance(w, c, 'flee') };
-    w.player.items = ['pump']; w.player.equipped = ['pump'];
+    w.player.items = ['rem870']; w.player.equipped = ['rem870'];
     expect(confrontChance(w, c, 'fight')).toBeGreaterThan(bare.fight);   // muscle +4 and a loud bias
     expect(confrontChance(w, c, 'flee')).toBeLessThan(bare.flee);        // and it is no help running
     // the mapping is the documented one, so kit tuned for an approach helps the matching answer
@@ -192,7 +192,7 @@ describe('armed work', () => {
     expect(select.opLocked(w, 'armed_robbery')).toMatch(/weapon/i);
     w.player.items = ['lockpicks']; w.player.equipped = ['lockpicks'];
     expect(select.opLocked(w, 'armed_robbery'), 'a lockpick set is not a weapon').toMatch(/weapon/i);
-    w.player.items = ['pistol']; w.player.equipped = ['pistol'];
+    w.player.items = ['glock19']; w.player.equipped = ['glock19'];
     expect(select.opLocked(w, 'armed_robbery')).toBeUndefined();
     expect(select.opLocked(w, 'armed_intimidation')).toBeUndefined();
   });

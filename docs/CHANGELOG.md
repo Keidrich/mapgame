@@ -14,6 +14,77 @@ House rules for an entry (see `CLAUDE.md` → *Leave a trail*):
 
 ---
 
+## 2026-09-15 — Real guns, real cars, and something to wear
+
+**What.** The kit catalogue goes from 15 items to 35: every weapon family filled out with named
+real-world models, a new **armour** category, and four vehicles where there was one.
+
+**Why.** Each family was one or two items deep, so "which pistol" was never a question — there was
+one. A shop screen with a single entry per idea is a list, not a choice.
+
+**How — and the rule that keeps it from being reskins.** Inside a family, **price does not decide
+the order**. That replaced a real invariant: the old test asserted a straight ladder, dearer meaning
+louder and hotter, which was true of a one-deep family and false the moment there was a choice. A
+Benelli costs more than an 870 and is *quieter and cooler* — it buys being a professional rather
+than a headline. What price must still buy is a **peak**: the dearest in a family has to be best at
+something, which is what the rewritten test holds.
+
+| Family | Members | What separates them |
+| --- | --- | --- |
+| Melee | knuckles, tire iron, bat, razor, machete | the only group with anything for a *careful* job |
+| Pistol | Beretta 92, Glock 19, SIG P226, suppressed .22 | noise, heat and price, not a ladder |
+| Revolver | snubnose .38, magnum | own family: less gun, nothing left on the floor |
+| Shotgun | Shockwave, sawn-off, 870, Benelli M4 | how much you'll pay to be less obvious |
+| Rifle | SKS, hunting rifle, AR-15 | only the bolt gun buys *not being in the room* |
+| Vehicle | motorcycle, sedan, van, muscle car | the fastest is not the one that leaves least behind |
+
+**Armour is the exception that defines the categories.** Every other item exists to change how a
+job goes; armour changes nothing about any job. No `approachBias`, no `heatMult` — the catalogue's
+"helps one approach, hurts another" rule exempts it *by name*. Its whole effect is `mods.cover`,
+summed by `kitCover` and added in `personalCover`: the one place the game subtracts a defence,
+on the night somebody comes for you. Nothing that decides an op reads `cover`, so it cannot leak.
+
+What it costs is a carry slot, and at the heavy end a real `skillBoost` penalty — a plate carrier is
+`wheels −3`, because it does not make a burglary louder, it makes *you* slower.
+
+**What I checked before touching, as asked.**
+
+- **`EQUIP_MAX` stays 3.** Nothing breaks; the squeeze is the point — a vest on is a gun off.
+- **`marketStock` needed no change.** The shelf table already generalised over the pool;
+  `sim/market-stock.test.ts` now proves it at 60 shops × 3 kinds with a catalogue twice the size —
+  full shelves, no duplicates, stable per shop, and 80%+ of the catalogue reachable somewhere.
+- **Three things *were* keyed to the old single entries** and did break: the tests that used
+  `'pistol'`/`'pump'`/`'getaway'` as stand-ins (renamed to real models), the icon table, and the
+  `kit` cheat — see below.
+
+**Files.** `content/items.ts` (rewritten), `content/items-variety.test.ts`, `sim/armor.test.ts`,
+`sim/market-stock.test.ts`, `sim/items.ts` (`kitCover`), `sim/legacy.ts`, `ui/icons/paths.ts`,
+`vitest.config.ts`, and id fixes across five test files.
+
+**Watch out.**
+
+- **The `kit` cheat quietly killed a coverage row.** It hands out one of each kind; adding a fourth
+  filled all three slots, and the bot's `buyKit` only shops when it has somewhere to put things —
+  so the whole `kit` row went dark with nothing failing. It now leaves one slot open deliberately.
+  Worth remembering: that cheat had *also* been naming `'sedan'` before a sedan existed, handing out
+  two things instead of three for who knows how long, silently, because it filters unknown ids.
+- **`vitest.config.ts` now includes `content/**`.** The content tables have invariants of their own
+  — a family of weapons that is secretly one weapon is a content bug — and the test belongs next to
+  the table it guards.
+- **Four emoji were too new** (🪒 🦺 🧥 🛡) and were swapped for Unicode 6.0 equivalents. The emoji
+  is a fallback; the real icon is the SVG. Models inside a family **share their family's
+  silhouette** on purpose: three pistols at 16px should read as "pistol" and let the label carry
+  the model. Vehicles get four distinct drawings, because those genuinely differ in shape.
+- **The honest 60-day curve moved, on some seeds a lot** — seed 7 cash 46 → 1, dirty 4,558 → 1,585,
+  fear 26 → 45; seed 19 moved further. **Seed 3 is byte-identical**, which is the tell: this is
+  shelf-dependent drift, not an economy change. The amplifier is the bot's own policy — `buyKit`
+  buys *the most expensive thing it can afford*, and the catalogue now has scarier things in it, so
+  the honest bot walks into its doorstep confrontations carrying more gun than it used to. Heat and
+  fear follow from that (`kitHeatMult` is read by confrontations as well as ops). Medians across
+  four seeds are unchanged in the ballpark: dirty ~2,570 before, ~2,260 after.
+
+---
+
 ## 2026-09-15 — Gate fix: green tests, red exit code
 
 **What.** `npm test` was exiting **1 with all 1,298 tests passing**, and the previous commit went

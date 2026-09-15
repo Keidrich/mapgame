@@ -37,6 +37,13 @@ export const FLAME = 'M12 3c3 4 5 5.5 5 9a5 5 0 0 1-10 0c0-2 1-3.5 2.5-5 .3 1.5 
 export const SHIELD = 'M12 3l8 3v6c0 4.5-3.5 7.5-8 9-4.5-1.5-8-4.5-8-9V6z';
 export const BAR = 'M4 12h16';                      // the heist family's crowbar
 export const CHEVRON = 'M8 20l4-3 4 3';             // the armed family's chevron
+export const PISTOL = ['M3.5 7.5h14v5h-3l-3 3H9l-1-3H3.5z', 'M8 15.5 6 20.5h4l1.5-5', 'M15 9.5h.01'];
+export const REVOLVER = ['M3.5 7.5h13v5h-2.5l-3 3H9l-1-3H3.5z', 'M8 15.5 6 20.5h4l1.5-5', 'M9 8a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5'];
+export const SUPPRESSED = ['M3.5 8h11v4.5h-2.5l-2.5 3H7.5l-1-3H3.5z', 'M6.5 15.5 5 20.5h3.5l1.5-5', 'M14.5 8.5h6v3.5h-6z'];
+export const SAWNOFF = ['M3.5 9h11v4h-3l-2 2.5H7l-1-2.5h-2.5z', 'M6.5 15.5 5 20h3.5l1.5-4.5', 'M3.5 10.5h11M3.5 12h11'];
+export const PUMP = ['M2.5 9h18v3.5h-18z', 'M6 12.5 4.5 19h3.5L9.5 12.5', 'M9 12.5h5v2.5H9z'];
+export const RIFLE = ['M2 12.5 20.5 6.5', 'M5 13.5 6.5 19h3l-.5-6', 'M12 7.5h5v2.5', 'M9.5 11.5 20 8'];
+export const CAR = ['M3.5 16.5V11l2.5-5h11l2.5 5v5.5', 'M6 16.5a1.6 1.6 0 1 0 3.2 0 1.6 1.6 0 0 0-3.2 0M15 16.5a1.6 1.6 0 1 0 3.2 0 1.6 1.6 0 0 0-3.2 0', 'M6 11h12'];
 export const SIGNAL = 'M15.5 6.5a7 7 0 0 1 0 11M18 4a10.5 10.5 0 0 1 0 16';  // the wire family's arc
 
 export const ICON_PATHS: Record<string, IconPaths> = {
@@ -145,11 +152,24 @@ export const ICON_PATHS: Record<string, IconPaths> = {
   bat: ['M20.5 3.5 9 15', 'M9 15l-4.5 5.5-1-1L8 15z', 'M17 3.5 20.5 7'],
   machete: ['M3.5 20.5 14 10l6.5-6.5v6L10 20.5z', 'M3.5 20.5h6.5', 'M5.5 18.5 8 21'],
   pistol: ['M3.5 7.5h14v5h-3l-3 3H9l-1-3H3.5z', 'M8 15.5 6 20.5h4l1.5-5', 'M15 9.5h.01'],
+  // the semi-autos share the pistol silhouette; the label is what tells them apart
+  beretta92: PISTOL, glock19: PISTOL, sig226: PISTOL,
   revolver: ['M3.5 7.5h13v5h-2.5l-3 3H9l-1-3H3.5z', 'M8 15.5 6 20.5h4l1.5-5', 'M9 8a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5'],
   suppressed: ['M3.5 8h11v4.5h-2.5l-2.5 3H7.5l-1-3H3.5z', 'M6.5 15.5 5 20.5h3.5l1.5-5', 'M14.5 8.5h6v3.5h-6z'],
+  ruger_mk: SUPPRESSED,
+  snubnose: REVOLVER, python: REVOLVER,
   sawnoff: ['M3.5 9h11v4h-3l-2 2.5H7l-1-2.5h-2.5z', 'M6.5 15.5 5 20h3.5l1.5-4.5', 'M3.5 10.5h11M3.5 12h11'],
   pump: ['M2.5 9h18v3.5h-18z', 'M6 12.5 4.5 19h3.5L9.5 12.5', 'M9 12.5h5v2.5H9z'],
+  rem870: PUMP, benelli: PUMP, shockwave: SAWNOFF,
   rifle: ['M2 12.5 20.5 6.5', 'M5 13.5 6.5 19h3l-.5-6', 'M12 7.5h5v2.5', 'M9.5 11.5 20 8'],
+  rem700: RIFLE, sks: RIFLE, ar15: RIFLE,
+  // melee gains a tool and a blade of its own: both read wrong as a bat or a machete
+  tire_iron: ['M4 20.5 15.5 9', 'M15.5 9a3.5 3.5 0 1 0 5-5 3.5 3.5 0 0 0-5 5z', 'M17 5.5h2.5v2.5'],
+  razor: ['M3.5 18.5 13 9l4 4-9.5 9.5z', 'M13 9l3-5.5 4.5 2.5L17 13'],
+  // armour: a torso, with as much on it as the rung carries
+  vest: ['M8 3.5 12 6l4-2.5 4.5 3-2 4-2 .5v9h-9v-9l-2-.5-2-4z'],
+  kevlar_jacket: ['M8 3.5 12 6l4-2.5 4.5 3-2 4-2 .5v9h-9v-9l-2-.5-2-4z', 'M12 6v13'],
+  plate_carrier: ['M8 3.5 12 6l4-2.5 4.5 3-2 4-2 .5v9h-9v-9l-2-.5-2-4z', 'M9.5 10h5v6h-5z', 'M12 6v2'],
   molotov: [BOTTLE, 'M12 1.5c2 1.5 1.5 3 0 3.5', 'M10 13.5h4'],
   pipebomb: ['M5.5 8.5h10v8h-10z', 'M4 8.5h13M4 16.5h13', 'M15.5 12.5h2.5c1.5 0 2-2 3.5-2.5'],
   lockpicks: ['M4.5 19.5 14 10', 'M14 10a3.2 3.2 0 1 0 4.5-4.5A3.2 3.2 0 0 0 14 10z', 'M4.5 19.5v-3h3', 'M8 16l2.5 2.5'],
@@ -164,7 +184,12 @@ export const ICON_PATHS: Record<string, IconPaths> = {
   tower: ['M6.5 2.5h11v19h-11z', 'M9 6h6M9 9h6M9 12h3', 'M14.5 17.5h.01'],
   // a card going into a slot that should not be there
   skimmer: ['M2.5 9.5h19v8h-19z', 'M2.5 12.5h19', 'M6 15.5h4', 'M12 3.5v4.5M12 8l-2-2M12 8l2-2'],
-  getaway: ['M3.5 16.5V11l2.5-5h11l2.5 5v5.5', 'M6 16.5a1.6 1.6 0 1 0 3.2 0 1.6 1.6 0 0 0-3.2 0M15 16.5a1.6 1.6 0 1 0 3.2 0 1.6 1.6 0 0 0-3.2 0', 'M6 11h12', 'M1 8h3M1 11h2'],
+  // the four vehicles, each a different silhouette — this is the one family where the shape on
+  // the map genuinely differs, so they get their own drawings rather than a shared one
+  sedan: CAR,
+  muscle_car: [...CAR, 'M7.5 8.5h9'],
+  motorcycle: ['M5.5 17a3 3 0 1 0 0-6 3 3 0 0 0 0 6M18.5 17a3 3 0 1 0 0-6 3 3 0 0 0 0 6', 'M5.5 14h5l3-5h3', 'M11 9h4', 'M13.5 9l5 5'],
+  van: ['M2.5 16.5V6.5h11v10', 'M13.5 9.5h4l3 3.5v3.5', 'M5.5 16.5a1.6 1.6 0 1 0 3.2 0 1.6 1.6 0 0 0-3.2 0M15 16.5a1.6 1.6 0 1 0 3.2 0 1.6 1.6 0 0 0-3.2 0', 'M2.5 10h11'],
 
   // ---------------------------------------------------------------- crew assignments
   collect: ['M2.5 6h19v12h-19z', 'M2.5 6 12 13.5 21.5 6'],

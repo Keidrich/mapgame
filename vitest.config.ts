@@ -14,5 +14,8 @@ export default defineConfig({
   },
   // ui tests render components with react-dom/server: a sheet that throws is a black screen,
   // so they run in the same suite as the sim's
-  test: { include: ['sim/**/*.test.ts', 'geo/**/*.test.ts', 'ui/**/*.test.tsx', 'ui/**/*.test.ts', 'scripts/**/*.test.ts'], environment: 'node' },
+  // `content/**` is on this list because the content tables have invariants of their own now — a
+  // family of weapons that is secretly one weapon is a content bug, not a sim bug, and it belongs
+  // next to the table it guards.
+  test: { include: ['sim/**/*.test.ts', 'geo/**/*.test.ts', 'ui/**/*.test.tsx', 'ui/**/*.test.ts', 'scripts/**/*.test.ts', 'content/**/*.test.ts'], environment: 'node' },
 });

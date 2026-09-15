@@ -788,6 +788,43 @@ tradeoff rather than a rung (`content/items.ts` opens by saying so), and the new
 - **Card Skimmer** — back rooms only, and the one piece of tech that makes the law *worse*: every
   job leaves a fifth more heat, because holding it is a charge on its own.
 
+### 4.7c The catalogue: families, and armour as the exception
+
+Kit began as one item per idea — a pistol, a shotgun, a car — so "which pistol" was never a
+question. Filling the families out is only worth anything if the members genuinely differ, and the
+rule that keeps that honest is: **inside a family, price does not decide the order.**
+
+That replaced a real invariant. The old test asserted a straight ladder — dearer meant louder and
+hotter — which was true of a one-deep family and false the moment there was a choice to make. A
+Benelli costs more than an 870 and is *quieter and cooler*: it buys you being a professional rather
+than a headline. What price must still buy is a **peak** — the dearest thing in a family has to be
+the best in it at *something*, or it is priced for nothing, and that is what the test holds now.
+
+What each family is for:
+
+- **Melee** — the only weapon group with anything for a careful job. A tire iron opens a door as
+  readily as a head; a razor takes no room and nobody searching you finds it.
+- **Pistols** — the same job at four prices, spread across noise, heat and cost rather than climbing.
+- **Revolvers** — their own family, because they are their own trade: less gun, and nothing left on
+  the floor afterwards. The lowest heat of anything that shoots.
+- **Shotguns** — the loud lane, and how much you will spend to be less obvious in it.
+- **Rifles** — reach. Only the bolt gun buys you *not being in the room*; the cheap surplus and the
+  AR trade that away for price and for raw noise.
+- **Vehicles** — four shapes of arriving and leaving. The fastest is not the one that leaves least
+  behind, and the best car for a loud job is not the best car for a careful one.
+
+**Armour is the exception that defines the categories.** Every other item exists to change how a
+job goes. Armour changes nothing about any job at all: it has no `approachBias` and no `heatMult`,
+and the catalogue's "helps one approach, hurts another" rule exempts it by name. Its whole effect
+is `mods.cover`, summed by `kitCover` and added in `personalCover` — the one place the game
+subtracts a defence, on the night somebody comes for you personally. Nothing that decides an op
+reads `cover`, so armour cannot leak into `opChance` or `addHeat` however it is written.
+
+What it costs is a **carry slot** — `EQUIP_MAX` stays at 3 on purpose, so a vest on is a gun off —
+and at the heavy end a real `skillBoost` penalty: a plate carrier is `wheels −3`, because it does
+not make a burglary louder, it makes *you* slower. That is a mobility cost expressed in the field
+the game already reads for mobility, not a special case.
+
 ### 4.8 When they come for you
 
 A faction's tick used to resolve its attacks alone: you read in the morning that your numbers

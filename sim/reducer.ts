@@ -1301,9 +1301,16 @@ function cheat(w: World, what: CheatKind, amount?: number, rng?: import('./rng')
 
     // ---- set up one system so it can be exercised ----
     case 'kit': {
-      const want = ['pistol', 'lockpicks', 'sedan'].filter(id => ITEM_DEFS[id]);
+      // One of each kind that matters, by real id. The `.filter` is a guard against a renamed
+      // item silently emptying this — it used to name 'sedan' before a sedan existed, so the
+      // admin panel quietly handed out two things instead of three and nobody noticed.
+      const want = ['glock19', 'lockpicks', 'sedan', 'vest'].filter(id => ITEM_DEFS[id]);
       p.items = [...new Set([...(p.items ?? []), ...want])];
-      p.equipped = want.slice(0, EQUIP_MAX);
+      // One slot deliberately left open. Filling all three made the soak bot's `buyKit` a no-op —
+      // it only shops when it has somewhere to put things — and the whole `kit` row of the
+      // coverage table went dark the moment this handed out a fourth item. A player given a kit
+      // bag would not have every slot spoken for either.
+      p.equipped = want.slice(0, Math.max(1, EQUIP_MAX - 1));
       log(w, `Testing: carrying ${p.equipped.map(id => ITEM_DEFS[id].label).join(', ')}.`, 'good');
       break;
     }

@@ -48,6 +48,19 @@ export function kitApproachBias(w: World, approach?: OpApproach): number {
   return bias;
 }
 
+/**
+ * What the carried kit is worth on the night somebody comes for you personally.
+ *
+ * The only kit number a job never sees. It is summed here and added in `personalCover`, which is
+ * the one place the game subtracts a defence — so armour cannot leak into `opChance` or `addHeat`
+ * however it is written, because neither of them reads this.
+ */
+export function kitCover(w: World): number {
+  let cover = 0;
+  for (const it of equippedItems(w)) cover += it.mods.cover ?? 0;
+  return cover;
+}
+
 /** What the carried kit does to the heat a job leaves behind, the same way an approach does. */
 export function kitHeatMult(w: World): number {
   let mult = 1;

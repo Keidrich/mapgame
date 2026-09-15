@@ -213,7 +213,7 @@ describe('the expanded roster', () => {
       expect(OP_DEFS[k].requires?.weapon, k).toBe(true);
       expect(select.opLocked(w, k), k).toContain('empty-handed');
       const armed = structuredClone(w);
-      armed.player.items = ['pistol']; armed.player.equipped = ['pistol'];
+      armed.player.items = ['glock19']; armed.player.equipped = ['glock19'];
       expect(select.opLocked(armed, k), k).toBeUndefined();
     }
   });
@@ -222,7 +222,7 @@ describe('the expanded roster', () => {
     for (const k of ['heist_containers', 'hijack_load', 'convoy_run'] as OpKind[]) {
       const need = OP_DEFS[k].requires!.crewCount!;
       const short = mk(); give.crew(short, need - 1);
-      short.player.items = ['pistol']; short.player.equipped = ['pistol'];
+      short.player.items = ['glock19']; short.player.equipped = ['glock19'];
       give.safehouse(short, 2);
       give.doneOp(short, 'smuggle_run'); give.doneOp(short, 'dockside_pickup');
       expect(select.opLocked(short, k), `${k} at ${need - 1} crew`).toBeTruthy();
@@ -288,7 +288,7 @@ describe('the expanded roster', () => {
   it('the tree still agrees with itself once everything is unlocked', () => {
     const w = mk();
     give.crew(w, 5); give.safehouse(w, 3); give.racket(w); give.business(w);
-    w.player.items = ['pistol']; w.player.equipped = ['pistol'];
+    w.player.items = ['glock19']; w.player.equipped = ['glock19'];
     const open = new Set(select.opsAvailable(w));
     for (const k of Object.keys(OP_DEFS) as OpKind[]) expect(open.has(k), k).toBe(!select.opLocked(w, k));
   });

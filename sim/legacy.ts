@@ -40,6 +40,7 @@
 import { LIFESTYLE } from '@content/fortune';
 import { MILESTONES, NEMESIS } from '@content/nemesis';
 import { securityCover } from './fortune';
+import { kitCover } from './items';
 import { notoriety } from './nemesis';
 import { remember } from './ledger';
 import { connectionsOf } from './connections';
@@ -231,13 +232,18 @@ export function hunters(w: World): Npc[] {
 
 /**
  * How hard the player is to reach personally. Men who are awake, people who would get in the way,
- * and a house with a gate all count — which is what stops the lifestyle ladder being a respect
- * vending machine and makes it something you are glad you bought on one specific night.
+ * a house with a gate, and what you happen to have on — which is what stops the lifestyle ladder
+ * being a respect vending machine and makes it something you are glad you bought on one specific
+ * night.
+ *
+ * `kitCover` is the armour term and it is the only defence you can put on and take off in a day.
+ * Everything else here is something you bought weeks ago; a vest is the one that answers "somebody
+ * is coming for me *this week*", which is why it is worth a carry slot against a gun.
  */
 export function personalCover(w: World): number {
   const crew = w.player.crewIds.map(id => w.npcs[id]).filter(n => n?.crew && (n.crew.status === 'idle' || n.crew.status === 'assigned'));
   const home = (w.player.lifestyle?.home ?? 0) * 4;
-  return securityCover(w) + Math.min(18, crew.length * 3) + home;
+  return securityCover(w) + Math.min(18, crew.length * 3) + home + kitCover(w);
 }
 
 /** The milestone table is content; this asserts the two ids above still exist in it. */

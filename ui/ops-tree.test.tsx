@@ -25,7 +25,7 @@ function established(seed = 5): World {
   const w = mk(seed);
   w.player.crewEver = 5;
   w.player.cash = 200000;
-  w.player.items = ['pistol']; w.player.equipped = ['pistol'];
+  w.player.items = ['glock19']; w.player.equipped = ['glock19'];
   for (const x of Object.values(w.npcs).filter(v => v.alive && !v.crew && v.role === 'patron').slice(0, 3)) {
     x.role = 'crew'; x.crew = { loyalty: 70, cut: 50, status: 'idle', statusDays: 0, joinedDay: 1 };
     w.player.crewIds.push(x.id);

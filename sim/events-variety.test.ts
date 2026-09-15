@@ -116,7 +116,7 @@ describe('every new event weights on the state it is about', () => {
     },
     {
       kind: 'kit_noticed', hint: 'kit carried and somebody hostile',
-      setUp: w => { w.player.items = ['pistol']; w.player.equipped = ['pistol']; const f = Object.values(w.factions)[0]; f.stance[PLAYER] = 'beef'; f.standing[PLAYER] = -60; },
+      setUp: w => { w.player.items = ['glock19']; w.player.equipped = ['glock19']; const f = Object.values(w.factions)[0]; f.stance[PLAYER] = 'beef'; f.standing[PLAYER] = -60; },
     },
     {
       kind: 'claim_questions', hint: 'a derelict block you have claimed',
@@ -171,7 +171,7 @@ describe('the deck as a whole', () => {
 
   it('never hands a card the reducer cannot resolve', () => {
     const w = mk();
-    w.player.cash = 50000; w.player.heat = 60; w.player.items = ['pistol']; w.player.equipped = ['pistol'];
+    w.player.cash = 50000; w.player.heat = 60; w.player.items = ['glock19']; w.player.equipped = ['glock19'];
     const n = Object.values(w.npcs).find(x => x.alive && !x.crew && (x.connections ?? []).length > 0);
     if (n) { n.rel.trust = -60; n.tap = { since: w.day - 3 }; }
     const c = rollCard(w, new Rng(3)); c.freshness = 20; addCard(w, c);
