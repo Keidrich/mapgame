@@ -520,6 +520,23 @@ h1, h2, h3, h4, .sheet-title, .panel h2, .modal h2 {
   text-transform: uppercase; color: var(--muted); margin: 18px 0 8px;
 }
 .section-title::after { content: ''; flex: 1; height: 1px; background: linear-gradient(90deg, var(--line-2), transparent); }
+/* A section heading that shuts. The button carries the whole label so the tap target is the
+   heading itself rather than a caret the size of a grain of rice; the rule and any info dot stay
+   outside it, because a button inside a button is neither valid nor clickable. */
+.fold-head { gap: 6px; }
+.fold-btn {
+  display: flex; align-items: center; gap: 6px;
+  background: none; border: 0; padding: 4px 2px; margin: -4px 0;
+  font: inherit; letter-spacing: inherit; text-transform: inherit; color: inherit;
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.fold-btn:hover, .fold-btn:focus-visible { color: var(--text); }
+.fold-btn .icon { transition: transform 120ms ease; }
+.fold-n {
+  font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: 10px;
+  padding: 0 5px; border: 1px solid var(--line-2); color: var(--faint); letter-spacing: 0.06em;
+}
+@media (prefers-reduced-motion: reduce) { .fold-btn .icon { transition: none; } }
 .mono, .stat, .kv dd, .meter .val, .logline .d, .chance, .shelf-price { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 .tiny, .small.muted { letter-spacing: 0.01em; }
 /* the tactical label: small, mono, tracked out, never more than three words */

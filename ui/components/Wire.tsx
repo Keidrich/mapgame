@@ -4,7 +4,7 @@ import type { Card, Secret } from '@sim/types';
 import { CARD_TIERS } from '@content/cyber';
 import { fmtMoney } from '@ui/derive';
 import { openSheet, useWorld } from '@ui/store';
-import { Act } from './Act';
+import { Act, Section } from './Act';
 import { Info, Term } from './Info';
 import { Icon } from '@ui/icons';
 
@@ -19,12 +19,11 @@ export function WireSection() {
   const cyberHeat = Math.round(w.player.cyberHeat ?? 0);
   if (!cards.length && !secrets.length && !cyberHeat) return null;
   return (
-    <>
-      <div className="section-title">The wire<Info id="wire" /></div>
+    <Section id="wire" title="The wire" count={cards.length + secrets.length} info={<Info id="wire" />}>
       {cards.length > 0 && <Cards cards={cards} />}
       {secrets.length > 0 && <Secrets secrets={secrets} />}
       {cyberHeat > 0 && <Scrub />}
-    </>
+    </Section>
   );
 }
 

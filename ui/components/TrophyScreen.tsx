@@ -1,6 +1,7 @@
 import { select } from '@sim/index';
 import { useWorld } from '@ui/store';
 import { Info } from './Info';
+import { Section } from './Act';
 
 /**
  * The record.
@@ -13,8 +14,9 @@ export function TrophyScreen() {
   const w = useWorld();
   const rows = select.trophies(w);
   return (
-    <div>
-      <div className="section-title">The record<Info id="trophies" /></div>
+    // Shut by default: it is a dozen rows of "what you have done", which is reference rather than
+    // anything you act on, and it sits between the news and the log on an already long screen.
+    <Section id="trophies" title="The record" defaultOpen={false} info={<Info id="trophies" />}>
       <div className="col" style={{ gap: 6 }}>
         {rows.map(t => (
           <div key={t.id} className={`trophy${t.value ? '' : ' empty'}`}>
@@ -27,6 +29,6 @@ export function TrophyScreen() {
           </div>
         ))}
       </div>
-    </div>
+    </Section>
   );
 }

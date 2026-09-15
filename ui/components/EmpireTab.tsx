@@ -4,7 +4,7 @@ import { LAUNDER_RATE, SAFEHOUSE_TIERS } from '@content/rackets';
 import { LAY_LOW } from '@content/events';
 import { fmtMoney, pct, playerBusinesses, playerRackets, playerSafehouses } from '@ui/derive';
 import { focus, getState, importWorld, openSheet, resetGame, toast, useWorld } from '@ui/store';
-import { Act, AmountPicker, Disclosure } from './Act';
+import { Act, AmountPicker, Disclosure, Section } from './Act';
 import { BizRow } from './Rows';
 import { RacketCard } from './BusinessSheet';
 import { Meter } from './Meter';
@@ -40,14 +40,14 @@ export function EmpireTab() {
         <div className="small muted mt8">{select.playerBlocks(w).length} of {Object.keys(w.blocks).length} blocks · own 60% to take the city.</div>
       </div>
 
-      <div className="section-title">Holdings<Info id="holdings" /></div>
-      <Holdings />
+      <Section id="holdings" title="Holdings" info={<Info id="holdings" />}><Holdings /></Section>
 
       <Inventory />
       <div className="actions mt8"><Launder /><GoToGround /><TheWall /></div>
 
-      <div className="section-title">Businesses ({biz.length})</div>
-      <div className="list">{biz.map(b => <BizRow key={b.id} w={w} biz={b} />)}{biz.length === 0 && <p className="small muted">You own nothing yet. Buy a business or protect one.</p>}</div>
+      <Section id="businesses" title="Businesses" count={biz.length}>
+        <div className="list">{biz.map(b => <BizRow key={b.id} w={w} biz={b} />)}{biz.length === 0 && <p className="small muted">You own nothing yet. Buy a business or protect one.</p>}</div>
+      </Section>
 
       <WireSection />
 
@@ -57,27 +57,28 @@ export function EmpireTab() {
       <GoStraight />
       <TrophyScreen />
 
-      <div className="section-title">Rackets ({rackets.length})</div>
-      <div className="list">{rackets.map(r => <RacketCard key={r.id} w={w} r={r} showBiz />)}{rackets.length === 0 && <p className="small muted">No rackets. Start one from a business sheet.</p>}</div>
+      <Section id="rackets" title="Rackets" count={rackets.length}>
+        <div className="list">{rackets.map(r => <RacketCard key={r.id} w={w} r={r} showBiz />)}{rackets.length === 0 && <p className="small muted">No rackets. Start one from a business sheet.</p>}</div>
+      </Section>
 
-      <div className="section-title">Safehouses ({safes.length})</div>
-      <div className="list">
-        {safes.map(s => (
-          <button type="button" key={s.id} className="listitem" onClick={() => openSheet({ kind: 'block', blockId: s.blockId })}>
-            <span className="ico"><Icon name="safehouse" size={18} /></span>
-            <div className="grow"><div className="title">{s.name}</div><div className="sub">{SAFEHOUSE_TIERS[s.tier - 1]?.label} · {w.blocks[s.blockId]?.name} · {s.productionIds.length} productions · {fmtMoney(s.cash)} hidden</div></div>
-          </button>
-        ))}
-        {safes.length === 0 && <p className="small muted">Rent one from any block sheet.</p>}
-      </div>
+      <Section id="safehouses" title="Safehouses" count={safes.length}>
+        <div className="list">
+          {safes.map(s => (
+            <button type="button" key={s.id} className="listitem" onClick={() => openSheet({ kind: 'block', blockId: s.blockId })}>
+              <span className="ico"><Icon name="safehouse" size={18} /></span>
+              <div className="grow"><div className="title">{s.name}</div><div className="sub">{SAFEHOUSE_TIERS[s.tier - 1]?.label} · {w.blocks[s.blockId]?.name} · {s.productionIds.length} productions · {fmtMoney(s.cash)} hidden</div></div>
+            </button>
+          ))}
+          {safes.length === 0 && <p className="small muted">Rent one from any block sheet.</p>}
+        </div>
+      </Section>
 
       <Cases />
 
-      <div className="section-title">Log</div>
-      <Log />
-
-      <div className="section-title">Save</div>
-      <SaveCard />
+      {/* The two at the bottom are reference rather than management, so they start shut: the log
+          is a hundred lines and the save card is something you touch once a session. */}
+      <Section id="log" title="Log" defaultOpen={false}><Log /></Section>
+      <Section id="save" title="Save" defaultOpen={false}><SaveCard /></Section>
     </div>
   );
 }
@@ -87,8 +88,7 @@ function Cases() {
   const all = (w.cases ?? []).slice().reverse().slice(0, 8);
   if (!all.length) return null;
   return (
-    <>
-      <div className="section-title">Cold cases ({select.openCases(w).length} open)<Info id="coldCase" /></div>
+    <Section id="cases" title="Cold cases" count={select.openCases(w).length} info={<Info id="coldCase" />}>
       <div className="list">
         {all.map(c => { const wit = c.witnessId ? w.npcs[c.witnessId] : undefined; return (
           <div key={c.id} className="card" style={{ padding: 10, opacity: c.status === 'open' ? 1 : 0.6 }}>
@@ -100,7 +100,7 @@ function Cases() {
             </div>
           </div>); })}
       </div>
-    </>
+    </Section>
   );
 }
 
@@ -208,8 +208,7 @@ function Lifestyle() {
   const w = useWorld();
   const [spend, setSpend] = useState(10_000);
   return (
-    <>
-      <div className="section-title">What it is all for<Info id="lifestyle" /></div>
+    <Section id="lifestyle" title="What it is all for" info={<Info id="lifestyle" />}>
       <div className="col" style={{ gap: 6 }}>
         {(Object.keys(LIFESTYLE) as (keyof typeof LIFESTYLE)[]).map(k => {
           const at = select.lifestyleAt(w, k);
@@ -255,7 +254,7 @@ function Lifestyle() {
           <p className="tiny faint mt8">Beds: {select.bedsTotal(w)} · places: {w.player.safehouseIds.length} of {select.safehouseLimit(w)}</p>
         </Disclosure>
       </div>
-    </>
+    </Section>
   );
 }
 

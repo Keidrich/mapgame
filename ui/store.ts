@@ -43,10 +43,20 @@ export interface UiState {
   layerFactionId?: Id;  // which faction the influence layer is showing
   layerProduct?: ProductKind; // which product the demand layer is showing
   layersOpen: boolean;  // the overlay picker: a menu, so the map can be looked at without it
+  /**
+   * Which collapsible sections the player has opened or shut, by id.
+   *
+   * Only the ones they have actually touched: an id that is absent means "whatever this section's
+   * own default is", so changing a default later does not fight a preference somebody set months
+   * ago. Kept in localStorage rather than the save — it is how this person likes the screen, not
+   * something about the city.
+   */
+  folds: Record<string, boolean>;
 }
 
 export const SAVE_KEY = 'rackets.save.v3';
 const VICTORY_KEY = 'rackets.victory.v1';
+const FOLDS_KEY = 'rackets.folds.v1';
 const SAVED_AT_KEY = 'rackets.savedAt.v1';
 const TOAST_MS = 3000;
 
@@ -77,7 +87,13 @@ function loadVictorySeen(w: World | null): boolean {
   try { return !!w && localStorage.getItem(VICTORY_KEY) === String(w.seed); } catch { return false; }
 }
 
-let state: UiState = { world: null, booting: true, chunkVersion: 0, tab: 'map', sheets: [], selection: {}, scene: null, toasts: [], victorySeen: false, help: false, recap: null, layer: 'control', layersOpen: false };
+function readFolds(): Record<string, boolean> {
+  // A private window, blocked site data or a corrupted value all mean "no preferences yet", which
+  // is a perfectly good state to be in — never a reason to fail to render the screen.
+  try { const raw = localStorage.getItem(FOLDS_KEY); const v = raw ? JSON.parse(raw) : null; return v && typeof v === 'object' ? v as Record<string, boolean> : {}; } catch { return {}; }
+}
+
+let state: UiState = { world: null, booting: true, chunkVersion: 0, tab: 'map', sheets: [], selection: {}, scene: null, toasts: [], victorySeen: false, help: false, recap: null, layer: 'control', layersOpen: false, folds: readFolds() };
 const listeners = new Set<() => void>();
 let toastSeq = 1;
 
@@ -118,6 +134,15 @@ export function setLayer(layer: MapLayer, opts: { factionId?: Id; product?: Prod
 export function toggleLayers(open?: boolean) {
   set({ layersOpen: open ?? !state.layersOpen });
 }
+
+/** Open or shut one collapsible section, and remember it. See `UiState.folds`. */
+export function toggleFold(id: string, open: boolean) {
+  const folds = { ...state.folds, [id]: open };
+  set({ folds });
+  try { localStorage.setItem(FOLDS_KEY, JSON.stringify(folds)); } catch { /* a preference nobody can store is still a preference for this session */ }
+}
+/** Is this section open? `def` is what it does before anybody has said otherwise. */
+export function isOpen(s: UiState, id: string, def: boolean): boolean { return s.folds[id] ?? def; }
 export function bumpChunks() { set({ chunkVersion: state.chunkVersion + 1 }); }
 /**
  * The player tapped somewhere under cloud. Tapping used to populate the chunk on the spot — a

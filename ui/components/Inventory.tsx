@@ -4,7 +4,8 @@ import { PRODUCT_INFO, RECIPES } from '@content/rackets';
 import type { Id, ProductKind } from '@sim/types';
 import { PRODUCTS, fmtMoney, playerSafehouses } from '@ui/derive';
 import { act, useWorld } from '@ui/store';
-import { Info, Term, TermChip } from './Info';
+import { Info, TermChip } from './Info';
+import { Section } from './Act';
 import { Icon, IconTile } from '@ui/icons';
 
 /**
@@ -33,12 +34,7 @@ export function Inventory() {
   const worth = select.stashValue(w);
 
   return (
-    <>
-      <div className="section-title">
-        <Term id="stash">Stash</Term>
-        {anything && <span className="muted"> · {fmtMoney(worth)} on the street</span>}
-        <Info id="stash" />
-      </div>
+    <Section id="stash" title="Stash" info={<><span className="muted">{anything ? ` ${fmtMoney(worth)} on the street` : ''}</span><Info id="stash" /></>}>
 
       {!anything && (
         <div className="card"><p className="small muted" style={{ margin: 0 }}>
@@ -74,7 +70,7 @@ export function Inventory() {
           </div>
         </>
       )}
-    </>
+    </Section>
   );
 }
 

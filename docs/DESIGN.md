@@ -1405,6 +1405,36 @@ test can assert; every sort falls back to income and then id, making it total an
 by crowding puts the most squeezed first, because that is the one to move; "Needs a look" hides
 everything that is quietly working.
 
+### 4.19b Putting the Empire tab away
+
+The Empire tab accumulated everything that did not belong on the map: holdings, the stash, the
+businesses, the wire, the news, what a fortune is for, rackets, safehouses, cold cases, the record,
+the log, the save card. On a phone most of a visit was scrolling past the parts you were not there
+for, and every pass that added a system made it worse.
+
+Every list heading is a control now (`Section` in `ui/components/Act.tsx`). Three rules make a
+collapsible section better than no collapsible section rather than worse:
+
+1. **A shut section still says what is in it.** The count sits on the heading, outside the body, so
+   "Rackets 12" reads without opening anything. A heading that hides its own subject is not a
+   summary, it is a locked drawer.
+2. **Shut is `hidden`, not unmounted.** Find-in-page and a screen reader's own search still reach
+   the content, and nothing re-mounts or loses its place when it opens. The lists here are small
+   and capped, so there is no render cost worth trading that for.
+3. **The choice sticks.** Folds live in `ui/store.ts` and persist to `localStorage`, so the player
+   arranges this screen once rather than every time they open the tab.
+
+`folds` records **only what the player actually changed**. An absent id means "whatever this
+section's default is", so a default can be changed in a later pass without silently fighting a
+preference somebody set months ago — and a stored value always wins, which is the half that makes
+it feel like a setting rather than a suggestion.
+
+Defaults split on what the section is *for*: the things you act on (holdings, stash, businesses,
+the wire, rackets, safehouses, cold cases) open; the things you read (the record, the log, the save
+card) shut. The heading button carries the whole label rather than a caret, so the tap target is
+the heading itself; the info dot stays outside it, because a button inside a button is neither
+valid nor clickable.
+
 ### 4.20 The inventory: identity, quantity, value and flow together
 
 The rule, taken from City of Gangsters' warehouse view rather than its layout: **a quantity never

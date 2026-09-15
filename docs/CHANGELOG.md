@@ -14,6 +14,52 @@ House rules for an entry (see `CLAUDE.md` → *Leave a trail*):
 
 ---
 
+## 2026-09-15 — The Empire tab folds up
+
+**What.** Every list heading on the Empire tab is now a control: tap it and the section shuts.
+
+**Why.** That tab is where everything lands that does not belong on the map — holdings, stash,
+businesses, the wire, the news, what a fortune is for, rackets, safehouses, cold cases, the record,
+the log, the save card. On a phone most of a visit was scrolling past the parts you were not there
+for, and every pass that added a system made it longer.
+
+**How.** One `Section` component in `ui/components/Act.tsx`, and three rules that are the
+difference between this being an improvement and being a locked drawer:
+
+1. **A shut section still says what is in it.** The count sits on the heading, outside the body, so
+   "Rackets 12" reads without opening anything.
+2. **Shut is `hidden`, not unmounted.** Find-in-page and a screen reader's own search still reach
+   the content, and nothing re-mounts or loses its place when it opens. These lists are small and
+   capped (the log shows 25 until you ask for more), so there is no render cost worth trading for.
+3. **The choice sticks** — `folds` in `ui/store.ts`, persisted to `localStorage`, so the screen is
+   arranged once rather than every visit.
+
+`folds` records **only what the player actually changed**. An absent id means "this section's own
+default", so a default can be changed later without fighting a preference somebody set months ago.
+
+Defaults split on what a section is *for*: things you act on open (holdings, stash, businesses, the
+wire, rackets, safehouses, cold cases), things you read shut (the record, the log, the save card).
+
+**Files.** `ui/components/Act.tsx` (`Section`), `ui/store.ts` (`folds`, `toggleFold`, `isOpen`),
+`ui/components/EmpireTab.tsx`, `ui/components/Wire.tsx`, `ui/components/Inventory.tsx`,
+`ui/components/TrophyScreen.tsx`, `ui/styles.css`, and a new `ui/empire-folds.test.tsx` (9 tests).
+
+**Watch out.**
+
+- **Three headings were deliberately left alone**: "Getting out" is a short conditional card that
+  only appears near the endgame, and "What you know" and "Where it is" are sub-headings *inside*
+  sections that already fold. Folding a section inside a folded section is furniture, not control.
+- **`Term` gave way to `Info` on the Stash heading.** The heading text now lives inside the fold
+  button, and `<Term>` is itself a button — nesting one inside another is invalid and neither
+  clicks. The `<Info>` dot beside it opens the same glossary entry, which is what every other
+  section heading already used.
+- **The test lists the defaults explicitly** rather than reading them off the components, so a
+  default that changes silently fails a test. Silently changed defaults read to a player as "the
+  app forgot my settings", which is worse than the scroll this replaces.
+- **Nothing in `/sim` changed**: the honest 60-day soak is identical to the run before this.
+
+---
+
 ## 2026-09-15 — The computer store, and four pieces of tech
 
 **What.** A third kit shop — tech and only tech — and the items to stock it.

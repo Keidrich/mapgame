@@ -1,6 +1,6 @@
 import { useState, type FocusEvent, type ReactNode } from 'react';
 import type { Action } from '@sim/actions';
-import { act, check, useStore, type SceneRequest } from '@ui/store';
+import { act, check, isOpen, toggleFold, useStore, type SceneRequest } from '@ui/store';
 import { fmtMoney } from '@ui/derive';
 import { Icon } from '@ui/icons';
 
@@ -89,5 +89,49 @@ export function SceneAct({ scene, label, icon, kind = '' }: { scene: SceneReques
       </button>
       {!a.ok && <span className="btn-caption">{a.reason}</span>}
     </div>
+  );
+}
+
+/**
+ * A section heading you can shut.
+ *
+ * The Empire tab is one long column — holdings, businesses, rackets, safehouses, cold cases, the
+ * news, the record, the log — and on a phone that is a great deal of scrolling past things you are
+ * not looking at today. This is the same `.section-title` rule as before, made into a button, so
+ * a shut section is one line of furniture rather than forty.
+ *
+ * Two things make it usable rather than merely collapsible:
+ *
+ *  - **the heading still says what is inside.** `count` renders next to the title and stays
+ *    visible when the body is shut, so "Rackets 12" is readable without opening anything. A
+ *    collapsed section that tells you nothing is just a hidden section.
+ *  - **the choice sticks.** It is stored by `id` in `ui/store.ts` and survives a reload, so the
+ *    player arranges this screen once rather than every time they open the tab.
+ *
+ * `defaultOpen` is what it does before anybody has touched it. Absent preferences are not written,
+ * so changing a default later is not fighting a stored choice from months ago.
+ */
+export function Section({ id, title, count, info, defaultOpen = true, children }: {
+  id: string;
+  title: string;
+  count?: number;
+  /** An `<Info>`/`<Term>` for the heading; it sits inside the button and does not toggle it. */
+  info?: ReactNode;
+  defaultOpen?: boolean;
+  children: ReactNode;
+}) {
+  const open = useStore(s => isOpen(s, id, defaultOpen));
+  return (
+    <>
+      <div className="section-title fold-head">
+        <button type="button" className="fold-btn" onClick={() => toggleFold(id, !open)} aria-expanded={open} aria-controls={`fold-${id}`}>
+          <Icon name="caret" size={12} className={open ? 'flip' : ''} />
+          <span>{title}</span>
+          {count !== undefined && <span className="fold-n">{count}</span>}
+        </button>
+        {info}
+      </div>
+      <div id={`fold-${id}`} hidden={!open}>{children}</div>
+    </>
   );
 }
