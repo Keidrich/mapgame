@@ -109,7 +109,11 @@ export function legendKeys(w: World) {
 
 function MapLegend() {
   const w = useWorld();
-  const [open, setOpen] = useState(() => typeof window !== 'undefined' && window.innerWidth >= 700);
+  // Shut everywhere. It used to open itself above 700px "for desktop", which on any tablet meant
+  // a panel sitting over the top-left of the map from the moment the game loaded — on top of the
+  // grid-city banner, which lives in the same corner. The shut pill still shows the colours; one
+  // tap gets the names.
+  const [open, setOpen] = useState(false);
   const { ground: rows, places: tiers } = legendKeys(w);
   return (
     <button type="button" className={`map-legend${open ? ' open' : ''}`} onClick={() => setOpen(o => !o)} aria-expanded={open} aria-label="Map legend">

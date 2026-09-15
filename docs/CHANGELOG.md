@@ -14,6 +14,62 @@ House rules for an entry (see `CLAUDE.md` → *Leave a trail*):
 
 ---
 
+## 2026-09-15 — The map opens on the city, not on a guess (tablet fix)
+
+**What.** The map now frames the whole city when a world loads, instead of jumping to a coordinate
+at a hard-coded zoom. The legend no longer opens itself on wide screens. UI only — no sim, no save
+change, no balance movement.
+
+**Why.** Reported as "iPads and tablets, game doesn't work, map UI is fucked and bugged". It was:
+`MapView` did `jumpTo(world.origin, 15.2)`. `world.origin` is where the *player* starts, not the
+middle of the generated city, and 15.2 was a number picked by eye against a phone — so the more
+screen you had, the more of it was empty. On an iPad in landscape the entire city sat in the top
+third of the viewport with black underneath it. Tablets did not break anything; they made a
+phone-era constant visible. Second half of the same bug: the legend started open above
+`innerWidth >= 700` "for desktop", and every tablet is above 700, so a panel covered the top-left
+corner of the map — on top of the grid-city banner, which lives in the same corner — from the
+moment the game loaded.
+
+**How.** A pure `cityFrame(world, box)` returns the bounds of every block centre plus a padding box
+and a `maxZoom`; `frameCity` applies it with `fitBounds`. Three bounds on the fit, each of which
+cost something to learn:
+
+- **Padding is capped at a fifth of each dimension**, not a fixed pixel count. MapLibre refuses the
+  *whole* `fitBounds` call when the padding box exceeds the canvas — no error the player sees, the
+  view simply never moves. A hard 84px bottom throws on a phone in landscape with the keyboard up.
+- **`maxZoom: 16.2`**, or a small starter city fits itself to the rooftops on an iPad Pro.
+- **A floor at `LOAD_MIN_ZOOM` (12.5)** after the fit. Below it no chunks are fetched, so a very
+  short viewport would frame the city beautifully and then quietly stop discovering streets.
+
+Re-framing on a rotate is handled by the existing `ResizeObserver`, but only on a >60px shape change
+(below that is just the HUD measuring itself) and **only until the player touches the map** — after
+a drag or a pinch the view is theirs, and re-framing it on rotate would be a worse bug than the one
+being fixed. Ownership is detected via `originalEvent`, which only a real gesture carries.
+
+**Numbers.** Measured in Chromium against a generated world, markers in view: iPad portrait 30 → 49,
+iPad Pro 41 → 133. Rotating landscape → portrait re-frames (zoom 14.48 → 14.12); rotating *after* a
+player drag keeps their view. No page errors at 320×280, 844×390 or 507×1180.
+
+**Files.** `ui/components/Map.tsx` (`cityFrame`, `frameCity`, the `ownedByPlayer`/`framed`/`lastSize`
+refs, the `ResizeObserver` body), `ui/App.tsx` (`MapLegend` default), `ui/map-framing.test.ts` (new),
+`docs/DESIGN.md` §5.5.4.
+
+**Watch out.**
+
+- **The soak cannot see any of this and never will.** The bot calls the reducer directly and never
+  renders a map, so `npm run sim -- 60 7 all` reports exactly what it did before — 42 rows, union
+  green, "every system was exercised at least once". That is not evidence about this change. The
+  evidence is `ui/map-framing.test.ts` and screenshots at nine viewport sizes.
+- **Both new guards were checked against the pre-fix code and fail there**, which is the only reason
+  to believe they guard anything: restoring the fixed padding fails the 320×100 case, and restoring
+  the width-conditional legend fails the overlay check.
+- The legend check is deliberately blunt — it asserts `App.tsx` contains no `innerWidth` at all.
+  `App.tsx` is the shell and the things sitting on top of the map, so nothing in it has a reason to
+  measure the window; if that ever stops being true, the guard needs narrowing rather than deleting.
+- The honest 60-day curve is **unchanged and must be** — nothing outside `ui/` was touched.
+
+---
+
 ## 2026-09-15 — Real guns, real cars, and something to wear
 
 **What.** The kit catalogue goes from 15 items to 35: every weapon family filled out with named

@@ -171,6 +171,68 @@ function buildFogJSON(w: World | null, box: { south: number; west: number; north
   return { type: 'FeatureCollection', features: out as GJFeature<Polygon, never>[] };
 }
 const boundsOf = (m: MLMap) => { const b = m.getBounds(); return { south: b.getSouth(), west: b.getWest(), north: b.getNorth(), east: b.getEast() }; };
+
+/** Where `frameCity` decided the city is and how much furniture has to fit around it. */
+export interface CityFrame {
+  /** `[[west, south], [east, north]]`, the corners of everything that exists. */
+  bounds: [[number, number], [number, number]];
+  padding: { top: number; bottom: number; left: number; right: number };
+  maxZoom: number;
+}
+
+/**
+ * Where to put the city on a screen of this shape — or `null` when there is nothing to frame yet.
+ *
+ * Pure so it can be tested without a canvas, because the failure it guards against is not visible
+ * in a unit that needs one: MapLibre **refuses the whole `fitBounds` call** if the padding does not
+ * fit inside the canvas, so a hard 84px bottom throws on a short map and leaves the view wherever
+ * it happened to be. Padding is therefore capped at a fifth of each dimension.
+ *
+ * `maxZoom` is what stops a two-block city filling a tablet at street level.
+ */
+export function cityFrame(w: World | null, box: { width: number; height: number }): CityFrame | null {
+  const blocks = w ? Object.values(w.blocks) : [];
+  // One block has no extent, so there is no shape to fit to and the caller falls back to a point.
+  if (blocks.length < 2) return null;
+  let west = Infinity, east = -Infinity, south = Infinity, north = -Infinity;
+  for (const b of blocks) {
+    west = Math.min(west, b.center.lng); east = Math.max(east, b.center.lng);
+    south = Math.min(south, b.center.lat); north = Math.max(north, b.center.lat);
+  }
+  // The furniture: the legend top-left, the layer chip and the End Day button along the bottom.
+  const cap = (px: number, extent: number) => Math.max(0, Math.min(px, Math.floor(extent * 0.2)));
+  return {
+    bounds: [[west, south], [east, north]],
+    padding: {
+      top: cap(28, box.height), bottom: cap(84, box.height),
+      left: cap(24, box.width), right: cap(24, box.width),
+    },
+    maxZoom: 16.2,
+  };
+}
+
+/**
+ * Put the city on the screen, rather than a point at a guessed zoom.
+ *
+ * The map used to `jumpTo` the world's origin at a fixed 15.2. The origin is where the player
+ * *starts*, not the middle of anything, and 15.2 was picked against a phone — so the more screen
+ * you had, the more of it was empty: on an iPad in landscape the whole city sat in the top third
+ * with half the viewport black under it. Framing what actually exists fixes every screen size at
+ * once, because it is the screen that decides the zoom instead of a constant that never saw one.
+ */
+function frameCity(m: MLMap, w: World | null): void {
+  const box = m.getContainer();
+  const frame = cityFrame(w, { width: box.clientWidth, height: box.clientHeight });
+  if (!frame) {
+    m.jumpTo({ center: w ? [w.origin.lng, w.origin.lat] : [-74.006, 40.7128], zoom: 15.2 });
+    return;
+  }
+  m.fitBounds(frame.bounds, { padding: frame.padding, maxZoom: frame.maxZoom, duration: 0 });
+  // …and never fit yourself out of the game. Below `LOAD_MIN_ZOOM` no new chunks are fetched, so a
+  // phone in landscape — a map barely 260px tall — would frame the whole city at zoom 12 and then
+  // quietly stop discovering streets. Framing is worth less than the map still working.
+  if (m.getZoom() < LOAD_MIN_ZOOM) m.setZoom(LOAD_MIN_ZOOM);
+}
 function blocksAreBig(m: MLMap, w: World): boolean {
   const blocks = Object.values(w.blocks); if (!blocks.length) return false;
   const avgSide = Math.sqrt(blocks.reduce((s, b) => s + b.areaM2, 0) / blocks.length);
@@ -216,6 +278,14 @@ export function MapView() {
   const selRef = useRef({ blockId, businessId }); selRef.current = { blockId, businessId };
   const layerRef = useRef<LayerOpts>({ layer, factionId: layerFactionId, product: layerProduct }); layerRef.current = { layer, factionId: layerFactionId, product: layerProduct };
   const loading = useRef(new Set<string>());
+  /**
+   * Whether the player has moved the map themselves. Once they have, the view is theirs: a
+   * re-frame on rotate would yank them away from wherever they were looking, which is a worse bug
+   * than the one this fixes.
+   */
+  const ownedByPlayer = useRef(false);
+  const framed = useRef(false);
+  const lastSize = useRef({ w: 0, h: 0 });
   const [loadingCount, setLoadingCount] = useState(0);
 
   useEffect(() => {
@@ -265,8 +335,26 @@ export function MapView() {
       if (fog) fog.setData(buildFogJSON(worldRef.current, boundsOf(m)));
     });
     m.on('zoomend', syncMarkers);
+    // `originalEvent` is present only when a person did it — `fitBounds` and `jumpTo` have none,
+    // so the map re-framing itself never counts as the player taking the wheel.
+    const taken = (e: { originalEvent?: unknown }) => { if (e.originalEvent) ownedByPlayer.current = true; };
+    m.on('dragstart', taken); m.on('zoomstart', taken);
     // the HUD measures itself after mount and moves the map's top edge; keep MapLibre's transform in step with the container
-    const ro = new ResizeObserver(() => { m.resize(); syncMarkers(); });
+    const ro = new ResizeObserver(() => {
+      m.resize();
+      // A tablet rotating is a different screen, and a view framed for the old one is wrong for
+      // the new one — which is where "the map is fucked" came from. Re-frame only when the
+      // viewport genuinely changed shape (not the few pixels the HUD moves by as it measures
+      // itself), and never once the player has taken the wheel.
+      const el2 = el.current;
+      if (el2 && framed.current && !ownedByPlayer.current) {
+        const { clientWidth: cw, clientHeight: ch } = el2;
+        const was = lastSize.current;
+        if (Math.abs(cw - was.w) > 60 || Math.abs(ch - was.h) > 60) frameCity(m, worldRef.current);
+        lastSize.current = { w: cw, h: ch };
+      }
+      syncMarkers();
+    });
     ro.observe(el.current);
     return () => { ro.disconnect(); disposed = true; for (const k of markers.current.values()) k.mk.remove(); markers.current.clear(); m.remove(); map.current = null; ready.current = false; seedRef.current = null; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -278,8 +366,9 @@ export function MapView() {
     const m = map.current; if (!m) return;
     if (world && seedRef.current !== world.seed) {
       seedRef.current = world.seed;
-      // centre on where the player starts, close enough to read the blocks around them
-      m.jumpTo({ center: [world.origin.lng, world.origin.lat], zoom: 15.2 });
+      framed.current = false;
+      frameCity(m, world);
+      framed.current = true;
     }
     const src = m.getSource('blocks') as GeoJSONSource | undefined;
     if (src) src.setData(buildGeoJSON(world, blockId, { layer, factionId: layerFactionId, product: layerProduct }));

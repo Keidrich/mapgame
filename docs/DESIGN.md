@@ -1837,6 +1837,47 @@ after a move, a posting and each End Day — `ui/fog-delivery.test.ts` asserts t
 one, because the obvious future regression is somebody restoring instant-populate as a
 quality-of-life fix.
 
+### 5.5.4 The opening view: frame the city, never a point
+
+When a city loads the map frames **everything that exists** — `fitBounds` over the bounding box of
+every block centre — instead of jumping to a coordinate at a chosen zoom.
+
+It used to do the latter: `jumpTo(world.origin, 15.2)`. Both halves of that were wrong and neither
+showed up on the machine it was written on. `world.origin` is where the *player* starts, which is
+not the middle of the generated city and has no reason to be. And 15.2 is a number picked by eye
+against a phone, so it only ever framed a phone: the bigger the screen, the more of it was empty.
+On an iPad in landscape the whole city sat in the top third with half the viewport black
+underneath — reported as "iPads and tablets, the map UI is fucked". Fitting the city fixes every
+screen at once, because the screen decides the zoom instead of a constant that has never seen one.
+
+Three things bound the fit, and each is load-bearing:
+
+- **Padding is a share of the canvas, not a pixel count.** MapLibre refuses the *entire*
+  `fitBounds` call if the padding box does not fit the canvas, silently leaving the view wherever
+  it was. A hard 84px bottom throws on a short map — a phone in landscape with the keyboard up. It
+  is capped at a fifth of each dimension, so the furniture (legend top-left, layer chip and End Day
+  along the bottom) is cleared where there is room and never at the cost of the call.
+- **`maxZoom` 16.2**, or a two-block starter city fits itself to the rooftops on an iPad Pro.
+- **A floor at `LOAD_MIN_ZOOM`.** Below it no new chunks are fetched, so a very short viewport
+  would frame the whole city at zoom 12 and then quietly stop discovering streets. Framing is
+  worth less than the map still working.
+
+**Re-framing, and when to stop.** A tablet rotating is a different screen, so the `ResizeObserver`
+re-frames on a genuine shape change (>60px, above the few pixels the HUD moves by as it measures
+itself). It stops the moment the player drags or zooms: after that the view is theirs and yanking
+it away on rotate is a worse bug than the one this fixes. Ownership is read off `originalEvent`,
+which only a human gesture carries — `fitBounds` and `jumpTo` have none, so the map re-framing
+itself never counts as the player taking the wheel.
+
+**Nothing over the map opens itself by measuring the window.** The legend used to start open above
+700px "for desktop"; every tablet is above 700px, so on every tablet a panel covered the top-left
+of the map — the same corner as the grid-city banner — from the moment the game loaded. It starts
+shut everywhere now. The shut pill still shows the colours and one tap gets the names.
+
+`ui/map-framing.test.ts` pins it. The camera decision lives in a pure `cityFrame(world, box)` for
+exactly that reason: the dangerous failure is a padding box that does not fit, which produces no
+error and no movement, and is invisible on whichever screen size you happened to look at.
+
 ## 6. Factions and politics
 
 Four generated factions with a home district, temperament (aggressive, greedy,
