@@ -14,7 +14,7 @@ import { PLAYER, can, dispatch, select, type Action, type FactionId, type Id, ty
 import { OP_DEFS } from '@content/rackets';
 import { LANDMARKS } from '@content/landmarks';
 import type { Rng } from '@sim/rng';
-import { bump, bumpComplication, bumpOp, warn, type Coverage } from './coverage';
+import { bump, bumpComplication, bumpOp, count, warn, type Coverage } from './coverage';
 
 export interface Ctx {
   w: World; rng: Rng; cov: Coverage; crewCap: number;
@@ -72,7 +72,11 @@ export function answerEverything(c: Ctx) {
   let guard = 0;
   while (select.activeConfrontation(c.w) && guard++ < 40) {
     const x = select.activeConfrontation(c.w)!;
-    const best = select.confrontOptions(c.w, x).filter(o => !o.disabled).sort((a, b) => b.chance - a.chance)[0];
+    // Best odds, except for one of your own asking about a name on a list: there the four answers
+    // are a decision rather than a contest, and two of them are flat 100%. Taking the best odds
+    // meant the bot called every single job off and three of the four branches never ran once.
+    const opts = select.confrontOptions(c.w, x).filter(o => !o.disabled);
+    const best = x.kind === 'kin' ? opts[c.rng.int(0, opts.length - 1)] : opts.slice().sort((a, b) => b.chance - a.chance)[0];
     if (!best) { warn(c.cov, 'a confrontation had no answerable option'); break; }
     const gate = can(c.w, { type: 'resolve_confrontation', id: x.id, approach: best.id });
     if (!gate.ok) {
@@ -89,6 +93,7 @@ export function answerEverything(c: Ctx) {
     // than for a racket leaves nothing behind to count. This is where it is seen or nowhere.
     if (x.kind === 'you') bump(c.cov, 'hunted');
     if (x.kind === 'loved') bump(c.cov, 'loved_hit');
+    if (x.kind === 'kin') { bump(c.cov, 'kin_raised'); bump(c.cov, 'kin_answered'); }
     // counted here rather than in `tallyPeople`: by the time that runs the queue has been
     // answered and drained, and a warning that was acted on leaves nothing behind to count
     if (x.warned) bump(c.cov, 'asset_warnings');
@@ -123,8 +128,13 @@ function pickTarget(c: Ctx, kind: OpKind): Partial<Action & { type: 'plan_op' }>
     }
     case 'npc': {
       const people = Object.values(w.npcs).filter(n => n.alive && !select.opLocked(w, kind, { npcId: n.id }));
-      // prefer somebody who is not one of your own, unless the op is about your own
-      const pick = people.find(n => def.requires?.jailedTarget ? n.crew?.status === 'jailed' : !n.crew) ?? people[0];
+      // A job that ends somebody, on a name one of your own people loves, is the whole of the kin
+      // scene — and left to pick greedily the bot never once landed on one in sixty days, so that
+      // system read ✗ while working perfectly. Prefer such a mark when the city offers one: it is
+      // also what a player meets eventually, the bot simply has to be told to look.
+      const kin = people.find(n => !n.crew && select.kinOnTheJob(w, kind, n.id));
+      // otherwise somebody who is not one of your own, unless the op is about your own
+      const pick = kin ?? people.find(n => def.requires?.jailedTarget ? n.crew?.status === 'jailed' : !n.crew) ?? people[0];
       return pick ? { targetNpcId: pick.id } : undefined;
     }
     case 'faction': {
@@ -912,4 +922,54 @@ export function caseALandmark(c: Ctx) {
     if (!goTo(c, biz.blockId)) continue;
     if (tryAct(c, { type: 'case_joint', businessId: biz.id })) return;
   }
+}
+
+
+/**
+ * Put a job on somebody one of your own people loves.
+ *
+ * Its own step rather than a thumb on `planAnOp`'s ranking, which is what the first attempt was and
+ * it cost two other systems their coverage. The scene only exists inside an op the bot had already
+ * ticked off: ranking by freshness ran `hit` early, while every crew loyalty was still too low for
+ * anybody to care, and never again — so a system that works perfectly read ✗.
+ *
+ * Once per run, and only when the city actually offers such a mark.
+ */
+export function takeTheFamilyJob(c: Ctx): boolean {
+  if (count(c.cov, 'kin_raised')) return false;
+  const kind: OpKind = 'hit';
+  if (select.opLocked(c.w, kind)) return false;
+  const def = OP_DEFS[kind];
+  const want = Math.max(1, def.minCrew);
+  const mark = Object.values(c.w.npcs).find(n => n.alive && !n.crew && select.kinOnTheJob(c.w, kind, n.id) && !select.opLocked(c.w, kind, { npcId: n.id }));
+  if (!mark) return false;
+  // Take somebody off a racket if nobody is spare, which is the whole reason this needed its own
+  // step. `promoteLieutenants` and `runTheEmpire` between them assign every last body before the
+  // day plans anything, so `idleCrew` is routinely empty here and a one-hander never goes out —
+  // which is why a working system read ✗ for a whole pass. A player pulls somebody off a corner
+  // for a job like this without thinking about it; the bot does it once in a run.
+  for (const n of select.crew(c.w)) {
+    if (select.idleCrew(c.w).length >= want) break;
+    if (n.crew?.status === 'assigned') tryAct(c, { type: 'assign', npcId: n.id });
+  }
+  const free = select.idleCrew(c.w);
+  if (free.length < want) return false;
+  const crewIds = free.slice(0, want).map(n => n.id);
+  if (!tryAct(c, { type: 'plan_op', kind, crewIds, targetNpcId: mark.id })) return false;
+  bump(c.cov, 'ops_planned'); bumpOp(c.cov, kind);
+  if ((def.tier ?? 0) >= 2) bump(c.cov, 'tier2_ops');
+
+  // Answer it here, in the same day it was raised. The queue is swept at End Day — an unanswered
+  // scene becomes the 'say nothing' branch, which is correct for a player who walks away and
+  // useless as coverage: the morning pass never saw it, so for a whole pass this read ✗ while
+  // working. Rolled rather than optimised, because the four answers are a decision and not a
+  // contest: taking the best odds picked the same one every time and three branches never ran.
+  const at = select.activeConfrontation(c.w);
+  if (at?.kind === 'kin') {
+    bump(c.cov, 'kin_raised');
+    const opts = select.confrontOptions(c.w, at).filter(o => !o.disabled);
+    const pick = opts[c.rng.int(0, opts.length - 1)];
+    if (pick && tryAct(c, { type: 'resolve_confrontation', id: at.id, approach: pick.id })) bump(c.cov, 'kin_answered');
+  }
+  return true;
 }

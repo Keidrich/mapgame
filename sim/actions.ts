@@ -4,6 +4,7 @@
  * which are currently possible and why not.
  */
 import type { Id, FactionId, RacketKind, ProductionKind, OpKind, ProductKind, Assignment, SupplyRule, ConfrontApproach, TalkMove, SceneKind } from './types';
+import type { KinAnswer } from '@content/kin';
 import type { AgendaMode } from '@content/agendas';
 import type { GeoChunk } from '@geo/chunks';
 
@@ -81,7 +82,7 @@ export type Action =
   // --- movement ---
   | { type: 'move'; toBlockId: Id }                        // legwork: walk the block graph to another block
   // --- someone is at the door ---
-  | { type: 'resolve_confrontation'; id: Id; approach: ConfrontApproach | TalkMove }
+  | { type: 'resolve_confrontation'; id: Id; approach: ConfrontApproach | TalkMove | KinAnswer }
   // Open a conversation. It queues as a confrontation and is answered through the line above:
   // one pending-thing mechanism, not two. See `sim/conversation.ts`.
   | { type: 'talk'; scene: SceneKind; npcId: Id; businessId?: Id; otherFactionId?: FactionId }

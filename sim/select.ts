@@ -68,6 +68,8 @@ export { layingLow, layLowLeft, cacheCap, cacheCapLeft, cacheReason, isLoneWolf 
 export { lovedOne, lovedStatus, isLoved, heirs, hunters, willComeForYou, personalCover, goStraightReason, goStraightDays, GO_STRAIGHT } from './legacy';
 // the outfit that started after you did. Read-only: nothing outside `tickUpstart` moves it.
 export { upstart, hasArrived, UPSTART } from './upstart';
+// one of your own, about a name on one of your lists
+export { kinOnTheJob, kinChance, KIN, KIN_ANSWERS, type KinAnswer } from './kin';
 export { favourPrice, favourReason, lifestyleAt, nextStep, lifestyleOwned, standingShow, securityCover, legitimacy, legitimacyHeatMult, legitimacyGain, legitimacyReason, ceilingAt, ceilingPrice, extraBeds, safehouseLimit, bedsTotal } from './fortune';
 export { knownRecipes, recipesForKind, restockCost, qualityOf, sellMult, shortageActive, saturationActive, productionQuality, playerWorks, playerWorked, PLAYER_HANDS } from './production';
 import { distanceM } from '@geo/project';

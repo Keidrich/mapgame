@@ -14,6 +14,67 @@ House rules for an entry (see `CLAUDE.md` → *Leave a trail*):
 
 ---
 
+## 2026-09-15 — Somebody's brother
+
+**What.** Put a job on a man who is close to one of your own people and that crew member is waiting
+for you **before it goes out**, with four ways to answer for it — including handing them the job.
+
+**Why.** Reported from play: a hit landed on a family member of a loyal crew member and the game
+said nothing except a loyalty number afterwards. The web has been in `Npc.connections` since
+generation and a hit has always been allowed to land on anybody; the two systems had simply never
+met.
+
+**How.** A new confrontation kind, `kin`, raised at **plan** time rather than after — afterwards
+there is nothing left to decide, which was the whole problem. Who turns up is the most loyal crew
+member tied to the mark, above `KIN.loyal` (55); below that a cousin they never see stays a line in
+the log. Four answers:
+
+| Answer | The job | The price |
+| --- | --- | --- |
+| **Tell them straight** | runs | charm against loyalty: they wear it (−14), or you lose them (−42 and a grudge) |
+| **Let them handle it** | done, by them | −30 loyalty, a quarter of the heat, and a real chance they cannot |
+| **Call it off** | aborted | he is still out there, and he was on that list for a reason |
+| **Say nothing** | runs | −55 and a grudge when they find out |
+
+"Let them handle it" is the one worth the feature. It is **cheaper** — no crew tied up, almost no
+heat, nothing leading back — and what it costs is that you made somebody loyal to you do the worst
+thing there is. Whether they can is **nerve alone**, never charm: it is the one thing you cannot
+talk a person into being able to do, which is why it is offered rather than ordered. When they
+flinch, the mark lives, holds a grudge, and knows exactly who sent them.
+
+**Letting the day end is the 'say nothing' branch**, because walking away from somebody asking you
+that is an answer.
+
+No new state: it reads `connections`, moves `loyalty`, `grudge` and the ledger, and ends an op
+through the same `aborted` status the abort button uses.
+
+**Files.** New: `content/kin.ts`, `sim/kin.ts`, `sim/kin-at-the-door.test.ts` (15 tests). Changed:
+`sim/types.ts`, `sim/actions.ts`, `sim/combat.ts`, `sim/reducer.ts`, `sim/select.ts`, and the bot.
+
+**Watch out.**
+
+- **The soak read ✗ on this for three attempts, and every one taught me something.** First I tried
+  weighting `planAnOp`'s ranking toward it — that cost *two other systems* their coverage and was
+  backed out; you do not fix reach by distorting a ranking everything else depends on. Then, as its
+  own step, it still never fired: `idleCrew` is routinely **empty** at planning time because
+  `promoteLieutenants` and `runTheEmpire` assign every last body first, so a one-hander never goes
+  out. The step now takes somebody off a racket, once per run, the way a player would without
+  thinking about it. Then it fired and *still* read zero, because the scene is raised mid-day and
+  swept at End Day before the morning pass ever sees it — so the bot answers it there and then.
+  **42/42 now**, nine scenes across the sweep.
+- **The bot rolls its answer rather than taking the best odds.** Two of the four are flat 100%
+  (they are decisions, not contests), so "best odds" called every job off and three branches never
+  ran once.
+- **`the fourth tier` moved to seed 7 in the union test, and that is not a fudge.** Tier 4 is gated
+  on *standing*, not money: at seed 5 `fortune` ends on $259,000 having never become somebody the
+  room would deal with — the gate working, not failing. It is still zero at **80** days there, so
+  raising the day count is the wrong answer; the row is checked on seed 7, the seed
+  `npm run sim -- 60 7 all` uses and where the full sweep reads 42/42.
+- **Nothing in `/sim` changed for a player who never plans a hit on family**: the honest 60-day soak
+  is identical.
+
+---
+
 ## 2026-09-15 — The sweep: one more system with no door at all
 
 **What.** Swept for the pattern behind the last two bugs. Found a worse one: **`buy_favour` had no

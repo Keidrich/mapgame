@@ -16,6 +16,9 @@
  */
 import { OP_DEFS, type OpApproach } from '@content/rackets';
 import { COMPLICATIONS } from '@content/complications';
+import { KIN_ANSWERS, type KinAnswer } from '@content/kin';
+import { kinChance, resolveKin } from './kin';
+import { freeOpCrew } from './reducer';
 import { complicationBias, complicationOptions } from './complications';
 import { resolveOp } from './ops';
 import { kitApproachBias, kitHeatMult, kitSkillBoost } from './items';
@@ -89,6 +92,14 @@ export function confrontOptions(w: World, c: Confrontation): ConfrontOption[] {
   // A conversation is the same queue entry with a different menu — generated from the graph, the
   // ledger and their agenda rather than from the three ways to meet a fist.
   if (c.kind === 'talk') return talkOptions(w, c) as unknown as ConfrontOption[];
+  // One of your own, at your door, because the name on a job is somebody they love. The odds shown
+  // are `kinChance`, which is what the resolver rolls against.
+  if (c.kind === 'kin') {
+    return KIN_ANSWERS.map(a => ({
+      id: a.id as unknown as ConfrontApproach, label: a.label, icon: a.icon, blurb: a.blurb,
+      good: a.good, bad: a.bad, chance: kinChance(w, c, a.id),
+    }));
+  }
   const crew = backupCrew(w);
   if (c.kind === 'op' && c.complication) {
     const o = complicationOptions(c);
@@ -129,7 +140,24 @@ export function queueConfrontation(w: World, c: Omit<Confrontation, 'id' | 'day'
  * Answer one. `absent` is what happens when the day ends with the player never having dealt
  * with it: the attack lands as it would have before any of this existed.
  */
-export function resolveConfrontation(w: World, c: Confrontation, given: ConfrontApproach | TalkMove | 'absent', rng: Rng): boolean {
+export function resolveConfrontation(w: World, c: Confrontation, given: ConfrontApproach | TalkMove | KinAnswer | 'absent', rng: Rng): boolean {
+  // Somebody of yours asking about a name on a list. Answered, not survived — and an unanswered one
+  // is the 'nothing' branch by default, which is deliberately the worst of the four: letting the day
+  // end rather than saying anything to them *is* saying something.
+  if (c.kind === 'kin') {
+    const answer = (KIN_ANSWERS.some(a => a.id === given) ? given : 'nothing') as KinAnswer;
+    w.confrontations = confrontations(w).filter(x => x.id !== c.id);
+    const fate = resolveKin(w, c, answer, rng);
+    const o = c.opId ? w.ops[c.opId] : undefined;
+    if (o && fate !== 'go') {
+      // 'abort' and 'done' both end the job: either it is called off, or somebody else did it and
+      // there is nothing left for your crew to go and do.
+      o.status = 'aborted';
+      freeOpCrew(w, o);
+      w.player.opIds = w.player.opIds.filter(id => id !== o.id);
+    }
+    return false;
+  }
   // A conversation is answered, not survived. The reducer drives those directly through
   // `resolveTalk`, because a closing move has to run an actual scene and that is reducer work;
   // what reaches here is the End Day sweep, where an unanswered conversation is simply somebody

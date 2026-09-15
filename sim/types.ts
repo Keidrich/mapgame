@@ -629,7 +629,10 @@ export interface Secret {
  * or for the one person the player has outside all of it. Everything else in this union is
  * something of the player's being leaned on.
  */
-export type ConfrontKind = 'racket' | 'business' | 'crew' | 'op' | 'talk' | 'you' | 'loved';
+export type ConfrontKind =
+  | 'racket' | 'business' | 'crew' | 'op' | 'talk' | 'you' | 'loved'
+  /** One of your own, at your door, because the name on a job is somebody they love. `sim/kin.ts`. */
+  | 'kin';
 export type { ComplicationKind };
 /** How you meet it. Each maps onto an op approach, so carried kit reads the same way it does on a job. */
 export type ConfrontApproach = 'fight' | 'flee' | 'backup';

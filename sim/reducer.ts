@@ -10,6 +10,7 @@ import type { Action, Affordance, CheatKind, SitDownOffer } from './actions';
 import type { Rng } from './rng';
 import { agendaCost, agendaReason, resolveAgenda } from './agendas';
 import { resolveTalk, startConversation } from './conversation';
+import { raiseKin } from './kin';
 import { oweThem, remember } from './ledger';
 import { openIntel } from './intel';
 import { scoreMeeting } from './nemesis';
@@ -988,6 +989,9 @@ function apply(w: World, a: Action, rng: Rng, done: () => void, bonus = 0): Worl
       const o: Op = { hour: w.hour ?? DEFAULT_HOUR, id: nid(w, 'o'), kind: a.kind, approach: a.approach, mode: a.mode ?? OP_DEFS[a.kind].modes?.[0]?.id, insideId: insider?.id, targetBusinessId: a.targetBusinessId, targetNpcId: a.targetNpcId, targetFactionId: a.targetFactionId, targetBlockId: a.targetBlockId, targetDistrictId: a.targetDistrictId, targetCaseId: a.targetCaseId, safehouseId: a.safehouseId ?? (a.kind === 'kidnap' ? p.safehouseIds[0] : undefined), crewIds: a.crewIds.slice(), planDays: def.planDays, daysLeft: def.planDays, status: def.planDays === 0 ? 'ready' : 'planning', createdDay: w.day };
       w.ops[o.id] = o; p.opIds.push(o.id);
       for (const id of a.crewIds) { const n = npc(id); n.crew!.assignment = { kind: 'op', opId: o.id }; n.crew!.status = 'assigned'; }
+      // If the name on this job belongs to somebody one of your own people loves, they are waiting
+      // for you before it goes out — not afterwards, when there would be nothing left to decide.
+      raiseKin(w, o, rng);
       log(w, `${def.label}${a.approach ? ` (${OP_APPROACHES[a.approach].label.toLowerCase()}${insider ? `, ${insider.name} inside` : ''})` : ''} is ${o.status === 'ready' ? 'ready to go' : `in planning (${def.planDays} days)`}.`, 'info', { opId: o.id });
       break;
     }

@@ -10,7 +10,7 @@ import { PLAYER, dispatch, generateWorld, select, type World } from '@sim/index'
 import { Rng } from '@sim/rng';
 import { SCENARIOS, setUp, topUp, type ScenarioName } from './admin';
 import { newCoverage, bump, warn, type Coverage } from './coverage';
-import { answerEverything, buyKit, goTo, handleMoney, haveAConversation, caseALandmark, hireSpecialists, launchOps, pickTheHour, planAnOp, promoteLieutenants, resetPolicy, resolveEvents, runTheEmpire, sellSomethingOnTheStreet, spendTheFortune, tallyNight, tallyProduction, tallyPeople, tallyTheWorld, tryToGetOut, workTheAgendas, workTheBuildings, workTheCorners, workTheRoom, workTheStreet, workTheWire, type Ctx } from './policy';
+import { answerEverything, buyKit, goTo, handleMoney, haveAConversation, caseALandmark, hireSpecialists, launchOps, takeTheFamilyJob, pickTheHour, planAnOp, promoteLieutenants, resetPolicy, resolveEvents, runTheEmpire, sellSomethingOnTheStreet, spendTheFortune, tallyNight, tallyProduction, tallyPeople, tallyTheWorld, tryToGetOut, workTheAgendas, workTheBuildings, workTheCorners, workTheRoom, workTheStreet, workTheWire, type Ctx } from './policy';
 
 export interface RunOpts {
   days: number;
@@ -79,6 +79,9 @@ export function run(opts: RunOpts): RunResult {
     // planned until its target has been cased. Every fourth rather than daily: it is a walk
     // across town plus 2 AP, and the same AP is what an op would have cost.
     if (opsPerDay > 0 && d % 4 === 2) caseALandmark(c);
+    // …and once in a run, a job on somebody one of your own loves — the one op whose whole point
+    // is what it does to the person who brought it to you.
+    if (opsPerDay > 0) takeTheFamilyJob(c);
     for (let i = 0; i < opsPerDay; i++) if (!planAnOp(c)) break;
     // ...and the specialists go on between planning and launch, which is the only window there
     // is: the job needs an id before anybody can be hired onto it, and it has to still be here.

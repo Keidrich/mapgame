@@ -255,6 +255,42 @@ the defs are written to it — a test asserts tier-2 income midpoints exceed tie
 exceed tier-2's. Stapling a multiplier on top of already-tuned ranges would have re-balanced the
 whole economy silently; the real mechanical scaling is setup cost and the nerve floor.
 
+### 3.6c Somebody's brother: when a job lands on the web
+
+The family and friend web (3.6) has existed since generation and a hit has always been allowed to
+land on anybody. The two never met. You put a job on a man, and found out afterwards — silently,
+from a loyalty number — that he was somebody's brother. The number was the whole of it.
+
+Now, when a job that **ends** somebody (`hit`, `no_loose_ends`) is planned against a person one of
+your own crew is close to, that crew member is at your door **before it goes out**. Timing is the
+design: afterwards there is nothing left to decide, which is exactly what was wrong with the
+silent version.
+
+Who turns up is the most loyal crew member tied to the mark, and only above `KIN.loyal` (55).
+Below that they work for you and that is the extent of it — a cousin they never see is a line in
+the log, not a scene. The threshold is high on purpose: this should be rare and land hard.
+
+**Four answers, and the point is that none of them is clean.**
+
+| Answer | The job | What it costs you |
+| --- | --- | --- |
+| **Tell them straight** | runs | charm against their loyalty: they wear it (−14) or you lose them outright (−42 and a grudge) |
+| **Let them handle it** | *done, by them* | −30 loyalty, a fraction of the heat, and a `theirsFlinch` chance they cannot — then he lives, holds a grudge, and knows who sent them |
+| **Call it off** | aborted | he is still out there, and he was on that list for a reason |
+| **Say nothing** | runs | −55 and a grudge when they find out, which is the worst of the four |
+
+"Let them handle it" is the interesting one and the reason this exists: it is *cheaper* — no crew
+tied up, a quarter of the heat, nothing leading back to you — and the price is that you made the
+person who is loyal to you do the worst thing there is. Whether they can is **nerve alone**
+(`kinChance`), not charm: this is the one thing you cannot talk somebody into being able to do,
+which is why it is offered rather than ordered.
+
+**Letting the day end is the 'say nothing' branch.** An unanswered scene is swept at End Day into
+the worst of the four, because walking away from somebody asking you that *is* an answer.
+
+Nothing here is new state: it reads `connections`, moves `loyalty`, `grudge` and the ledger, and
+ends an op through the same `aborted` status the abort button uses.
+
 ### 3.7 Standing: fear, trust, familiarity and word of mouth
 
 The four numbers every social system reads, and for a long time the four that were flat. One

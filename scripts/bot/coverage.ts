@@ -35,7 +35,9 @@ export type Counter =
   // a world that moves without you, and the clock it moves on
   | 'faction_wars' | 'faction_absorbs' | 'upstart_grew' | 'hours_set'
   // the content pack: one-off people, one-off places, and the texture between them
-  | 'specialists_hired' | 'landmark_ops' | 'headlines' | 'encounters';
+  | 'specialists_hired' | 'landmark_ops' | 'headlines' | 'encounters'
+  // the web arriving at your door: one of yours, about a name on one of your lists
+  | 'kin_raised' | 'kin_answered';
 
 export interface Coverage {
   counts: Record<Counter, number>;
@@ -106,6 +108,7 @@ export const SYSTEMS: { label: string; needs: Counter[]; hint: string }[] = [
   { label: 'landmark jobs', needs: ['landmark_ops'], hint: 'not one of the one-off places was ever worked, so the jobs that exist in exactly one building never ran' },
   { label: 'the front page', needs: ['headlines'], hint: 'the desk never printed anything, which means the log never carried a line worth printing' },
   { label: 'street encounters', needs: ['encounters'], hint: 'nothing ever happened on the way anywhere, so the texture between the systems is untested' },
+  { label: 'somebody\'s brother', needs: ['kin_raised'], hint: 'no job was ever put on a name one of your own people loved, so the web never once came to the door' },
 ];
 
 /**
@@ -155,6 +158,7 @@ export function report(c: Coverage): string[] {
   ] as const;
   out.push(`  fortune & stakes: ${fortune.map(([k, n]) => `${k} ${n}`).join(', ')}`);
   const world = [
+    ['kin at the door', count(c, 'kin_raised')], ['answered', count(c, 'kin_answered')],
     ['wars not yours', count(c, 'faction_wars')], ['outfits swallowed', count(c, 'faction_absorbs')], ['upstart pushes', count(c, 'upstart_grew')],
     ['clock changes', count(c, 'hours_set')], ['specialists hired', count(c, 'specialists_hired')], ['landmark jobs', count(c, 'landmark_ops')],
     ['headlines', count(c, 'headlines')], ['encounters', count(c, 'encounters')],
