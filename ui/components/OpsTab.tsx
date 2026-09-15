@@ -152,12 +152,11 @@ function Planner() {
   const onlyRatted = !!def?.requires?.rattedTarget;
   const onlyOfficial = !!def?.requires?.officialTarget;
   const onlyJailed = !!def?.requires?.jailedTarget;
+  // `select.opNpcTargets` owns this list, including the per-op narrowing above — it used to be a
+  // role check written out here, and it had no room in it for anybody who used to work for you.
   const npcs = useMemo(() => (
-    onlyRatted ? select.rattedNpcs(w)
-      : onlyJailed ? select.jailedCrew(w)
-      : onlyOfficial ? Object.values(w.npcs).filter(n => n.alive && n.official?.authorityId)
-      : Object.values(w.npcs).filter(n => n.alive && !n.crew && (n.role === 'boss' || n.role === 'lieutenant' || n.role === 'owner' || n.role === 'official' || n.role === 'soldier'))
-  ).filter(n => !filter || n.name.toLowerCase().includes(filter.toLowerCase())).slice(0, 40), [w, filter, onlyRatted, onlyOfficial, onlyJailed]);
+    kind ? select.opNpcTargets(w, kind) : []
+  ).filter(n => !filter || n.name.toLowerCase().includes(filter.toLowerCase())).slice(0, 40), [w, kind, filter]);
   const action = kind ? { type: 'plan_op' as const, kind, crewIds, approach, mode, targetCaseId: target.caseId, targetBusinessId: target.businessId, targetNpcId: target.npcId, targetFactionId: target.factionId, targetBlockId: target.blockId, targetDistrictId: target.districtId, safehouseId } : null;
   const reset = () => { setKind(null); setTarget({}); setCrewIds([]); setApproach(undefined); setMode(undefined); setFilter(''); setSafehouseId(undefined); };
   const toggle = (id: Id) => setCrewIds(ids => ids.includes(id) ? ids.filter(x => x !== id) : def && ids.length >= def.maxCrew ? ids : [...ids, id]);

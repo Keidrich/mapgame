@@ -999,6 +999,34 @@ all" when the tree is being browsed with nothing selected:
 Anything that should unlock against a specific mark rather than globally belongs here. Do not
 invent a sixth gating mechanism.
 
+### 4.13b Who a job can be pointed at
+
+The per-target gating family (4.13) decides what a job *requires* of its mark. Separately, the
+planner has to decide whose names to put on the screen, and that list lives in
+`select.opNpcTargets` — not in the component, for the same reason the recruit button's role list
+was moved into the sim: **a permission and the control that offers it must never be two lists.**
+
+It was a hard-coded role check in the component — `boss | lieutenant | owner | official | soldier`
+— and that had a hole exactly where it mattered most. Every route out of your crew leaves somebody
+on `role: 'patron'`: the betrayal event, being fired, walking out on low loyalty, a skim
+confrontation that went the wrong way, a deposed rival, an heir. So a man who took your money, told
+the police and left could not be selected for a hit, a kidnapping or a frame — while a hundred and
+seventy strangers stayed on the list. The reducer had no such rule and would have planned the job
+happily; only the picker refused, by never showing him.
+
+The rule is **the people who matter in the city, plus anybody you have actually dealt with.**
+History is `n.ledger?.length || n.grudge` — both things the game already writes for its own
+reasons, so this adds no tracking. A recruit writes a ledger entry the day they join, which is what
+catches an ex-crew member even when they left without hard feelings.
+
+Two details that make it usable rather than merely correct:
+
+- **The per-op requirements come first.** A job that wants somebody in a cell offers the cell, one
+  that wants somebody whose books you have been through offers exactly those, and one that wants an
+  official offers officials. Those are the point of the job, not a filter on it.
+- **History sorts to the top.** The screen cuts the list at forty names, and somebody you have
+  unfinished business with is who you opened it looking for.
+
 ### 4.14 The admin panel and the soak bot
 
 **The admin panel** is the `cheat` action: a list of entries, each of which sets one system up so

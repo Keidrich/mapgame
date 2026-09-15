@@ -115,6 +115,42 @@ export function opTargets(w: World, kind: OpKind): Business[] {
     return b.ownedBy !== 'player' && !['bank', 'armored_depot'].includes(b.type);
   });
 }
+/**
+ * Who the planner will let you point an NPC job at.
+ *
+ * Lived in the component as a hard-coded role list — `boss | lieutenant | owner | official |
+ * soldier` — and that list had a hole exactly where it mattered most. **Every** route out of your
+ * crew leaves somebody on `role: 'patron'`: the betrayal event, being fired, walking out on low
+ * loyalty, a skim confrontation that went the wrong way, a deposed rival. So the man who took your
+ * money, told the police and left could not be selected for a hit, a kidnapping or a frame, while
+ * a hundred and seventy strangers stayed on the list. The reducer had no such rule and would have
+ * planned the job; only the picker refused, by never showing him.
+ *
+ * The rule is **the people who matter in the city, plus anybody you have actually dealt with** —
+ * history being the ledger and the grudge, both of which the game already writes for its own
+ * reasons, so this invents no new tracking. It is here rather than in the component for the reason
+ * the recruit button was moved here: a permission and the control that offers it must not be two
+ * lists.
+ */
+export function opNpcTargets(w: World, kind: OpKind): Npc[] {
+  const d = OP_DEFS[kind];
+  if (d.target !== 'npc') return [];
+  // the per-target requirements come first: they are the whole point of the job, not a filter on it
+  if (d.requires?.jailedTarget) return crew(w).filter(n => n.crew?.status === 'jailed');
+  if (d.requires?.rattedTarget) return Object.values(w.npcs).filter(n => n.alive && !n.crew && n.ratted !== undefined);
+  if (d.requires?.officialTarget) return Object.values(w.npcs).filter(n => n.alive && n.official?.authorityId);
+
+  const matters = (n: Npc) => ['boss', 'lieutenant', 'owner', 'official', 'soldier'].includes(n.role);
+  // what has actually passed between you: a recruit writes a ledger entry the day they join, so an
+  // ex-crew member is caught by the first of these even when they left without hard feelings
+  const history = (n: Npc) => !!(n.ledger?.length || n.grudge);
+  return Object.values(w.npcs)
+    .filter(n => n.alive && !n.crew && (matters(n) || history(n)))
+    // History first: the list is long and the screen cuts it, and somebody you have unfinished
+    // business with is who you came to this screen looking for.
+    .sort((a, b) => Number(history(b)) - Number(history(a)) || a.name.localeCompare(b.name));
+}
+
 export function crewSkillSum(w: World, ids: Id[]): Record<string, number> {
   const s: Record<string, number> = { muscle: 0, brains: 0, charm: 0, wheels: 0, tech: 0 };
   for (const id of ids) { const n = w.npcs[id]; if (!n) continue; for (const k of Object.keys(s)) s[k] += n.skills[k as keyof typeof n.skills]; }

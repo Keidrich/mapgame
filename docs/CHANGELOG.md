@@ -14,6 +14,56 @@ House rules for an entry (see `CLAUDE.md` → *Leave a trail*):
 
 ---
 
+## 2026-09-15 — You could not whack the man who snitched on you
+
+**What.** A crew member who betrayed you and walked could not be selected as the target of a hit,
+a kidnapping or a frame. Reported from play.
+
+**Why.** The ops planner carried its own hard-coded list of who could be targeted —
+`boss | lieutenant | owner | official | soldier` — and **every** route out of your crew leaves
+somebody on `role: 'patron'`: the betrayal event, being fired, walking out on low loyalty, a skim
+confrontation that went the wrong way, a deposed rival, an heir. So the one person a player most
+wants to reach was the one person they could not see, while a hundred and seventy strangers stayed
+on the list.
+
+The reducer had no such rule. Measured on a fixture matching exactly what `betrayal:cut` leaves
+behind: **op unlocked, `can(plan_op)` → true, planner offers them → false.** Nothing refused the
+job; the picker simply never showed the name, and there is no other route to targeting an NPC.
+
+**How.** `select.opNpcTargets(w, kind)` owns the list now, for the same reason the recruit button's
+role check moved into the sim two commits ago: a permission and the control that offers it must not
+be two lists. The rule is **the people who matter in the city, plus anybody you have actually dealt
+with** — history being `ledger?.length || grudge`, both already written by the game for its own
+reasons, so no new tracking. A recruit writes a ledger entry the day they join, which catches an
+ex-crew member even when they left without hard feelings.
+
+Two things that make it usable rather than merely correct: the **per-op requirements come first**
+(a job wanting somebody in a cell offers the cell, one wanting somebody whose books you have read
+offers those, one wanting an official offers officials), and **history sorts to the top**, because
+the screen cuts at forty names and the person you came looking for should not be on page four. On
+the reported fixture the snitch now lands at position 1 of 174.
+
+**Files.** `sim/select.ts` (`opNpcTargets`), `ui/components/OpsTab.tsx`, and a new
+`sim/op-npc-targets.test.ts` (10 tests).
+
+**Watch out.**
+
+- **The test was written to fail first**: all 10 fail against the previous commit, all 10 pass
+  after. The load-bearing one asserts the planner and the reducer *agree* rather than asserting a
+  role list, so the two cannot drift apart again without something going red.
+- **This is the second instance of one pattern in three days** — the recruit button was the first.
+  A component holding its own copy of a rule the reducer already owns, narrower than the reducer,
+  with no fallback path. Worth grepping for a third before it is reported: the shape to look for is
+  a role or status check written inline in a `.tsx` that decides whether a control appears at all.
+- **The soak bot cannot see this class of bug.** It builds its own target lists and calls the
+  reducer directly, so it never walks through the picker. Both of these were found by hand, and
+  that is not luck — coverage measures whether a system was reached, not whether the route a player
+  takes to it works.
+- **Nothing in `/sim` changed behaviour**: `opNpcTargets` is a read-only helper, and the honest
+  60-day soak is identical.
+
+---
+
 ## 2026-09-15 — The Empire tab folds up
 
 **What.** Every list heading on the Empire tab is now a control: tap it and the section shuts.
