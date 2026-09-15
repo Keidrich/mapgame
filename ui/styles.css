@@ -22,6 +22,18 @@
   --red: #ff5257;
   --blue: #58a6f0;
   --purple: #b07cf0;
+  /* Business tier on the map, as an ordinal ramp: cool and quiet at the bottom, warm and then
+     rare at the top. Deliberately clear of the two hues the map has already spent — gold is
+     always "yours" and blue is always the law — so a tier colour can never be misread as either.
+     Tier 1 is most of the city, so it is tinted rather than loud. */
+  --tier-1: #8ea9c4;                    /* street: slate, recedes */
+  --tier-2: #4fc4a0;                    /* trade: teal */
+  --tier-3: #e2795b;                    /* professional: terracotta */
+  --tier-4: #b07cf0;                    /* chartered: rare, and looks it */
+  --tier-1-line: rgba(142, 169, 196, 0.45);
+  --tier-2-line: rgba(79, 196, 160, 0.55);
+  --tier-3-line: rgba(226, 121, 91, 0.6);
+  --tier-4-line: rgba(176, 124, 240, 0.7);
   --hud-h: 96px;
   --tab-h: 60px;
   --sat: env(safe-area-inset-top, 0px);
@@ -92,8 +104,16 @@ p { margin: 0 0 8px; }
 .layerkey { position: absolute; left: 8px; bottom: 44px; z-index: 5; display: flex; align-items: center; gap: 6px; padding: 4px 8px; border-radius: 6px; background: rgba(13, 17, 23, 0.9); border: 1px solid var(--line); font-size: 11px; color: var(--muted); }
 .layerkey .ramp { width: 64px; height: 8px; border-radius: 4px; }
 .biz-marker { display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 14px; background: rgba(20, 23, 28, 0.92); border: 1.5px solid var(--line); font-size: 15px; line-height: 1; box-shadow: 0 1px 4px rgba(0,0,0,0.6); }
-.biz-marker.yours { border-color: var(--gold); box-shadow: 0 0 0 2px var(--gold-dim); }
-.biz-marker.sel { border-color: #fff; }
+/* Tier, as colour. The glyph is stroked in `currentColor`, so setting `color` here paints the
+   drawing; the border takes the same hue at low alpha so the chip reads as a set rather than as a
+   grey box with a coloured sticker in it. See `--tier-N` for why these hues and not others. */
+.biz-marker.t1 { color: var(--tier-1); border-color: var(--tier-1-line); }
+.biz-marker.t2 { color: var(--tier-2); border-color: var(--tier-2-line); }
+.biz-marker.t3 { color: var(--tier-3); border-color: var(--tier-3-line); }
+.biz-marker.t4 { color: var(--tier-4); border-color: var(--tier-4-line); }
+/* Whose it is beats what it is: both of these override the tier hue on purpose. */
+.biz-marker.yours { border-color: var(--gold); color: var(--gold); box-shadow: 0 0 0 2px var(--gold-dim); }
+.biz-marker.sel { border-color: #fff; color: #fff; }
 .safe-marker { display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 8px; background: rgba(242, 201, 76, 0.95); color: #000; font-size: 16px; border: 2px solid #000; box-shadow: 0 1px 4px rgba(0,0,0,0.6); }
 .safe-marker.rival { background: var(--bg-4); color: #fff; }
 .pin-marker { font-size: 30px; line-height: 1; transform: translate(-50%, -100%); filter: drop-shadow(0 2px 3px rgba(0,0,0,0.8)); }
@@ -649,6 +669,10 @@ h1, h2, h3, h4, .sheet-title, .panel h2, .modal h2 {
   border-radius: 0; color: var(--text);
 }
 .biz-marker { width: 26px; height: 26px; background: rgba(10, 15, 24, 0.92); border: 1px solid var(--line-2); box-shadow: 0 1px 3px rgba(0,0,0,0.7); }
+.biz-marker.t1 { color: var(--tier-1); border-color: var(--tier-1-line); }
+.biz-marker.t2 { color: var(--tier-2); border-color: var(--tier-2-line); }
+.biz-marker.t3 { color: var(--tier-3); border-color: var(--tier-3-line); }
+.biz-marker.t4 { color: var(--tier-4); border-color: var(--tier-4-line); box-shadow: 0 0 0 1px rgba(176, 124, 240, 0.22), 0 1px 3px rgba(0,0,0,0.7); }
 .biz-marker.yours { border-color: var(--gold); color: var(--gold); box-shadow: 0 0 0 1px var(--gold-dim); }
 .biz-marker.sel { border-color: #fff; color: #fff; }
 .law-marker { min-width: 26px; height: 26px; background: rgba(8, 14, 26, 0.94); border: 1px solid #4d8df6; color: #9cc6ff; gap: 2px; padding: 0 3px; }
@@ -661,6 +685,16 @@ h1, h2, h3, h4, .sheet-title, .panel h2, .modal h2 {
 .start-marker { color: var(--gold); }
 .layerbar .chip, .layerkey, .map-legend, .map-hint { border-radius: var(--radius); background: rgba(7, 10, 16, 0.9); }
 .map-legend { border-radius: var(--radius); font-family: var(--font-mono); letter-spacing: 0.08em; }
+.map-legend .legend-head { font-family: var(--font-mono); font-size: 8.5px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--gold-3); margin: 6px 0 2px; }
+.map-legend .legend-head:first-child { margin-top: 0; }
+/* The tier swatches are outlined rather than filled: a business marker is a hairline chip with a
+   coloured drawing in it, not a block of colour, and a solid swatch would promise the wrong thing
+   next to the solid territory swatches directly above them. */
+.map-legend .sw-t1, .map-legend .sw-t2, .map-legend .sw-t3, .map-legend .sw-t4 { background: transparent; border: 1.5px solid; }
+.map-legend .sw-t1 { border-color: var(--tier-1); }
+.map-legend .sw-t2 { border-color: var(--tier-2); }
+.map-legend .sw-t3 { border-color: var(--tier-3); }
+.map-legend .sw-t4 { border-color: var(--tier-4); }
 .map-legend .sw, .layerkey .ramp { border-radius: 0; }
 .fab { border-radius: var(--radius); font-family: var(--font-mono); letter-spacing: 0.1em; text-transform: uppercase; font-size: 13px; }
 

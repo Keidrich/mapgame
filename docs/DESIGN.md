@@ -1216,6 +1216,34 @@ headless harness lies (window clamped to 500px, `100dvh`/`env()` unresolved, fix
 sizing to the window, screenshots landing mid-animation); check those before believing a bug it
 shows you.
 
+### 4.17c Markers: when they appear, and what their colour means
+
+Two decisions about the map itself, both made because it was reading as a grey field with numbers
+on it.
+
+**When icons appear.** Below `MARKER_BLOCK_PX` of on-screen block width the businesses on a block
+collapse to a count badge. That number was 96 — a block filling most of a phone's width — which
+meant the icon set, the whole reason the map is worth looking at, only appeared once you were
+practically standing on the street. It is 64 now: a little over half a zoom level further out,
+still more than twice the 26–28px chip, so a marker cannot spill onto a neighbouring block and the
+ring of them on a busy block does not overlap itself. `ui/map-markers.test.tsx` holds the
+*relationship* rather than the literal number, so tuning it stays allowed and shrinking it until
+the map is soup does not.
+
+**What the colour means.** Every business marker is tinted by its **tier** — slate for street,
+teal for established, terracotta for institutional, purple for chartered. This is the one thing
+about a place the map could not otherwise tell you: the block fill already says who holds the
+ground, but nothing said which of the forty shops on it was a bar and which was a merchant bank.
+
+The two hues the map has already spent are off-limits to the ramp, and the test enforces it:
+**gold is always "yours"** and **blue is always the law**, so a tier can never be misread as a
+claim about ownership or about the police. For the same reason `.yours` and `.sel` override the
+tier hue — whose it is beats what it is.
+
+The legend gained a second key to match (**Ground** and **Places**), with the tier swatches drawn
+as outlines rather than fills, because a business marker is a hairline chip with a coloured drawing
+in it and a solid swatch would promise the wrong shape next to the solid territory swatches above.
+
 ### 4.18 Production: recipes, foremen and standing orders
 
 **Recipes are things you make, not a quality slider.** Five per production kind (20 total), each

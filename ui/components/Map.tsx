@@ -27,7 +27,17 @@ export const BASEMAP_STYLES: (string | StyleSpecification)[] = [
     layers: [{ id: 'osm', type: 'raster', source: 'osm', paint: { 'raster-brightness-max': 0.4, 'raster-saturation': -0.7 } }],
   },
 ];
-const MARKER_BLOCK_PX = 96;
+/**
+ * How wide a block has to be on screen, in pixels, before its businesses are drawn as their own
+ * icons instead of collapsing to a count badge.
+ *
+ * 96 was a block filling most of a phone's width, which meant the icons — the whole reason the
+ * map is worth looking at — only appeared once you were practically on top of one street. At 64
+ * the handover happens a little over half a zoom level further out, which still leaves a 26px
+ * chip room to sit inside a block without spilling into its neighbours. Go much below this and
+ * the ring of icons on a busy block starts overlapping itself.
+ */
+export const MARKER_BLOCK_PX = 64;
 const LOAD_MIN_ZOOM = 12.5;
 const EMPTY_STYLE: StyleSpecification = { version: 8, sources: {}, layers: [] };
 
@@ -323,7 +333,12 @@ export function MapView() {
           const biz = w.businesses[bid]; if (!biz) return;
           const a = (i / n) * Math.PI * 2 - Math.PI / 2; const r = n > 1 ? Math.min(90, Math.sqrt(b.areaM2) * 0.28) : 0;
           const yours = biz.ownedBy === 'player' || biz.protection?.factionId === PLAYER;
-          want.set(`biz:${bid}`, { html: iconMarkup(iconName('business', biz.type), { size: 16 }), cls: `biz-marker${yours ? ' yours' : ''}${bid === selRef.current.businessId ? ' sel' : ''}`, ...offset(b, Math.cos(a) * r, Math.sin(a) * r), click: () => openSheet({ kind: 'business', businessId: bid }) });
+          // Tier is the one thing about a place that the map cannot otherwise tell you — block
+          // fill says who holds the ground, but nothing said which of the forty shops on it is a
+          // bar and which is a merchant bank. The colour lives in `styles.css` as `.t1`–`.t4` so
+          // the HUD skin can restate it; `yours` and `sel` still win, because who it belongs to
+          // is the more urgent read.
+          want.set(`biz:${bid}`, { html: iconMarkup(iconName('business', biz.type), { size: 16 }), cls: `biz-marker t${select.tierOf(biz)}${yours ? ' yours' : ''}${bid === selRef.current.businessId ? ' sel' : ''}`, ...offset(b, Math.cos(a) * r, Math.sin(a) * r), click: () => openSheet({ kind: 'business', businessId: bid }) });
         });
       } else if (b.businessIds.length && m.getZoom() >= 13.5) {
         want.set(`count:${b.id}`, { html: String(b.businessIds.length), cls: 'hex-badge', lng: b.center.lng, lat: b.center.lat });

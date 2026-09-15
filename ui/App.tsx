@@ -20,7 +20,8 @@ import { SocialTab } from './components/SocialTab';
 import { TabBar } from './components/TabBar';
 import { Toasts } from './components/Toasts';
 import { SceneSheet } from './components/SceneSheet';
-import { select } from '@sim/index';
+import { select, type World } from '@sim/index';
+import { TIERS } from '@content/businesses';
 import { fmtMoney } from './derive';
 import { closeSheets, markVictorySeen, rebuildOnRealStreets, resetGame, setTab, useStore, useWorld } from './store';
 import { Icon } from '@ui/icons';
@@ -91,15 +92,34 @@ function Game() {
   );
 }
 
-/** Colour key for the map. A small pill on phones; tap to expand. */
+/**
+ * Colour key for the map. A small pill on phones; tap to expand.
+ *
+ * Two keys, because the map now spends colour on two different things and a legend that only
+ * explained one of them would be worse than none: **ground** is whose blocks these are, and
+ * **places** is what a business marker's colour means. The tier swatches read off `TIERS` so a
+ * fifth rung would appear here without anybody remembering to come back and add it.
+ */
+export function legendKeys(w: World) {
+  return {
+    ground: [{ id: 'you', color: '#f2c94c', name: w.player.name }, ...Object.values(w.factions).filter(f => f.alive).map(f => ({ id: f.id, color: f.color, name: f.short }))],
+    places: (Object.keys(TIERS) as unknown as (keyof typeof TIERS)[]).map(t => ({ id: `t${t}`, name: TIERS[t].label })),
+  };
+}
+
 function MapLegend() {
   const w = useWorld();
   const [open, setOpen] = useState(() => typeof window !== 'undefined' && window.innerWidth >= 700);
-  const rows = [{ id: 'you', color: '#f2c94c', name: w.player.name }, ...Object.values(w.factions).filter(f => f.alive).map(f => ({ id: f.id, color: f.color, name: f.short }))];
+  const { ground: rows, places: tiers } = legendKeys(w);
   return (
     <button type="button" className={`map-legend${open ? ' open' : ''}`} onClick={() => setOpen(o => !o)} aria-expanded={open} aria-label="Map legend">
       {open
-        ? rows.map(r => <div key={r.id} className="name"><span className="sw" style={{ background: r.color }} />{r.name}</div>)
+        ? <>
+            <div className="legend-head">Ground</div>
+            {rows.map(r => <div key={r.id} className="name"><span className="sw" style={{ background: r.color }} />{r.name}</div>)}
+            <div className="legend-head">Places</div>
+            {tiers.map(t => <div key={t.id} className="name"><span className={`sw sw-${t.id}`} />{t.name}</div>)}
+          </>
         : <>{rows.map(r => <span key={r.id} className="sw" style={{ background: r.color }} />)}<span>Legend</span></>}
     </button>
   );

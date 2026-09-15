@@ -164,8 +164,8 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
   },
   bizTier: {
     title: 'How far up the city it sits',
-    body: 'Street places have a counter and somebody who has to open tomorrow — a raised voice can be enough. Established ones have books and a lawyer, and their owners have been leaned on before: talk will not move them, a broken window might. Institutions are not frightened of you at all.',
-    note: 'An institution never pays protection at any amount of fear. The way in is inside their books, or a real turn done for the owner — the same door a bank always had.',
+    body: 'Street places have a counter and somebody who has to open tomorrow — a raised voice can be enough. Established ones have books and a lawyer, and their owners have been leaned on before: talk will not move them, a broken window might. Institutions are not frightened of you at all. Chartered places — a casino, a merchant bank — are not leaned on at all; they are bought, and the room will not deal with you until you are somebody.',
+    note: 'On the map each tier has its colour — slate, teal, terracotta, purple, going up — so you can read a street before you walk it. Gold always means yours. An institution never pays protection at any amount of fear: the way in is inside their books, or a real turn done for the owner.',
   },
   holdings: {
     title: 'The ledger',

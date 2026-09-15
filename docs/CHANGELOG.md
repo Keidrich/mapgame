@@ -14,6 +14,50 @@ House rules for an entry (see `CLAUDE.md` → *Leave a trail*):
 
 ---
 
+## 2026-09-15 — The map, in colour, and sooner
+
+**What.** Business markers appear further out before collapsing to a count badge, and each one is
+now coloured by its tier.
+
+**Why.** Two complaints about the same screen. The icons only turned up once you were practically
+on top of a single street, and when they did they were all the same near-white — a grey field with
+numbers on it, when the map is the thing you spend the whole game looking at.
+
+**How.**
+
+- **`MARKER_BLOCK_PX` 96 → 64.** That is the on-screen width a block has to reach before its
+  businesses draw as their own icons. 96 was a block filling most of a phone; 64 hands over a
+  little over half a zoom level earlier and still leaves more than twice the 26–28px chip, so a
+  marker cannot spill onto its neighbours and a busy block's ring of them does not overlap itself.
+- **Colour by tier** — slate / teal / terracotta / purple for street / established / institutional
+  / chartered, as `--tier-1`…`--tier-4` in `styles.css` and `.biz-marker.t1`…`.t4` on the chip.
+  Tier is the one thing the map could not otherwise tell you: block fill already says who holds
+  the ground, but nothing said which of the forty shops on it was a bar and which was a merchant
+  bank. The glyph is stroked in `currentColor`, so setting `color` on the chip paints the drawing.
+- **The ramp may not borrow gold or law blue**, and a test enforces it. Gold is always "yours" and
+  blue is always the law; a tier wearing either would read as a claim about ownership or about the
+  police. `.yours` and `.sel` still override the tier hue — whose it is beats what it is.
+- **The legend gained a second key** (*Ground* and *Places*), reading its tier rows off `TIERS` so
+  a fifth rung would appear without anybody remembering to come back for it. Tier swatches are
+  outlined rather than filled, because a marker is a hairline chip with a coloured drawing in it.
+
+**Files.** `ui/components/Map.tsx`, `ui/styles.css`, `ui/App.tsx` (`legendKeys` extracted so the
+legend's contents are testable without a click), `content/glossary.ts`, and a new
+`ui/map-markers.test.tsx` (6 tests).
+
+**Watch out.**
+
+- **The glossary's `bizTier` entry was a pass out of date** — it still described three tiers after
+  tier 4 shipped. Fixed here along with the colour key, but it is worth knowing that the
+  player-facing explainer went stale without anything failing.
+- **`ui/map-markers.test.tsx` reads `styles.css` as text.** That is the only way to assert a CSS
+  token exists from a unit test, and it means renaming `--tier-N` or `.biz-marker.tN` fails the
+  test rather than silently un-colouring the map. If you restructure the stylesheet, that is the
+  file that will tell you.
+- **Nothing in `/sim` changed**: the honest 60-day soak is identical, down to the dollar.
+
+---
+
 ## 2026-09-15 — What a fortune is for, what you can lose, and a city that does not wait
 
 **What.** Seventeen things in one pass, in three groups: five **money sinks** so late cash has
