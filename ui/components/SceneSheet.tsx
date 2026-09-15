@@ -1,6 +1,6 @@
 import { select, type TalkMove } from '@sim/index';
 import { TRAIT_LABELS } from '@content/rackets';
-import { act, useWorld } from '@ui/store';
+import { act, check, useWorld } from '@ui/store';
 import { fmtMoney, initials } from '@ui/derive';
 import { Info, Term, TermChip } from './Info';
 import { LedgerPanel } from './Ledger';
@@ -25,7 +25,17 @@ export function SceneSheet() {
   const n = w.npcs[c.npcId]; if (!n) return null;
   const t = c.talk!;
   const biz = t.businessId ? w.businesses[t.businessId] : undefined;
-  const options = select.confrontOptions(w, c) as unknown as TalkOpt[];
+  // Ask the reducer's own gate what each move would do, rather than guessing here. A closing
+  // approach runs the scene it came from, so `resolve_confrontation` already delegates to that
+  // scene's rules — which means the menu and the door into this conversation are now asking the
+  // identical question. Before this, every approach rendered live and two of a recruit's three
+  // would refuse on tap; a player who got in on the strength of a wage still saw "Sell the dream"
+  // looking perfectly available.
+  const options = (select.confrontOptions(w, c) as unknown as TalkOpt[]).map(o => {
+    if (o.disabled) return o;
+    const why = check({ type: 'resolve_confrontation', id: c.id, approach: o.id });
+    return why.ok ? o : { ...o, disabled: why.reason };
+  });
   const openers = options.filter(o => !o.closes);
   const closers = options.filter(o => o.closes && o.id !== 'leave');
   const answer = (id: TalkMove) => act({ type: 'resolve_confrontation', id: c.id, approach: id });

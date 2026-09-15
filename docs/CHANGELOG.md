@@ -14,6 +14,80 @@ House rules for an entry (see `CLAUDE.md` → *Leave a trail*):
 
 ---
 
+## 2026-09-15 — Two bugs in the recruit flow, found by hand
+
+**What.** You could not recruit most people, and for two roles the button was not there at all.
+Both found by playing, not by the sweep.
+
+---
+
+### 1. The door checked the hardest approach, not any approach
+
+Tapping **Recruit** opens a conversation, and the conversation is where you pick *how* to ask —
+a wage (`cut`, $200), a straight pitch (`promise`), or fear (`lean`). The door check called
+`gate(w, sceneAction({ … }))` with **no approach**, and `recruit` is the one scene whose gate turns
+an absent approach into a specific one: it defaults to `promise` and runs `concessionReason`
+against it. Fail that — no favour done, no leverage held — and the button was disabled outright.
+
+So a player with **$5,000 in their pocket and the whole street frightened of them** could not
+recruit an ordinary patron, because the only door being tested was the one that wants a favour.
+The other two are real, already-coded, and need neither. The conversation never opened, so the
+choice was never offered.
+
+**Fix.** The door tries every approach in `APPROACHES[scene]` and opens if any one passes. When
+none do it reports what each would have taken, deduped — the single-reason case (no AP, not here,
+nobody home) reads exactly as it always did. Safe for every other scene: each of those has at
+least one ungated approach, so their doors behave identically. Recruit was the only scene where
+*all three* approaches are individually gated, which is why it was the only one that broke.
+
+**And the other half of it.** `talkOptions` never set `disabled` on a closing approach, so inside
+the scene all three rendered live and the shut ones refused on tap (with a toast). That was
+survivable while the door only let through players who could use `promise`; it is not once the
+door opens for somebody whose only route is the wage. `SceneSheet` now asks the reducer's own
+`resolve_confrontation` gate per move — which already delegates to the scene's rules — so the menu
+and the door are asking one question, and a shut approach shows its reason where its cost goes.
+
+### 2. The sheet's role list was narrower than the reducer's
+
+```
+NpcSheet:  (n.role === 'patron' || n.role === 'owner') && !n.crew
+reducer:   ['patron', 'owner', 'soldier', 'fixer'].includes(n.role)
+```
+
+A **fixer**, or a **soldier who belongs to no faction**, got no Recruit button at all — not
+disabled, absent — although the reducer would happily have run the attempt. `NpcSheet` is the only
+place Recruit is surfaced anywhere in the app; there is no fallback through `CrewTab` or
+`BlockSheet`.
+
+**Fix.** `recruitRoleReason(n)` in `sim/standing.ts` holds the rules once — the four roles, nobody
+already on your books, no soldier in somebody else's colours — and the gate and the button both
+read it. A permission and the control that offers it should never be two lists.
+
+---
+
+**Files.** `sim/standing.ts` (`recruitRoleReason`, `RECRUITABLE_ROLES`), `sim/reducer.ts` (the
+`talk` door, the recruit gate), `sim/select.ts`, `ui/components/NpcSheet.tsx`,
+`ui/components/SceneSheet.tsx`, and two new tests: `ui/recruit-button.test.tsx` (12) and
+`sim/recruit-roles.test.ts` (7).
+
+**Watch out.**
+
+- **Both tests were written to fail first.** Against the previous commit, 13 of the 18 fail; all 18
+  pass after. If you are changing this area, check they still fail against a reverted fix — a
+  regression test that passes either way is not one.
+- **The soak bot could never have found this**, and that is worth understanding rather than
+  treating as bad luck. It calls `{ type: 'recruit', npcId }` **directly**, never through the
+  `talk` door, so it walks past the broken gate entirely. Coverage tables measure whether a system
+  was *reached*, not whether the route a player takes to it works.
+- **Deliberately left alone: the bot still only ever tries `promise`.** Its own recruit call passes
+  no approach, so two of the three routes have never been exercised by a soak. Teaching it to pay
+  or to lean would change how many people the `honest` run ends up with, and that curve is frozen;
+  it wants a scenario, not a tweak to the measuring stick. Noted here so the next session knows the
+  gap is known rather than missed.
+- **No balance changed, and `WORLD_VERSION` is untouched.** The honest 60-day curve is identical.
+
+---
+
 ## 2026-09-15 — The log was lying about its own numbers
 
 **What.** Every figure a log line prints is now the figure that actually happened. It was not:

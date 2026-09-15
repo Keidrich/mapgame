@@ -4,7 +4,8 @@ import { BUSINESS_DEFS } from '@content/businesses';
 import { OP_APPROACHES, OP_DEFS, PRODUCTION_DEFS, PRODUCT_INFO, RACKET_DEFS, RACKET_UPGRADE_COST, SAFEHOUSE_TIERS } from '@content/rackets';
 import { insidersFor } from './select';
 import { RECRUIT_LEAN_FEAR, type Stake } from '@content/standing';
-import { concessionReason, doFavour, factionLeverage, familiar, familiarReason, favours, leverageOver } from './standing';
+import { APPROACHES } from '@content/lines';
+import { concessionReason, doFavour, factionLeverage, familiar, familiarReason, favours, leverageOver, recruitRoleReason } from './standing';
 import type { Action, Affordance, CheatKind, SitDownOffer } from './actions';
 import type { Rng } from './rng';
 import { agendaCost, agendaReason, resolveAgenda } from './agendas';
@@ -162,8 +163,23 @@ function gate(w: World, a: Action): Affordance {
       // here too — a player out of AP is told that at the door, not three moves in. Its *cost*
       // is deliberately dropped: inheriting it charged the AP twice, once at the door and again
       // on the way out.
-      const why = gate(w, sceneAction({ npcId: a.npcId, talk: { scene: a.scene, businessId: a.businessId, otherFactionId: a.otherFactionId, beat: 0, bonus: 0, used: [] } }));
-      return why.ok ? yes() : why;
+      //
+      // **Any approach, not the default one.** The scene is where a player picks *how* to ask, and
+      // each approach keeps its own gate in there; the door only has to know that at least one of
+      // them could close. Asking with no approach quietly meant "the default", and `recruit` is
+      // the one scene that turns an absent approach into a specific one — `promise`, the hardest
+      // of its three. So the door was gated on a favour done or leverage held, and a player with
+      // $5,000 in their pocket and the whole street frightened of them could not recruit an
+      // ordinary patron by any means. It was not disabled-looking-reachable; the conversation
+      // never opened.
+      const talk = { scene: a.scene, businessId: a.businessId, otherFactionId: a.otherFactionId, beat: 0, bonus: 0, used: [] };
+      const tries = APPROACHES[a.scene].map(x => gate(w, sceneAction({ npcId: a.npcId, talk }, x.id)));
+      if (!tries.length) { const why = gate(w, sceneAction({ npcId: a.npcId, talk })); return why.ok ? yes() : why; }
+      if (tries.some(t => t.ok)) return yes();
+      // Every door shut: say what each one would have taken, deduped. A single reason is the
+      // common case — no AP, not here, nobody home — and reads exactly as it always did.
+      const reasons = [...new Set(tries.flatMap(t => t.ok ? [] : [t.reason]))];
+      return no(reasons.join(' '));
     }
     case 'resolve_agenda': {
       const n = npc(a.npcId); if (!n?.alive) return no('They are gone.');
@@ -204,10 +220,10 @@ function gate(w: World, a: Action): Affordance {
     case 'resolve_hostage': { const n = npc(a.npcId); if (!n || !isHeld(n)) return no('You are not holding them.'); const r = ap(1); return r ? no(r) : yes({ ap: 1 }); }
     case 'back_candidate': { const f = w.factions[a.factionId]; if (!f?.alive || !f.crisis) return no('No crisis there.'); if (!f.crisis.candidateIds.includes(a.npcId)) return no('They are not in the running.'); if (a.amount < 500) return no('Under $500 is an insult.'); const c = cash(a.amount); return c ? no(c) : yes({ cash: a.amount }); }
     case 'recruit': {
-      const n = npc(a.npcId); if (!n?.alive) return no('They are gone.');
-      if (n.crew) return no('Already in your crew.');
-      if (!['patron', 'owner', 'soldier', 'fixer'].includes(n.role)) return no('Not the recruiting type.');
-      if (n.faction && n.role === 'soldier') return no('They belong to someone else.');
+      const n = npc(a.npcId);
+      // The role rules live in `sim/standing.ts` so the sheet's Recruit button and this gate read
+      // the same list. They used not to, and two roles were unreachable through the UI entirely.
+      const role = recruitRoleReason(n); if (role) return no(role);
       // `can` and `dispatch` have to read the same approach or the gate is decorative: the
       // reducer defaults an absent approach to 'promise', and for a while this did not, so the
       // concession check below was skipped by every caller that left it off.

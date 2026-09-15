@@ -47,7 +47,7 @@ export { rolesFor, isSetPiece, candidatesFor as specialistsFor, specialistFee, r
 import { activeCrewCount, heatMult } from './util';
 export { defectReason } from './defect';
 // the systemic core: how well you know somebody, what you have over them, and what they owe you
-export { daysKnown, familiar, familiarReason, favours, leverageOver, concessionReason, trustCeiling, fearCeiling } from './standing';
+export { daysKnown, familiar, familiarReason, favours, leverageOver, concessionReason, trustCeiling, fearCeiling, recruitRoleReason, RECRUITABLE_ROLES } from './standing';
 // the personal history screen, and what a conversation can do with it
 export { dossier, ledgerOf, owedToThem, LEDGER_MAX } from './ledger';
 // the social layer as a picture: layout only, computed from data that already exists

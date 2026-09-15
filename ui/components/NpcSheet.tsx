@@ -23,7 +23,9 @@ export function NpcSheet({ npcId }: { npcId: Id }) {
   const faction = n.faction ? w.factions[n.faction] : undefined;
   const [gift, setGift] = useState(500);
   const [bribe, setBribe] = useState(1000);
-  const canRecruit = (n.role === 'patron' || n.role === 'owner') && !n.crew;
+  // The reducer's own list, read rather than copied — a narrower copy here meant a fixer and an
+  // unaffiliated soldier had no Recruit button anywhere in the app.
+  const canRecruit = !select.recruitRoleReason(n);
 
   return (
     <Sheet title={n.name} subtitle={`${roleLabel(n)}${faction ? ` · ${faction.name}` : ''}${!n.alive ? ' · deceased' : ''}`} icon={<span className="avatar" style={{ color: faction?.color }}>{initials(n.name)}</span>} accent={faction?.color}>

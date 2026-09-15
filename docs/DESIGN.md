@@ -143,6 +143,28 @@ you at 35+ opens the door; if it fails they are burned).
 Every scene's positive effects run through the standing gates in §3.7: an approach buys what it
 cost, not what its base number asked for.
 
+**The door and the menu ask the same question.** A scene opens for free — the AP goes on whatever
+closes it — but there is no point opening one nothing could close, so the door checks the scene's
+own gate. It has to check **whether any approach could close it**, not whether one particular one
+could. Recruit is where this went wrong and is worth spelling out, because the shape will recur:
+all three of its approaches are individually gated (a wage wants $200, leaning wants real fear and
+somebody not `loyal`, the straight pitch wants a favour done or leverage held), and it is the one
+scene whose gate turns an *absent* approach into a specific one. The door asked with no approach,
+that resolved to the hardest of the three, and a player with $5,000 and a frightened street could
+not recruit an ordinary patron by any route. The conversation simply never opened.
+
+So: the door tries every approach and opens if one passes; when none do, it reports what each
+would have taken rather than only the first. Inside, the menu asks the reducer's own
+`resolve_confrontation` gate per move, so an approach the player cannot take is visibly disabled
+with its reason instead of refusing on tap.
+
+**Who can be recruited is one function.** `recruitRoleReason` in `sim/standing.ts` holds the role
+rules — patron, owner, soldier or fixer, nobody already on your books, and no soldier wearing
+another outfit's colours — and both the gate and the Recruit button on the NPC sheet read it. They
+used to carry separate copies, the sheet's being narrower, so a fixer or an unaffiliated soldier
+had no Recruit button anywhere in the app: not disabled, absent, with no fallback path through any
+other screen. A permission and the control that offers it must never be two lists.
+
 ### 3.6 The family and friend web
 
 Nobody in a city knows nobody. At generation time every NPC ends up with people — mutual

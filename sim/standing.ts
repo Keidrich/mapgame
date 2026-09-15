@@ -145,6 +145,29 @@ export function concessionReason(w: World, n: Npc, what: string): string | undef
   return `${n.name} is friendly, and ${what} is not a thing you ask a friend for. Do something real for them, hold their street, or get inside their books first.`;
 }
 
+/**
+ * Whether this person's *job* puts them out of reach of a recruiting pitch — and nothing else.
+ *
+ * Split out because the list was written twice: the reducer allowed patron, owner, soldier and
+ * fixer, and `NpcSheet` allowed patron and owner. The narrower copy won wherever it ran, so a
+ * fixer or an unaffiliated soldier had no Recruit button anywhere in the app — not disabled,
+ * absent, with no other path to it. One function now, read by the gate and by the screen.
+ *
+ * Deliberately *only* the role rules. Everything else a recruit needs — being familiar, being in
+ * the same place, having a bed free, having the AP — belongs in the gate, because those are
+ * refusals a player can do something about and this one is not.
+ */
+export const RECRUITABLE_ROLES = ['patron', 'owner', 'soldier', 'fixer'];
+
+export function recruitRoleReason(n: Npc | undefined): string | undefined {
+  if (!n?.alive) return 'They are gone.';
+  if (n.crew) return 'Already in your crew.';
+  if (!RECRUITABLE_ROLES.includes(n.role)) return 'Not the recruiting type.';
+  // a soldier in somebody's colours is not a free agent; one without a faction is just muscle
+  if (n.faction && n.role === 'soldier') return 'They belong to someone else.';
+  return undefined;
+}
+
 // ------------------------------------------------------------------ word of mouth
 /**
  * Everybody who was actually there. A block's owners and their regulars: the people who saw
