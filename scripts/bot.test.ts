@@ -221,7 +221,10 @@ describe('coverage', () => {
       // it buys one. Checked there. **Do not answer a future failure here by raising the days** —
       // it was 80 days at seed 5 and still zero. Check the standing.
       'the fourth tier': { scenario: 'fortune', days: 60, seed: 7 },
-      'a rival who grows': { scenario: 'fortune', days: 60 },
+      // Same run as the row above, deliberately: runs are cached by (scenario, days, seed), so
+      // sharing one costs nothing and this file is long enough already — it had grown slow enough
+      // to trip vitest's worker RPC timeout, which failed the gate with every test passing.
+      'a rival who grows': { scenario: 'fortune', days: 60, seed: 7 },
       'succession': { scenario: 'legacy', days: 32 },
     };
     const reached = new Set<string>();

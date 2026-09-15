@@ -117,15 +117,16 @@ describe('four answers, four different prices', () => {
   });
 
   it('…and when they cannot, he lives and he knows exactly who sent them', () => {
-    const { w, scene, crew, mark } = setup();
-    crew.nerve = 0;   // a flinch is their nerve, not your charm: you cannot talk somebody into this
+    // A flinch is their nerve and nothing else: you cannot talk somebody into being able to do it.
     let flinched = false;
     for (let i = 0; i < 40 && !flinched; i++) {
       const t = setup(); t.crew.nerve = 0;
-      if (resolveKin(t.w, t.scene, 'theirs', new Rng(i)) === 'abort') { flinched = true; expect(t.mark.alive).toBe(true); expect(t.mark.grudge).toBeDefined(); }
+      if (resolveKin(t.w, t.scene, 'theirs', new Rng(i)) !== 'abort') continue;
+      flinched = true;
+      expect(t.mark.alive).toBe(true);
+      expect(t.mark.grudge, 'he does not hold it against the man who came').toBeDefined();
     }
     expect(flinched, 'nobody ever failed to kill their own brother').toBe(true);
-    void mark;
   });
 
   it('telling them straight leaves the job running either way — it buys how they take it', () => {

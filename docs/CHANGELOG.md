@@ -14,6 +14,33 @@ House rules for an entry (see `CLAUDE.md` → *Leave a trail*):
 
 ---
 
+## 2026-09-15 — Gate fix: green tests, red exit code
+
+**What.** `npm test` was exiting **1 with all 1,298 tests passing**, and the previous commit went
+out on top of it. Fixed, and the way I missed it is worth writing down.
+
+**How I missed it.** I ran the gate as `npm run typecheck 2>&1 | tail -2 && npm test …`. The pipe
+made the chain see `tail`'s exit code, not `tsc`'s, so a typecheck failure — two unused bindings in
+the new test file — read as a pass and I pushed. **Check exit codes, not the tail of the output.**
+
+**The real failure underneath.** Once the typecheck was fixed, `npm test` still exited 1:
+`scripts/bot.test.ts` had grown to ~70 seconds of synchronous soak runs and tripped vitest's worker
+RPC timeout (`Timeout calling "onTaskUpdate"`). Every test passed; the run still failed. The cause
+was the union test's fallback doing four separate 60-day soaks. Two of its rows — the fourth tier
+and the upstart — now share one cached `fortune` run, which is honest (runs are cached by scenario,
+days and seed) and takes the file back under the limit.
+
+**Files.** `sim/kin-at-the-door.test.ts`, `scripts/bot.test.ts`.
+
+**Watch out.**
+
+- **That file is near a real ceiling.** It is ~58s of a ~60s suite. The next thing that needs a
+  long run in it should share an existing one or go somewhere else; adding a fifth 60-day soak will
+  break the gate again, and it will break it with everything passing, which is the confusing way.
+- **Verified by exit code this time**: `typecheck=0 tests=0 soak=0`.
+
+---
+
 ## 2026-09-15 — Somebody's brother
 
 **What.** Put a job on a man who is close to one of your own people and that crew member is waiting
