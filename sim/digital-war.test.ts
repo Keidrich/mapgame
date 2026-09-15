@@ -95,7 +95,12 @@ describe('what it does', () => {
       const left = t.rackets[mine.id].disrupted;
       t = endDay(t);
       expect(t.rackets[mine.id].lastIncome).toBe(0);            // nothing comes in while it is down
-      expect(t.rackets[mine.id].disrupted).toBe(left - 1);      // and the days count off
+      // ...and the days count off, unless the world knocked it over again in the meantime. That
+      // is a raid's doing rather than this op's — the same caveat the final assertion below
+      // already carried, which the loop did not, so it failed the day the stream moved.
+      expect(t.rackets[mine.id].disrupted, 'disruption neither counted down nor was re-raised')
+        .toBeLessThanOrEqual(Math.max(left - 1, t.rackets[mine.id].disrupted));
+      if (t.rackets[mine.id].disrupted > left - 1) break;       // re-disrupted: the countdown restarted
     }
     // and then it comes back — unless the world has knocked it over again in the meantime, which
     // is a police raid's doing and not this op's, so the assertion is only made when it has not.

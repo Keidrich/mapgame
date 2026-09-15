@@ -128,6 +128,31 @@ export const ITEM_DEFS: Record<string, ItemDef> = {
     blurb: 'Somebody else\'s books, open on your table.', mods: { skillBoost: { brains: 1, tech: 2 }, approachBias: { quiet: 0.2, inside: 0.1 }, heatMult: 0.95 },
     detail: 'Brains +1, tech +2. Quiet jobs go a fifth better. Worth having before you ever touch a keyboard in anger.',
   },
+  signal_fob: {
+    id: 'signal_fob', label: 'Signal Fob', icon: '🔑', category: 'tech', cost: 760,
+    blurb: 'It has heard every fob on the street and remembers them.',
+    mods: { skillBoost: { tech: 2 }, approachBias: { quiet: 0.28, inside: 0.18, loud: -0.14 }, heatMult: 0.88 },
+    detail: 'Tech +2. Gates, tills, barriers and car fobs all talk to it, so a quiet job goes a quarter better and an inside one a fifth. Useless in a fight, and a job done this way leaves 12% less behind.',
+  },
+  hotspot: {
+    id: 'hotspot', label: 'Rogue Hotspot', icon: '📡', category: 'tech', cost: 1450,
+    blurb: 'A box that pretends to be the café\'s wifi.',
+    mods: { skillBoost: { brains: 1, tech: 2 }, approachBias: { inside: 0.32, quiet: 0.12, loud: -0.2 }, heatMult: 0.9 },
+    detail: 'Brains +1, tech +2, and the best thing in the catalogue for an inside job: people hand you their own credentials and never know they did. Carry it on a loud job and it is a box in your bag.',
+  },
+  tower: {
+    id: 'tower', label: 'Desktop Tower', icon: '🖥️', category: 'tech', cost: 4200,
+    blurb: 'Not portable. Not meant to be.',
+    mods: { skillBoost: { brains: 2, tech: 4 }, approachBias: { loud: -0.3, quiet: -0.08, inside: 0.05 }, heatMult: 0.9 },
+    detail: 'Brains +2, tech +4 — more raw tech than anything else you can own, and what the whole wire lane is measured against. The catch is that it is a tower: a job you walk to goes worse for carrying it, badly so if you go in loud. Work that happens at a desk does not care.',
+  },
+  skimmer: {
+    id: 'skimmer', label: 'Card Skimmer', icon: '💳', category: 'tech', cost: 2400, underCounter: true,
+    blurb: 'Sits over the real slot. Nobody looks twice.',
+    mods: { skillBoost: { brains: 1, tech: 2 }, approachBias: { inside: 0.26, quiet: 0.14, loud: -0.18 }, heatMult: 1.2,
+    },
+    detail: 'Brains +1, tech +2 and strong on an inside job. The one piece of tech that makes things *worse* with the law: holding it is a charge on its own, so every job leaves a fifth more heat. Back rooms only — no shop with a sign over the door will sell you one.',
+  },
   // ---- vehicle ----
   getaway: {
     id: 'getaway', label: 'Getaway Car', icon: '🚙', category: 'vehicle', cost: 4500, underCounter: true,

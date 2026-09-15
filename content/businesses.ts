@@ -121,6 +121,11 @@ export const BUSINESS_DEFS: Record<BusinessType, BusinessDef> = {
   // cheap to hold, and the ones a player meets first.
   scrapyard:     { label: 'Scrapyard',       icon: '🔩', tier: 1, income: [90, 200],  valueMult: 35, patrons: [1, 2], rackets: ['protection', 'chop_shop', 'fencing', 'smuggling', 'union_dues', 'parts_stripping'], heistTarget: true, nerve: 55 },
   electronics:   { label: 'Phone Shop',      icon: '📱', tier: 1, income: [100, 230], valueMult: 35, patrons: [2, 4], rackets: ['protection', 'fencing', 'counterfeiting', 'numbers', 'card_supply'], nerve: 35 },
+  // The third kit shop, and the specialist one. A pawn shop takes anything and a back room sells
+  // anything; this sells tech and only tech, which makes it the place a wire player actually
+  // shops. Owner nerve sits above a phone shop's: the man who builds machines for a living has
+  // met people like you and is not impressed.
+  computer_store: { label: 'Computer Store',  icon: '🖥️', tier: 1, income: [130, 280], valueMult: 40, patrons: [1, 3], rackets: ['protection', 'fencing', 'counterfeiting', 'card_supply'], nerve: 45 },
   tow_yard:      { label: 'Tow Yard',        icon: '🚛', tier: 1, income: [110, 240], valueMult: 35, patrons: [1, 2], rackets: ['protection', 'chop_shop', 'loansharking', 'union_dues', 'relay_export'], nerve: 60 },
 
   // ---------------------------------------------------------------- tier 2: the established ones
@@ -171,7 +176,7 @@ export const DISTRICT_DEFS: DistrictDef[] = [
     mix: { warehouse: 5, bar: 3, garage: 2, cab_company: 1, diner: 2, motel: 1, pawn: 1, black_market: 1, scrapyard: 3, importer: 3, tow_yard: 2 }, perBlock: [2, 4],
     nameGroups: { irish: 4, slavic: 3, east_asian: 2, black_american: 2, anglo: 2, middle_eastern: 1 }, closeness: [0.45, 0.65] },
   { kind: 'downtown', names: ['Downtown', 'Financial District', 'City Centre', 'The Core'], wealth: [65, 95], police: [55, 80], population: [60, 100],
-    mix: { bank: 2, restaurant: 4, nightclub: 2, jeweller: 2, construction: 1, bar: 2, armored_depot: 1, cab_company: 1, black_market: 1, accountant: 3, gallery: 2, boutique: 2, importer: 1 }, perBlock: [3, 5],
+    mix: { bank: 2, restaurant: 4, nightclub: 2, jeweller: 2, construction: 1, bar: 2, armored_depot: 1, cab_company: 1, black_market: 1, accountant: 3, gallery: 2, boutique: 2, importer: 1, computer_store: 2 }, perBlock: [3, 5],
     nameGroups: { anglo: 5, italian: 2, irish: 2, east_asian: 2, slavic: 1, latino: 1, black_american: 1, middle_eastern: 1 }, closeness: [0.05, 0.2] },
   { kind: 'old_quarter', names: ['Old Quarter', 'Little Italy', 'Old Town', 'The Village'], wealth: [40, 65], police: [30, 50], population: [50, 80],
     mix: { restaurant: 4, barbershop: 3, diner: 2, bar: 3, corner_store: 2, pawn: 1, laundromat: 2, black_market: 1, pharmacy: 2, electronics: 2, boutique: 1 }, perBlock: [3, 5],
@@ -180,15 +185,15 @@ export const DISTRICT_DEFS: DistrictDef[] = [
     mix: { warehouse: 5, garage: 4, construction: 3, diner: 1, bar: 1, cab_company: 1, black_market: 1, scrapyard: 6, tow_yard: 4, importer: 2 }, perBlock: [1, 3],
     nameGroups: { slavic: 4, latino: 3, black_american: 2, anglo: 2, irish: 2 }, closeness: [0.4, 0.6] },
   { kind: 'heights', names: ['The Heights', 'Hillcrest', 'Northside', 'Belle Park'], wealth: [70, 100], police: [50, 75], population: [40, 60],
-    mix: { restaurant: 3, jeweller: 2, gym: 1, bank: 1, laundromat: 1, corner_store: 1, nightclub: 1, black_market: 1, gallery: 3, boutique: 3, pharmacy: 2, accountant: 2 }, perBlock: [1, 3],
+    mix: { restaurant: 3, jeweller: 2, gym: 1, bank: 1, laundromat: 1, corner_store: 1, nightclub: 1, black_market: 1, gallery: 3, boutique: 3, pharmacy: 2, accountant: 2, computer_store: 1 }, perBlock: [1, 3],
     nameGroups: { anglo: 5, italian: 2, east_asian: 2, irish: 1, middle_eastern: 1 }, closeness: [0.08, 0.25] },
   { kind: 'market', names: ['Market Square', 'The Bazaar', 'Merchant Row', 'Fishmarket'], wealth: [35, 60], police: [30, 50], population: [60, 100],
-    mix: { corner_store: 5, pawn: 3, diner: 2, laundromat: 2, barbershop: 2, cab_company: 1, gym: 1, black_market: 1, electronics: 3, scrapyard: 4, tow_yard: 3, pharmacy: 1 }, perBlock: [3, 5],
+    mix: { corner_store: 5, pawn: 3, diner: 2, laundromat: 2, barbershop: 2, cab_company: 1, gym: 1, black_market: 1, electronics: 3, scrapyard: 4, tow_yard: 3, pharmacy: 1, computer_store: 3 }, perBlock: [3, 5],
     nameGroups: { middle_eastern: 4, east_asian: 4, latino: 3, anglo: 1, italian: 1 }, closeness: [0.5, 0.72] },
   { kind: 'strip', names: ['The Strip', 'Neon Row', 'Club District', 'Lowlight'], wealth: [45, 70], police: [35, 60], population: [50, 90],
     mix: { nightclub: 5, bar: 4, motel: 2, restaurant: 1, cab_company: 1, pawn: 1, black_market: 1, electronics: 2, boutique: 2, pharmacy: 1 }, perBlock: [3, 5],
     nameGroups: { anglo: 2, italian: 2, latino: 2, black_american: 2, east_asian: 2, slavic: 2, irish: 2, middle_eastern: 2 }, closeness: [0.2, 0.4] },
   { kind: 'projects', names: ['The Projects', 'Southside', 'The Blocks', 'Lowtown'], wealth: [10, 30], police: [20, 45], population: [70, 100],
-    mix: { corner_store: 5, barbershop: 3, gym: 2, laundromat: 2, bar: 2, motel: 1, garage: 1, black_market: 1, electronics: 2, pharmacy: 2, tow_yard: 1 }, perBlock: [2, 4],
+    mix: { corner_store: 5, barbershop: 3, gym: 2, laundromat: 2, bar: 2, motel: 1, garage: 1, black_market: 1, electronics: 2, pharmacy: 2, tow_yard: 1, computer_store: 1 }, perBlock: [2, 4],
     nameGroups: { black_american: 5, latino: 4, east_asian: 1, irish: 1, anglo: 1 }, closeness: [0.7, 0.95] },
 ];

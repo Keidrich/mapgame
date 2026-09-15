@@ -23,7 +23,18 @@ import type { Faction, Npc, World } from './types';
 
 const mk = (seed = 51) => generateWorld({ origin: { lat: 41.88, lng: -87.63 }, placeName: 'Chicago', playerName: 'T', background: 'muscle', seed });
 const anyFaction = (w: World): Faction => Object.values(w.factions).find(f => f.alive && f.lieutenantIds.length >= 2)!;
-const lt = (w: World, f = anyFaction(w)): Npc => w.npcs[f.lieutenantIds[0]];
+/**
+ * A lieutenant with somewhere left to grow.
+ *
+ * `payMilestones` clamps a stat bump at 10, so a lieutenant generated at muscle 10 earns the
+ * `muscle` milestone and moves nothing — correct behaviour, and it makes "the stat went up"
+ * untestable on that person. Headroom is part of the fixture, not part of the claim.
+ */
+const lt = (w: World, f = anyFaction(w)): Npc => {
+  const n = w.npcs[f.lieutenantIds[0]];
+  n.skills = { ...n.skills, muscle: Math.min(n.skills.muscle, 6), brains: Math.min(n.skills.brains, 6) };
+  return n;
+};
 
 describe('a lieutenant accumulates a real history, through the same logger everybody else uses', () => {
   it('a meeting writes to their ledger', () => {

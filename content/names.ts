@@ -116,6 +116,7 @@ export const BUSINESS_NAME_PARTS = {
   // the second bench. Same shape: a first half and a second half, joined at generation.
   scrapyard: [['Iron','Sullivan','Riverside','Yard','Metro','Union','Cut-Rate'], ['Scrap','Salvage','Metals','Auto Parts','Wrecking','Yard']],
   electronics: [['City','Quick','Star','Dial','Bright','Corner','Global'], ['Phones','Electronics','Wireless','Repairs','Cellular']],
+  computer_store: [['Byte','Mainline','Silicon','Nexus','Anchor','Core','Grid','Halcyon'], ['Computers','Systems','PC Repair','Tech','Micro','Hardware','Computing']],
   boutique: [['Maison','Vera','Bella','Ivory','Grace','The Blue','Rue'], ['Boutique','Atelier','Couture','Fashions','Style House']],
   tow_yard: [['Rapid','All-City','Hook','Sullivan','Metro','Midnight'], ['Towing','Recovery','Tow & Storage','Impound','Wrecker Service']],
   gallery: [['Meridian','Vance','The White','Kestrel','Blackwood','Aurora'], ['Gallery','Fine Art','Auction House','Collection','Salon']],

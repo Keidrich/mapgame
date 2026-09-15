@@ -29,10 +29,19 @@ function clean(w: World, n: Npc): Npc {
   for (const c of select.connectionsOf(w, n)) c.npc.hostage = undefined;
   return n;
 }
-/** Somebody who lives on a faction's ground, so they are placed to hear about it. */
+
+/**
+ * Somebody standing on ground `f` unambiguously holds, which is what makes them *theirs* to turn.
+ *
+ * The influence has to be cleared first, not just set: an asset attaches to whoever controls the
+ * block, and setting 60 on top of a rival already sitting there quietly produced an informant
+ * inside the wrong outfit — three tests then failed on ids that had nothing to do with what they
+ * were testing.
+ */
 function placed(w: World, f: Faction): Npc {
   const n = Object.values(w.npcs).find(x => x.alive && !x.crew && !x.official && !x.faction)!;
-  w.blocks[n.homeBlockId].influence[f.id] = 60;
+  const b = w.blocks[n.homeBlockId];
+  b.influence = { [f.id]: 60 };
   w.player.currentBlockId = n.homeBlockId;   // these are face-to-face asks like any other
   return n;
 }

@@ -61,23 +61,39 @@ export function kitMods(w: World, approach?: OpApproach): ItemMods & { approachB
 }
 
 // ---------------------------------------------------------------- markets
-/** Places that trade in kit: a pawn shop up front, a back room for the rest. */
-export function isMarket(biz: Business): boolean { return biz.type === 'pawn' || biz.type === 'black_market'; }
+/**
+ * The three shops that trade in kit, and what each one will put out.
+ *
+ * One table rather than three branches, so adding a fourth shop is a row here and nothing else:
+ *
+ *  - a **pawn shop** takes anything and displays what it is allowed to — a broad, shallow shelf;
+ *  - a **computer store** sells tech and only tech, all of it legal, and knows its own trade, so
+ *    its shelf is narrower in kind and deeper in it. This is where a wire player actually shops;
+ *  - a **back room** carries everything, including what nobody with a sign over the door will
+ *    touch. That is the whole of what `underCounter` means.
+ */
+const SHELVES: Partial<Record<Business['type'], { want: number; keep: (it: ItemDef) => boolean }>> = {
+  pawn:           { want: 3, keep: it => !it.underCounter },
+  computer_store: { want: 4, keep: it => it.category === 'tech' && !it.underCounter },
+  black_market:   { want: 5, keep: () => true },
+};
+
+/** Places that trade in kit. */
+export function isMarket(biz: Business): boolean { return !!SHELVES[biz.type]; }
 
 /**
- * What this place has on the shelf. Derived from the business id, so a shop's stock is its
- * own and never changes under the player — and costs nothing in the save. A pawn shop keeps
- * to what it can legally display; a back room carries anything.
+ * What this place has on the shelf. Derived from the business id, so a shop's stock is its own
+ * and never changes under the player — and costs nothing in the save.
  */
 export function marketStock(biz: Business): ItemDef[] {
-  if (!isMarket(biz)) return [];
-  const open = biz.type === 'black_market';
-  const shelf = Object.values(ITEM_DEFS).filter(it => open || !it.underCounter);
+  const shop = SHELVES[biz.type]; if (!shop) return [];
+  const shelf = Object.values(ITEM_DEFS).filter(shop.keep);
+  if (!shelf.length) return [];
   const h = hashString(biz.id);
-  // a stable, shop-specific slice: three or four lines of stock, always in the same order
-  const want = open ? 5 : 3;
+  // a stable, shop-specific slice, always in the same order. Stepping by two rather than one is
+  // what stops every shop of a kind looking like the one down the road.
   const start = h % shelf.length;
-  return Array.from({ length: Math.min(want, shelf.length) }, (_, i) => shelf[(start + i * 2) % shelf.length])
+  return Array.from({ length: Math.min(shop.want, shelf.length) }, (_, i) => shelf[(start + i * 2) % shelf.length])
     .filter((it, i, all) => all.indexOf(it) === i);
 }
 

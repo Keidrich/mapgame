@@ -139,6 +139,9 @@ describe('the boosted scenarios reach what honest play cannot', () => {
 const SLOW_OR_TERMINAL = new Set([
   'the fourth tier', 'buying a favour', 'lifestyle', 'buying legitimacy', 'raising a ceiling',
   'getting out', 'succession', 'factions on their own',
+  // The upstart is spawned on day 12 by design, so a sixteen-day run watches it for four of them
+  // and whether it has pushed anywhere by then is a coin toss. It grows reliably over sixty.
+  'a rival who grows',
 ]);
 
 describe('coverage', () => {
@@ -202,6 +205,17 @@ describe('coverage', () => {
     // independence has actually broken; do not add rows to this list to make it green.
     const SLOW_ROWS: Record<string, { scenario: Parameters<typeof run>[0]['scenario']; days: number }> = {
       'factions on their own': { scenario: 'ambitious', days: 60 },
+      // Each of these is reachable and measured on this seed; sixteen days is simply not long
+      // enough for any of them. An institution has to be afforded before it can be bought, the
+      // upstart does not exist until day 12, and somebody has to get through you to inherit.
+      //
+      // The day counts are the shortest that actually reach them, not a round number: `fortune`
+      // buys its first institution on day 38 and `legacy` loses its player well before day 32.
+      // Runs are cached by (scenario, days, seed), so the two `fortune` rows share one run and
+      // this whole fallback costs two soaks rather than four.
+      'the fourth tier': { scenario: 'fortune', days: 40 },
+      'a rival who grows': { scenario: 'fortune', days: 40 },
+      'succession': { scenario: 'legacy', days: 32 },
     };
     const reached = new Set<string>();
     for (const name of SCENARIO_NAMES) {

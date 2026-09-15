@@ -14,6 +14,71 @@ House rules for an entry (see `CLAUDE.md` → *Leave a trail*):
 
 ---
 
+## 2026-09-15 — The computer store, and four pieces of tech
+
+**What.** A third kit shop — tech and only tech — and the items to stock it.
+
+**Why.** Kit had two shops and they were the same shop with a different filter: a pawn shop showed
+what it was allowed to, a back room showed everything. Nothing in the city sold to the player who
+was building toward the wire, and the tech shelf itself was two items deep (a burner and a laptop)
+against eleven weapons.
+
+**How.**
+
+- **`computer_store`**, tier 1, alongside the pawn shop and the phone shop. Its owners are a
+  little harder than a phone shop's (`nerve` 45 vs 35) — the man who builds machines for a living
+  has met people like you. It appears in downtown, market, heights and the projects.
+- **The three shelves are one table now** (`SHELVES` in `sim/items.ts`) rather than an `open`
+  boolean and a branch, so a fourth shop is a row and nothing else:
+
+  | Shop | Shelf | Lines |
+  | --- | --- | --- |
+  | Pawn Shop | anything not under the counter | 3 |
+  | Computer Store | tech only, none of it under the counter | 4 |
+  | Back-Room Market | everything | 5 |
+
+- **Four tech items**, each a tradeoff rather than a rung, per this file's own house rule:
+  **Signal Fob** (tech +2, quiet and inside work, useless in a fight), **Rogue Hotspot** (the best
+  inside-job item there is), **Desktop Tower** and **Card Skimmer**.
+- **The tower is the answer to "a desktop should beat a laptop".** It is tech +4, the most raw
+  tech you can own, and the whole wire lane is measured against it — but it is a *tower*: it takes
+  one of your three carry slots and makes a job you walk to go worse, badly so if you go in loud.
+  Work done at a desk does not care. Best thing you can own, worst thing to be holding when a door
+  opens.
+- **The skimmer keeps the back room's edge.** It is the only tech that makes the law *worse*
+  (heat ×1.2, because holding it is a charge on its own) and the only tech marked `underCounter` —
+  so "tech, all of it legal" stays a real distinction rather than a flavour note.
+
+**Files.** `sim/types.ts`, `content/businesses.ts`, `content/names.ts`, `content/items.ts`,
+`content/glossary.ts`, `sim/items.ts`, `ui/icons/paths.ts` (five new drawings), and a new
+`sim/computer-store.test.ts` (15 tests).
+
+**Watch out.**
+
+- **The honest 60-day curve moved: cash 43 → 46, dirty 6,297 → 4,558, fear 12 → 26.** Rackets and
+  control are unchanged. This is stream drift and nothing else — a new entry in a district's
+  weighted mix changes the total weight, so every draw after it shifts. There is no way to add a
+  business type that appears in the world without this; the landmark pass avoided it only by
+  *converting* an existing building rather than adding one.
+- **Six tests broke on that drift and every one of them was brittle rather than wrong.** Worth
+  reading, because the pattern will recur: `softTarget` picked "the first unprotected place on the
+  block" and got an importer, where fear is not a door at all; `placed` set a faction's influence
+  to 60 *on top of* whatever was already there and produced an informant in the wrong outfit; a
+  tier-2 owner's nerve is `gauss(72, 15)` and the test asserted a floor 0.8σ down, so it was always
+  going to fail eventually — with a value that was never wrong. Each is now pinned to what it
+  actually meant (a tier-1 target, a cleared block, a claim about the distribution), which makes
+  them stronger than before, not weaker. **None of the fixes loosened an assertion about the game.**
+- **Three coverage rows needed longer runs in `scripts/bot.test.ts`.** The full sweep is still
+  41/41 at sixty days, but sixteen days on the canon seed stopped reaching the fourth tier, the
+  upstart and succession. They use the existing `SLOW_ROWS` fallback with day counts measured to be
+  the shortest that work (40, 40, 32) rather than rounded up, and the runs are cached so the two
+  `fortune` rows share one. Adding rows to that list to make a red test green is still the thing
+  not to do — these were each verified reachable first.
+- **`WORLD_VERSION` is untouched.** A save made before this loads fine; it simply has no computer
+  stores in it, because the city is generated once.
+
+---
+
 ## 2026-09-15 — Two bugs in the recruit flow, found by hand
 
 **What.** You could not recruit most people, and for two roles the button was not there at all.

@@ -717,6 +717,41 @@ city without one would cap the weapon ladder at a baseball bat.
 Items do not wear out, break or get lost in this phase. When something eventually takes a
 piece of kit off the player, it removes one id and that is the whole of it.
 
+### 4.7b The three kit shops
+
+Kit is bought in a place, and which place decides what is on the shelf. One table, `SHELVES` in
+`sim/items.ts`, rather than a branch per shop — a fourth would be a row and nothing else:
+
+| Shop | Shelf | Lines |
+| --- | --- | --- |
+| **Pawn Shop** | anything not under the counter | 3 |
+| **Computer Store** | tech, and only tech, none of it under the counter | 4 |
+| **Back-Room Market** | everything, `underCounter` included | 5 |
+
+The computer store is the specialist: narrower in kind and deeper in it, which makes it the place
+a player building toward the wire actually shops, while the pawn shop stays the generalist you
+walk past early. `underCounter` is the line between them and the back room, and it has to keep
+meaning something — so the one piece of genuinely illegal tech (a card skimmer) stays a back-room
+item, and the back room keeps an edge no legitimate shop can match.
+
+Stock is derived from the business id, so a shop's shelf is its own, never changes under the
+player, and costs nothing in the save. The stride through the catalogue is two rather than one,
+which is what stops every computer store in the city looking like the one down the road.
+
+**The tech ladder, and why a desktop is not just a better laptop.** Every item in this game is a
+tradeoff rather than a rung (`content/items.ts` opens by saying so), and the new tech holds to it:
+
+- **Signal Fob** — tech +2, strong on quiet and inside work, useless in a fight.
+- **Rogue Hotspot** — the best inside-job item in the catalogue, because people hand you their own
+  credentials; a box in your bag on anything loud.
+- **Desktop Tower** — **tech +4, the most raw tech you can own**, and the whole wire lane is
+  measured against it. The cost is that it is a tower: it takes one of your three carry slots and
+  makes a job you walk to go worse, badly so if you go in loud. Work that happens at a desk does
+  not care, which is exactly the shape of the trade — it is the best thing you can own and the
+  worst thing to be holding when a door opens.
+- **Card Skimmer** — back rooms only, and the one piece of tech that makes the law *worse*: every
+  job leaves a fifth more heat, because holding it is a charge on its own.
+
 ### 4.8 When they come for you
 
 A faction's tick used to resolve its attacks alone: you read in the morning that your numbers

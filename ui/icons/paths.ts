@@ -107,6 +107,9 @@ export const ICON_PATHS: Record<string, IconPaths> = {
   black_market: [CRATE, 'M3.5 8.5 5.5 4h13l2 4.5', 'M9 12.5a3 3 0 1 1 6 0c0 1.8-3 1.6-3 3.5', 'M12 18h.01'],
   scrapyard: ['M3 20.5h18', 'M4.5 20.5V16h15v4.5', 'M6 16l2-4.5h8l2 4.5', 'M9.5 11.5V8M14.5 11.5V8', 'M8 4.5h8'],
   electronics: [PHONE, 'M10 18.5h4', 'M10 6h4'],
+  // a monitor on a stand: deliberately the widest silhouette on the shelf so it does not read
+  // as the phone shop's handset at 16px on the map
+  computer_store: ['M3 4.5h18v11H3z', 'M6 8h7', 'M6 11h4', 'M12 15.5v3.5', 'M8.5 19h7'],
   tow_yard: ['M2.5 17V9.5h9V17', 'M11.5 17h3l-1-6.5 5.5-4', 'M4.5 17a1.6 1.6 0 1 0 3.2 0 1.6 1.6 0 0 0-3.2 0M14.5 17a1.6 1.6 0 1 0 3.2 0 1.6 1.6 0 0 0-3.2 0', 'M18.5 6.5a2 2 0 1 0 3 2.5'],
   boutique: ['M12 3.5a2 2 0 1 0 1.8 2.9L20.5 11H3.5l6.7-4.6', 'M5 11l-1 9.5h16L19 11'],
   pharmacy: ['M9.5 3.5h5V9h5.5v5H14.5v6.5h-5V14H4V9h5.5z'],
@@ -153,6 +156,14 @@ export const ICON_PATHS: Record<string, IconPaths> = {
   relay_box: ['M4.5 10.5h11v8h-11z', 'M7.5 14h5', SIGNAL.replace('M15.5 6.5', 'M17 8.5').replace('M18 4', 'M19.5 6')],
   burner: ['M7.5 4h9v16h-9z', 'M7.5 8h9M7.5 16h9', 'M10.5 18h3'],
   laptop: ['M5 5h14v10H5z', 'M2.5 15h19l-1.5 4h-16z', 'M10.5 17h3'],
+  // a key fob with the wire family's arc coming off it: it is a radio, not a key
+  signal_fob: ['M6 3.5h7v17H6z', 'M8.5 7h2M8.5 10h2M8.5 13h2', SIGNAL.replace('M15.5 6.5', 'M15.5 7.5').replace('M18 4', 'M18 5')],
+  // a box with an aerial each side — the thing on the café windowsill that is not the café's
+  hotspot: ['M4.5 13.5h15v6h-15z', 'M8 16.5h.01M12 16.5h.01', 'M7 13.5V9l-2.5-3M17 13.5V9l2.5-3'],
+  // the tower itself: a case on its end, vents and a power light. Nothing portable about it
+  tower: ['M6.5 2.5h11v19h-11z', 'M9 6h6M9 9h6M9 12h3', 'M14.5 17.5h.01'],
+  // a card going into a slot that should not be there
+  skimmer: ['M2.5 9.5h19v8h-19z', 'M2.5 12.5h19', 'M6 15.5h4', 'M12 3.5v4.5M12 8l-2-2M12 8l2-2'],
   getaway: ['M3.5 16.5V11l2.5-5h11l2.5 5v5.5', 'M6 16.5a1.6 1.6 0 1 0 3.2 0 1.6 1.6 0 0 0-3.2 0M15 16.5a1.6 1.6 0 1 0 3.2 0 1.6 1.6 0 0 0-3.2 0', 'M6 11h12', 'M1 8h3M1 11h2'],
 
   // ---------------------------------------------------------------- crew assignments

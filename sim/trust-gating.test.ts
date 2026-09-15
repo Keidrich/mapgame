@@ -14,7 +14,17 @@ import { known, owes } from './test-util';
 import type { Npc, World } from './types';
 
 const mk = (seed = 6) => generateWorld({ origin: { lat: 41.88, lng: -87.63 }, placeName: 'Chicago', playerName: 'T', background: 'muscle', seed });
-const softTarget = (w: World) => select.businessesIn(w, select.startBlock(w).id).find(b => b.ownedBy === 'npc' && !b.protection)!;
+/**
+ * A place where the ordinary doors are open, which is what these tests are about.
+ *
+ * The tier matters and used not to be checked: at tier 3 nobody is frightened of you and nobody
+ * behind the counter can say yes, so `protectReason` refuses for a reason that has nothing to do
+ * with trust or favours. The helper picked the first unprotected place on the block, and the day
+ * a new business type shifted the generator that happened to be an importer — the test then
+ * failed reporting a refusal that was entirely correct. Naming the tier is what the helper always
+ * meant.
+ */
+const softTarget = (w: World) => select.businessesIn(w, select.startBlock(w).id).find(b => b.ownedBy === 'npc' && !b.protection && select.tierOf(b) === 1)!;
 /** Somebody with nothing over them: no ground held, no books read, nobody of theirs in a cellar. */
 function clean(w: World, n: Npc): Npc {
   const b = w.blocks[n.homeBlockId];

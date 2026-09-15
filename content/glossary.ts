@@ -135,8 +135,8 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
   },
   kit: {
     title: 'Kit',
-    body: 'The equipment you personally own and carry: weapons, tools, tech, a car. You can have three things on you at once, and only what you are carrying counts on a job.',
-    note: 'Every piece is a tradeoff. A sawn-off makes a loud job far better and a quiet one much worse; lockpicks do the reverse. Nothing here is a flat upgrade.',
+    body: 'The equipment you personally own and carry: weapons, tools, tech, a car. You can have three things on you at once, and only what you are carrying counts on a job. Three kinds of place sell it: a pawn shop has a bit of everything, a computer store has tech and nothing else, and a back room has what neither of them will put on a shelf.',
+    note: 'Every piece is a tradeoff. A sawn-off makes a loud job far better and a quiet one much worse; lockpicks do the reverse; a desktop tower is the most tech you can own and the last thing you want to be carrying through a door. Nothing here is a flat upgrade.',
   },
   connections: {
     title: 'Family and friends',

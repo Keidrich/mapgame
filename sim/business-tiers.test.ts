@@ -120,11 +120,17 @@ describe('tier 1 is unchanged: the ordinary rules still apply', () => {
 
 describe('tier 2: talk stops being enough, because of where the number sits', () => {
   it('an established owner is generated above the floor', () => {
+    // `nerve` is `gauss(nerveFloor, 15)`, so this is a claim about the *bias*, not about every
+    // draw: one owner a standard deviation below the mean is the distribution working. Asserting
+    // it per-owner passed on the seeds that happened to be kind and failed the day a new business
+    // type moved the RNG stream — with a value (56 against a floor of 72) that was never wrong.
     const w = mk();
-    for (const type of typesAt(2)) {
-      const b = find(w, type); if (!b) continue;
-      expect(w.npcs[b.ownerId].nerve, type).toBeGreaterThanOrEqual(TIERS[2].nerveFloor - 12);
-    }
+    const nerves = typesAt(2).map(t => find(w, t)).filter(Boolean).map(b => w.npcs[b!.ownerId].nerve);
+    expect(nerves.length, 'no tier-2 places generated at all').toBeGreaterThan(2);
+    const mean = nerves.reduce((s, v) => s + v, 0) / nerves.length;
+    expect(mean, `mean owner nerve ${mean}`).toBeGreaterThanOrEqual(TIERS[2].nerveFloor - 8);
+    // and nobody is generated soft enough for talk alone to reach, which is the rule that matters
+    for (const v of nerves) expect(v, 'an established owner generated as a pushover').toBeGreaterThan(40);
   });
 
   it('talk alone cannot reach the fear an established owner needs — and that is arithmetic, not a rule', () => {

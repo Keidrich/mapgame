@@ -93,6 +93,7 @@ export type BusinessType =
   | 'nightclub' | 'corner_store' | 'barbershop' | 'gym' | 'cab_company'
   | 'construction' | 'warehouse' | 'motel' | 'bank' | 'jeweller' | 'armored_depot'
   | 'black_market'   // a back room that trades in kit; see content/items.ts
+  | 'computer_store' // the same shelf, tech only and all of it legal; see content/items.ts
   // the second bench: street trades the city actually has, and the offices above them
   | 'scrapyard' | 'electronics' | 'boutique' | 'tow_yard'
   | 'gallery' | 'pharmacy' | 'accountant' | 'importer'
