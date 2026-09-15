@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { select } from '@sim/index';
 import { PLAYER, type Id, type ProductKind, type Racket, type World } from '@sim/types';
 import { PRODUCT_INFO, RACKET_DEFS, RACKET_UPGRADE_COST, TRAIT_LABELS } from '@content/rackets';
-import { BUSINESS_DEFS } from '@content/businesses';
 import { PRODUCTS, bizIcon, bizTypeLabel, conditionTone, crewName, fmtMoney, ownerLabel, pct, protectionLabel } from '@ui/derive';
 import { act, openSheet, useWorld } from '@ui/store';
 import { Sheet } from './Sheet';
@@ -21,7 +20,10 @@ export function BusinessSheet({ businessId }: { businessId: Id }) {
   const owner = w.npcs[biz.ownerId];
   const block = w.blocks[biz.blockId];
   const yours = biz.ownedBy === 'player';
-  const extortable = BUSINESS_DEFS[biz.type].rackets.includes('protection');
+  // The sim's own rule, not the type list on its own: `extortReason` is the *intersection* of what
+  // the type does and what the tier will carry, and reading only half of it is how a button ends up
+  // offering something the reducer refuses.
+  const extortable = !select.extortReason(biz);
   const patrons = select.patronsOf(w, biz);
   const rackets = select.racketsAt(w, biz);
   const available = select.availableRackets(w, biz);

@@ -86,6 +86,7 @@ export function NpcSheet({ npcId }: { npcId: Id }) {
         </Disclosure>
         {canRecruit && <SceneAct scene={{ kind: 'recruit', npcId }} label="Recruit" icon="person" kind="primary" />}
         {n.role === 'fixer' && n.alive && <FixerAct npcId={npcId} />}
+        {n.alive && !n.crew && <BuyFavour npcId={npcId} />}
         {n.official && (
           <Disclosure label={`Bribe the ${n.official.kind}`} icon="collect" kind="primary">
             <p className="small muted">{OFFICIAL_BLURB[n.official.kind]}</p>
@@ -95,6 +96,38 @@ export function NpcSheet({ npcId }: { npcId: Id }) {
         )}
       </div>
     </Sheet>
+  );
+}
+
+/**
+ * Pay somebody important to owe you one.
+ *
+ * This shipped with the money sinks and had **no door in the app at all** — the action existed,
+ * `can()` worked, its tests passed and the soak bot drove it directly, so the coverage table read
+ * ✓ while a player could not do it by any route. It lives here because every other ask you make of
+ * a person lives here.
+ *
+ * The refusal is worth showing rather than hiding: "they do not take money from people they do not
+ * know" and "money will not touch a grudge" are the two rules that make this a sink with teeth
+ * rather than a shop, and a player who cannot see them will conclude the feature is missing.
+ */
+function BuyFavour({ npcId }: { npcId: Id }) {
+  const w = useWorld();
+  const n = w.npcs[npcId]; if (!n) return null;
+  const price = select.favourPrice(n);
+  const why = select.favourReason(n);
+  const owed = select.favours(n);
+  return (
+    <Disclosure label="Buy a favour" icon="cash">
+      <p className="small muted">
+        An envelope, taken without being counted. It buys the marker that <Term id="favours">a settled favour</Term> buys —
+        the same one a real turn earns — and nothing else: never a vote, never a way past a grudge.
+        {owed > 0 && <> {n.name.split(' ')[0]} already owes you {owed}.</>}
+      </p>
+      <p className="small muted">Each one costs more than the last, because the second envelope means something different from the first.</p>
+      <div className="mt8"><Act action={{ type: 'buy_favour', npcId }} label={`Pay ${fmtMoney(price)}`} kind="primary" block /></div>
+      {why && <p className="tiny faint mt8">{why}</p>}
+    </Disclosure>
   );
 }
 

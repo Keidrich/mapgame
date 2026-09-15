@@ -258,6 +258,29 @@ function Lifestyle() {
   );
 }
 
+/**
+ * The name on everything.
+ *
+ * `rename` has existed as an action since the beginning and had no control anywhere, so a player
+ * who typed their name wrong at the start carried it for the whole game. The street name beside it
+ * is not editable on purpose: that one is earned, and the game decides it.
+ */
+function YourName() {
+  const w = useWorld();
+  const [name, setName] = useState(w.player.name);
+  const changed = name.trim() && name.trim() !== w.player.name;
+  return (
+    <div className="mt8">
+      <div className="row" style={{ gap: 6 }}>
+        <input className="input grow" value={name} maxLength={40} aria-label="Your name"
+          onChange={e => setName(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} />
+        {changed && <Act action={{ type: 'rename', name: name.trim() }} label="Rename" small />}
+      </div>
+      {w.player.street && <p className="tiny faint mt4">The street calls you &quot;{w.player.street}&quot;. That one you do not get to pick.</p>}
+    </div>
+  );
+}
+
 /** Before you can afford a laundering racket, a fixer will wash a little at a worse rate. */
 function Fixers() {
   const w = useWorld();
@@ -319,6 +342,7 @@ function SaveCard() {
   return (
     <div className="card">
       <p className="small muted">Autosaves after every action. Seed {w.seed} · {w.placeName} · day {w.day}.</p>
+      <YourName />
       <div className="actions">
         <button type="button" className="btn" onClick={download}><Icon name="download" size={14} /> Export file</button>
         <button type="button" className="btn" onClick={() => void copy()}><Icon name="copy" size={14} /> Copy JSON</button>

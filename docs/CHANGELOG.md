@@ -14,6 +14,57 @@ House rules for an entry (see `CLAUDE.md` → *Leave a trail*):
 
 ---
 
+## 2026-09-15 — The sweep: one more system with no door at all
+
+**What.** Swept for the pattern behind the last two bugs. Found a worse one: **`buy_favour` had no
+button anywhere in the app.**
+
+**Why it was worth sweeping.** Two bugs in three days had the same shape — a control narrower than
+the rule it was offering. The question was whether there were more. There were, and the worst was
+not a narrow control but a missing one.
+
+**How the sweep was done**, because grep only finds lines that *look* wrong:
+
+1. **Every op target, programmatically.** For each op, compare what the planner would list against
+   every target `can(plan_op)` actually accepts. Clean now, apart from two cases where the
+   **reducer is looser than the picker** — it would accept a bank for `robbery` and your own crew
+   for `mugging`. The picker is right in both; noted, not changed, because no player can reach it.
+2. **Every conditionally rendered control, by hand.** `canDefect` and the fixer check match their
+   reducer rules. `extortable` on the business sheet read only *half* the rule — the type's racket
+   list, not its intersection with the tier — so it now reads `select.extortReason`. No live bug
+   (no tier-3 type lists protection) but it was one content edit from being one.
+3. **Every action id against the components.** This is the one that paid.
+
+**What it found.**
+
+- **`buy_favour` was unreachable.** It shipped as one of the five money sinks, its tests passed,
+  the soak bot drove it directly, and the coverage table has read ✓ next to "buying a favour" for
+  two passes. There was never a button. It is now on the NPC sheet beside Gift and Bribe, showing
+  its own refusals — "they do not take money from people they do not know", "money will not touch
+  a grudge" — because those two rules are what make it a sink with teeth rather than a shop.
+- **`rename` was unreachable.** A player who typed their name wrong at the start carried it for the
+  whole game. Now on the save card. The *street* name beside it stays unpickable: that one is
+  earned.
+
+**The guard.** `ui/every-action-has-a-door.test.tsx` reads every `{ type: '...' }` out of
+`sim/actions.ts` and fails if no component mentions it. Crude — it counts a mention, not a working
+route — and it would have caught all three of this week's bugs. Three actions are excused by name
+with a written reason each; nothing goes on that list for being inconvenient.
+
+**Files.** `ui/components/NpcSheet.tsx`, `ui/components/EmpireTab.tsx`,
+`ui/components/BusinessSheet.tsx`, and `ui/every-action-has-a-door.test.tsx` (2 tests).
+
+**Watch out.**
+
+- **A coverage table cannot see this class of bug and never will.** It answers "was this system
+  reached", and the bot reaches everything by calling the reducer directly. Every one of this
+  week's three bugs was found by a person playing. The new test is the first thing in the repo that
+  asks the other question.
+- **The two reducer-too-loose cases are latent, not harmless.** Nothing builds op actions
+  programmatically today; the day something does, `robbery` on a bank becomes reachable.
+
+---
+
 ## 2026-09-15 — You could not whack the man who snitched on you
 
 **What.** A crew member who betrayed you and walked could not be selected as the target of a hit,
