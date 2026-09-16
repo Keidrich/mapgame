@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { select } from '@sim/index';
 import type { Assignment, Id } from '@sim/types';
 import { PRODUCTION_DEFS, RACKET_DEFS, RECIPES, TRAIT_LABELS } from '@content/rackets';
+import { INTEL, OFFSHORE } from '@content/intel';
 import { assignmentLabel, cap, fmtMoney, initials, playerRackets, playerSafehouses, roleLabel } from '@ui/derive';
 import { openSheet, useWorld } from '@ui/store';
 import { Sheet } from './Sheet';
@@ -55,9 +56,20 @@ export function NpcSheet({ npcId }: { npcId: Id }) {
         below them, because this is identity and identity belongs with the name. Left under the
         actions it was one lonely "Neutral" chip between two cards, reading as something left over
         rather than something said.
+
+        **Traits live here, not behind the fold.** The first cut of this pass put them in the
+        collapsed "What you know about them" card and a player noticed within the hour that they
+        had gone. That was a straight misapplication of the rule this row exists for: a `coward`
+        folds to a lean, a `loyal` cannot be leaned on at all, a `hothead` fights — traits are the
+        single biggest thing deciding which of these buttons is the right one, so by the stated
+        criterion they were never reference. What sits behind the fold is the *detail* of what a
+        size-up turned up; the traits themselves belong in front of it.
       */}
       <div className="chips mt8">
         <TermChip id="relLabel" title="How they see you" body={relBlurb(n)}>{select.relLabel(n)}</TermChip>
+        {select.isKnown(n)
+          ? n.traits.map(t => <TermChip key={t} id={`trait:${t}`}>{TRAIT_LABELS[t] ?? t}</TermChip>)
+          : <TermChip id={n.hint ? 'cased' : 'known'}><span className="muted">{n.hint ?? 'Traits unknown'}</span></TermChip>}
         {select.isHeld(n) && <TermChip id="hostage" tone="var(--red)">Held by you</TermChip>}
         {n.grudge && <TermChip id="grudge" tone="var(--red)">Holds a grudge</TermChip>}
         {select.isNemesis(n) && <TermChip id="nemesis" tone="var(--red)">Has had the better of you {n.nemesis!.wins}×</TermChip>}
@@ -105,9 +117,6 @@ export function NpcSheet({ npcId }: { npcId: Id }) {
 
       <Section id="npc:read" title="What you know about them" defaultOpen={false} info={<Info id="known" />}>
         <div className="chips">
-          {select.isKnown(n)
-            ? n.traits.map(t => <TermChip key={t} id={`trait:${t}`}>{TRAIT_LABELS[t] ?? t}</TermChip>)
-            : <TermChip id={n.hint ? 'cased' : 'known'}><span className="muted">{n.hint ?? 'Traits unknown'}</span></TermChip>}
           {select.agendaLabel(n) && <TermChip id="agenda" tone="var(--blue)">{select.agendaLabel(n)}</TermChip>}
           {n.recipe && select.isKnown(n) && RECIPES[n.recipe] && (
             <TermChip id="recipeKnown" tone="var(--gold)" note={`${RECIPES[n.recipe].label}: ${RECIPES[n.recipe].blurb}`}>
@@ -128,6 +137,7 @@ export function NpcSheet({ npcId }: { npcId: Id }) {
         </dl>
       </Section>
 
+      <IntelPanel npcId={npcId} />
       <TapPanel npcId={npcId} />
       <LedgerPanel npcId={npcId} collapsed />
 
@@ -234,6 +244,48 @@ function TapPanel({ npcId }: { npcId: Id }) {
         and being found costs you everything they thought of you.
       </p>
       <div className="mt8"><Act action={{ type: 'pull_tap', npcId }} label="Take it off" icon="cross" kind="ghost" block /></div>
+    </div>
+  );
+}
+
+/**
+ * A standing arrangement inside an institution, and — for an offshore account — the switch.
+ *
+ * This had **no door in the app at all**. `intelReading` has said "for the NPC sheet and the ops
+ * planner" in its own doc comment since it was written and was read by neither, so an arrangement
+ * a `rat` opened was invisible: the player could not see it, could not price it, and could not
+ * stop it. An offshore account moved their dirty money every day at 72% and said so one day in
+ * seven. That is the bug this panel exists for, and the switch is the half that matters.
+ */
+function IntelPanel({ npcId }: { npcId: Id }) {
+  const w = useWorld();
+  const n = w.npcs[npcId];
+  const read = n ? select.intelReading(w, n) : undefined;
+  if (!n || !read) return null;
+  const def = INTEL[read.kind];
+  const offshore = read.kind === 'offshore';
+  const on = !!n.intel?.on;
+  return (
+    <div className="card mt8" style={{ borderColor: offshore && on ? 'var(--gold)' : 'var(--line)' }}>
+      <div className="row between">
+        <b className="small"><Icon name="rat" size={13} /> {def.label}{offshore ? <Info id="offshore" /> : <Info title={def.label} body={def.blurb} />}</b>
+        <span className="chip">{read.days}d · {read.left}d left</span>
+      </div>
+      {read.take !== undefined && <p className="small muted mt8">About {fmtMoney(read.take)} a day, and {Math.round((read.risk ?? 0) * 100)}% a day that somebody notices.</p>}
+      {offshore && (
+        <>
+          <p className="small mt8" style={{ margin: '8px 0 0' }}>
+            {on
+              ? <>Running. Up to <b>{fmtMoney(select.offshoreCapacity(w, n))}</b> of your dirty money a day goes through and <b>{Math.round(OFFSHORE.rate * 100)}%</b> of it comes back clean.</>
+              : <>Idle. It can wash up to <b>{fmtMoney(select.offshoreCapacity(w, n))}</b> a day at <b>{Math.round(OFFSHORE.rate * 100)}%</b> — the rest stays with somebody else. Nothing moves until you say so.</>}
+          </p>
+          {/* The paper is the cost of leaving it on, and it is the thing a player cannot otherwise see. */}
+          <div className="mt8"><Meter label="Paper trail" value={Math.min(100, (select.offshorePaper(n) / OFFSHORE.filesAt) * 100)} color={select.offshorePaper(n) >= OFFSHORE.filesAt * 0.7 ? 'var(--red)' : 'var(--orange)'} format={() => `${Math.round(select.offshorePaper(n))}`} /></div>
+          <div className="mt8">
+            <Act action={{ type: 'set_offshore', npcId, on: !on }} label={on ? 'Stop moving money' : 'Start moving money'} icon={on ? 'cross' : 'cash'} kind={on ? 'ghost' : 'primary'} block />
+          </div>
+        </>
+      )}
     </div>
   );
 }

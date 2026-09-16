@@ -14,6 +14,137 @@ House rules for an entry (see `CLAUDE.md` → *Leave a trail*):
 
 ---
 
+## 2026-09-16 — Five bugs from play: the rat's money, the wash nobody asked for, and the safehouse that took the neighbourhood
+
+**What.** Five things reported from an actual save, fixed together. An op result card that
+under-reported its own heat by about half on the whole wire lane. An offshore account that opened
+itself and laundered everything, every day, with no switch and no door. A Wire tab that vanished
+when the Empire tab became a hub. Character traits that went behind a fold. And a safehouse that
+quietly took over the blocks around it.
+
+### 1. Ops: what the card says is now what happened
+
+**Why.** *"I was supposed to get a payout from my rat and I saw how much but I didn't actually
+receive the money."* Chasing the `rat` alone found nothing. Resolving **all 70 op kinds**, win and
+lose, against the purse and the heat bar found it: `cyberHeat()` calls `addHeat` from inside the
+case bodies, so every wire op put heat on the bar the result card never knew about. `wire_fraud`
+printed **+11 and moved the bar 19.8**; `digital_strike` +4 against 11.0; `crypto_wash` +6 against
+11.0 — under-reporting by about half on the one lane whose whole cost *is* heat.
+
+**How.** `resolveOp` samples the bar before the body runs (`heatBefore`) and adds the difference to
+what `addHeat` returns, so the card reports whatever the bar actually did — including anything a
+future case body does. Signed, not clamped: `synth_identity` and `frame` take attention *off* you,
+and the chip is green with a minus rather than a cheerful "+2" over a falling bar.
+`synth_identity`'s hand-written `res.heat = Math.max(0, res.heat - 2)` guess is gone; the resolver
+measures it now. `sim/op-payout-honesty.test.ts` (351 tests) holds every kind to card-cash ==
+purse-delta, card-heat == bar-delta, and prose that names money either paying it or saying it is
+goods.
+
+### 2. Offshore accounts are off until you turn them on
+
+**Why.** *"My cash is getting auto washed in entirety at the end of each day even without a
+laundering racket."* True, and it was the same bug as the first report wearing a different face: a
+`rat` on an accountant silently opened an offshore account, which from that day laundered
+everything in the purse at 0.72 — no UI, no switch, a log line one day in seven, and a day summary
+that said "Took in $0 clean" on a day $2,390 arrived.
+
+**How.** `Npc.intel.on` is the player's switch and it is **absent-means-off**, which is also what an
+old save wants where one has been running unasked. An idle account still accrues its paper trail
+and still surfaces. `tickOffshore` returns what it washed, `tickIntel` returns `{ clean, dirty }`,
+and the tick counts both in the day summary — so the summary can no longer contradict the purse.
+`NpcSheet` grows an `IntelPanel`: the arrangement's first UI door ever. `select.intelReading` had
+documented itself as "for the NPC sheet and the ops planner" and was read by neither.
+
+### 3. The Wire tab came back
+
+**Why.** *"The wire tab is broken in new empire tab."* The UI pass made Empire a hub with four
+views and the wire section did not get one.
+
+**How.** A fifth sub-nav view, `Wire`, with an empty state, plus a phone-width rule that drops the
+sub-nav icons at ≤430px so five labels fit without clipping.
+
+### 4. Traits are in front of you again
+
+**Why.** *"I also no longer see character traits of people?"* A regression from the same UI pass —
+a straight misapplication of that sheet's own rule, which is that what changes which button you
+press goes above the actions. Traits are exactly that.
+
+### 5. A safehouse no longer takes the neighbourhood
+
+**Why.** *"Once you buy a safehouse the leak of influence onto other blocks is really harsh. You
+take over the surrounding blocks really quick without even ever having talked to someone or making
+someone protected."* Measured, and exactly right. Spill was `0.45 × (depth − spillFromDepth + 1)`
+of the day's gain **per neighbour**, while `accrualMult` already scales with depth — so spill
+scaled with depth twice over, and a block at the cap handed *each* neighbour 1.35× what it earned
+itself. A block with an owned business, one racket and a safehouse put **all three neighbours past
+the control threshold by day 10**, from zero, and pinned them at 98.
+
+**How.** Three numbers, in `content/territory.ts`:
+
+- `spillShare: 0.5` replaces `spillPerDepth`. A flat share of the day's gain — what the comment
+  always claimed and the code never did. Depth is already in the gain.
+- `spillCap: 45` is what bleed *alone* can build on a block. Influence a block earns for itself is
+  untouched.
+- `safehousePerDay: 1`, down from a hard-coded 2 in the tick — which was *more* than a protection
+  racket's 1.5. A safehouse means you have keys to a flat; protection means the whole street knows
+  whose it is. It still counts toward depth, so it can still tip a block over `spillFromDepth`.
+
+Same block, same seed: the ring that crossed control on day 10 now crosses around **day 27** and
+settles at **43** — the equilibrium of bleed against the −2/day an asset-less block decays at, so a
+ring taken purely by bleed drains away if the stronghold falls. A safehouse on a block with nothing
+else on it (depth 1) leaks nothing at all.
+
+**The constraint the fix had to honour** was the rest of the report: *"some blocks dont have
+businesses that can be protected though so be careful with that."* Those blocks have no door to buy
+and nobody to protect, so bleed is their only route into an empire — which is why the cap sits
+*above* `controlAt` (30) rather than spill being switched off. Seed 1 has three such blocks and
+`sim/territory-accrual.test.ts` takes one of them with bleed and asserts it. The cap sits *below*
+what an outfit holding a block would have, so taking ground off somebody still means turning up.
+
+### The soak, and a coverage row that was riding on luck
+
+Changing territory moved the rng stream, and `your name arriving first` went dark — the reputation
+opener needs `player.street`, which needs fear or respect past 55, which a sixteen-day run only
+reached when a war happened to run its fear to 99. It was already dark on three of six seeds at
+HEAD; the test simply ran on one of the lucky ones.
+
+Reputation was the one prerequisite in the game with **no admin entry at all**, so neither a person
+poking at the build nor the bot could reach that opener on purpose. There is one now: a `street`
+cheat that hands over the name and nothing else. The first draft added 60 fear instead, and a
+player everybody is already terrified of never has to go back to anybody — the bot spent its whole
+day on strangers and `openers that read history` went to zero on all six seeds. A setup cheat must
+not rewrite the run around itself.
+
+That also exposed a real bot bug: the stranger-hunting branch in `haveARealConversation` `return`ed
+on *any* day the player had a name, which was harmless only because a run earns one late. Throttled
+to one conversation in four, the same lesson the nemesis branch below it already carried.
+
+**Files.** `sim/ops.ts`, `sim/intel.ts`, `sim/tick.ts`, `sim/territory.ts`, `sim/reducer.ts`,
+`sim/actions.ts`, `sim/types.ts`, `sim/nemesis.ts`, `sim/select.ts`, `content/territory.ts`,
+`content/glossary.ts`, `ui/components/{OpsTab,NpcSheet,EmpireTab,HelpSheet}.tsx`, `ui/styles.css`,
+`scripts/bot/{admin,policy,run}.ts`, `docs/DESIGN.md` §4.15.
+
+**Watch out.**
+
+- **No `WORLD_VERSION` bump, and none needed.** `intel.on` is absent-means-off, which is the
+  correct reading for an old save: an account that has been laundering unasked stops, and the
+  player turns it on when they want it.
+- **The honest curve moved, and it is seed noise rather than a direction.** Day 60 dirty, HEAD →
+  now: seed 3 $618 → $777, seed 7 (the default) $522 → $384, seed 11 $478 → $554. Control share is
+  unchanged on seeds 3 and 7 and up on 11 (17.8% → 20.0%) — the honest run holds one safehouse and
+  five or six rackets and rarely gets deep enough to spill much either way.
+- **`sim/tier3-intel.test.ts` was rewritten, not relaxed.** It encoded "an offshore account
+  launders automatically", which is the bug. It now asserts the new rule: idle until switched on,
+  then it washes, and it says so in the log every day it does.
+- **`scripts/bot.test.ts`'s succession row is pinned to seed 7.** Every `dispatch` advances
+  `w.rng` (`rngOf`), so adding any bot action reshuffles the whole downstream stream; that row is
+  the one that notices.
+- **Coverage at sixteen days is seed-dependent on the conversational rows** — `openers that read
+  history`, `introductions`, `using one against them` each go dark on some seed or other, before
+  and after this change. The union sweep is the real contract and it is **47/47**.
+
+---
+
 ## 2026-09-16 — UI pass: navigation, and what a sheet shows before you ask
 
 **What.** No new content. The Empire tab becomes a hub with sub-navigation, `NpcSheet` puts the

@@ -9,6 +9,7 @@ import { tickAssets } from './informants';
 import { launderCapacity, layLowLeft, layingLow, productionOutput, racketIncome, streetPrice } from './economy';
 import { CACHE, LAY_LOW } from '@content/events';
 import { LEGITIMACY } from '@content/fortune';
+import { TERRITORY } from '@content/territory';
 import { earnStreetName } from './nemesis';
 import { tickGoStraight } from './legacy';
 import { tickUpstart } from './upstart';
@@ -55,7 +56,9 @@ export function endDay(w: World): World {
   tickCards(w);
   tickTaps(w, rng);
   tickHackCrew(w, rng);
-  tickIntel(w, rng);
+  // Standing arrangements pay before anything else does, and what they paid is part of the day.
+  const fromIntel = tickIntel(w, rng);
+  summary.clean += fromIntel.clean; summary.dirty += fromIntel.dirty;
   tickAssets(w, rng);   // an informant you never call stops answering
 
   // Influence is gathered per block and applied once at the end of the day rather than per
@@ -179,7 +182,7 @@ export function endDay(w: World): World {
     }
     const rent = s.squatted ? 0 : Math.round(SAFEHOUSE_TIERS[s.tier - 1].rent / 30); // nobody bills you for a place you took
     if (!rent) { /* squatted */ } else if (p.cash + p.dirty >= rent) spend(w, rent); else { addInfluence(w, s.blockId, PLAYER, -4); if (w.day % 5 === 0) log(w, `You are behind on rent at ${s.name}.`, 'warn', { blockId: s.blockId }); }
-    gain(s.blockId, 2);
+    gain(s.blockId, TERRITORY.safehousePerDay);   // a rented door, not a street: less than a protection racket
   }
 
   // ---- ops ----

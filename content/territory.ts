@@ -93,10 +93,34 @@ export const TERRITORY = {
    * way for holding ground to *spread*. A block you control and run deeply now bleeds influence
    * into its neighbours, the way `spreadRep` bleeds reputation, so an empire grows outward from
    * strongholds instead of stopping at the doors you happen to own.
+   *
+   * **This is a share of the day's gain, and it used to be a multiple of it.** The old number was
+   * `0.45 * (depth - spillFromDepth + 1)`, which at the depth cap sent 1.35× the block's own gain
+   * to *each* neighbour — a block with three neighbours gave away four times what it earned, and
+   * because `accrualMult` already scales with depth, spill scaled with depth twice over. Measured:
+   * a block with an owned business, one racket and a safehouse put all three of its neighbours
+   * past the control threshold by day 10, from nothing, with the player never having set foot on
+   * them. Now it is what the comment always claimed — a fraction, flat, taken once.
    */
-  spillPerDepth: 0.45,
+  spillShare: 0.5,
   /** Spill only comes off a block you actually hold, and only past this much depth. */
   spillFromDepth: 2,
+  /**
+   * What bleed *alone* can build to on a block. The point of spill is that an empire grows
+   * outward, including onto blocks with no business anybody could protect — those have no other
+   * route in, so the cap sits above `controlAt` and bleed can still take empty ground. What it
+   * cannot do is outbid an outfit that actually holds the block: past this, spill adds nothing
+   * and you have to go there yourself (a safehouse, a guard) to take it off them.
+   */
+  spillCap: 45,
   /** Control is this much influence, and the most of it. Unchanged — the accrual is the lever. */
   controlAt: 30,
+  /**
+   * What a safehouse is worth in influence a day. It used to be 2 — more than a protection racket
+   * (1.5), which is backwards: protection means the whole street knows whose it is, a safehouse
+   * means you have keys to a flat. It counts for depth, so it can still tip a block over
+   * `spillFromDepth`; it just no longer pays the largest daily gain of any single asset for doing
+   * nothing but existing.
+   */
+  safehousePerDay: 1,
 };

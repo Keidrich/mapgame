@@ -103,7 +103,7 @@ function OpCard({ o }: { o: Op }) {
       {o.result && (
         <div className="mt8 small">
           <p>{o.result.text}</p>
-          <div className="chips">{o.result.cash !== 0 && <span className="chip green">{fmtMoney(o.result.cash)}</span>}{o.result.heat !== 0 && <span className="chip red">+{o.result.heat} heat</span>}</div>
+          <div className="chips">{o.result.cash !== 0 && <span className="chip green">{fmtMoney(o.result.cash)}</span>}{o.result.heat !== 0 && <span className={`chip ${o.result.heat > 0 ? 'red' : 'green'}`}>{o.result.heat > 0 ? '+' : ''}{o.result.heat} heat</span>}</div>
         </div>
       )}
     </div>

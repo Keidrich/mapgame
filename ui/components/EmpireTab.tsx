@@ -43,7 +43,12 @@ import { Icon } from '@ui/icons';
 export const EMPIRE_VIEWS = [
   { id: 'money', label: 'Money', icon: 'cash' },
   { id: 'holdings', label: 'Holdings', icon: 'empire' },
-  { id: 'city', label: 'The city', icon: 'city_hall' },
+  // The wire is a lane, not a detail of the money view. It went in with Money on the first cut of
+  // this hub and was reported broken within the hour — not because it failed to render, but because
+  // a player who plays the wire opens this tab *for the wire* and there was nothing named for it to
+  // aim at. A thing with its own cards, its own heat and its own way of earning gets its own view.
+  { id: 'wire', label: 'Wire', icon: 'hack' },
+  { id: 'city', label: 'City', icon: 'city_hall' },
   { id: 'you', label: 'You', icon: 'person' },
 ] as const;
 export type EmpireView = typeof EMPIRE_VIEWS[number]['id'];
@@ -94,7 +99,17 @@ export function EmpireTab({ view: fixed }: { view?: EmpireView } = {}) {
           </div>
           <div className="actions mt8"><Launder /><GoToGround /><TheWall /></div>
           <Inventory />
+        </>
+      )}
+
+      {view === 'wire' && (
+        <>
           <WireSection />
+          {/* `WireSection` renders nothing at all when there is no wire, and a blank view is how a
+              player concludes a tab is broken. The empty state is the view's job, not its. */}
+          {!select.cards(w).length && !select.secrets(w).length && !Math.round(w.player.cyberHeat ?? 0) && (
+            <p className="small muted">Nothing on the wire. Cards come out of pockets — a mugging, a pickpocket, somebody careless — and what you learn from getting inside a business is sold from here.</p>
+          )}
         </>
       )}
 

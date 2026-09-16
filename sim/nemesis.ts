@@ -58,8 +58,24 @@ export function playerName(w: World): string { return withNickname(w.player.name
 export function earnStreetName(w: World): void {
   const p = w.player;
   if (p.street) return;
-  const top = Math.max(p.fear, p.respect);
-  if (top < STREET_NAME.at) return;
+  if (Math.max(p.fear, p.respect) < STREET_NAME.at) return;
+  giveStreetName(w);
+}
+
+/**
+ * The naming itself, without the threshold in front of it.
+ *
+ * Split out for the admin panel. Reputation was the one prerequisite in the game with no entry
+ * there, so neither a person poking at the build nor the soak bot could reach the reputation
+ * opener on purpose — the bot got there only when a war happened to run its fear to 99, which
+ * left a coverage row riding on the rng stream. The obvious cheat, "add 60 fear", turned out to
+ * rewrite the run around itself: a player everybody is already terrified of never has to go back
+ * to anybody, so the bot spent its whole day on strangers and the *history* opener went dark on
+ * every seed. Handing over the name alone changes nothing else, which is what a setup cheat is
+ * supposed to do. The pool still comes from whatever fear and respect actually are.
+ */
+export function giveStreetName(w: World): void {
+  const p = w.player;
   const pool = p.fear - p.respect >= STREET_NAME.margin ? FEARED_NAMES
     : p.respect - p.fear >= STREET_NAME.margin ? RESPECTED_NAMES
     : KNOWN_NAMES;

@@ -68,16 +68,44 @@ describe('what each one actually pays', () => {
     expect(CONSIGN.base).toBeGreaterThan(0);
   });
 
-  it('an offshore arrangement washes more than anything you could build', () => {
+  it('moves nothing at all until the player switches it on', () => {
+    /**
+     * Reported by a player: *"my cash is getting auto washed in entirety at the end of each day
+     * even without a laundering racket."* They were right. An arrangement a `rat` happened to open
+     * converted their dirty money every day at 72%, for ever, with no way to stop it and a line in
+     * the log one day in seven — and there was no UI for an arrangement at all, so it was invisible
+     * as well as unstoppable. An arrangement is a thing you *have*; laundering is a thing you *do*.
+     */
+    const w = mk(); const n = insider(w, 'offshore')!;
+    const cap = offshoreCapacity(w, n);
+    w.player.dirty = cap * 2; w.player.cash = 0; w.player.launderedToday = 0;
+    expect(n.intel!.on, 'it arrived already running').toBeFalsy();
+    tickOffshore(w, n, new Rng(2));
+    expect(w.player.dirty, 'it laundered without being asked').toBe(cap * 2);
+    expect(w.player.cash).toBe(0);
+  });
+
+  it('and then washes more than anything you could build', () => {
     const w = mk(); const n = insider(w, 'offshore')!;
     expect(offshoreHolders(w).map(x => x.id)).toContain(n.id);
     const cap = offshoreCapacity(w, n);
     expect(cap).toBeGreaterThan(OFFSHORE.capacity - 1);
     w.player.dirty = cap * 2; w.player.cash = 0; w.player.launderedToday = 0;
+    n.intel!.on = true;
     tickOffshore(w, n, new Rng(2));
     expect(w.player.dirty, 'nothing went through').toBe(cap * 2 - cap);
     expect(w.player.cash, 'nothing came back').toBeGreaterThan(0);
     expect(w.player.cash, 'it came back at par, which would make it free money').toBeLessThan(cap);
+  });
+
+  it('says so every day it runs, not one day in seven', () => {
+    // Six days out of seven the money moved and nothing said why, which is most of how it read as
+    // the game helping itself to the player's cash.
+    const w = mk(); const n = insider(w, 'offshore')!;
+    w.player.dirty = 50_000; w.player.launderedToday = 0; n.intel!.on = true;
+    const before = w.log.length;
+    tickOffshore(w, n, new Rng(2));
+    expect(w.log.slice(before).map(e => e.text).join(' ')).toMatch(/came back clean/);
   });
 
   it('...and the paper is the price: enough of it and there is a file with your money on it', () => {

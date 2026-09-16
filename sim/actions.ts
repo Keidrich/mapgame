@@ -25,6 +25,8 @@ export type Action =
   | { type: 'assign'; npcId: Id; assignment?: Assignment }   // a 'lieutenant' assignment promotes them to run a district (1 AP)
   | { type: 'audit'; npcId: Id }                          // 1 AP: go over a lieutenant's books
   | { type: 'bribe_official'; npcId: Id; amount: number } // cash
+  // An offshore account moves *your* money at a rate you have to agree to, so it has a switch.
+  | { type: 'set_offshore'; npcId: Id; on: boolean }
   // --- businesses ---
   | { type: 'shakedown'; businessId: Id; approach?: string } // 1 AP: demand protection money now
   | { type: 'protect'; businessId: Id; rate: number }     // 1 AP: install a protection racket
@@ -125,7 +127,8 @@ export type CheatKind =
   | 'ratted'       // you have been inside everybody, which is what wire fraud needs
   | 'agendas'      // everybody nearby wants something, and you know what — which is what the agenda moves need
   | 'nemesis'      // a lieutenant of each faction has been getting the better of you for weeks
-  | 'crews';       // a street crew on a corner near you, which plenty of generated cities have none of
+  | 'crews'        // a street crew on a corner near you, which plenty of generated cities have none of
+  | 'street';      // the city has decided what to call you, which is what the reputation opener reads
 
 export type SitDownOffer =
   | { kind: 'truce'; days: number }

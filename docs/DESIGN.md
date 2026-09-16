@@ -1455,6 +1455,31 @@ was any way for holding ground to *spread*. So:
 
 Measured across six seeds, honest bot, 60 days: **city control 9.3% → 19.3%**, up on every seed.
 
+**How hard spill bleeds** (corrected after a play report: *"once you buy a safehouse the leak of
+influence onto other blocks is really harsh — you take over the surrounding blocks really quick
+without ever having talked to someone or making someone protected"*). The report was right, and
+measuring said why. Spill was `0.45 × (depth − spillFromDepth + 1)` of the day's gain **per
+neighbour**, while `accrualMult` already scales with depth — so spill scaled with depth twice over
+and a block at the cap handed *each* neighbour 1.35× what it earned itself. A block with an owned
+business, one racket and a safehouse put all three of its neighbours past the control threshold by
+day 10, from zero, with the player never having gone there. Three things changed:
+
+- **A share, not a multiple.** `TERRITORY.spillShare` is flat (0.5). Depth is already in the gain.
+- **A ceiling on what bleed alone can do.** `TERRITORY.spillCap` (45) caps what *spill* can build
+  on a block; influence the block earns for itself is untouched. It sits above `controlAt` (30) on
+  purpose — some blocks carry no business anybody could protect, and bleed is their only route into
+  an empire — but below what an outfit actually holding a block would have, so taking ground off
+  somebody still means turning up.
+- **A safehouse is a rented door.** `TERRITORY.safehousePerDay` is 1, down from a hard-coded 2 in
+  the tick, which was *more* than a protection racket's 1.5. It still counts toward depth, so it can
+  tip a block over `spillFromDepth`; it just no longer pays the largest daily gain of any single
+  asset for existing.
+
+Measured on the same block, same seed: the ring that used to be past control on day 10 and pinned
+at 98 now crosses control around day 27 and settles at 43 — the equilibrium of bleed against the
+−2/day decay an asset-less block carries, so a ring taken purely by bleed drains away if the
+stronghold falls. A safehouse on a block with nothing else on it (depth 1) leaks nothing at all.
+
 ### 4.15b Beating somebody, and the husk that used to be left behind
 
 An outfit crushed to nothing used to simply stand there. The only death was **bleeding out**
@@ -1802,6 +1827,15 @@ looks it up, and adding an institution is a row in a table rather than a branch.
   ceiling of 0.70) — and every pound of it is written down. `intel.paper` grows with days and with
   volume, and past `OFFSHORE.filesAt` it opens a real `fraud` case file on you and closes the
   arrangement. The rate is not the trade; the receipt is.
+
+  **It is off until the player switches it on** (`intel.on`), and it is the only intel kind that
+  needs permission. Every other one pays *into* the purse and can be left to run; this one converts
+  what is already in it, at a rate the player has to agree to. Reported from play as *"my cash is
+  getting auto washed in entirety at the end of each day even without a laundering racket"* — and
+  it was: a `rat` on an accountant opened the arrangement, and from that day it took everything at
+  0.72 with no switch, no panel, and a log line one day in seven. Absent means off, which is also
+  the right reading for a save where one has been running unasked. An idle account still accrues
+  paper and still surfaces, so the trail is not a reward for using it.
 - **A trade lane**, out of an import firm: the depot route's shape pointed at a list of jobs
   rather than one. `TRADE.helps` is content, so which ops a lane is worth something on is a data
   question and not a condition buried in `opChance`.

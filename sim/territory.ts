@@ -135,14 +135,30 @@ export function applyDailyInfluence(w: World, blockId: Id, base: number) {
  * have something on and stops, which is exactly where this game's territory numbers had sat
  * since the first soak. Spill is a fraction of the day's gain, so it costs nothing extra and
  * simply means a stronghold grows a neighbourhood rather than a corner.
+ *
+ * Two things keep that sentence true, both added after it turned out not to be:
+ *
+ * 1. **A share, not a multiple.** The old rate scaled with depth on top of `accrualMult`, which
+ *    already does, so a deep block gave each neighbour more than it earned itself. Measured, a
+ *    business plus one racket plus a safehouse flipped all three neighbours past control by day
+ *    ten with the player never having gone there. `spillShare` is flat now.
+ * 2. **A ceiling on what bleed alone can do.** Spill stops at `spillCap` — above `controlAt`, so
+ *    it still takes empty ground (blocks with no protectable business have no other way in), but
+ *    below what an outfit holding the block would have, so taking it off somebody still means
+ *    turning up. Influence the block earns for itself is not capped; only what bleeds in is.
  */
 export function spillToNeighbours(w: World, blockId: Id, base: number) {
   const b = w.blocks[blockId]; if (!b) return;
   if (controllerOf(b) !== PLAYER) return;                       // you have to actually hold it
   const depth = Math.min(TERRITORY.depthCap, blockDepth(w, blockId));
   if (depth < TERRITORY.spillFromDepth) return;
-  const each = base * TERRITORY.spillPerDepth * (depth - TERRITORY.spillFromDepth + 1);
-  for (const nb of b.neighborIds) if (w.blocks[nb]) addInfluence(w, nb, PLAYER, each);
+  const each = base * TERRITORY.spillShare;
+  for (const nb of b.neighborIds) {
+    const nbBlock = w.blocks[nb]; if (!nbBlock) continue;
+    const room = TERRITORY.spillCap - (nbBlock.influence[PLAYER] ?? 0);
+    if (room <= 0) continue;
+    addInfluence(w, nb, PLAYER, Math.min(each, room));
+  }
 }
 
 /**

@@ -204,3 +204,93 @@ describe('end to end, through the real tick', () => {
     expect(select.controlShare(w)).toBeGreaterThan(0);
   });
 });
+
+/**
+ * How hard it bleeds, and what bleed alone is allowed to do.
+ *
+ * Reported from play: "once you buy a safehouse the leak of influence onto other blocks is really
+ * harsh — you take over the surrounding blocks really quick without ever having talked to someone
+ * or making someone protected." Measured, that was exactly right. Spill was `0.45 * (depth -
+ * spillFromDepth + 1)` of the day's gain *per neighbour*, while `accrualMult` already scaled with
+ * depth — so spill scaled with depth twice over and a block at the cap handed each of its
+ * neighbours 1.35× what it earned itself. A business, one racket and a safehouse put all three
+ * neighbours past control by day 10 from nothing.
+ *
+ * The other half of the report is the constraint on the fix: *some blocks have no business anybody
+ * could protect*, and bleed is the only way in to those. So it is slowed and capped, not removed.
+ */
+describe('spill is a share of the day, not a multiple of it', () => {
+  const hold = (w: World, id: string) => { w.blocks[id].influence = { [PLAYER]: 60 }; updateTenure(w); };
+
+  it('gives each neighbour a fraction of the gain, and the same fraction at every depth', () => {
+    const shallow = mk(); const shallowId = stack(shallow, TERRITORY.spillFromDepth); hold(shallow, shallowId);
+    const deep = mk(); const deepId = stack(deep, TERRITORY.depthCap); hold(deep, deepId);
+    spillToNeighbours(shallow, shallowId, 10);
+    spillToNeighbours(deep, deepId, 10);
+    const one = shallow.blocks[shallow.blocks[shallowId].neighborIds.filter(x => shallow.blocks[x])[0]].influence[PLAYER]!;
+    const four = deep.blocks[deep.blocks[deepId].neighborIds.filter(x => deep.blocks[x])[0]].influence[PLAYER]!;
+    expect(one).toBeCloseTo(10 * TERRITORY.spillShare, 6);
+    expect(four, 'depth already scales the day\'s gain; scaling spill by it as well is what ran away').toBeCloseTo(one, 6);
+    expect(one, 'a neighbour must never get more than the block that fed it').toBeLessThan(10);
+  });
+
+  it('stops at the cap, however long the stronghold runs', () => {
+    const w = mk(); const id = stack(w, TERRITORY.depthCap); hold(w, id);
+    const nbs = w.blocks[id].neighborIds.filter(x => w.blocks[x]);
+    for (let d = 0; d < 200; d++) spillToNeighbours(w, id, 10);
+    for (const nb of nbs) expect(w.blocks[nb].influence[PLAYER] ?? 0).toBeCloseTo(TERRITORY.spillCap, 6);
+  });
+
+  it('so bleed takes empty ground but cannot take a block off somebody holding it', () => {
+    const w = mk(); const id = stack(w, TERRITORY.depthCap); hold(w, id);
+    const nbs = w.blocks[id].neighborIds.filter(x => w.blocks[x]);
+    const rival = Object.values(w.factions)[0].id;
+    w.blocks[nbs[0]].influence = { [rival]: TERRITORY.spillCap + 10 };   // somebody actually runs this one
+    for (let d = 0; d < 200; d++) spillToNeighbours(w, id, 10);
+    expect(select.blockController(w, nbs[0]), 'you have to turn up to take it off them').toBe(rival);
+    expect(select.blockController(w, nbs[1]), 'empty ground still comes with the stronghold').toBe(PLAYER);
+  });
+
+  it('caps what bleeds in, not what a block earns for itself', () => {
+    const w = mk(); const id = stack(w, TERRITORY.depthCap); hold(w, id);
+    for (let d = 0; d < 200; d++) applyDailyInfluence(w, id, 10);
+    expect(w.blocks[id].influence[PLAYER]).toBeGreaterThan(TERRITORY.spillCap);
+  });
+});
+
+describe('a safehouse is a rented door, not a street', () => {
+  it('pays less influence a day than a protection racket, which the whole street knows about', () => {
+    expect(TERRITORY.safehousePerDay).toBeLessThan(1.5);
+  });
+
+  it('one on its own does not spread: it is depth, not a stronghold', () => {
+    let w = mk();
+    const target = Object.values(w.blocks).find(b => b.neighborIds.filter(x => w.blocks[x]).length >= 3)!;
+    const nbs = target.neighborIds.filter(x => w.blocks[x]);
+    w.player.currentBlockId = target.id;
+    w = dispatch(w, { type: 'rent_safehouse', blockId: target.id });
+    expect(blockDepth(w, target.id)).toBe(1);
+    w = days(w, 45);
+    expect(select.blockController(w, target.id), 'the block itself is yours').toBe(PLAYER);
+    for (const nb of nbs) expect(w.blocks[nb].influence[PLAYER] ?? 0, 'but nothing leaks off it').toBe(0);
+  });
+});
+
+describe('the blocks with nothing to protect', () => {
+  /**
+   * Some blocks carry no business at all, so there is no door to buy and nobody to protect. Bleed
+   * from an adjacent stronghold is their only route into an empire, which is why spill is capped
+   * rather than switched off. Seed 1 has three of them; seed 5 has none, so this test picks its
+   * own world.
+   */
+  it('are still reachable, because bleed is the only way in to them', () => {
+    let w = mk(1);
+    const stronghold = Object.values(w.blocks).find(b => b.businessIds.length > 0 && b.neighborIds.some(x => w.blocks[x] && w.blocks[x].businessIds.length === 0))!;
+    expect(stronghold, 'seed 1 should still have a block with a business-less neighbour').toBeTruthy();
+    const bare = stronghold.neighborIds.map(x => w.blocks[x]).filter(b => b && b.businessIds.length === 0);
+    const biz = own(w, w.businesses[stronghold.businessIds[0]]);
+    for (const k of ['numbers', 'bookmaking', 'gambling_den'] as const) mkRacket(w, k, biz);
+    w = days(w, 40);
+    for (const b of bare) expect(select.blockController(w, b.id), `${b.name} has nothing to protect; bleed has to be able to take it`).toBe(PLAYER);
+  });
+});

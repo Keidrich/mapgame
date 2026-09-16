@@ -243,7 +243,21 @@ describe('coverage', () => {
       // sharing one costs nothing and this file is long enough already — it had grown slow enough
       // to trip vitest's worker RPC timeout, which failed the gate with every test passing.
       'a rival who grows': { scenario: 'fortune', days: 60, seed: 7 },
-      'succession': { scenario: 'legacy', days: 32 },
+      /**
+       * Seed 7, not the file's default 5.
+       *
+       * Whether a nemesis gets *through* is a roll against `personalCover`, and the bot answers
+       * what comes to the door on best odds and often wins — so this row has always been decided
+       * by the rng stream rather than by run length. It is genuinely insensitive to days: at seed 5
+       * it is still zero at **sixty**. What moves it is any change that shifts the stream, and
+       * `dispatch` advances `w.rng` on every action, so one extra bot step anywhere reshuffles it.
+       * It reached succession at seed 5 until the wire fixes added a `set_offshore` call.
+       *
+       * **Do not answer a failure here by raising the days.** Check that anybody is becoming a
+       * nemesis and coming for the player at all — `a nemesis` and `they come for you` going dark
+       * alongside this means the arc broke; this row alone moving means the stream did.
+       */
+      'succession': { scenario: 'legacy', days: 32, seed: 7 },
       // Also this run, deliberately, for the same cached-soak reason as the two rows above: a
       // nemesis has to reach `NEMESIS.known` before there is one to talk to, and `fortune` at
       // seed 7 has made one by day 60. If this ever fails, check whether anybody is becoming a

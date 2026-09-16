@@ -30,6 +30,11 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
     body: 'Your own washing machine, installed on a business you protect or own: 85 cents on the dollar, up to a daily capacity that grows with the racket level, the runner and the takings of the place it sits in.',
     note: 'It costs clean cash to set up. Until you have that, a fixer is the way through — worse rate, smaller window.',
   },
+  offshore: {
+    title: 'Accounts somewhere else',
+    body: 'A standing arrangement inside an accountant\'s office. It washes far more a day than anything you could build, at 72 cents on the dollar, and every pound of it is written down.',
+    note: 'It does nothing until you switch it on, and it is the only arrangement that needs your say-so: the others pay into your purse, this one moves what is already in it. Watch the paper trail — it grows with days and with volume, and when it fills somebody opens a fraud file on you and the arrangement closes.',
+  },
   fixer: {
     title: 'Fixer',
     body: 'Somebody who washes money for a cut, with no racket and nothing to set up. They pay 55 to 70 cents on the dollar and will only handle a few hundred a day, both improving as they come to trust you.',
@@ -507,7 +512,7 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
   blockDepth: {
     title: 'Depth on a block',
     body: 'Influence builds faster on a block where you run several things than on one where you run one — each operation past the first adds half again, up to four. Holding a block for a while adds more on top.',
-    note: 'A block you hold with real depth also bleeds influence into the streets around it. That is how territory actually grows: outward from somewhere you are strong, not one door at a time.',
+    note: 'A block you hold with real depth also bleeds a share of its day into the streets around it — that is how territory grows, outward from somewhere you are strong rather than one door at a time. Bleed alone tops out short of what an outfit holding a block would have: it will take empty ground, but to take a block off somebody you have to go there.',
   },
   dirtyRacket: {
     title: 'Dirty or clean',

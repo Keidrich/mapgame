@@ -260,7 +260,16 @@ export interface Npc {
   hint?: string;              // the coarse read you get from casing the place: a feel, not a file
   tap?: { since: number };    // you are listening to this one; risk compounds daily (sim/cyber.ts)
   ratted?: number;            // the day you last got inside their business; wire fraud needs this
-  intel?: { kind: IntelKind; since: number; businessId: Id; paper?: number };  // a standing arrangement inside an institution; `paper` is the offshore trail
+  /**
+   * A standing arrangement inside an institution. `paper` is the offshore trail.
+   *
+   * `on` is the player's switch, and it exists because an offshore account **moves the player's
+   * own money**: absent or false means the arrangement is open and idle, and nothing is laundered
+   * until the player turns it on. Every other intel kind pays *into* the purse and needs no
+   * permission; this one converts what is already in it at a rate the player has to agree to.
+   * Absent-means-off is also what an old save wants, where one has been running unasked.
+   */
+  intel?: { kind: IntelKind; since: number; businessId: Id; paper?: number; on?: boolean };
   recipe?: string;            // a specialist: recruiting them unlocks this RECIPES id
   hostage?: { safehouseId: Id; since: number }; // held by you: alive, but out of their own life
   fixer?: { day: number; amount: number; cap: number }; // role 'fixer': today's window, and what is left of it

@@ -196,7 +196,11 @@ export const SCENARIOS: Record<ScenarioName, Scenario> = {
     // Deliberately no crew in the top-up: every extra body is three more points of
     // `personalCover`, and a run that kept replacing them survived sixty days of somebody coming
     // for it twelve times. Three is enough for an heir and not enough to hide behind.
-    topUp: { every: 5, cheats: [{ what: 'nemesis' }, { what: 'war', amount: 2 }] },
+    // Every three days, not five. The bot answers what comes to the door on best odds and often
+    // wins, so "somebody came for you" is not the same as "somebody got through" — at five days
+    // this run reached a succession on about half of its seeds, which is a coin toss standing in
+    // for the one thing the scenario is named after. More knocks, same door.
+    topUp: { every: 3, cheats: [{ what: 'nemesis' }, { what: 'war', amount: 2 }] },
   },
   everything: {
     label: 'everything', opsPerDay: 3, crewCap: 12, sinksAt: 300000,
@@ -216,6 +220,12 @@ export const SCENARIOS: Record<ScenarioName, Scenario> = {
       // payroll or staking one can be reached however long the run is
       { what: 'crews', amount: 2 },
       { what: 'stash' },
+      // A name the street gave you. Reputation is the one prerequisite with no other way in: the
+      // opener needs `player.street`, which needs fear or respect past 55, and a sixteen-day run
+      // only got there when a war happened to run its fear to 99. That made the row a coin toss on
+      // the rng stream rather than a statement about the bot — it went dark the moment a territory
+      // balance change reshuffled the stream without touching reputation at all.
+      { what: 'street' },
     ],
     topUp: {
       every: 7,

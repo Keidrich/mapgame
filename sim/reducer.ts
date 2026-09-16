@@ -12,8 +12,9 @@ import { agendaCost, agendaReason, resolveAgenda } from './agendas';
 import { resolveTalk, startConversation } from './conversation';
 import { raiseKin } from './kin';
 import { oweThem, remember } from './ledger';
-import { openIntel } from './intel';
-import { scoreMeeting } from './nemesis';
+import { offshoreCapacity, openIntel } from './intel';
+import { OFFSHORE } from '@content/intel';
+import { giveStreetName, scoreMeeting } from './nemesis';
 import { assetReason, introduce, referralReason, turnAsset, type AssetKind } from './informants';
 import { DEFECT } from '@content/nemesis';
 import { REFERRAL } from '@content/informants';
@@ -291,6 +292,13 @@ function gate(w: World, a: Action): Affordance {
       return yes();
     }
     case 'set_supply': { const r = w.rackets[a.racketId]; if (r?.owner !== PLAYER) return no('Not your racket.'); return yes(); }
+    case 'set_offshore': {
+      const n = npc(a.npcId);
+      if (n?.intel?.kind !== 'offshore') return no('You have no account through them.');
+      if (!n.alive) return no('They are gone.');
+      if (!!n.intel.on === a.on) return no(a.on ? 'It is already running.' : 'It is already stopped.');
+      return yes();                              // free: switching your own money on and off is not a job
+    }
     case 'audit': { const n = npc(a.npcId); if (!n?.crew) return no('Not your crew.'); if (n.crew.assignment?.kind !== 'lieutenant') return no('Only lieutenants keep a book.'); const r = ap(1); return r ? no(r) : yes({ ap: 1 }); }
     case 'bribe_official': { const n = npc(a.npcId); if (!n?.official) return no('Not an official.'); if (a.amount < 500) return no('Officials do not get out of bed for less than $500.'); const r = cash(a.amount); return r ? no(r) : yes({ cash: a.amount }); }
 
@@ -769,6 +777,15 @@ function apply(w: World, a: Action, rng: Rng, done: () => void, bonus = 0): Worl
       break;
     }
     case 'set_supply': { const r = w.rackets[a.racketId]; r.supply = a.rule; log(w, `${RACKET_DEFS[r.kind].label} now draws stock: ${SUPPLY_LABELS[a.rule].label.toLowerCase()}.`, 'info', { racketId: r.id }); break; }
+    case 'set_offshore': {
+      const n = npc(a.npcId); const it = n.intel!;
+      it.on = a.on;
+      const where = w.businesses[it.businessId]?.name ?? 'the office';
+      log(w, a.on
+        ? `Money starts moving through ${where}. Up to ${money(offshoreCapacity(w, n))} of it a day, and ${Math.round((1 - OFFSHORE.rate) * 100)}% of everything that goes stays with somebody else.`
+        : `You stop the money going through ${where}. The account is still there.`, a.on ? 'money' : 'info', { npcId: n.id });
+      break;
+    }
     case 'audit': {
       const n = npc(a.npcId); const c = n.crew!; const d = c.assignment?.kind === 'lieutenant' ? w.districts[c.assignment.districtId] : undefined;
       const sharp = p.skills.brains * 8 + rng.int(0, 40) > 35;
@@ -1420,6 +1437,22 @@ function cheat(w: World, what: CheatKind, amount?: number, rng?: import('./rng')
         done++;
       }
       log(w, `[admin] ${done} lieutenant${done === 1 ? '' : 's'} have been getting the better of you for weeks.`, 'warn');
+      break;
+    }
+    case 'street': {
+      /**
+       * The city has decided what to call you. Reputation is the one prerequisite with no other
+       * admin entry, and without it the reputation opener is only reachable when a run's fear
+       * happens to cross 55 on its own — a coverage row riding on the rng stream rather than on
+       * anything about the bot.
+       *
+       * It hands over the name and nothing else *on purpose*. The first draft added 60 fear
+       * instead, and a player everybody is already terrified of never has to go back to anybody:
+       * the bot spent its whole day on strangers and the history opener went to zero on all six
+       * seeds. A cheat that sets up one system must not quietly rewrite the run around it.
+       */
+      if (!p.street) giveStreetName(w);
+      log(w, `[admin] They call you ${p.street}.`, 'warn');
       break;
     }
     case 'agendas': {

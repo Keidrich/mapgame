@@ -47,6 +47,20 @@ export function resolveOp(w: World, o: Op, rng: Rng) {
   const target = o.targetBusinessId ? w.businesses[o.targetBusinessId] : undefined;
   const blockId = target?.blockId ?? o.targetBlockId ?? (o.targetNpcId ? w.npcs[o.targetNpcId].homeBlockId : undefined);
   const res = { success, cash: 0, loot: {} as Partial<Record<string, number>>, heat: 0, text: '' };
+  /**
+   * The bar before the job's own body runs, so heat the body applies **directly** can be counted.
+   *
+   * `res.heat` is the job's rating and the line below turns it into what landed. That was the whole
+   * of the story until the wire lane: `cyberHeat()` calls `addHeat` itself, from inside these case
+   * bodies, so every wire op put heat on the bar that the result card never knew about. Measured
+   * across the roster: `wire_fraud` printed **+11 and moved the bar 19.8**, `digital_strike` +4
+   * against 11.0, `crypto_wash` +6 against 11.0. The card was under-reporting by about half on the
+   * one lane whose whole cost *is* heat.
+   *
+   * Reading the bar rather than threading a return value through `cyberHeat` is deliberate: it
+   * catches anything a case body does to heat, including whatever the next one does.
+   */
+  const heatBefore = w.player.heat;
   // name which part went, so a half-worked set-piece reads as one rather than as a low number
   const hiredLines = hired.lines;
   const margin = chance - roll; // positive = clean success
@@ -465,7 +479,9 @@ export function resolveOp(w: World, o: Op, rng: Rng) {
         // paper rather than cash in a bag: it comes out clean, and a name that is not yours takes
         // a little of the city's attention off the one that is
         p.cash += value; res.cash = value;
-        p.heat = clamp(p.heat - 4); res.heat = Math.max(0, res.heat - 2);
+        // The reduction is real and the resolver now reports whatever the bar actually did, so
+        // this no longer guesses at its own number.
+        p.heat = clamp(p.heat - 4);
         res.text = `A name with a history, a rating and a signature, and nobody behind it. ${money(value)} clean, and a little less attention on your own name.`;
         break;
       }
@@ -625,7 +641,12 @@ export function resolveOp(w: World, o: Op, rng: Rng) {
   // `res.heat` up to this point has been the *request*; every multiplier in `addHeat` sits
   // between that and the player's bar. Overwrite it with what actually landed before the result
   // is stored, so the card on the ops tab, the log line and any later reader all say one number.
-  res.heat = Math.round(addHeat(w, res.heat, blockId));
+  // Plus whatever the body already put there itself — see `heatBefore`.
+  // Signed, not clamped: a job that takes attention *off* you (`synth_identity` drops the bar by
+  // four, and a frame moves it onto somebody else) should say so rather than printing a cheerful
+  // "+2" while the bar falls. What the card reports is what the bar did, in either direction.
+  const direct = w.player.heat - heatBefore;
+  res.heat = Math.round(addHeat(w, res.heat, blockId) + direct);
   o.status = success ? 'done' : 'failed'; o.result = res;
   freeOpCrew(w, o);
   w.player.opIds = w.player.opIds.filter(id => id !== o.id);

@@ -50,6 +50,7 @@ export { defectReason } from './defect';
 export { daysKnown, familiar, familiarReason, favours, leverageOver, concessionReason, trustCeiling, fearCeiling, recruitRoleReason, RECRUITABLE_ROLES } from './standing';
 // the personal history screen, and what a conversation can do with it
 export { dossier, ledgerOf, owedToThem, LEDGER_MAX } from './ledger';
+
 // the opening line's history clause — read-only, and the soak asks it whether the branch was reached
 export { ledgerCallback } from './scenes';
 // the social layer as a picture: layout only, computed from data that already exists
@@ -424,6 +425,10 @@ export {
 export {
   bestRecipeFor, foremanOf, supplyRule, supplyReading, SUPPLY_LABELS, moveProduct,
 } from './automation';
+// Standing arrangements. All of this was already exported and `intelReading` has said "for the NPC
+// sheet and the ops planner" in its own doc comment since it was written — read by neither, which
+// is how an offshore account ran unseen, unpriced and unstoppable for weeks. `IntelPanel` in
+// `ui/components/NpcSheet.tsx` is the door.
 export {
   intelCandidates, intelSourceFor, intelReading, skimmers, routeHolders, routeFor, anyRoute,
   routeDiscount, skimTake, skimRisk, daysRunning as intelDays,

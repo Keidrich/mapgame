@@ -911,7 +911,13 @@ h1, h2, h3, h4, .sheet-title, .panel h2, .modal h2 {
   content: ''; position: absolute; left: 50%; bottom: 5px; width: 18px; height: 2px; margin-left: -9px; background: var(--gold);
 }
 .subnav-tab:focus-visible { outline: 2px solid var(--gold); outline-offset: -2px; }
-@media (max-width: 360px) { .subnav-tab { font-size: 11px; gap: 4px; } }
+/* Five views do not fit five icons and five words on a phone: "Money" and "Holdings" came back
+   from the first build as "Mo…" and "Hol…". The label is the thing that has to survive, so the
+   icon is what goes — it was decoration next to a word that already says it. */
+@media (max-width: 430px) {
+  .subnav-tab { font-size: 11px; gap: 0; letter-spacing: 0; }
+  .subnav-tab > svg { display: none; }
+}
 
 /**
  * The reason you opened the sheet, given the weight of one.

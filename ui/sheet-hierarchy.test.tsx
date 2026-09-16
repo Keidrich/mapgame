@@ -69,6 +69,33 @@ describe('NpcSheet puts the decision first', () => {
     expect(html).toContain('quiet-captions');
   });
 
+  it('shows what somebody is like without being asked', () => {
+    /**
+     * Reported by a player the hour after the disclosure pass shipped: *"I also no longer see
+     * character traits of people?"* They were right, and it was a straight misapplication of this
+     * sheet's own rule. A `coward` folds to a lean, a `loyal` cannot be leaned on at all, a
+     * `hothead` fights — traits are the single biggest thing deciding which of the buttons above is
+     * the right one, so they were never reference and never belonged behind the fold.
+     */
+    const w = mk(); const n = hire(w);
+    n.known = true; n.traits = ['coward', 'greedy'];
+    const html = npc(w, n);
+    const fold = html.indexOf('What you know about them');
+    for (const trait of ['Coward', 'Greedy']) {
+      const at = html.indexOf(trait);
+      expect(at, `${trait} is not on the sheet at all`).toBeGreaterThan(-1);
+      expect(at, `${trait} is behind the fold`).toBeLessThan(fold);
+    }
+  });
+
+  it('says so plainly when the player has not sized somebody up', () => {
+    const w = mk();
+    const stranger = Object.values(w.npcs).find(x => x.alive && !x.crew && !x.official)!;
+    stranger.known = false; stranger.rel = { ...stranger.rel, trust: 0 }; stranger.hint = undefined;
+    const html = npc(w, stranger);
+    expect(html.indexOf('Traits unknown')).toBeLessThan(html.indexOf('What you know about them'));
+  });
+
   it('still offers every door it offered before — quieter is not narrower', () => {
     const w = mk();
     const stranger = Object.values(w.npcs).find(x => x.alive && !x.crew && !x.official)!;

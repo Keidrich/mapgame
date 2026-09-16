@@ -785,6 +785,14 @@ export function tallyProduction(c: Ctx) {
     const k = n.intel?.kind; if (!k || seenIntel.has(n.id)) continue;
     seenIntel.add(n.id); bump(c.cov, COUNTER[k]); bump(c.cov, 'intel_ratted');
   }
+  // An offshore account is idle until somebody turns it on — it used to launder the moment it
+  // existed, which was the bug. A player with dirty money and an account switches it on, so the
+  // bot does too, or the whole lane and its paper trail go dark in the sweep.
+  for (const n of Object.values(c.w.npcs)) {
+    if (n.intel?.kind === 'offshore' && !n.intel.on && n.alive && c.w.player.dirty > 1000) {
+      tryAct(c, { type: 'set_offshore', npcId: n.id, on: true });
+    }
+  }
   for (const f of c.w.cases ?? []) if (f.kind === 'fraud' && !seenCases.has(f.id)) { seenCases.add(f.id); bump(c.cov, 'offshore_filed'); }
   for (const sid of c.w.player.safehouseIds) {
     for (const pid of c.w.safehouses[sid]?.productionIds ?? []) {

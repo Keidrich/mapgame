@@ -49,8 +49,9 @@ function hire(w: World): Npc {
  * being organised and starts being hidden, which is the sentence this whole pass was given.
  */
 const BUDGET: { screen: string; taps: number; route: string }[] = [
-  { screen: 'News ticker', taps: 2, route: 'Empire tab → "The city" view' },
-  { screen: 'Trophy screen', taps: 2, route: 'Empire tab → "The city" view' },
+  { screen: 'News ticker', taps: 2, route: 'Empire tab → "City" view' },
+  { screen: 'Trophy screen', taps: 2, route: 'Empire tab → "City" view' },
+  { screen: 'The wire', taps: 2, route: 'Empire tab → "Wire" view' },
   { screen: 'Relationship map', taps: 2, route: 'Social tab → Web mode' },
   { screen: 'Character sheet', taps: 3, route: 'Crew tab → a person → the fold' },
   { screen: 'Ledger', taps: 3, route: 'Crew tab → a person → the fold' },
@@ -94,6 +95,18 @@ describe('two taps: the Empire hub', () => {
     const money = plain(renderToString(<EmpireTab view="money" />));
     for (const v of EMPIRE_VIEWS) expect(money, v.label).toContain(v.label);
     expect(money).toContain('aria-label="Empire sections"');
+  });
+
+  it('gives the wire its own view, because a lane is not a detail of the money screen', () => {
+    // Reported broken within the hour of the hub shipping — not because it failed to render, but
+    // because it went in with Money and a player who plays the wire opens this tab *for the wire*.
+    // There was nothing named for them to aim at.
+    newGame(mk());
+    expect(EMPIRE_VIEWS.map(v => v.id)).toContain('wire');
+    const wire = plain(renderToString(<EmpireTab view="wire" />));
+    // …and it says something on a save with no cards, rather than rendering an empty screen, which
+    // is the other way a player concludes a tab is broken.
+    expect(wire).toMatch(/Nothing on the wire|The wire/);
   });
 
   it('splits the tab rather than hiding any of it: every section still has a home', () => {

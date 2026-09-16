@@ -28,6 +28,7 @@ const CHEATS: { what: CheatKind; label: string; icon: string }[] = [
   { what: 'cards', label: 'Cards, a secret and wire heat', icon: 'carding' },
   { what: 'ratted', label: 'You have been inside everybody', icon: 'rat' },
   { what: 'crews', label: 'Street crews on the corners near you', icon: 'takeover' },
+  { what: 'street', label: 'The city gives you a street name', icon: 'fear' },
 ];
 
 /** One-screen "how to play" (the README's first five minutes), opened from the ? in the HUD. */

@@ -139,7 +139,17 @@ export function laneDiscount(w: World, kind: string): number {
 }
 
 // ---------------------------------------------------------------- the daily pass
-export function tickIntel(w: World, rng: Rng) {
+/**
+ * What one day of every standing arrangement paid, so the day summary can report it.
+ *
+ * It returned nothing before, and the money it moved was invisible to `summary` — a day on which
+ * an offshore account converted $3,320 still printed "Took in $0 clean, $0 dirty". Same class as
+ * the heat bug: the line reporting the day was not reporting the day.
+ */
+export interface IntelDay { clean: number; dirty: number }
+
+export function tickIntel(w: World, rng: Rng): IntelDay {
+  const day: IntelDay = { clean: 0, dirty: 0 };
   for (const n of Object.values(w.npcs)) {
     const it = n.intel; if (!it || !n.alive) continue;
     const def = INTEL[it.kind];
@@ -148,7 +158,7 @@ export function tickIntel(w: World, rng: Rng) {
     if (it.kind === 'skim') {
       if (rng.chance(skimRisk(w, n))) { endIntel(w, n, true); continue; }
       const take = skimTake(w, n);
-      if (take > 0) { w.player.dirty += take; cyberHeat(w, SKIM.heat, n.homeBlockId); }
+      if (take > 0) { w.player.dirty += take; day.dirty += take; cyberHeat(w, SKIM.heat, n.homeBlockId); }
       if (w.day % 7 === 0 && take > 0) log(w, `A week of quiet withdrawals out of ${w.businesses[it.businessId]?.name ?? 'the bank'}: ${money(take * 7)}. Nobody has asked a question yet.`, 'money', { npcId: n.id });
     } else if (it.kind === 'consign') {
       if (rng.chance(consignRisk(w, n))) { endIntel(w, n, true); continue; }
@@ -156,13 +166,14 @@ export function tickIntel(w: World, rng: Rng) {
       if (take > 0) { w.player.stash.hot_goods += take; cyberHeat(w, CONSIGN.heat, n.homeBlockId); }
       if (w.day % 7 === 0 && take > 0) log(w, `Another season's hanging at ${w.businesses[it.businessId]?.name ?? 'the gallery'}, and a few more pieces left with your paperwork on them.`, 'money', { npcId: n.id });
     } else if (it.kind === 'offshore') {
-      tickOffshore(w, n, rng);
+      day.clean += tickOffshore(w, n, rng);
     } else if (it.kind === 'trade') {
       if (rng.chance(TRADE.staleChance)) endIntel(w, n, false);
     } else if (rng.chance(ROUTE.staleChance)) {
       endIntel(w, n, false);
     }
   }
+  return day;
 }
 
 /** For the NPC sheet and the ops planner. */
@@ -190,21 +201,41 @@ export { INTEL, PLAYER, clamp };
  * the same three ways to kill one. It is not a new liability system; it is a new way into the one
  * the game already has.
  */
-export function tickOffshore(w: World, n: Npc, rng: Rng): void {
+export function tickOffshore(w: World, n: Npc, rng: Rng): number {
   const it = n.intel!; const p = w.player;
+  /**
+   * **Nothing moves unless the player switched it on.** This used to launder every day from the
+   * moment a `rat` happened to open it, at 0.72, with no way to stop it and a line in the log one
+   * day in seven — so a player with no laundering racket watched their dirty money convert itself
+   * and, six days out of seven, nothing said why. An arrangement is a thing you *have*; laundering
+   * is a thing you *do*, everywhere else in this game, and this is the one place that was not true.
+   */
+  if (!it.on) {
+    it.paper = (it.paper ?? 0) + OFFSHORE.paperPerDay;   // the account still exists on paper
+    surfaceOffshore(w, n, rng);
+    return 0;
+  }
   const cap = Math.max(0, offshoreCapacity(w, n) - p.launderedToday);
   const amount = Math.min(p.dirty, cap);
+  const clean = Math.round(amount * OFFSHORE.rate);
   if (amount > 0) {
     p.dirty -= amount;
-    p.cash += Math.round(amount * OFFSHORE.rate);
+    p.cash += clean;
     p.launderedToday += amount;
     cyberHeat(w, OFFSHORE.heat, n.homeBlockId);
+    // Every day it happens, not one in seven. Money leaving the player's pocket is never a
+    // weekly-digest event: the day summary counts it too, through the number returned here.
+    log(w, `${money(amount)} went out through ${w.businesses[it.businessId]?.name ?? 'the office'} and ${money(clean)} came back clean. The rest is what it costs.`, 'money', { npcId: n.id });
   }
   it.paper = (it.paper ?? 0) + OFFSHORE.paperPerDay + (amount / 1000) * OFFSHORE.paperPerThousand;
-  if (w.day % 7 === 0 && amount > 0) {
-    log(w, `${money(Math.round(amount * OFFSHORE.rate))} came back clean through ${w.businesses[it.businessId]?.name ?? 'the office'} this week. All of it is written down somewhere.`, 'money', { npcId: n.id });
-  }
-  if (it.paper >= OFFSHORE.filesAt && rng.chance(OFFSHORE.surfaceChance)) {
+  surfaceOffshore(w, n, rng);
+  return clean;
+}
+
+/** The trail catching up with it. Split out so an idle account still accrues and still surfaces. */
+function surfaceOffshore(w: World, n: Npc, rng: Rng): void {
+  const it = n.intel!;
+  if ((it.paper ?? 0) >= OFFSHORE.filesAt && rng.chance(OFFSHORE.surfaceChance)) {
     const biz = w.businesses[it.businessId];
     openCase(w, 'fraud', `${biz?.name ?? 'An accountant'}: the accounts`, { npcId: n.id, businessId: it.businessId, blockId: n.homeBlockId }, [], rng, OFFSHORE.startEvidence);
     log(w, `Somebody has been through ${biz?.name ?? 'the office'}'s filings line by line. There is a file open now, and your money is all over it.`, 'bad', { npcId: n.id, businessId: it.businessId });

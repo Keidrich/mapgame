@@ -160,7 +160,14 @@ function haveARealConversation(c: Ctx) {
   // Somebody who has never dealt with you, once the street has given you a name. The reputation
   // clause fires on a first meeting and nowhere else, so revisiting the same owner can never
   // produce it however many days the sweep runs.
-  if (c.w.player.street) {
+  //
+  // One conversation in four, not every one. This branch used to `return` on any day the player
+  // had a name, which was harmless only because an honest-ish run earns one late: give the run a
+  // name on day 1 (the `street` cheat, added so this row stops riding on whether a war happened)
+  // and the bot never has an ordinary conversation again — `openers that read history` went to
+  // zero on all six seeds, because the history opener needs somebody it has been back to. Same
+  // lesson as the nemesis throttle below, found the same way.
+  if (c.w.player.street && c.w.day % 4 === 0) {
     // Two blocks out rather than one. A stranger is by definition somebody this bot has not been
     // to see, and after a fortnight it has been to see everybody within one hop — so the nearest
     // ring is exactly where strangers are *not*. The row went dark the moment the city changed
