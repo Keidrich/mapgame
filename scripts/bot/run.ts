@@ -38,7 +38,7 @@ export function run(opts: RunOpts): RunResult {
   resetPolicy();
   // Ops need people who are not already running something. A scenario that plans no ops holds
   // nobody back, so the honest day is exactly the shape it always was.
-  const c: Ctx = { w, rng: new Rng(seed * 7 + 1), cov, crewCap: s.crewCap, reserve: (opts.opsPerDay ?? s.opsPerDay) > 0 ? 4 : 0, stillAt: s.stillAt ?? 5000, sinksAt: s.sinksAt ?? Infinity, goingStraight: !!s.goingStraight };
+  const c: Ctx = { w, rng: new Rng(seed * 7 + 1), cov, crewCap: s.crewCap, reserve: (opts.opsPerDay ?? s.opsPerDay) > 0 ? 4 : 0, stillAt: s.stillAt ?? 5000, sinksAt: s.sinksAt ?? Infinity, goingStraight: !!s.goingStraight, reckless: !!s.reckless };
   const startBlockId = select.startBlock(c.w).id;
   const opsPerDay = opts.opsPerDay ?? s.opsPerDay;
 
@@ -161,8 +161,17 @@ function haveARealConversation(c: Ctx) {
   // clause fires on a first meeting and nowhere else, so revisiting the same owner can never
   // produce it however many days the sweep runs.
   if (c.w.player.street) {
-    const shop = near.find(b => { const o = c.w.npcs[b.ownerId]; return o?.alive && (o.rel.contacts ?? 0) === 0 && o.rel.metDay === undefined; });
-    if (shop && goTo(c, shop.blockId) && haveAConversation(c, 'visit', shop.ownerId, shop.id)) return;
+    // Two blocks out rather than one. A stranger is by definition somebody this bot has not been
+    // to see, and after a fortnight it has been to see everybody within one hop — so the nearest
+    // ring is exactly where strangers are *not*. The row went dark the moment the city changed
+    // under it, which is a search too narrow to be reliable rather than a feature that broke.
+    const strangers = Object.values(c.w.blocks)
+      .filter(b => select.distanceFromStart(c.w, b.id) <= 2)
+      .flatMap(b => select.businessesIn(c.w, b.id))
+      .filter(b => { const o = c.w.npcs[b.ownerId]; return o?.alive && (o.rel.contacts ?? 0) === 0 && o.rel.metDay === undefined; });
+    for (const shop of strangers.slice(0, 3)) {
+      if (goTo(c, shop.blockId) && haveAConversation(c, 'visit', shop.ownerId, shop.id)) return;
+    }
   }
   // …and the lieutenant who keeps turning up. The bot only ever talked to owners and patrons, so
   // the whole recurring-antagonist pool was unreachable by the one thing that reads it.

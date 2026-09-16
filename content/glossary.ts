@@ -557,8 +557,13 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
   },
   specialist: {
     title: 'Hired for one job',
-    body: 'Somebody who does one thing — a safecracker, a wheelman, somebody who works there. One fee, up front, and they are not on the payroll afterwards.',
-    note: 'They are not reliable. A cheap one is cheap because they are a coin toss; what you see in the planner is what they are worth on average, and the night rolls each of them.',
+    body: 'Somebody who does one thing — a safecracker, a wheelman, a forger, a man who puts a hole in a wall. One fee, up front, and they are not on the payroll afterwards. A job only has the parts it has: a stick-up has no safecracker-shaped hole in it.',
+    note: 'They are not reliable. A cheap one is cheap because they are a coin toss; what you see in the planner is what they are worth on average, and the night rolls each of them. A lookout is the cheapest seat there is, and the one you can afford first.',
+  },
+  landmarkExtra: {
+    title: 'Why else to come here',
+    body: 'Every one of the five places there is only one of is worth knowing for two things: the job that exists only here, and one other. Three of them have somebody who is always here and nowhere else. Two of them sell one thing that is on no other shelf in the city.',
+    note: 'The people are worth the walk for a reason, not for flavour — each of them is the best in the city at the part of a job their building is about.',
   },
   loved: {
     title: 'Somebody outside it',

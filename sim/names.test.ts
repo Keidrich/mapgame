@@ -3,12 +3,20 @@ import { generateWorld } from './generate';
 import { mkNpc } from './populate';
 import { Rng } from './rng';
 import { NAME_GROUPS, NAME_GROUP_IDS, STYLE_LAST, groupsOfFirstName, groupsOfLastName, namesAgree } from '@content/names';
+import { LANDMARKS } from '@content/landmarks';
 import type { World } from './types';
 
 const mk = (seed = 5) => generateWorld({ origin: { lat: 51.5, lng: -0.12 }, placeName: 'London', playerName: 'T', background: 'muscle', seed });
 
-/** The people ordinary naming applies to: no faction house style, no official's title. */
-const ordinary = (w: World) => Object.values(w.npcs).filter(n => !n.official && (n.role === 'owner' || n.role === 'patron'));
+/**
+ * The people ordinary naming applies to: no faction house style, no official's title — and not
+ * the five landmark characters, who are **written** rather than generated. Solomon "Sunday" Reyes
+ * is a Spanish surname on a Hebrew first name on purpose; a city has people like that in it and a
+ * generator that only ever pairs within a pool cannot produce one. Read off `LANDMARKS` rather
+ * than listed here, so renaming one of them in content cannot quietly re-break this.
+ */
+const AUTHORED = new Set(LANDMARKS.map(l => l.person?.name).filter(Boolean));
+const ordinary = (w: World) => Object.values(w.npcs).filter(n => !n.official && !AUTHORED.has(n.name) && (n.role === 'owner' || n.role === 'patron'));
 /** 'First "Nick" Last' → ['First', 'Last']. */
 const parts = (name: string) => { const p = name.replace(/"[^"]*"/g, '').split(/\s+/).filter(Boolean); return [p[0], p.slice(1).join(' ')] as const; };
 

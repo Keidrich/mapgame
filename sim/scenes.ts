@@ -8,7 +8,7 @@ import { APPROACHES, LEDGER_CALLBACK, NEMESIS_OPENING, OPENING, REPUTATION_OPENI
 import { hashString, type Rng } from './rng';
 import { activeCrewCount } from './util';
 import { crewOfBoss, fundReason } from './crews';
-import { isNemesis, nemesisName } from './nemesis';
+import { isNemesis, knowsYou, nemesisName } from './nemesis';
 import { ledgerOf } from './ledger';
 import { contacts } from './standing';
 import { ownerResistance } from './economy';
@@ -82,8 +82,13 @@ function openingLine(w: World, kind: SceneKind, n: Npc): string {
   // Somebody with a record reads from their own pool instead of their trait's. A hothead met once
   // and a hothead who has beaten you three times were saying the same six things; see
   // `NEMESIS_OPENING`. Replaces rather than adds, because the record is the thing in the room.
+  //
+  // `knowsYou` as well as `isNemesis`, because after a succession those two come apart: the city
+  // still knows exactly who he is, and he has never been in a room with the person now holding
+  // the controls. A man counting your meetings when he has had none with you is the exact bug the
+  // split in `sim/legacy.ts` exists to prevent, and this is where it would have shown.
   let line: string;
-  if (isNemesis(n)) {
+  if (isNemesis(n) && knowsYou(n)) {
     const wins = n.nemesis?.wins ?? 0;
     // A line that counts the times only comes up when there is a number worth saying out loud.
     const pool = NEMESIS_OPENING[kind].filter(l => wins >= 2 || !l.includes('{wins}'));

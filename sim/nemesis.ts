@@ -67,8 +67,29 @@ export function earnStreetName(w: World): void {
   log(w, `Somebody says it to your face and it sticks: they call you ${p.street} now. Nobody asked what was on your birth certificate.`, 'good');
 }
 
+/**
+ * Somebody the city knows. **Stature, not acquaintance** — this is what the street has decided
+ * about them, and it survives a succession because the street does not forget a man when the man
+ * he beat dies.
+ */
 export function isNemesis(n: Npc | undefined): boolean { return !!n?.nemesis && n.nemesis.notoriety >= NEMESIS.known; }
 export function notoriety(n: Npc | undefined): number { return n?.nemesis?.notoriety ?? 0; }
+
+/**
+ * Whether they have any history with the protagonist **currently holding the controls**.
+ *
+ * The other half of the split. `isNemesis` asks what the city thinks of them; this asks whether
+ * they have ever been in a room with *you*. Before a succession the two always agree, which is why
+ * nothing needed to ask the question until now.
+ *
+ * Read by the dialogue — somebody with a record does not open by counting your meetings when he
+ * has not had any with you — and by anything else that wants to speak as though you have met.
+ * Defaults to the whole record when `met` is absent, so an old save behaves exactly as it did.
+ */
+export function knowsYou(n: Npc | undefined): boolean {
+  const s = n?.nemesis; if (!s) return false;
+  return (s.met ?? s.wins + s.losses) > 0;
+}
 
 function start(w: World, n: Npc): Nemesis {
   if (!n.nemesis) n.nemesis = { since: w.day, wins: 0, losses: 0, notoriety: 0, earned: [] };
@@ -118,6 +139,9 @@ export function scoreMeeting(w: World, n: Npc | undefined, won: boolean, stake: 
   if (!n?.alive || n.crew || n.faction === PLAYER) return;
   const s = start(w, n);
   const mult = STAKES[stake].mult;
+  // Both counters, always: `wins + losses` is the outfit's record and `met` is the personal one.
+  // They only differ after a succession, and that difference is the whole point of `met`.
+  s.met = (s.met ?? s.wins + s.losses) + 1;
   if (won) { s.wins++; s.notoriety += NEMESIS.perWin * mult; }
   else { s.losses++; s.notoriety -= s.notoriety * NEMESIS.perLossFraction * mult; }
   s.notoriety += NEMESIS.perMeeting * mult;
@@ -145,6 +169,48 @@ function payMilestones(w: World, n: Npc): void {
     const line = `${nemesisName(n)} ${m.line}.`;
     remember(w, n, 'harm', line);
     log(w, line, 'warn', { npcId: n.id, factionId: n.faction });
+  }
+}
+
+/**
+ * What a succession does to everybody who had a record against the man who just died.
+ *
+ * Called once from `succeed()`. The split is written down in full at the top of `sim/legacy.ts`;
+ * this is the implementation of it, and the short version is: **the outfit's war carries, the
+ * personal thing does not.**
+ *
+ * Kept, because none of it is about the player as a person:
+ *
+ *  - `wins` / `losses`, which are what their outfit did to your outfit. The trophy screen's "had
+ *    the better of you N times" is a line about the two organisations, not about a man.
+ *  - `earned`, `nickname`, and the trait and skill the milestones already paid out. A milestone is
+ *    a thing that happened in public, and `earnedFloor` has always said that losing a fight
+ *    afterwards does not unhappen it. Neither does dying: the street still calls him the Nail.
+ *  - Their ledger, and the faction-level standing and stance, which are not touched here at all
+ *    because they never belonged to the protagonist in the first place.
+ *
+ * Reset, because all of it is:
+ *
+ *  - `notoriety` is cut to `SUCCESSION.nemesisKeeps` of itself, floored at what the street already
+ *    knows (`earnedFloor`). This is deliberately the **mirror of `SUCCESSION.inherits`**: the heir
+ *    keeps a fraction of the outfit's respect and fear because the name carries and the person does
+ *    not, and a nemesis keeps a fraction of their notoriety for exactly the same reason from the
+ *    other side. Notoriety is defined as what a win *against the player* is worth to them, and the
+ *    player is somebody else now.
+ *  - `met` goes to zero. They have not met you. This is the part with teeth: it is what stops a
+ *    lieutenant with a nine-meeting record opening a conversation by counting them.
+ *  - `since` becomes today, because that is when this — the thing between them and *you* — starts.
+ *
+ * A grudge (`Npc.grudge`) is deliberately left alone. It carries a `reason` naming a concrete
+ * thing that was done to their business or their people, and the outfit did that; it is not the
+ * personal-familiarity currency this function exists to reset.
+ */
+export function inheritNemeses(w: World, keeps: number): void {
+  for (const n of Object.values(w.npcs)) {
+    const s = n.nemesis; if (!s) continue;
+    s.notoriety = clamp(Math.max(earnedFloor(s), s.notoriety * keeps));
+    s.met = 0;
+    s.since = w.day;
   }
 }
 

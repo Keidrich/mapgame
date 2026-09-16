@@ -19,7 +19,12 @@
  */
 import type { OpKind, Skills } from '@sim/types';
 
-export type SpecialistRole = 'safecracker' | 'wheelman' | 'inside_man' | 'alarms' | 'fixer_face';
+export type SpecialistRole =
+  | 'safecracker' | 'wheelman' | 'inside_man' | 'alarms' | 'fixer_face'
+  // The second bench. Picked to fill the two gaps the first five left rather than to lengthen a
+  // list: every one of the originals is hired for `tech`, `wheels` or `charm`, so a crew could be
+  // staffed end to end without one person being brought in for **muscle** or for **brains**.
+  | 'demolitions' | 'forger' | 'lookout';
 
 export interface SpecialistDef {
   role: SpecialistRole;
@@ -41,6 +46,18 @@ export const SPECIALISTS: Record<SpecialistRole, SpecialistDef> = {
   inside_man:  { role: 'inside_man',  label: 'Inside Man',  blurb: 'Works there. Has worked there eleven years. Nobody looks at him.', skill: 'charm', worth: 16, fee: 12_000, failLine: 'Their man inside did not come in that day, and nobody had a second way through.' },
   alarms:      { role: 'alarms',      label: 'Alarm Man',   blurb: 'Knows which wires are real and which are there to be cut.', skill: 'tech', worth: 12, fee: 8_000, failLine: 'Something rang somewhere, and after that it was a question of how fast everybody could move.' },
   fixer_face:  { role: 'fixer_face',  label: 'The Face',    blurb: 'Talks to whoever has to be talked to, and is never the one holding anything.', skill: 'charm', worth: 10, fee: 5_500, failLine: 'Nobody smoothed it over, and it needed smoothing over.' },
+
+  // The demolition man is what a door is worth when the safecracker is the wrong answer to it. He
+  // fills the `muscle` gap, and he is the second-dearest seat on the bench because a wall is not a
+  // subtle way in: his failure line is the loudest one here, which is the cost baked into taking
+  // him rather than a number.
+  demolitions: { role: 'demolitions', label: 'Demolition Man', blurb: 'Does not pick the lock. Puts a hole where there was not one and walks through it.', skill: 'muscle', worth: 15, fee: 11_000, failLine: 'The charge went early, the wall stayed up, and every dog on the street started.' },
+  // Paper rather than doors: a provenance, a manifest, a bill of lading that has always been there.
+  forger:      { role: 'forger',      label: 'Forger',        blurb: 'Nothing he makes is new. Everything he makes has been in a drawer for eleven years.', skill: 'brains', worth: 13, fee: 8_500, failLine: 'Somebody actually read the paperwork, and the paperwork did not hold.' },
+  // The cheap one, and deliberately: the entry-level part, worth least, and the only specialist a
+  // player can afford before their first real score. A bench whose cheapest seat is $5,500 is a
+  // bench nobody sits on until day forty.
+  lookout:     { role: 'lookout',     label: 'Lookout',       blurb: 'On the roof opposite with a radio, and has been there since four.', skill: 'brains', worth: 7, fee: 2_200, failLine: 'Nobody said anything about the second car, and by then it was parked.' },
 };
 
 /**
@@ -48,16 +65,25 @@ export const SPECIALISTS: Record<SpecialistRole, SpecialistDef> = {
  * at all, which is most of them — a stick-up does not have a safecracker-shaped hole in it.
  */
 export const JOB_ROLES: Partial<Record<OpKind, SpecialistRole[]>> = {
-  heist_armored:   ['wheelman', 'alarms', 'fixer_face'],
-  heist_payroll:   ['inside_man', 'wheelman'],
-  heist_bank:      ['safecracker', 'alarms', 'wheelman', 'inside_man'],
-  heist_jeweller:  ['safecracker', 'alarms'],
-  heist_gallery:   ['alarms', 'inside_man'],
-  heist_countroom: ['safecracker', 'inside_man', 'fixer_face'],
-  heist_containers: ['wheelman', 'fixer_face'],
-  count_night:     ['safecracker', 'inside_man', 'alarms', 'fixer_face'],
-  dome_job:        ['safecracker', 'alarms', 'wheelman'],
-  manifest_swap:   ['inside_man', 'fixer_face'],
+  heist_armored:   ['wheelman', 'alarms', 'fixer_face', 'demolitions'],
+  heist_payroll:   ['inside_man', 'wheelman', 'lookout'],
+  heist_bank:      ['safecracker', 'alarms', 'wheelman', 'inside_man', 'demolitions'],
+  // Two tech seats and nothing else: the second pair of eyes is the part it was missing.
+  heist_jeweller:  ['safecracker', 'alarms', 'lookout'],
+  // A painting is worth what its paperwork says it is worth, which is a forger's whole trade.
+  heist_gallery:   ['alarms', 'inside_man', 'forger'],
+  heist_countroom: ['safecracker', 'inside_man', 'fixer_face', 'lookout'],
+  heist_containers: ['wheelman', 'fixer_face', 'forger'],
+  // A warehouse job had **no parts at all** — a set-piece in the tree and a staffing question in
+  // the code. A wall and a watchman is the shape of it, so that is the bench it gets.
+  heist_warehouse: ['demolitions', 'lookout', 'wheelman'],
+  count_night:     ['safecracker', 'inside_man', 'alarms', 'fixer_face', 'lookout'],
+  dome_job:        ['safecracker', 'alarms', 'wheelman', 'demolitions'],
+  manifest_swap:   ['inside_man', 'fixer_face', 'forger'],
+  // The other two landmark jobs, which had none either. A basement of paper wants somebody who
+  // writes it; a station concourse wants somebody watching the concourse.
+  records_room:    ['forger', 'inside_man', 'lookout'],
+  left_luggage:    ['lookout', 'fixer_face'],
 };
 
 export const SPECIALIST_FEE = {

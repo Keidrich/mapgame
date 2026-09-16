@@ -201,6 +201,23 @@ export const ITEM_DEFS: Record<string, ItemDef> = {
     detail: 'The most protection there is, and it is not subtle: wheels −3, so every job that involves getting away goes worse for having it on. Muscle +1, for whatever that is worth to a man who cannot run.',
   },
 
+  // ---- the two things you can only buy in one building ----
+  // Not a tier above the catalogue, and deliberately not the best of anything: what they are is
+  // *only there*. A landmark had one reason to exist — its op — and an op you can pull once every
+  // few weeks is a thin reason to know a building. These give two of the five a counter.
+  port_pass: {
+    id: 'port_pass', label: 'Dock Gate Pass', icon: '📋', category: 'tech', cost: 2600, underCounter: true,
+    blurb: 'Somebody else’s photograph, and nobody has ever looked at it.',
+    mods: { skillBoost: { charm: 1 }, approachBias: { inside: 0.4, loud: -0.3 }, heatMult: 0.85 },
+    detail: 'The best inside-job item in the game that is not a person: +40% on going in as somebody who belongs, and it takes heat off because a man who walked through the gate was never seen climbing a fence. Useless in a fight, and worse than useless going in loud. Sold at the Port Authority and nowhere else in the city.',
+  },
+  locker_key: {
+    id: 'locker_key', label: 'Left-Luggage Key', icon: '🔑', category: 'tool', cost: 1400,
+    blurb: 'It fits more lockers than it has any business fitting.',
+    mods: { approachBias: { quiet: 0.3, loud: -0.2 }, heatMult: 0.75 },
+    detail: 'The lowest heat of anything you can carry: a thing that never went home with you is a thing nobody found on you. +30% on a quiet job, and it makes every job leave a quarter less behind. It helps you carry nothing rather than helping you do anything. Sold at Union Station and nowhere else.',
+  },
+
   // ---- tools ----
   lockpicks: {
     id: 'lockpicks', label: 'Lockpick Set', icon: '🗝️', category: 'tool', cost: 400,

@@ -43,6 +43,17 @@ export interface Scenario {
   sinksAt?: number;
   /** The run is aiming at the clean ending rather than at an empire. See `tryToGetOut`. */
   goingStraight?: boolean;
+  /**
+   * The run exists to find out what happens when somebody gets through, so the bot does not buy
+   * anything whose only job is stopping them: no armour.
+   *
+   * This is not the bot being tuned to fail. `legacy`'s blurb has said "nothing bought to stand
+   * between you and them" since it was written, and the note on its top-up already reasons about
+   * `personalCover` — a plate carrier is thirty points of exactly that, and a bot wearing one
+   * cannot reach the ending the scenario is named for. The flag makes a rule that was stated in
+   * prose into one the code follows.
+   */
+  reckless?: boolean;
 }
 
 const CORE: { what: CheatKind; amount?: number }[] = [
@@ -179,7 +190,7 @@ export const SCENARIOS: Record<ScenarioName, Scenario> = {
     // handed over once and then ended for good the next time somebody got through — which is the
     // right behaviour ('gone' is a real ending) but tells you nothing about what a successor's
     // game looks like afterwards.
-    label: 'legacy', opsPerDay: 2, crewCap: 3,
+    label: 'legacy', opsPerDay: 2, crewCap: 3, reckless: true,
     blurb: 'A nemesis, a war, and nothing bought to stand between you and them.',
     setup: [{ what: 'ap', amount: 10 }, { what: 'cash', amount: 60000 }, { what: 'skills', amount: 3 }, { what: 'crew', amount: 3 }, { what: 'safehouse' }, { what: 'own_block' }, { what: 'rackets' }, { what: 'unlock' }, { what: 'reveal' }, { what: 'nemesis' }, { what: 'war', amount: 2 }],
     // Deliberately no crew in the top-up: every extra body is three more points of

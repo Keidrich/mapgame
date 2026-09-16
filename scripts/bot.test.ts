@@ -44,6 +44,16 @@ const SLOW = 90_000;
 const DAYS = 16, SEED = 5;
 const canon = (scenario: Parameters<typeof run>[0]['scenario']) => soak(scenario, DAYS, SEED);
 
+/**
+ * Hand the event loop back for a tick.
+ *
+ * A soak is tens of seconds of straight synchronous work, and a vitest worker that never returns
+ * to the loop cannot answer the runner's `onTaskUpdate` — which times out and fails the whole run
+ * with **every test passing**, an exit code 1 that says nothing about the game. It has bitten this
+ * file twice now. Awaiting between scenarios costs nothing and lets the worker report in.
+ */
+const breathe = () => new Promise(r => setTimeout(r, 0));
+
 describe('the honest scenario is frozen', () => {
   it('uses no admin panel at all and is never stamped as cheated', () => {
     const r = soak('honest', DAYS, 7);
@@ -75,17 +85,19 @@ describe('the honest scenario is frozen', () => {
 });
 
 describe('the boosted scenarios reach what honest play cannot', () => {
-  it('every scenario runs without throwing', () => {
+  it('every scenario runs without throwing', async () => {
     for (const name of SCENARIO_NAMES) {
       expect(() => canon(name), name).not.toThrow();
+      await breathe();
     }
   }, SLOW);
 
-  it('boosted worlds are stamped, so their numbers can never pass as an economy curve', () => {
+  it('boosted worlds are stamped, so their numbers can never pass as an economy curve', async () => {
     // Read off the scenario rather than a list of names: a scenario that uses no admin panel is
     // honest play by definition, and adding one should not mean remembering to edit this line.
     for (const name of SCENARIO_NAMES) {
       const r = canon(name);
+      await breathe();
       expect(!!r.w.cheated, name).toBe(SCENARIOS[name].setup.length > 0);
     }
   }, SLOW);
@@ -199,7 +211,7 @@ describe('coverage', () => {
     expect(fullyCovered(r.cov)).toBe(false);
   }, SLOW);
 
-  it('every system in the table is reachable by some scenario', () => {
+  it('every system in the table is reachable by some scenario', async () => {
     // A system nobody can reach is a bug in the table or in the game, not a bot problem. Taken
     // across the whole sweep, because that is the claim: somewhere in the scenarios, every row in
     // that table is a thing that actually happens.
@@ -242,12 +254,14 @@ describe('coverage', () => {
     const reached = new Set<string>();
     for (const name of SCENARIO_NAMES) {
       const r = canon(name);
+      await breathe();
       for (const s of SYSTEMS) if (s.needs.some(n => count(r.cov, n) > 0)) reached.add(s.label);
     }
     for (const [label, how] of Object.entries(SLOW_ROWS)) {
       if (reached.has(label)) continue;
       const s = SYSTEMS.find(x => x.label === label)!;
       const r = soak(how.scenario, how.days, how.seed ?? SEED);
+      await breathe();
       if (s.needs.some(n => count(r.cov, n) > 0)) reached.add(label);
     }
     const gaps = SYSTEMS.map(s => s.label).filter(l => !reached.has(l));
@@ -256,9 +270,10 @@ describe('coverage', () => {
 });
 
 describe('the invariants a soak exists to catch', () => {
-  it('no NaN anywhere, across every scenario', () => {
+  it('no NaN anywhere, across every scenario', async () => {
     for (const name of SCENARIO_NAMES) {
       const r = canon(name);
+      await breathe();
       const p = r.w.player;
       for (const [k, v] of Object.entries({ cash: p.cash, dirty: p.dirty, heat: p.heat, cyberHeat: p.cyberHeat ?? 0 })) {
         expect(Number.isFinite(v), `${name}: ${k}`).toBe(true);

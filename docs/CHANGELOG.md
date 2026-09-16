@@ -14,6 +14,86 @@ House rules for an entry (see `CLAUDE.md` → *Leave a trail*):
 
 ---
 
+## 2026-09-16 — A bigger world: news, landmarks, specialists, and what an heir inherits
+
+**What.** Four systems that worked and were thinner than they looked. The paper now reads back
+everything the last two drops taught the game to log — plus every faction-versus-faction line that
+has been going nowhere since the faction pass. Each of the five landmarks has a second reason to
+exist. The specialist bench gained the two skills it could not hire for. And a nemesis no longer
+carries over intact when the outfit changes hands.
+
+**Why.** Mostly: tables with one entry where they needed several, and log lines with no reader. A
+city with four outfits in it read like a city with one, because a war the player was nowhere near
+looked exactly like silence. A landmark was worth one op, and an op you can pull every few weeks is
+a thin reason to know a building. A crew could be staffed end to end without anybody being hired for
+muscle or brains. And a successor inherited somebody else's enemy along with their car.
+
+**How — the four.**
+
+- **News.** Fifteen new rules, all matching lines some other system already writes. Two are worth
+  the note: the lifestyle rule's regex is **built from `LIFESTYLE` itself** rather than copied, so a
+  rung renamed in content cannot silently stop making news; and the specialist rule matches the
+  **hire**, not the night, because first-match-wins means that on a bank job the bank is the story.
+- **Landmarks.** Each of the five gets exactly one second reason, never both: three have a person
+  always found there, two sell an item on no other shelf in the city. The people are made by
+  **promotion consuming zero RNG**, the same rule the buildings themselves follow — a patron the
+  block already had is renamed, and the landmark becomes their *only* haunt because `npcLocation`
+  reads `[0]` and "always found there" has to mean the building. They arrive `known` and clear
+  `candidatesFor`'s floor, so the courthouse is genuinely where you go to find a forger.
+- **Specialists.** All five original roles are hired for `tech`, `wheels` or `charm`. The three new
+  ones fill the two gaps — demolitions (muscle), forger and lookout (brains) — and the lookout is
+  deliberately the cheapest seat at $2,200, because a bench whose entry price is $5,500 is one
+  nobody sits at before day forty. `heist_warehouse` had **no parts at all**, and neither did two of
+  the three landmark jobs; all three have a bench now.
+- **Succession × nemesis.** The split is a table in the header of `sim/legacy.ts` and
+  `inheritNemeses` implements it. **Carries:** the faction war, `wins`/`losses` (one outfit's record
+  against another), `earned`, the nickname, the trait and skill the milestones bought, their ledger,
+  their grudge. **Resets:** `notoriety`, cut to `SUCCESSION.nemesisKeeps` (0.3) and floored at
+  `earnedFloor`; `met`, to zero; `since`, to today. The floor is the same rule that already stops a
+  run of player wins walking a lieutenant back past his own nickname — a milestone happened in
+  public and the boss dying does not unhappen it. The fraction is the **mirror of
+  `SUCCESSION.inherits`**, lower because what the heir holds is a real thing and what the nemesis
+  holds is a score against a dead man. `Nemesis.met` is the one new field and it is optional, so an
+  old save loads with everybody already acquainted. It is audible: `knowsYou()` gates the dialogue
+  pool, so the man at the door still has his street name and talks to you like a stranger.
+
+**Three bugs found on the way, all by the coverage table.**
+
+- **`crew kit on a job` was wired to one of four op-planning paths.** The bot was arming people and
+  sending them out perfectly well and the row read ✗. Counting moved into `tryAct`, the one funnel
+  every bot action passes through. Count went 1 → 8.
+- **`street encounters` went blind once a run filled the log.** The counter compared `w.log.length`
+  before and after a move, and the log is capped at 300 (`sim/util.ts`) — past the cap two lines go
+  in, one falls off the front, and the length is unchanged. At seed 5 the `everything` scenario took
+  a hundred walks at a 13% encounter chance and reported **zero**, which is not a number chance
+  produces. Now compares against the end of the log. Count went 0 → 9.
+- **`scripts/bot.test.ts` tripped vitest's worker RPC timeout again** — every test passing, exit
+  code 1. A soak is tens of seconds of straight synchronous work and the worker cannot answer
+  `onTaskUpdate` while it runs. The four all-scenario loops now `await` between scenarios.
+
+**Numbers.** 1496 → 1578 tests. Coverage table unchanged at 47 rows, union still green, and the
+60-day sweep now leaves only 7 of 70 op kinds unrun (was 15).
+
+**Watch out.**
+
+- **The honest 60-day baseline moved, and here is exactly why.** Day 60 was `$0 clean, $212 dirty,
+  paid $568, heat 3`; it is now `$0 clean, $522 dirty, paid $461, heat 6`. I decomposed it rather
+  than shrugging: with the landmark **people** disabled the curve is **byte-identical to the old
+  baseline**, so the two new items, the landmark shelves and every other change here cost it
+  nothing. All of the drift is five patrons in the city now being different people — different
+  names, skills, and `known` from day one. That is a content change and not a tuning change, but it
+  is a new baseline and later passes should compare against this one.
+- **A bot that got better at surviving broke the run that is about dying.** The deepest-shelf shop
+  preference sent it to the back room, where it bought a plate carrier — thirty points of
+  `personalCover` — and `legacy` stopped reaching a succession at any run length. `Scenario.reckless`
+  now makes the bot skip armour on that run, which is a rule the scenario's own blurb ("nothing
+  bought to stand between you and them") has stated in prose since it was written.
+- **All six guards were mutation-tested**, including *both* directions of the nemesis split:
+  carrying the record over intact fails seven tests, wiping it entirely fails six.
+- No `WORLD_VERSION` bump. `Nemesis.met` is optional and absent means "already acquainted".
+
+---
+
 ## 2026-09-15 — Dialogue that reads the history the game was already keeping
 
 **What.** Every opening and result pool grown from 1–2 lines to 4–6, and `openingLine` now reads

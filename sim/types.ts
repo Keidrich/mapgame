@@ -172,12 +172,24 @@ export interface LedgerEntry { day: number; kind: LedgerKind; text: string }
  * and it is what makes somebody a candidate when their boss goes down.
  */
 export interface Nemesis {
-  since: number;
+  since: number;       // reset by a succession: the day this started with the *current* protagonist
   wins: number;        // times they came out of something with the player on top
   losses: number;
   notoriety: number;   // 0..100
   earned: string[];    // milestones already paid out, so none of them fires twice
   nickname?: string;
+  /**
+   * Meetings with the protagonist who is holding the controls **now**.
+   *
+   * Separate from `wins + losses`, which is the outfit's whole record against them and does not
+   * un-happen when the boss does. This is the personal half: a succession sets it to 0, so a
+   * lieutenant with a street name and nine meetings behind him has none with *you* until he turns
+   * up again. See the split written down in `sim/legacy.ts`.
+   *
+   * Optional, and absent means "as many as `wins + losses`" — a save made before the split loads
+   * with everybody already acquainted, which is exactly how it behaved.
+   */
+  met?: number;
 }
 
 /** A standing arrangement, not a one-off favour. Earned like any other concession. */

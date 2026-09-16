@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { select } from '@sim/index';
 import { PLAYER, type Id, type ProductKind, type Racket, type World } from '@sim/types';
 import { PRODUCT_INFO, RACKET_DEFS, RACKET_UPGRADE_COST, TRAIT_LABELS } from '@content/rackets';
+import { LANDMARKS } from '@content/landmarks';
 import { PRODUCTS, bizIcon, bizTypeLabel, conditionTone, crewName, fmtMoney, ownerLabel, pct, protectionLabel } from '@ui/derive';
 import { act, openSheet, useWorld } from '@ui/store';
 import { Sheet } from './Sheet';
@@ -36,9 +37,20 @@ export function BusinessSheet({ businessId }: { businessId: Id }) {
   const [dealProduct, setDealProduct] = useState<ProductKind>('green');
   const prot = protectionLabel(w, biz);
   const tier = select.tierOf(biz);
+  // One of the five places there is only one of. Landmarks had no presence in the app at all —
+  // the building was a name on the map and the job that unlocks off it appeared in the ops tree
+  // with nothing here saying why this building and not another.
+  const lm = biz.landmark ? LANDMARKS.find(l => l.id === biz.landmark) : undefined;
 
   return (
     <Sheet title={biz.name} subtitle={`${bizTypeLabel(biz)} · ${block?.name ?? ''}`} icon={bizIcon(biz)} accent={yours ? '#f2c94c' : biz.protection ? select.factionColor(w, biz.protection.factionId) : undefined}>
+      {lm && (
+        <div className="card mt8" style={{ borderColor: 'var(--purple)' }}>
+          <b className="small" style={{ color: 'var(--purple)' }}>There is one of these in the city<Info id="landmarkExtra" /></b>
+          <p className="small muted" style={{ margin: '4px 0 0' }}>{lm.blurb}</p>
+          {lm.person && <p className="small mt8" style={{ margin: '8px 0 0' }}>{lm.person.name} is always here.</p>}
+        </div>
+      )}
       <div className="row wrap" style={{ gap: 6 }}>
         <span className="chip" style={yours ? { color: 'var(--gold)' } : undefined}>{yours ? 'Yours' : `Owner: ${ownerLabel(w, biz)}`}</span>
         <TermChip id="bizTier" tone={tier === 3 ? 'var(--purple)' : tier === 2 ? 'var(--blue)' : undefined}>{select.tierInfo(biz).label}</TermChip>

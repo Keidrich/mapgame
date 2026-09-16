@@ -36,12 +36,46 @@
  *
  * And the old player becomes an ordinary dead NPC in the world, with their ledger intact, so
  * everybody who remembers dealing with them still does.
+ *
+ * ---
+ *
+ * **AND WHAT A NEMESIS KEEPS, WHICH IS THE ONE PLACE THE PLAYER OBJECT IS NOT CONTINUOUS**
+ *
+ * Everywhere else in the game `w.player` is treated as one uninterrupted thing, and that is right:
+ * the blocks do not care who is holding them. A nemesis is the exception, because a nemesis is the
+ * only relationship in the game that is *about the protagonist personally*. `Npc.nemesis` holds one
+ * number, notoriety, and the file that owns it defines that number as **what a win against the
+ * player is worth to them**. After a succession the player is a different person, so carrying it
+ * over intact would mean inheriting somebody's enemy along with their car.
+ *
+ * So it splits, and `inheritNemeses` in `sim/nemesis.ts` is the implementation:
+ *
+ * | carries | resets |
+ * |---|---|
+ * | the faction war — `standing[PLAYER]`, `stance[PLAYER]`, grudges, tribute | `notoriety`, cut to `SUCCESSION.nemesisKeeps` |
+ * | `wins` / `losses` — one outfit's record against another | `met`, to zero: they have not met *you* |
+ * | `earned`, the nickname, the trait and skill the milestones bought | `since`, to today |
+ * | their ledger, and everything the city already knows about them | |
+ *
+ * Two things make this the right line rather than a taste. First, **the floor**: notoriety cannot
+ * fall below `earnedFloor`, the same rule that already stops a run of player wins walking an
+ * established lieutenant back down past his own nickname. A milestone happened in public, and the
+ * boss dying does not unhappen it any more than losing a fight does — the street still calls him
+ * the Nail, and the sheet still says so. Second, **the fraction is the mirror of
+ * `SUCCESSION.inherits`**: the heir keeps 45% of the outfit's respect and fear because the name
+ * carries and the person does not. A nemesis keeps his share of notoriety for precisely that
+ * reason seen from the other side, which is why the two constants sit next to each other and why
+ * neither should be changed without the other being looked at.
+ *
+ * What it feels like in play: the war with their outfit is exactly where you left it, the man at
+ * the door is still the man with the street name and the worse people behind him — and he opens
+ * his mouth and talks to you like somebody he has never met, because he has not.
  */
 import { LIFESTYLE } from '@content/fortune';
 import { MILESTONES, NEMESIS } from '@content/nemesis';
 import { securityCover } from './fortune';
 import { kitCover } from './items';
-import { notoriety } from './nemesis';
+import { inheritNemeses, notoriety } from './nemesis';
 import { remember } from './ledger';
 import { connectionsOf } from './connections';
 import type { Rng } from './rng';
@@ -88,6 +122,15 @@ export function lovedStatus(w: World): string | undefined {
 export const SUCCESSION = {
   /** Share of respect and fear the successor inherits. The name carries; the person does not. */
   inherits: 0.45,
+  /**
+   * Share of their notoriety a nemesis keeps across a succession, floored at `earnedFloor`.
+   *
+   * The mirror of `inherits` above and deliberately lower: what the heir inherits is the *outfit's*
+   * standing, which is a real thing they are holding, and what a nemesis keeps is a score against a
+   * man who is dead. Change one of these and look at the other. See the table in this file's
+   * header for exactly what carries and what does not.
+   */
+  nemesisKeeps: 0.3,
   /** Loyalty below which somebody will not step up at all — they take their cut and go. */
   minLoyalty: 40,
 };
@@ -154,6 +197,9 @@ export function succeed(w: World, how: string): Npc | undefined {
   p.legitimacy = 0;             // that was your reputation, not the outfit's
   p.crewEver = Math.max(0, p.crewEver - 1);
   p.succeededFrom = [...(p.succeededFrom ?? []), goneName];
+
+  // Everybody who had a record against the man who just died: see the table in the file header.
+  inheritNemeses(w, SUCCESSION.nemesisKeeps);
 
   remember(w, heir, 'deal', `They took over from ${goneName}.`);
   log(w, `${how} ${heir.name} is what is left, and by the end of the week nobody is arguing about it. The blocks are still yours. The name on them is not.`, 'warn', { npcId: heir.id });

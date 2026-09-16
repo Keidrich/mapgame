@@ -120,6 +120,7 @@ export function generateWorld(opts: NewGameOptions): World {
   // there changes nothing except what it is called and what it is worth, which is all a landmark
   // actually needs to be.
   const promoted = new Set<Id>();
+  const taken = new Set<Id>();
   for (const lm of LANDMARKS) {
     const district = Object.values(w.districts).find(d => d.kind === lm.district as District['kind']);
     // Nothing here rolls: promotion must not consume a single number off `rng`, or every
@@ -145,6 +146,41 @@ export function generateWorld(opts: NewGameOptions): World {
     // and the owner of a chartered institution was never going to be frightened of anybody
     const owner = w.npcs[pick.ownerId];
     if (owner) owner.nerve = Math.max(owner.nerve, nerveFloorFor(lm.type));
+
+    // The one person always found here — promoted the same way the building was, and for the same
+    // reason: **nothing here rolls**. A patron the place already had is renamed and given the
+    // record, so no new person is placed, the connections graph is untouched, and not one number
+    // comes off `rng`. A promoted person is never taken twice, because a patron can be a regular
+    // at two places and two landmarks sharing a face would read as a bug.
+    if (lm.person) {
+      const host = pick.patronIds.map(id => w.npcs[id]).find(n => n?.alive && !taken.has(n.id))
+        ?? Object.values(w.npcs).filter(n => n.alive && n.role === 'patron' && n.homeBlockId === pick.blockId && !taken.has(n.id) && n.id !== pick.ownerId)
+          .sort((a, b) => a.id.localeCompare(b.id))[0];
+      if (host) {
+        taken.add(host.id);
+        host.name = lm.person.name;
+        host.role = lm.person.role;
+        host.nerve = Math.max(host.nerve, lm.person.nerve);
+        host.known = true;                                   // everybody knows who runs the count room
+        if (!host.traits.includes(lm.person.trait)) host.traits = [...host.traits, lm.person.trait];
+        // Raised to, never lowered: the city's own roll stands where it was already generous.
+        for (const [k, v] of Object.entries(lm.person.skills)) {
+          host.skills = { ...host.skills, [k]: Math.max(host.skills[k as keyof typeof host.skills], v as number) };
+        }
+        host.notes.push(lm.person.note);
+        // This is what makes them "always found there": `npcLocation` returns `[0]` of this list,
+        // so the landmark has to be the *only* entry, not merely present. The host was very likely
+        // already a regular there — that is how they were found — and simply being in the list left
+        // them turning up at whichever bar they also drank in.
+        for (const other of host.favouriteBusinessIds) {
+          if (other === pick.id) continue;
+          const b = w.businesses[other];
+          if (b) b.patronIds = b.patronIds.filter(id => id !== host.id);
+        }
+        host.favouriteBusinessIds = [pick.id];
+        if (!pick.patronIds.includes(host.id)) pick.patronIds.push(host.id);
+      }
+    }
   }
 
   // Somebody outside all of it. Generated like any other person, then marked — what makes them

@@ -1913,6 +1913,93 @@ it worth having rather than a scoreboard: it can only report what the game actua
 the time, so it reads like a file somebody kept on you. Empty rows are kept rather than hidden —
 "First body — never" is part of a record, and arguably the most interesting line on the page.
 
+### 4.27b Making the world bigger: what got a second reason to exist
+
+Four systems that worked and were thinner than they looked. Nothing below is a new mechanic; each
+is a table or a rule that had one entry where it needed several, or one reader where it needed two.
+
+**The paper reads the whole log now.** `RULES` covered the robberies, the busts and the wars the
+player started. Two drops' worth of events had been logging perfectly and going nowhere: a
+succession, a clean ending, a street name being earned, a specialist being hired, a lifestyle rung
+and a legitimacy purchase landing. So had **every faction-versus-faction line in
+`sim/factions.ts`** — one outfit moving on another, a truce nobody brokered, bad blood short of a
+war, one outfit swallowing another, a payroll that could not be met, a chair with two men wanting
+it. A city with four outfits in it was reading like a city with one, because a war the player was
+nowhere near looked exactly like silence.
+
+Two rules are worth the note. The lifestyle rule's regex is **built from `LIFESTYLE` itself**
+rather than copied out of it, so a rung renamed in content cannot quietly stop making news — the
+one place in the table where the log text is generated from data rather than written by hand. And
+the specialist rule matches the **hire**, not the night: first match wins and the resolver already
+writes a robbery headline, so on a bank job the bank is the story. Word going round that somebody
+is asking after a forger is its own kind of news, and it arrives before the job does.
+
+**Landmarks have two reasons now, and exactly one each.** An op you can pull once every few weeks
+is a thin reason to know a building; for most of a run a landmark was a name on the map. Each of
+the five now has a standing draw, picked to fit what the place already is — three have a **person**
+always found there, two sell an **item** nobody else sells. Never both: a landmark with a person
+and an item would be a hub, and the point of these is one building with one specific thing in it.
+
+The people are made the same way the buildings are — **by promotion, consuming zero RNG**. A patron
+the block already had is renamed and given the record, so nothing new is placed and the connections
+graph is untouched. The landmark becomes their *only* `favouriteBusinessIds` entry, because
+`npcLocation` reads `[0]` and "always found there" has to mean the building rather than whichever
+bar they also drank in. They arrive `known` — everybody knows who counts the drop at The Grand —
+and each clears `candidatesFor`'s skill floor for the part their building is about, so the
+courthouse is where you go to find a forger and that is a fact about the game rather than a blurb.
+
+The two items (`port_pass`, `locker_key`) are filtered **out** of the ordinary shop rotation, or a
+back room three blocks from the start would sell the thing that was supposed to be worth a walk.
+`isMarket` is true for a landmark that has one, and `marketStock` returns exactly it — a thing that
+is sometimes in stock is not a reason to know a building.
+
+**The specialist bench had two holes in it.** All five original roles are hired for `tech`, `wheels`
+or `charm`, so a crew could be staffed end to end without anybody being brought in for **muscle** or
+**brains**. That is what the three new roles fill, rather than the list being longer: a demolition
+man (muscle — the answer to a door when the safecracker is the wrong one), a forger (brains — paper
+that has always been in a drawer), and a lookout (brains, and deliberately the cheapest seat on the
+bench at $2,200, because a roster whose entry price is $5,500 is one nobody sits at before day
+forty). `heist_warehouse` had **no parts at all** — a set-piece in the tree and a staffing question
+in the code — and so did two of the three landmark jobs; all three have a bench now.
+
+### 4.27c A succession is the one place the player object is not continuous
+
+Everywhere else `w.player` is treated as one uninterrupted thing, and that is right: the blocks do
+not care who is holding them. A nemesis is the exception, because it is the only relationship in the
+game that is **about the protagonist personally** — `Npc.nemesis` holds notoriety, and `sim/nemesis.ts`
+defines that number as what a win *against the player* is worth. Carried over intact it would mean
+inheriting somebody's enemy along with their car.
+
+`inheritNemeses` splits it, and the full table lives in the header of `sim/legacy.ts`:
+
+| carries | resets |
+|---|---|
+| the faction war: `standing[PLAYER]`, `stance[PLAYER]`, grudges, tribute | `notoriety`, cut to `SUCCESSION.nemesisKeeps` (0.3), floored at `earnedFloor` |
+| `wins` / `losses` — one outfit's record against another | `met`, to zero: they have not met *you* |
+| `earned`, the nickname, the trait and skill the milestones bought | `since`, to the day it changed hands |
+| their ledger, and everything the city already knows about them | |
+
+Two things make that the line rather than a taste. **The floor**: notoriety cannot fall below
+`earnedFloor`, the same rule that already stops a run of player wins walking an established
+lieutenant back down past his own nickname — a milestone happened in public, and the boss dying
+does not unhappen it any more than losing a fight does. **The fraction is the mirror of
+`SUCCESSION.inherits`**: the heir keeps 45% of the outfit's respect and fear because the name
+carries and the person does not, and a nemesis keeps his share for exactly that reason from the
+other side. It is deliberately lower, because what the heir holds is a real thing and what the
+nemesis holds is a score against a dead man. Change one and look at the other.
+
+`Nemesis.met` is the one new field and it is optional: absent means "as many as `wins + losses`",
+so a save made before the split loads with everybody already acquainted, which is how it behaved.
+`knowsYou()` reads it, and `isNemesis()` deliberately does not — one asks what the city thinks of
+them, the other whether they have ever been in a room with you, and before a succession those two
+always agree. The dialogue asks both (§3.5b), which is where it is audible: the man at the door is
+still the man with the street name and the worse people behind him, and he opens his mouth and
+talks to you like somebody he has never met, because he has not.
+
+A `grudge` is deliberately left alone. It carries a `reason` naming a concrete thing done to their
+business or their people, and the outfit did that — it is not the personal-familiarity currency this
+split exists to reset.
+
 ## 5.5 The law, the map, and the edge of the map
 
 ### 5.5.1 Authority — not a faction

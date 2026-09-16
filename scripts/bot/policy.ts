@@ -41,11 +41,21 @@ export interface Ctx {
    * flag rather than a scenario check because the day loop should not know scenario names.
    */
   goingStraight: boolean;
+  /** Buys nothing whose only job is surviving the night. See `Scenario.reckless`. */
+  reckless: boolean;
 }
 
 export const tryAct = (c: Ctx, a: Action): boolean => {
   const gate = can(c.w, a);
   if (!gate.ok) return false;
+  // Did anything a crew member owns go on this job? Counted **here**, in the one funnel every bot
+  // action passes through, rather than next to a `bump(c.cov, 'ops_planned')` — because there are
+  // four of those, this was next to one of them, and the row read ✗ while the bot was arming
+  // people and sending them out perfectly well. A coverage row wired to one of four code paths is
+  // worse than no row: it reports on the bot's plumbing instead of on the game.
+  if (a.type === 'plan_op' && a.crewIds?.some(id => (c.w.npcs[id]?.equipped ?? []).length) && select.jobKit(c.w, a.crewIds).length) {
+    bump(c.cov, 'crew_kit_on_job');
+  }
   c.w = dispatch(c.w, a);
   return true;
 };
@@ -53,14 +63,20 @@ const at = (c: Ctx, blockId?: Id) => !!blockId && c.w.player.currentBlockId === 
 export const goTo = (c: Ctx, blockId?: Id) => {
   if (!blockId) return false;
   if (at(c, blockId)) return true;
-  // A walk writes exactly one line — "You walk from J8 to K7" — and `onTheWay` writes whatever
-  // happened on the way after it. So anything past the first line is an encounter, which is a
-  // more honest count than matching the text of a table that is meant to keep growing.
-  const lines = c.w.log.length;
   const moved = tryAct(c, { type: 'move', toBlockId: blockId });
   if (!moved) return false;
   bump(c.cov, 'moves');
-  if (c.w.log.length > lines + 1) bump(c.cov, 'encounters', c.w.log.length - lines - 1);
+  // A walk writes "You walk from J8 to K7" **last**, and `onTheWay` writes whatever happened on the
+  // way after it. So if the final line is not the walk, something happened — which is a more honest
+  // count than matching the text of a table that is meant to keep growing.
+  //
+  // This used to compare `w.log.length` before and after, and **the log is capped at 300**
+  // (`sim/util.ts`): once a run fills it, two lines go in, one falls off the front, and the length
+  // is unchanged — so encounters stopped being counted entirely from that point on, silently. At
+  // seed 5 the `everything` scenario took a hundred walks at a 13% encounter chance and reported
+  // zero, which is not a number chance produces. Comparing against the end of the log instead of
+  // its length cannot be fooled by a trim.
+  if (!/^You walk from /.test(c.w.log[c.w.log.length - 1]?.text ?? '')) bump(c.cov, 'encounters');
   return true;
 };
 const npcBlock = (c: Ctx, id: Id) => c.w.npcs[id]?.homeBlockId;
@@ -189,10 +205,6 @@ export function planAnOp(c: Ctx): boolean {
     const action: Action = { type: 'plan_op', kind, crewIds: idle, approach, ...target } as Action;
     if (!tryAct(c, action)) continue;
     bump(c.cov, 'ops_planned'); bumpOp(c.cov, kind);
-    // Did anything a crew member owns actually go on this job? `jobKit` says what counts, so ask it
-    // rather than re-deriving: a gun that loses its category to the player's better one is not
-    // coverage of the crew's kit reaching a job, and this is the row that says so.
-    if (idle.some(id => (c.w.npcs[id]?.equipped ?? []).length) && select.jobKit(c.w, idle).length) bump(c.cov, 'crew_kit_on_job');
     if ((def.tier ?? 0) >= 2) bump(c.cov, 'tier2_ops');
     if (kind === 'buy_down' || kind === 'spring_crew' || kind === 'buy_case') {
       bump(c.cov, 'law_ops');
@@ -345,6 +357,21 @@ export function handleMoney(c: Ctx) {
   if (c.w.player.cash > 8000 && !c.w.player.lawyer) tryAct(c, { type: 'hire_lawyer' });
 }
 
+/**
+ * The nearest place that actually sells a range of things.
+ *
+ * Deepest shelf first, not simply the first market in id order. Two of the five landmarks became
+ * markets when they each got one item of their own, and a landmark's shelf is exactly that one
+ * item — so `[0]` could hand the bot a building with a single $2,600 pass on it and nothing else,
+ * and the shopping step would sit there affording nothing. The coverage table caught it as
+ * `crew kit on a job` going dark, which is the row noticing a bot that had quietly stopped
+ * shopping rather than a feature that had broken.
+ */
+function nearestShop(c: Ctx) {
+  return Object.values(c.w.businesses)
+    .filter(b => !b.landmark && select.isMarket(b) && (select.travelCost(c.w, b.blockId) ?? 9) <= 1)[0];
+}
+
 export function buyKit(c: Ctx) {
   const w = c.w;
   // A player whose plan is to make and sell something buys the still before the gun. Without
@@ -354,11 +381,16 @@ export function buyKit(c: Ctx) {
   // honest run's day is untouched.
   if (c.stillAt < 5000 && !Object.keys(w.productions).length && w.player.cash < c.stillAt * 2) return;
   if (w.player.cash > 800 && (w.player.equipped ?? []).length < select.EQUIP_MAX) {
-    const shop = Object.values(w.businesses).filter(b => select.isMarket(b) && (select.travelCost(w, b.blockId) ?? 9) <= 1)[0];
-    const want = shop && select.marketStock(shop).filter(i => !(w.player.items ?? []).includes(i.id)).sort((a, b) => b.cost - a.cost).find(i => i.cost < w.player.cash * 0.7);
+    const shop = nearestShop(c);
+    // Armour is skipped on a reckless run: it is the one category that does nothing for a job and
+    // thirty points of `personalCover` on the night, and `legacy` exists to reach that night.
+    const want = shop && select.marketStock(shop)
+      .filter(i => !(w.player.items ?? []).includes(i.id) && !(c.reckless && i.category === 'armor'))
+      .sort((a, b) => b.cost - a.cost).find(i => i.cost < w.player.cash * 0.7);
     if (shop && want && goTo(c, shop.blockId) && tryAct(c, { type: 'buy_item', businessId: shop.id, itemId: want.id })) bump(c.cov, 'items_bought');
   }
   for (const item of select.ownedItems(c.w)) {
+    if (c.reckless && item.category === 'armor') continue;
     if (select.equipSlotsLeft(c.w) > 0 && !select.isEquipped(c.w, item.id)) tryAct(c, { type: 'equip', itemId: item.id, on: true });
   }
   armTheCrew(c);
@@ -386,12 +418,18 @@ function armTheCrew(c: Ctx) {
   if (c.reserve <= 0) return;
   if (w.player.cash < 1500) return;
   const mine = w.player.crewIds.map(id => w.npcs[id]).filter(n => n?.crew && n.alive && n.crew.status !== 'dead' && n.crew.status !== 'jailed');
-  // Somebody with a free slot. Once one of them is carrying something this step costs nothing.
-  const them = mine.find(n => select.equipSlotsLeft(w, n) > 0);
+  // Somebody with a free slot, **idle first**. Arming whoever happened to be first in `crewIds`
+  // meant the gun could end up on the one person the op planner never picks — `planAnOp` staffs
+  // from `idleCrew` — so the purchase happened and the kit never reached a job. That read as
+  // `crew kit on a job` going dark the moment the world shifted under it, which is the row doing
+  // its job: it was always conditional on the two halves happening to agree.
+  const idle = new Set(select.idleCrew(w).map(n => n.id));
+  const them = mine.find(n => idle.has(n.id) && select.equipSlotsLeft(w, n) > 0)
+    ?? mine.find(n => select.equipSlotsLeft(w, n) > 0);
   if (!them) return;
   const unarmed = !(them.equipped ?? []).length;
   if (unarmed) {
-    const shop = Object.values(w.businesses).filter(b => select.isMarket(b) && (select.travelCost(w, b.blockId) ?? 9) <= 1)[0];
+    const shop = nearestShop(c);
     const want = shop && select.marketStock(shop).filter(i => i.category !== 'armor' && !(them.items ?? []).includes(i.id)).sort((a, b) => b.cost - a.cost).find(i => i.cost < w.player.cash * 0.5);
     if (shop && want && goTo(c, shop.blockId) && tryAct(c, { type: 'buy_item', businessId: shop.id, itemId: want.id, forNpcId: them.id })) bump(c.cov, 'crew_kitted');
   }

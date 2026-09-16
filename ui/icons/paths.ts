@@ -184,6 +184,9 @@ export const ICON_PATHS: Record<string, IconPaths> = {
   tower: ['M6.5 2.5h11v19h-11z', 'M9 6h6M9 9h6M9 12h3', 'M14.5 17.5h.01'],
   // a card going into a slot that should not be there
   skimmer: ['M2.5 9.5h19v8h-19z', 'M2.5 12.5h19', 'M6 15.5h4', 'M12 3.5v4.5M12 8l-2-2M12 8l2-2'],
+  // the two things sold in one building each: a gate pass on a lanyard, and a locker key on a fob
+  port_pass: ['M8 2.5h8l-2 3h-4z', 'M5.5 5.5h13v16h-13z', 'M12 9a2 2 0 1 0 .01 0z', 'M8.5 18c0-2 1.6-3.2 3.5-3.2S15.5 16 15.5 18'],
+  locker_key: ['M9 8.5a3.5 3.5 0 1 0 .01 0z', 'M11.5 11l8 8', 'M17 16.5l2 2', 'M19.5 14l2 2'],
   // the four vehicles, each a different silhouette — this is the one family where the shape on
   // the map genuinely differs, so they get their own drawings rather than a shared one
   sedan: CAR,

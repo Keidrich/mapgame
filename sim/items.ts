@@ -14,6 +14,7 @@
  */
 import { EQUIP_MAX, ITEM_DEFS, RESALE, type ItemDef, type ItemMods } from '@content/items';
 import type { OpApproach } from '@content/rackets';
+import { LANDMARK_BY_ITEM, LANDMARKS } from '@content/landmarks';
 import { hashString } from './rng';
 import type { Business, Id, Skills, World } from './types';
 
@@ -179,16 +180,38 @@ const SHELVES: Partial<Record<Business['type'], { want: number; keep: (it: ItemD
   black_market:   { want: 5, keep: () => true },
 };
 
-/** Places that trade in kit. */
-export function isMarket(biz: Business): boolean { return !!SHELVES[biz.type]; }
+/**
+ * What a landmark keeps behind its own counter, if it keeps anything.
+ *
+ * Two of the five sell one item apiece and no other building in the city sells it — see
+ * `content/landmarks.ts` for why the other three got a person instead. It is a lookup on
+ * `Business.landmark`, not on type, because the type is shared: Union Station is a
+ * `development_co` and so is the courthouse, and only one of them has a key behind the desk.
+ */
+const landmarkItem = (biz: Business): ItemDef | undefined => {
+  const lm = biz.landmark ? LANDMARKS.find(l => l.id === biz.landmark) : undefined;
+  return lm?.item ? ITEM_DEFS[lm.item] : undefined;
+};
+
+/** Places that trade in kit — the three shop types, plus the two landmarks with a counter. */
+export function isMarket(biz: Business): boolean { return !!SHELVES[biz.type] || !!landmarkItem(biz); }
+
+/** Whether this item is a landmark's and cannot be bought anywhere else. */
+export const isLandmarkOnly = (itemId: string): boolean => !!LANDMARK_BY_ITEM[itemId];
 
 /**
  * What this place has on the shelf. Derived from the business id, so a shop's stock is its own
  * and never changes under the player — and costs nothing in the save.
  */
 export function marketStock(biz: Business): ItemDef[] {
+  // A landmark's own item is its whole shelf, always there, never anywhere else. It does not go
+  // through the rotation below, because a thing that is sometimes in stock is not a reason to
+  // know a building.
+  const only = landmarkItem(biz);
+  if (only) return [only];
   const shop = SHELVES[biz.type]; if (!shop) return [];
-  const shelf = Object.values(ITEM_DEFS).filter(shop.keep);
+  // …and it never leaks onto an ordinary shelf, however the rotation lands.
+  const shelf = Object.values(ITEM_DEFS).filter(it => shop.keep(it) && !isLandmarkOnly(it.id));
   if (!shelf.length) return [];
   const h = hashString(biz.id);
   // a stable, shop-specific slice, always in the same order. Stepping by two rather than one is
