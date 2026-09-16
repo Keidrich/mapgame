@@ -14,6 +14,74 @@ House rules for an entry (see `CLAUDE.md` → *Leave a trail*):
 
 ---
 
+## 2026-09-16 — UI pass: navigation, and what a sheet shows before you ask
+
+**What.** No new content. The Empire tab becomes a hub with sub-navigation, `NpcSheet` puts the
+actions first and everything else behind folds, `BlockSheet` stops printing headings over nothing,
+and the Social tab pages instead of rendering the whole city.
+
+**Why — measured first, decided second.** The pass opened with a real audit: taps counted in a
+built app on a 390×844 phone against a late-game save, scroll depth read off the live DOM,
+screenshots at three save states before anything was touched (a curated before/after pair is in
+`docs/shots/`).
+
+| screen | taps from the map | scroll |
+|---|---|---|
+| News ticker | 1 | buried ~3 screens into a 9.3-screen tab |
+| Trophy screen | 2 | **+2,936px scrolled** after the taps |
+| Relationship map | 2 | — |
+| Character sheet | 3 | below the fold inside `NpcSheet` |
+
+**Nothing was more than three taps away**, and that is what shaped everything after it. The cost
+was never depth — it was landing in an undifferentiated wall.
+
+| screen | before | after |
+|---|---|---|
+| Empire tab | 7,866px — **9.3 screens**, 12 sections | **658px — 0.8 screens** |
+| Social tab | 28,341px — **33.6 screens**, 416 rows | **4,333px — 5.1 screens** |
+| `NpcSheet` (crew) | 1,543px, Actions at **1,295px** (screen 2.5) | **985px, Actions first** |
+| `BlockSheet` | 657–1,047px | 565–955px |
+
+**How.** The navigation decision is written down in `docs/DESIGN.md` §4.7e with the two options it
+rejected, so it is a decision rather than wherever a chevron fitted:
+
+- **The tab bar does not grow.** Six tabs already spend ~65px each of a 390px screen and clip their
+  labels at 320px. A seventh shrinks every hit target to fix a problem that is not depth.
+- **Nothing is promoted onto the map.** Its furniture budget is spent — HUD, legend, layer chip,
+  End Day, and a banner that can cover all of it. Adding to that would be this pass increasing the
+  clutter it was called in to reduce.
+- **Empire becomes a hub**: Money / Holdings / The city / You, one segmented control, the choice
+  remembered like a fold. `EmpireTab` takes an optional `view` prop so a single view can be
+  rendered on its own — by the tests, and by anything that later wants to open the tab *at* a
+  question.
+
+`NpcSheet`'s order is now: are they even here → the states that change which button you'd press →
+the buttons → the crew card → five shut folds of reference. `BlockSheet` leads with the doors and
+folds the demand table.
+
+**Numbers.** 1578 → 1596 tests. Honest 60-day curve unchanged (UI-only).
+
+**Watch out.**
+
+- **Two real bugs the audit found by accident**, both invisible from the code and obvious the
+  moment something tried to use the app. `.banner` shared `z-index: 65` with `.sheet` and, being
+  later in source order, **painted over an open sheet** — the first "before" screenshot is a
+  person's sheet with a banner across its header, so you could not see whose sheet you had opened.
+  And `Sheet` is a `role="dialog"` that **Escape did not close**, with focus left behind the
+  backdrop; the screenshot harness found it by failing to dismiss a sheet.
+- **`ui/empire-folds.test.tsx` was rewritten, not relaxed.** It asserted "the Empire tab is one
+  long column", which this pass deliberately breaks. It now walks all four views and makes the same
+  claim about each.
+- **The Social tab fix is a cap, not a cure.** 40 rows and a "show more"; the search box above it is
+  the real way anybody finds a name in four hundred. It was out of the brief's named scope and was
+  three times worse than anything in it, so it got the cheap fix rather than none.
+- **All four new guards were mutation-tested**: moving Actions back to the bottom, re-opening the
+  reference folds, dropping a section out of the hub, and adding a seventh tab each fail.
+- **`BlockSheet` measured 0.7–1.2 screens**, so it got a lighter touch than the brief assumed. Said
+  plainly rather than restructured to match the premise.
+
+---
+
 ## 2026-09-16 — A bigger world: news, landmarks, specialists, and what an heir inherits
 
 **What.** Four systems that worked and were thinner than they looked. The paper now reads back

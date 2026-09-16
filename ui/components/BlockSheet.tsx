@@ -7,7 +7,7 @@ import { PRODUCTS, crewName, districtName, fmtMoney, influenceRows, safehouseAt,
 import { openSheet, useWorld } from '@ui/store';
 import { Sheet } from './Sheet';
 import { Meter } from './Meter';
-import { Act, AmountPicker, Disclosure, SceneAct } from './Act';
+import { Act, AmountPicker, Disclosure, SceneAct, Section } from './Act';
 import { BizRow } from './Rows';
 import { Info, Term, TermChip } from './Info';
 import { WalkHere } from './Walk';
@@ -101,19 +101,28 @@ export function BlockSheet({ blockId }: { blockId: Id }) {
           )}
         </div>
       )}
-      <div className="section-title">Demand / day<Info id="demand" /></div>
-      <div className="chips">
-        {PRODUCTS.map(p => <span key={p} className="chip"><Icon of="product" id={p} size={12} /> {PRODUCT_INFO[p].label} <span className="muted">{b.demand[p]}</span></span>)}
-      </div>
-
-      <div className="section-title">Businesses ({b.businessIds.length})</div>
-      <div className="list">
-        {select.businessesIn(w, blockId).map(biz => <BizRow key={biz.id} w={w} biz={biz} />)}
-      </div>
-
-      {sh ? <SafehouseCard w={w} sh={sh} /> : (
-        <div className="section-title">Safehouse</div>
+      {/* The doors on this block are why anybody opens this sheet, so they stay open and come
+          first — but a block with nothing on it should not print an empty heading to say so. */}
+      {b.businessIds.length > 0 && (
+        <>
+          <div className="section-title">Businesses ({b.businessIds.length})</div>
+          <div className="list">
+            {select.businessesIn(w, blockId).map(biz => <BizRow key={biz.id} w={w} biz={biz} />)}
+          </div>
+        </>
       )}
+
+      {/* Six numbers that are reference rather than a decision: you read them once when you are
+          working out where to sell, and never again on the twenty visits after that. */}
+      <Section id="block:demand" title="Demand / day" defaultOpen={false} info={<Info id="demand" />}>
+        <div className="chips">
+          {PRODUCTS.map(p => <span key={p} className="chip"><Icon of="product" id={p} size={12} /> {PRODUCT_INFO[p].label} <span className="muted">{b.demand[p]}</span></span>)}
+        </div>
+      </Section>
+
+      {/* A safehouse you have is a card worth seeing; one you do not have was a bare heading over
+          nothing, which is the shape of this whole pass in miniature. The action below covers it. */}
+      {sh && <SafehouseCard w={w} sh={sh} />}
       <div className="actions mt8">
         {!sh && <Act action={{ type: 'rent_safehouse', blockId }} label={b.abandoned?.claimedBy === PLAYER ? 'Move in (free)' : 'Rent safehouse here'} icon="safehouse" kind="primary" />}
         <Disclosure label="Sell product here" icon="pills">

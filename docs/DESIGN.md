@@ -966,6 +966,89 @@ spend its cash and its legwork on kit that never goes anywhere. Without that gat
 close moved from $212 dirty / heat 3 to $378 / heat 0, which is precisely the frozen-run
 "improvement" CLAUDE.md forbids.
 
+### 4.7e Navigation: what the audit measured, and the decision it forced
+
+Thirty-seven components had shipped against six tabs. The complaint was "jumbled"; the useful
+question was *which* jumble, so the pass opened with measurement rather than with a redesign — taps
+counted in a real build on a 390×844 phone against a late-game save, and scroll depth read off the
+live DOM.
+
+**Taps, cold start from the map:**
+
+| screen | taps | what it actually cost |
+|---|---|---|
+| News ticker | 1 | buried ~3 screens into a 9.3-screen tab |
+| Trophy screen | 2 | **+2,936px of scrolling** after the taps |
+| Relationship map | 2 | — |
+| Character sheet | 3 | inside `NpcSheet`, below the fold |
+| A ledger | 3 | inside `NpcSheet` |
+
+**Nothing was more than three taps away**, and that is the finding the whole pass turns on. The
+cost was never depth. It was landing in an undifferentiated wall and scrolling to find out whether
+the thing you wanted was in it:
+
+| screen | before | after |
+|---|---|---|
+| Empire tab | 7,866px — **9.3 screens**, 12 sections | 658px — 0.8 screens |
+| Social tab | 28,341px — **33.6 screens**, 416 rows | 4,333px — 5.1 screens |
+| `NpcSheet` (crew) | 1,543px, Actions starting at **1,295px** | 985px, Actions first |
+| `BlockSheet` | 657–1,047px | 565–955px |
+
+**The decision, and the two options rejected.**
+
+*The tab bar does not grow.* Six tabs already spend about 65px each of a 390px screen and the
+labels are clipped at 320px. A seventh would shrink every hit target to fix a problem the
+measurement says is not about depth — every one of these screens was already one or two taps away.
+
+*Nothing is promoted onto the map.* The map's furniture budget is spent: HUD above, legend
+top-left, layer chip, End Day bottom-right, and a grid-city banner that can appear over all of it.
+Adding a persistent news strip would have been this pass adding to the clutter it was called in to
+reduce.
+
+*The Empire tab becomes a hub.* Four views behind one segmented control — **Money** (what comes in
+tonight and what to do with it), **Holdings** (the things you own), **The city** (what got out, the
+files open on you, the record), **You** (the life the money bought, the way out, the save). Each is
+a short screen; each answers one question. The choice is remembered like a fold is, so coming back
+to Empire comes back to the question you were last asking. `ui/navigation-reachability.test.tsx`
+holds the tap budget the decision was made against, including the "still six tabs" claim, so a
+later pass that adds a seventh has to come and argue with it.
+
+### 4.7f Progressive disclosure on the sheets people actually open
+
+**`NpcSheet` puts the decision first.** Actions used to be the *last* card, at 1,295px on an 844px
+screen — so on every visit to the most-visited screen in the game the player scrolled past skills,
+three relationship meters, a nerve figure, a ledger, a paragraph of family prose and two more cards
+to reach the row of buttons they came for. The order is now: whether they are even here
+(`AwayNotice`), the handful of states that change *which* button you would press, the buttons, the
+crew card when they are yours — and then five folds of reference, all shut. Everything below the
+actions is true about this person and none of it is what you are deciding now.
+
+Two details worth keeping. The refusal captions under the buttons are suppressed when the player is
+on the wrong block (`quiet-captions`): every face-to-face action refuses identically there and the
+notice above has just said why, so the screen was printing one sentence three times. And the
+buttons stay *disabled* rather than absent — a player should still see what a person is for, which
+is the door-missing bug three earlier passes each shipped once.
+
+**`BlockSheet` stops printing headings over nothing.** It measured 0.7–1.2 screens, so the honest
+answer was a lighter touch than the brief assumed rather than a restructure: the businesses come
+first, the six-number demand table goes behind a fold (you read it once when working out where to
+sell), an empty "Businesses (0)" heading is not drawn at all, and the bare "Safehouse" rule over a
+safehouse you do not have is gone — the action under it was always the whole card.
+
+**Accessibility, on the parts this pass touched.** The sub-navigation holds the app's 44px hit
+floor, carries `aria-current`, has a visible `:focus-visible` ring, and marks the active view with
+an underline as well as a fill so it survives a colourblind viewer. And the audit turned up a real
+failure while trying to script itself: `Sheet` is a `role="dialog"` that **Escape did not close**,
+with focus left on whatever was behind the backdrop. It takes focus on open and closes on Escape
+now, with `aria-modal`. Deliberately focus-on-open rather than a focus trap — a trap has to decide
+what to do with the map behind it and gets that wrong more often than it gets it right.
+
+One more thing the screenshots caught: `.banner` sat at the same `z-index` as `.sheet` and, being
+later in source order, painted **over an open sheet**. The first "before" screenshot in
+`docs/shots/` is a person's sheet with a banner across its header, so you could not see whose sheet
+you had opened. A banner interrupts the map, not something the player deliberately opened; it is at
+40 now.
+
 ### 4.8 When they come for you
 
 A faction's tick used to resolve its attacks alone: you read in the morning that your numbers

@@ -32,7 +32,7 @@ export function CharacterSheet({ npcId }: { npcId: Id }) {
   const kinds = [...new Set(owned.map(i => i.id))].map(id => ITEM_DEFS[id]);
   const first = n.name.split(' ')[0];
   return (
-    <Section id={`sheet:${npcId}`} title="Character sheet" info={<Info id="kit" />}>
+    <Section id={`sheet:${npcId}`} title="Character sheet" defaultOpen={false} info={<Info id="kit" />}>
       <div className="chips">
         <TermChip id="crewStatus" className={`s-${c.status}`}>{c.status}{c.statusDays > 0 && ` (${c.statusDays}d)`}</TermChip>
         {select.isKnown(n)

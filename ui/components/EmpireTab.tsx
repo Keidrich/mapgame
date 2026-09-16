@@ -17,7 +17,43 @@ import { TrophyScreen } from './TrophyScreen';
 import { LIFESTYLE } from '@content/fortune';
 import { Icon } from '@ui/icons';
 
-export function EmpireTab() {
+/**
+ * The Empire tab is a **hub**, not a page.
+ *
+ * Measured before this pass: one scroll of 7,866px on an 844px screen — **9.3 screens**, twelve
+ * sections deep. The record sat at screen 4.9 and the safehouse list at screen 10. Every one of
+ * those sections is something a player wants; none of them is something they want *at the same
+ * time as the other eleven*.
+ *
+ * The decision (see `docs/DESIGN.md` §4.28): **the tab bar does not grow, this tab gets
+ * sub-navigation.** Six tabs already spend 65px each of a 390px phone; a seventh would shrink the
+ * hit targets to fix a problem that measurement says is not about depth at all — every one of
+ * these screens was already one or two taps away. The cost was never taps, it was landing in a
+ * nine-screen wall and scrolling to find out whether the thing you wanted was in it.
+ *
+ * Four views, each a short screen, each answering one question:
+ *
+ *  - **Money** — what comes in tonight, what you are holding, what to do with it.
+ *  - **Holdings** — the things you own: businesses, rackets, safehouses.
+ *  - **The city** — what got out, and the file somebody kept on you.
+ *  - **You** — the life the money bought, the way out, and the save.
+ *
+ * `Money` is the default because it is the question a player opens this tab to answer.
+ */
+export const EMPIRE_VIEWS = [
+  { id: 'money', label: 'Money', icon: 'cash' },
+  { id: 'holdings', label: 'Holdings', icon: 'empire' },
+  { id: 'city', label: 'The city', icon: 'city_hall' },
+  { id: 'you', label: 'You', icon: 'person' },
+] as const;
+export type EmpireView = typeof EMPIRE_VIEWS[number]['id'];
+
+/**
+ * `view` is a prop so one can be rendered on its own — by a test walking all four, and by anything
+ * that ever wants to open this tab *at* a question rather than at the top of it. With nothing
+ * passed, the tab owns its own state, which is the ordinary case.
+ */
+export function EmpireTab({ view: fixed }: { view?: EmpireView } = {}) {
   const w = useWorld();
   const est = select.dailyEstimate(w);
   const share = select.controlShare(w);
@@ -25,63 +61,96 @@ export function EmpireTab() {
   const rackets = playerRackets(w);
   const safes = playerSafehouses(w);
   const net = est.clean + est.dirty - est.wages - est.rent;
+  // Remembered across a session the same way a fold is, so coming back to Empire comes back to
+  // whichever question you were last asking rather than resetting to the top of a list.
+  const [own, setOwn] = useState<EmpireView>(() => (readEmpireView() ?? 'money'));
+  const view = fixed ?? own;
+  const go = (v: EmpireView) => { setOwn(v); writeEmpireView(v); };
+
   return (
     <div className="panel-inner">
       <h2>Empire</h2>
-      <div className="card gold">
-        <div className="row between"><b>Daily estimate<Info title="Daily estimate" body="What tonight should bring in and pay out, before events, raids and incidents. Rackets that need product or a runner can come in under it." /></b><b className={net >= 0 ? 'green' : 'red'}>{fmtMoney(net)}/day</b></div>
-        <dl className="kv mt8">
-          <dt><Term id="cash">Clean income</Term></dt><dd className="green">{fmtMoney(est.clean)}</dd>
-          <dt><Term id="dirty">Dirty income</Term></dt><dd className="orange">{fmtMoney(est.dirty)}</dd>
-          <dt><Term id="cut">Wages</Term></dt><dd className="red">-{fmtMoney(est.wages)}</dd>
-          <dt>Rent</dt><dd className="red">-{fmtMoney(est.rent)}</dd>
-        </dl>
-        <div className="mt8"><Meter label={<Term id="control">City control</Term>} value={share * 100} color="var(--gold)" format={v => `${Math.round(v)}%`} /></div>
-        <div className="small muted mt8">{select.playerBlocks(w).length} of {Object.keys(w.blocks).length} blocks · own 60% to take the city.</div>
-      </div>
+      <nav className="subnav" aria-label="Empire sections">
+        {EMPIRE_VIEWS.map(v => (
+          <button type="button" key={v.id} className={`subnav-tab${view === v.id ? ' active' : ''}`}
+            onClick={() => go(v.id)} aria-current={view === v.id ? 'page' : undefined}>
+            <Icon name={v.icon} size={15} /><span>{v.label}</span>
+          </button>
+        ))}
+      </nav>
 
-      <Section id="holdings" title="Holdings" info={<Info id="holdings" />}><Holdings /></Section>
+      {view === 'money' && (
+        <>
+          <div className="card gold">
+            <div className="row between"><b>Daily estimate<Info title="Daily estimate" body="What tonight should bring in and pay out, before events, raids and incidents. Rackets that need product or a runner can come in under it." /></b><b className={net >= 0 ? 'green' : 'red'}>{fmtMoney(net)}/day</b></div>
+            <dl className="kv mt8">
+              <dt><Term id="cash">Clean income</Term></dt><dd className="green">{fmtMoney(est.clean)}</dd>
+              <dt><Term id="dirty">Dirty income</Term></dt><dd className="orange">{fmtMoney(est.dirty)}</dd>
+              <dt><Term id="cut">Wages</Term></dt><dd className="red">-{fmtMoney(est.wages)}</dd>
+              <dt>Rent</dt><dd className="red">-{fmtMoney(est.rent)}</dd>
+            </dl>
+            <div className="mt8"><Meter label={<Term id="control">City control</Term>} value={share * 100} color="var(--gold)" format={v => `${Math.round(v)}%`} /></div>
+            <div className="small muted mt8">{select.playerBlocks(w).length} of {Object.keys(w.blocks).length} blocks · own 60% to take the city.</div>
+          </div>
+          <div className="actions mt8"><Launder /><GoToGround /><TheWall /></div>
+          <Inventory />
+          <WireSection />
+        </>
+      )}
 
-      <Inventory />
-      <div className="actions mt8"><Launder /><GoToGround /><TheWall /></div>
+      {view === 'holdings' && (
+        <>
+          <Section id="holdings" title="Holdings" info={<Info id="holdings" />}><Holdings /></Section>
+          <Section id="businesses" title="Businesses" count={biz.length}>
+            <div className="list">{biz.map(b => <BizRow key={b.id} w={w} biz={b} />)}{biz.length === 0 && <p className="small muted">You own nothing yet. Buy a business or protect one.</p>}</div>
+          </Section>
+          <Section id="rackets" title="Rackets" count={rackets.length}>
+            <div className="list">{rackets.map(r => <RacketCard key={r.id} w={w} r={r} showBiz />)}{rackets.length === 0 && <p className="small muted">No rackets. Start one from a business sheet.</p>}</div>
+          </Section>
+          <Section id="safehouses" title="Safehouses" count={safes.length}>
+            <div className="list">
+              {safes.map(s => (
+                <button type="button" key={s.id} className="listitem" onClick={() => openSheet({ kind: 'block', blockId: s.blockId })}>
+                  <span className="ico"><Icon name="safehouse" size={18} /></span>
+                  <div className="grow"><div className="title">{s.name}</div><div className="sub">{SAFEHOUSE_TIERS[s.tier - 1]?.label} · {w.blocks[s.blockId]?.name} · {s.productionIds.length} productions · {fmtMoney(s.cash)} hidden</div></div>
+                </button>
+              ))}
+              {safes.length === 0 && <p className="small muted">Rent one from any block sheet.</p>}
+            </div>
+          </Section>
+        </>
+      )}
 
-      <Section id="businesses" title="Businesses" count={biz.length}>
-        <div className="list">{biz.map(b => <BizRow key={b.id} w={w} biz={b} />)}{biz.length === 0 && <p className="small muted">You own nothing yet. Buy a business or protect one.</p>}</div>
-      </Section>
+      {view === 'city' && (
+        <>
+          {/* what the city read about it afterwards, the files they have open, and the record */}
+          <NewsTicker />
+          <Cases />
+          <TrophyScreen />
+          <Section id="log" title="Log" defaultOpen={false}><Log /></Section>
+        </>
+      )}
 
-      <WireSection />
-
-      {/* what the city read about it afterwards, and the file somebody kept on you */}
-      <NewsTicker />
-      <Lifestyle />
-      <GoStraight />
-      <TrophyScreen />
-
-      <Section id="rackets" title="Rackets" count={rackets.length}>
-        <div className="list">{rackets.map(r => <RacketCard key={r.id} w={w} r={r} showBiz />)}{rackets.length === 0 && <p className="small muted">No rackets. Start one from a business sheet.</p>}</div>
-      </Section>
-
-      <Section id="safehouses" title="Safehouses" count={safes.length}>
-        <div className="list">
-          {safes.map(s => (
-            <button type="button" key={s.id} className="listitem" onClick={() => openSheet({ kind: 'block', blockId: s.blockId })}>
-              <span className="ico"><Icon name="safehouse" size={18} /></span>
-              <div className="grow"><div className="title">{s.name}</div><div className="sub">{SAFEHOUSE_TIERS[s.tier - 1]?.label} · {w.blocks[s.blockId]?.name} · {s.productionIds.length} productions · {fmtMoney(s.cash)} hidden</div></div>
-            </button>
-          ))}
-          {safes.length === 0 && <p className="small muted">Rent one from any block sheet.</p>}
-        </div>
-      </Section>
-
-      <Cases />
-
-      {/* The two at the bottom are reference rather than management, so they start shut: the log
-          is a hundred lines and the save card is something you touch once a session. */}
-      <Section id="log" title="Log" defaultOpen={false}><Log /></Section>
-      <Section id="save" title="Save" defaultOpen={false}><SaveCard /></Section>
+      {view === 'you' && (
+        <>
+          <Lifestyle />
+          <GoStraight />
+          <Section id="save" title="Save" defaultOpen={false}><SaveCard /></Section>
+        </>
+      )}
     </div>
   );
 }
+
+/** Which Empire view was last open. A preference, stored like the folds are. */
+const EMPIRE_VIEW_KEY = 'rackets.empireView.v1';
+function readEmpireView(): EmpireView | undefined {
+  try {
+    const v = localStorage.getItem(EMPIRE_VIEW_KEY);
+    return EMPIRE_VIEWS.some(x => x.id === v) ? (v as EmpireView) : undefined;
+  } catch { return undefined; }
+}
+function writeEmpireView(v: EmpireView) { try { localStorage.setItem(EMPIRE_VIEW_KEY, v); } catch { /* a preference nobody can store is still one for this session */ } }
 
 function Cases() {
   const w = useWorld();

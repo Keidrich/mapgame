@@ -19,6 +19,28 @@ export function Sheet({ title, subtitle, icon, children, accent, onClose, onBack
   const ref = useRef<HTMLDivElement>(null);
   const drag = useRef({ y0: 0, dy: 0, active: false });
 
+  /**
+   * Escape closes it, and opening it moves focus into it.
+   *
+   * Both were missing, which the navigation audit found the hard way: a `role="dialog"` that a
+   * keyboard cannot dismiss, over a backdrop whose only close affordance was a mouse click. Focus
+   * also stayed on whatever was behind the backdrop, so a screen-reader user opening a sheet was
+   * told nothing had happened and then read the page underneath it.
+   *
+   * Deliberately focus-on-open rather than a focus trap: a trap has to decide what to do with the
+   * map behind it and gets that wrong more often than it gets it right, and every sheet here has a
+   * Close button at the top and the bottom of its own tab order.
+   */
+  useEffect(() => {
+    const el = ref.current;
+    el?.focus({ preventScroll: true });
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.stopPropagation(); close(); } };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+    // `close` is stable for a given sheet; re-binding on every render would drop keystrokes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Keep the sheet above the software keyboard (iOS keeps fixed elements behind it otherwise).
   useEffect(() => {
     const vv = window.visualViewport; const el = ref.current;
@@ -50,7 +72,7 @@ export function Sheet({ title, subtitle, icon, children, accent, onClose, onBack
   return (
     <>
       <div className="sheet-backdrop" onClick={close} />
-      <div ref={ref} className="sheet" role="dialog" aria-label={typeof title === 'string' ? title : undefined} style={accent ? { borderTopColor: accent, borderTopWidth: 3 } : undefined}>
+      <div ref={ref} className="sheet" role="dialog" aria-modal="true" tabIndex={-1} aria-label={typeof title === 'string' ? title : undefined} style={accent ? { borderTopColor: accent, borderTopWidth: 3 } : undefined}>
         <div className="sheet-handle" onTouchStart={onStart} onTouchMove={onMove} onTouchEnd={onEnd} onTouchCancel={onEnd}>
           <div className="sheet-grab" />
           <div className="sheet-head">

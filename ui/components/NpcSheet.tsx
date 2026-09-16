@@ -6,7 +6,7 @@ import { assignmentLabel, cap, fmtMoney, initials, playerRackets, playerSafehous
 import { openSheet, useWorld } from '@ui/store';
 import { Sheet } from './Sheet';
 import { Meter, RelMeters, SkillBars } from './Meter';
-import { Act, AmountPicker, Disclosure, SceneAct } from './Act';
+import { Act, AmountPicker, Disclosure, SceneAct, Section } from './Act';
 import { Info, Term, TermChip } from './Info';
 import { AwayNotice } from './Walk';
 import { NoteEditor } from './Note';
@@ -27,66 +27,61 @@ export function NpcSheet({ npcId }: { npcId: Id }) {
   // The reducer's own list, read rather than copied — a narrower copy here meant a fixer and an
   // unaffiliated soldier had no Recruit button anywhere in the app.
   const canRecruit = !select.recruitRoleReason(n);
+  const reach = select.npcReachBlock(w, n);
+  const away = !!reach && !!w.blocks[reach] && !select.isHere(w, reach);
 
   return (
-    <Sheet title={n.name} subtitle={`${roleLabel(n)}${faction ? ` · ${faction.name}` : ''}${!n.alive ? ' · deceased' : ''}`} icon={<span className="avatar" style={{ color: faction?.color }}>{initials(n.name)}</span>} accent={faction?.color}>
-      <div className="chips">
-        {select.isKnown(n)
-          ? n.traits.map(t => <TermChip key={t} id={`trait:${t}`}>{TRAIT_LABELS[t] ?? t}</TermChip>)
-          : <TermChip id={n.hint ? 'cased' : 'known'}><span className="muted">{n.hint ?? 'Traits unknown'}</span></TermChip>}
+    /**
+     * Ordering is the whole point of this sheet, so it is spelled out rather than being whatever
+     * order the cards were written in.
+     *
+     * **The reason you opened it comes first.** Measured before this pass: `Actions` began at
+     * 1,295px on a 844px screen — screen 2.5 of a 1.8-screen sheet — so on *every* visit to the
+     * most-visited screen in the game the player scrolled past skills, three relationship meters,
+     * a nerve figure, a ledger, a paragraph of family prose and two more cards to reach the one
+     * row of buttons they came for. Everything below Actions is reference: true about this person,
+     * and not what you are deciding right now.
+     *
+     * What stays visible with the actions is only what changes *which* action you would take —
+     * whether they are even here, how they feel about you, and the handful of states that make a
+     * button behave differently (a grudge, a hostage, a nemesis, your own turf).
+     */
+    <Sheet title={select.isNemesis(n) ? select.nemesisName(n) : n.name} subtitle={`${roleLabel(n)}${faction ? ` · ${faction.name}` : ''}${!n.alive ? ' · deceased' : ''}`} icon={<span className="avatar" style={{ color: faction?.color }}>{initials(n.name)}</span>} accent={faction?.color}>
+      {/* Not here? Then nothing below is actionable, and that is the first thing to say. */}
+      <AwayNotice blockId={select.npcReachBlock(w, n)} what={n.name} />
+
+      {/*
+        The states that change *which* action you would press — above the buttons rather than
+        below them, because this is identity and identity belongs with the name. Left under the
+        actions it was one lonely "Neutral" chip between two cards, reading as something left over
+        rather than something said.
+      */}
+      <div className="chips mt8">
         <TermChip id="relLabel" title="How they see you" body={relBlurb(n)}>{select.relLabel(n)}</TermChip>
         {select.isHeld(n) && <TermChip id="hostage" tone="var(--red)">Held by you</TermChip>}
         {n.grudge && <TermChip id="grudge" tone="var(--red)">Holds a grudge</TermChip>}
-        {n.homeBlockId === w.player.homeBlockId && <TermChip id="homeTurf" tone="var(--gold)">Home turf</TermChip>}
-        {select.agendaLabel(n) && <TermChip id="agenda" tone="var(--blue)">{select.agendaLabel(n)}</TermChip>}
-        {select.caseWitnessOf(w, n.id) && <TermChip id="witness" tone="var(--red)">Witness: {select.caseWitnessOf(w, n.id)!.title}</TermChip>}
-        {n.recipe && select.isKnown(n) && RECIPES[n.recipe] && (
-          <TermChip id="recipeKnown" tone="var(--gold)" note={`${RECIPES[n.recipe].label}: ${RECIPES[n.recipe].blurb}`}>
-            {n.crew ? `Knows ${RECIPES[n.recipe].label}` : `Knows a recipe: ${RECIPES[n.recipe].label}`}
-          </TermChip>
-        )}
         {select.isNemesis(n) && <TermChip id="nemesis" tone="var(--red)">Has had the better of you {n.nemesis!.wins}×</TermChip>}
-        {n.official && <TermChip id="corruption">Corruption {n.official.corruption}</TermChip>}
-        {n.official?.boughtBy && <TermChip id="boughtBy" tone={select.factionColor(w, n.official.boughtBy)}>Bought by {select.factionName(w, n.official.boughtBy)}</TermChip>}
+        {n.homeBlockId === w.player.homeBlockId && <TermChip id="homeTurf" tone="var(--gold)">Home turf</TermChip>}
+        {select.caseWitnessOf(w, n.id) && <TermChip id="witness" tone="var(--red)">Witness</TermChip>}
       </div>
-      <div className="mt12"><SkillBars skills={n.skills} /></div>
-      <div className="mt12"><RelMeters rel={n.rel} /></div>
-      <Standing npcId={npcId} />
-      <AgendaActions npcId={npcId} />
-      <StandingPlays npcId={npcId} />
-      <dl className="kv mt12">
-        <dt><Term id="findAt">Find at</Term></dt>
-        <dd>{where ? <button type="button" className="chip btn" onClick={() => openSheet({ kind: 'business', businessId: where.id })}>{where.name}</button> : home ? <button type="button" className="chip btn" onClick={() => openSheet({ kind: 'block', blockId: home.id })}>{home.name}</button> : '—'}</dd>
-        {faction && <><dt><Term id="stance">Faction</Term></dt><dd style={{ color: faction.color }}>{faction.name} ({cap(select.stanceWithPlayer(w, faction.id))})</dd></>}
-        <dt><Term id="nerve">Nerve</Term></dt><dd>{select.isKnown(n) ? n.nerve : '?'}</dd>
-      </dl>
-      {n.playerNote && (
-        <div className="card mt12" style={{ borderColor: 'var(--gold)' }}>
-          <b className="small gold"><Icon name="note" size={13} /> Your note</b>
-          <p className="small" style={{ margin: '4px 0 0' }}>{n.playerNote}</p>
-        </div>
-      )}
-      <TapPanel npcId={npcId} />
-      <LedgerPanel npcId={npcId} collapsed />
-      <Connections npcId={npcId} />
-      {/* the sim's own flavour, kept separate from the player's note above */}
-      {n.notes.length > 0 && <ul className="small muted mt8" style={{ paddingLeft: 18, margin: 0 }}>{n.notes.map((x, i) => <li key={i}>{x}</li>)}</ul>}
-      <Disclosure label={n.playerNote ? 'Edit your note' : 'Make a note'} icon="note"><NoteEditor npcId={npcId} /></Disclosure>
 
-      {n.crew && <CharacterSheet npcId={npcId} />}
-      {n.crew && <CrewSection npcId={npcId} />}
 
-      <AwayNotice blockId={select.npcReachBlock(w, n)} what={n.name} />
-      <div className="section-title">Actions<Info id="odds" /></div>
-      <div className="actions">
+      {/*
+        `away` suppresses the per-button refusal captions, because when you are on the wrong block
+        every face-to-face action refuses for the same reason and the notice above has just given
+        it — the screen was printing one sentence three times. The buttons stay (disabled rather
+        than absent: a player should still see what this person is for), and the one live control
+        is the walk, in the notice.
+      */}
+      <div className={`actions actions-primary${away ? ' quiet-captions' : ''}`}>
         {!select.isKnown(n) && n.alive && <Act action={{ type: 'read', npcId }} label="Size them up" icon="search" />}
         <SceneAct scene={{ kind: 'visit', npcId }} label="Visit" icon="crew" />
         <SceneAct scene={{ kind: 'threaten', npcId }} label="Threaten" icon="intimidate" kind="danger" />
+        {canRecruit && <SceneAct scene={{ kind: 'recruit', npcId }} label="Recruit" icon="person" kind="primary" />}
         <Disclosure label="Gift" icon="gift">
           <AmountPicker presets={[100, 500, 2000]} value={gift} onChange={setGift} min={1} />
           <div className="mt8"><Act action={{ type: 'gift', npcId, amount: gift }} label={`Give ${fmtMoney(gift)}`} kind="primary" block /></div>
         </Disclosure>
-        {canRecruit && <SceneAct scene={{ kind: 'recruit', npcId }} label="Recruit" icon="person" kind="primary" />}
         {n.role === 'fixer' && n.alive && <FixerAct npcId={npcId} />}
         {n.alive && !n.crew && <BuyFavour npcId={npcId} />}
         {n.official && (
@@ -97,6 +92,60 @@ export function NpcSheet({ npcId }: { npcId: Id }) {
           </Disclosure>
         )}
       </div>
+
+      {/* Whatever they want from you, when you have actually established what that is. It sits
+          this high because it is the one piece of reference that is also a move. */}
+      <AgendaActions npcId={npcId} />
+      <StandingPlays npcId={npcId} />
+
+      {n.crew && <CrewSection npcId={npcId} />}
+      {/* Shut by default now: the loadout is a real action surface, but assignment above it is the
+          decision a player opens one of their own people to make. */}
+      {n.crew && <CharacterSheet npcId={npcId} />}
+
+      <Section id="npc:read" title="What you know about them" defaultOpen={false} info={<Info id="known" />}>
+        <div className="chips">
+          {select.isKnown(n)
+            ? n.traits.map(t => <TermChip key={t} id={`trait:${t}`}>{TRAIT_LABELS[t] ?? t}</TermChip>)
+            : <TermChip id={n.hint ? 'cased' : 'known'}><span className="muted">{n.hint ?? 'Traits unknown'}</span></TermChip>}
+          {select.agendaLabel(n) && <TermChip id="agenda" tone="var(--blue)">{select.agendaLabel(n)}</TermChip>}
+          {n.recipe && select.isKnown(n) && RECIPES[n.recipe] && (
+            <TermChip id="recipeKnown" tone="var(--gold)" note={`${RECIPES[n.recipe].label}: ${RECIPES[n.recipe].blurb}`}>
+              {n.crew ? `Knows ${RECIPES[n.recipe].label}` : `Knows a recipe: ${RECIPES[n.recipe].label}`}
+            </TermChip>
+          )}
+          {n.official && <TermChip id="corruption">Corruption {n.official.corruption}</TermChip>}
+          {n.official?.boughtBy && <TermChip id="boughtBy" tone={select.factionColor(w, n.official.boughtBy)}>Bought by {select.factionName(w, n.official.boughtBy)}</TermChip>}
+        </div>
+        <div className="mt12"><SkillBars skills={n.skills} /></div>
+        <div className="mt12"><RelMeters rel={n.rel} /></div>
+        <Standing npcId={npcId} />
+        <dl className="kv mt12">
+          <dt><Term id="findAt">Find at</Term></dt>
+          <dd>{where ? <button type="button" className="chip btn" onClick={() => openSheet({ kind: 'business', businessId: where.id })}>{where.name}</button> : home ? <button type="button" className="chip btn" onClick={() => openSheet({ kind: 'block', blockId: home.id })}>{home.name}</button> : '—'}</dd>
+          {faction && <><dt><Term id="stance">Faction</Term></dt><dd style={{ color: faction.color }}>{faction.name} ({cap(select.stanceWithPlayer(w, faction.id))})</dd></>}
+          <dt><Term id="nerve">Nerve</Term></dt><dd>{select.isKnown(n) ? n.nerve : '?'}</dd>
+        </dl>
+      </Section>
+
+      <TapPanel npcId={npcId} />
+      <LedgerPanel npcId={npcId} collapsed />
+
+      <Section id="npc:people" title="People" defaultOpen={false} info={<Info id="connections" />}>
+        <Connections npcId={npcId} />
+      </Section>
+
+      <Section id="npc:notes" title="Notes" defaultOpen={false} info={<Info id="note" />}>
+        {n.playerNote && (
+          <div className="card" style={{ borderColor: 'var(--gold)' }}>
+            <b className="small gold"><Icon name="note" size={13} /> Your note</b>
+            <p className="small" style={{ margin: '4px 0 0' }}>{n.playerNote}</p>
+          </div>
+        )}
+        {/* the sim's own flavour, kept separate from the player's note above */}
+        {n.notes.length > 0 && <ul className="small muted mt8" style={{ paddingLeft: 18, margin: 0 }}>{n.notes.map((x, i) => <li key={i}>{x}</li>)}</ul>}
+        <div className="mt8"><NoteEditor npcId={npcId} /></div>
+      </Section>
     </Sheet>
   );
 }

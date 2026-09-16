@@ -366,7 +366,12 @@ label.field { display: block; font-size: 12px; color: var(--muted); margin-botto
 .pickmap { height: min(300px, 40dvh); border-radius: 12px; overflow: hidden; border: 1px solid var(--line); margin-top: 8px; }
 .result { width: 100%; text-align: left; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg-3); color: var(--text); min-height: 44px; font-size: 13px; }
 .result.on { border-color: var(--gold); }
-.banner { position: fixed; left: 12px; right: 12px; top: calc(var(--hud-h) + 10px); z-index: 65; max-width: 520px; margin: 0 auto; background: linear-gradient(135deg, #f2c94c, #f0954c); color: #000; padding: 14px; border-radius: 14px; box-shadow: 0 10px 30px rgba(0,0,0,0.6); }
+/* 40, not 65: at 65 it tied with `.sheet` and, being later in the document, painted *over* an
+   open sheet — the navigation audit's first screenshot is a person's sheet with a banner across
+   its header, so you could not see whose sheet you had opened. A banner is an interruption of the
+   map, not of a thing the player deliberately opened. It still clears the backdrop at 40 by
+   sitting after it in source order. */
+.banner { position: fixed; left: 12px; right: 12px; top: calc(var(--hud-h) + 10px); z-index: 40; max-width: 520px; margin: 0 auto; background: linear-gradient(135deg, #f2c94c, #f0954c); color: #000; padding: 14px; border-radius: 14px; box-shadow: 0 10px 30px rgba(0,0,0,0.6); }
 .gameover { position: fixed; inset: 0; z-index: 80; background: var(--bg); display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px; text-align: center; }
 .gameover h1 { color: var(--red); font-size: 32px; margin-bottom: 8px; }
 
@@ -875,3 +880,51 @@ h1, h2, h3, h4, .sheet-title, .panel h2, .modal h2 {
 .trophy-value { font-weight: 700; text-align: right; }
 .meterbar { height: 6px; background: var(--bg); border: 1px solid var(--line); }
 .meterfill { height: 100%; background: var(--gold); }
+
+/* ---------------------------------------------------------------- sub-navigation and priority
+ * A tab that had grown to twelve sections and 9.3 screens becomes four short views. The control
+ * is a segmented row rather than more bottom tabs: the bottom bar is the app's *place* switcher
+ * and already spends 65px a tab on a 390px phone, and what this tab needed was a way to ask a
+ * different question in the same place. `.subnav` sticks so the question you are asking stays on
+ * screen while you read the answer.
+ */
+.subnav {
+  position: sticky; top: 0; z-index: 4;
+  display: flex; gap: 4px; margin: 0 0 12px;
+  padding: 4px; border: 1px solid var(--line); border-radius: 10px;
+  background: var(--bg-2);
+}
+.subnav-tab {
+  flex: 1 1 0; min-width: 0;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  /* 44px is the floor every hit target in this app holds to, sub-navigation included. */
+  position: relative; min-height: 44px; padding: 0 6px;
+  border: none; border-radius: 7px; background: none;
+  color: var(--muted); font-size: 12px; font-weight: 700;
+  white-space: nowrap; overflow: hidden;
+}
+.subnav-tab > span { overflow: hidden; text-overflow: ellipsis; }
+.subnav-tab.active { background: var(--bg-3); color: var(--gold); }
+/* Colour is not the only thing saying which one is on: an underline survives a colourblind
+   viewer and a high-contrast mode that flattens the fill. */
+.subnav-tab.active::after {
+  content: ''; position: absolute; left: 50%; bottom: 5px; width: 18px; height: 2px; margin-left: -9px; background: var(--gold);
+}
+.subnav-tab:focus-visible { outline: 2px solid var(--gold); outline-offset: -2px; }
+@media (max-width: 360px) { .subnav-tab { font-size: 11px; gap: 4px; } }
+
+/**
+ * The reason you opened the sheet, given the weight of one.
+ *
+ * `Actions` used to be the last card on `NpcSheet` and competed with five others for the same
+ * visual weight; it is first now, and this is what stops "first" from meaning "first of six
+ * identical cards". Full-width rows rather than the two-up grid `.actions` uses elsewhere: on the
+ * sheet that opens most, a tappable row that reads as a sentence beats a tighter grid.
+ */
+.actions-primary { display: flex; flex-direction: column; gap: 8px; margin-bottom: 4px; }
+.actions-primary > .actwrap, .actions-primary > .btn { flex: 1 1 100%; width: 100%; }
+.actions-primary .btn { justify-content: flex-start; min-height: 52px; font-size: 15px; }
+.actions-primary .btn-primary, .actions-primary .btn-danger { font-weight: 800; }
+/* One refusal, said once. See the note in `NpcSheet`: when the player is on the wrong block every
+   face-to-face action refuses identically and the notice above the group has already explained it. */
+.actions-primary.quiet-captions .btn-caption { display: none; }

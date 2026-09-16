@@ -16,7 +16,7 @@
 import { renderToString } from 'react-dom/server';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { generateWorld, type World } from '@sim/index';
-import { EmpireTab } from './components/EmpireTab';
+import { EMPIRE_VIEWS, EmpireTab } from './components/EmpireTab';
 import { Section } from './components/Act';
 import { isOpen, newGame, toggleFold, useStore } from './store';
 import { plain } from './test-util';
@@ -26,7 +26,18 @@ const mk = (): World => {
   w.pendingEvents = []; w.day = 20;
   return w;
 };
-const render = (w: World) => { newGame(w); return plain(renderToString(<EmpireTab />)); };
+/**
+ * Every view of the tab, concatenated.
+ *
+ * The tab stopped being one long column in the navigation pass — it is four short views behind a
+ * segmented control now — so "is every heading still a control that sticks" has to be asked of
+ * each view rather than of one render. The claim this file makes is unchanged; where it looks is.
+ */
+const render = (w: World) => {
+  newGame(w);
+  return EMPIRE_VIEWS.map(v => plain(renderToString(<EmpireTab view={v.id} />))).join('\n');
+};
+
 /** The body of one section, as it comes out of the renderer. */
 const bodyOf = (html: string, id: string) => html.match(new RegExp(`<div id="fold-${id}"([^>]*)>`))?.[1] ?? '';
 

@@ -1,4 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
+
+/** Rows before the list asks whether you actually want the rest of the city. */
+const PAGE = 40;
 import { select } from '@sim/index';
 import type { Id, Npc } from '@sim/types';
 import { initials, roleLabel } from '@ui/derive';
@@ -36,6 +39,8 @@ export function SocialTab() {
   const [mode, setMode] = useState<GroupMode>('connections');
   const [q, setQ] = useState('');
   const [openId, setOpenId] = useState<Id | null>(null);
+  /** How many rows a page of this list is, and how many are on screen now. */
+  const [shown, setShown] = useState(PAGE);
   const rows = useRef(new Map<Id, HTMLDivElement | null>());
 
   const met = select.metNpcs(w);
@@ -54,6 +59,7 @@ export function SocialTab() {
     setTimeout(() => rows.current.get(n.id)?.scrollIntoView({ block: 'center', behavior: 'smooth' }), 30);
   };
 
+  const total = groups.reduce((t, g) => t + g.people.length, 0);
   return (
     <div className="panel-inner">
       <h2>Social</h2>
@@ -61,11 +67,11 @@ export function SocialTab() {
 
       <div className="segment mt8">
         {MODES.map(m => (
-          <button type="button" key={m.id} className={mode === m.id ? 'on' : ''} onClick={() => setMode(m.id)}>{m.label}</button>
+          <button type="button" key={m.id} className={mode === m.id ? 'on' : ''} onClick={() => { setMode(m.id); setShown(PAGE); }}>{m.label}</button>
         ))}
       </div>
       {mode === 'web' ? <RelationshipMap /> : (
-        <input className="input mt8" placeholder="Search a name or your own notes…" value={q} onChange={e => setQ(e.target.value)} aria-label="Search people you have met" autoComplete="off" />
+        <input className="input mt8" placeholder="Search a name or your own notes…" value={q} onChange={e => { setQ(e.target.value); setShown(PAGE); }} aria-label="Search people you have met" autoComplete="off" />
       )}
 
       {mode !== 'web' && people.length === 0 && <p className="small muted mt12">{met.length ? 'Nobody here matches that.' : 'You have not met anybody yet. Open a business on your block and size up whoever is inside.'}</p>}
@@ -74,7 +80,7 @@ export function SocialTab() {
         <div key={g.title}>
           <div className="section-title">{g.title} <span className="muted small">({g.people.length})</span></div>
           <div className="col" style={{ gap: 6 }}>
-            {g.people.map(n => (
+            {g.people.slice(0, shown).map(n => (
               <div key={n.id} ref={el => { rows.current.set(n.id, el); }}>
                 <PersonRow npc={n} open={openId === n.id} onToggle={() => setOpenId(id => (id === n.id ? null : n.id))} onWalk={goTo} />
               </div>
@@ -82,6 +88,17 @@ export function SocialTab() {
           </div>
         </div>
       ))}
+      {/*
+        A late-game city has met four hundred people, and this tab rendered every one of them: the
+        navigation audit measured **28,341px — 33.6 screens**, the worst number in the app by a
+        factor of three. A page nobody can reach the bottom of is not a list, and the search box
+        above is the real way anybody finds a name in it.
+      */}
+      {total > shown && (
+        <button type="button" className="btn btn-ghost btn-block mt12" onClick={() => setShown(n => n + PAGE)}>
+          Show {Math.min(PAGE, total - shown)} more <span className="muted">({total - shown} not shown)</span>
+        </button>
+      )}
     </div>
   );
 }
