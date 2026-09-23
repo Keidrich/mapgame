@@ -16,8 +16,12 @@ export { stanceOf, sitDownOdds, tributeEffect, factionBlocks, STANCE_LABEL } fro
 export { evidenceRate, convictionOdds, openCases } from './law';
 export { depth, accrualMult, heldDays, T as TERRITORY } from './territory';
 export { stashCapacity, STRAIGHT, WIN_SHARE } from './tick';
-export { restockCost } from './reducer';
+export { restockCost, auditOdds } from './reducer';
+export { crewOn, crewOf, crewWage, crewCost, CREW } from './streetcrews';
+export { specialistFee } from './jobs';
 export { controller, fullName, shortName, money } from './util';
+import { fullName } from './util';
+import { playerBlocks } from './select-core';
 
 export const blockController = (w: World, id: Id) => { const b = w.blocks[id]; return b ? controller(b) : undefined; };
 export const businessesIn = (w: World, blockId: Id): Business[] => (w.blocks[blockId]?.businessIds ?? []).map(id => w.businesses[id]).filter(Boolean);
@@ -53,3 +57,42 @@ export function holderName(w: World, blockId: Id): string {
   return c === PLAYER ? 'You' : w.factions[c]?.name ?? 'Nobody';
 }
 export const pendingJob = (w: World) => Object.values(w.jobs).find(j => j.status === 'paused');
+
+// ------------------------------------------------------------------------------------ leads
+export interface Lead { id: string; text: string; why: string; done: boolean; npcId?: string; businessId?: string; blockId?: string; tab?: 'people' | 'crew' | 'jobs' | 'empire' | 'rivals' }
+
+/**
+ * What to do next, read off the world — never stored, so it cannot drift from what is true. The
+ * original taught its opening in a how-to-play sheet the player had to go and find; here the map
+ * carries the next two or three steps, each pointing at a real person or place.
+ */
+export function leads(w: World): Lead[] {
+  const p = w.player;
+  const here = w.blocks[p.blockId];
+  const nearby = [here.id, ...here.neighborIds];
+  const owners = nearby.flatMap(id => businessesIn(w, id)).filter(b => b.tier < 3 && b.ownedBy !== PLAYER).map(b => w.npcs[b.ownerId]).filter(n => n?.alive);
+  const soft = owners.slice().sort((a, b) => a.nerve - b.nerve)[0];
+  const met = Object.values(w.npcs).filter(n => n.rel.met && n.rel.met > 1).length;
+  const leaned = Object.values(w.npcs).some(n => !n.crew && (n.rel.fear >= 30 || n.rel.trust >= 30) && n.workId && w.businesses[n.workId]?.ownerId === n.id);
+  const prot = protectedBy(w).length + p.businessIds.length;
+  const washed = w.history.some(h => (h.washed ?? 0) > 0) || p.washedToday > 0;
+  const fx = w.fixerId ? w.npcs[w.fixerId] : undefined;
+  const patron = nearby.flatMap(id => businessesIn(w, id)).flatMap(b => b.patronIds).map(id => w.npcs[id]).filter(n => n?.alive && !n.crew && !n.faction).sort((a, b) => Math.max(...Object.values(b.skills)) - Math.max(...Object.values(a.skills)))[0];
+  const firstBiz = protectedBy(w)[0] ?? w.businesses[p.businessIds[0]];
+  const offer = Object.values(w.jobs).find(j => j.status === 'offer');
+  const list: Lead[] = [
+    { id: 'talk', text: soft ? `Introduce yourself to ${fullName(soft)}` : 'Introduce yourself to somebody', why: 'Talking builds trust and shows you what somebody is like.', done: met >= 1, npcId: soft?.id },
+    { id: 'lean', text: soft ? `Get ${fullName(soft)} to trust or fear you` : 'Get an owner to trust or fear you', why: 'Thirty of either and protection becomes a real ask. Cowards and low nerve fold fastest.', done: leaned || prot > 0, npcId: soft?.id },
+    { id: 'protect', text: 'Put a business under your protection', why: 'Your first daily money, and your first foothold on a block.', done: prot > 0, npcId: soft?.id },
+    { id: 'racket', text: firstBiz ? `Start a racket at ${firstBiz.name}` : 'Start a racket in a place you protect', why: 'Rackets earn every night. The cheap ones pay for themselves in a week.', done: p.racketIds.length > 0, businessId: firstBiz?.id },
+    { id: 'crew', text: patron ? `Win over ${fullName(patron)} and recruit them` : 'Recruit somebody', why: 'Crew run rackets properly, go on jobs and one day run districts.', done: p.crewIds.length > 0, npcId: patron?.id },
+    { id: 'job', text: offer ? `Pull a job: ${offer.title}` : 'Pull a job', why: 'Jobs are the fast money, and the loud way to make a name.', done: Object.values(w.jobs).some(j => j.status === 'done' || j.status === 'failed'), tab: 'jobs' },
+    { id: 'wash', text: fx && !fx.rel.met ? `Find the fixer, ${fullName(fx)}, and wash some money` : 'Wash some dirty money', why: 'Buying places, lawyers and officials takes clean money.', done: washed, npcId: fx && !fx.rel.met ? fx.id : undefined, tab: fx?.rel.met ? 'empire' : undefined },
+    { id: 'safehouse', text: 'Take a back room on your ground', why: 'Beds for more crew, room for stock, space for a lab.', done: p.safehouseIds.length > 0, blockId: here.id },
+    { id: 'hold', text: 'Hold a block', why: 'Thirty influence and the most of anybody. Stack things on one block and it comes fast.', done: playerBlocks(w).length > 0, blockId: here.id },
+    { id: 'payroll', text: 'Put an official on your payroll', why: 'A captain cools the precinct; a DA slows the files; a judge shortens sentences.', done: Object.values(w.npcs).some(n => n.payroll), tab: 'people' },
+    { id: 'lieutenant', text: 'Put a lieutenant over a district', why: 'Level 2 and loyalty 55. Rackets there run themselves — and they could inherit it all.', done: crew(w).some(n => n.crew?.assignment?.kind === 'district'), tab: 'crew' },
+    { id: 'half', text: `Hold half of ${w.city.name}`, why: 'That is winning. The game goes on after.', done: !!w.won, tab: 'rivals' },
+  ];
+  return list;
+}

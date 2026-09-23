@@ -29,6 +29,9 @@ export function PeopleTab() {
         {officials.map(n => <Row key={n.id} onClick={() => openSheet({ kind: 'person', id: n.id })} left={<NpcFace n={n} size={36} />} title={select.fullName(n)} sub={roleLine(w, n)} right={n.payroll ? <Chip tone="gold">Payroll</Chip> : undefined} />)}
         {fixer && <Row onClick={() => openSheet({ kind: 'person', id: fixer.id })} left={<NpcFace n={fixer} size={36} />} title={select.fullName(fixer)} sub={`The fixer · ${w.blocks[fixer.homeBlockId].name}${fixer.rel.met ? '' : ' · go and introduce yourself'}`} />}
       </Section>}
+      {!q && Object.keys(w.crews ?? {}).length > 0 && <Section title="Street crews">
+        {Object.values(w.crews).map(c => { const b = w.npcs[c.bossId]; return <Row key={c.id} onClick={() => openSheet({ kind: 'person', id: c.bossId })} left={b ? <NpcFace n={b} size={36} /> : undefined} title={`The ${c.name}`} sub={`${c.members} on ${w.blocks[c.blockId].name} · ${c.terms === 'none' ? 'nobody\'s' : c.terms === 'paid' ? 'on your wage' : 'yours'}`} right={c.terms === 'none' ? <Chip tone="red">{c.members}/{select.CREW.outfitAt}</Chip> : <Chip tone="gold">{c.terms}</Chip>} />; })}
+      </Section>}
       <Section title={`Everyone you know (${known.length})`}>
         {known.length ? known.slice(0, page * 30).map(n => <Row key={n.id} onClick={() => openSheet({ kind: 'person', id: n.id })} left={<NpcFace n={n} size={36} />} title={select.fullName(n)} sub={`${roleLine(w, n)} · trust ${n.rel.trust} · fear ${n.rel.fear}`} />) : <Empty>Nobody yet. Walk into a place on the map and introduce yourself.</Empty>}
         {known.length > page * 30 && <button type="button" className="r-btn block" onClick={() => setPage(p => p + 1)}>Show more</button>}

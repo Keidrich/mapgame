@@ -14,6 +14,7 @@ import { pointInPoly } from './geom';
 import { Rng } from './rng';
 import { addInfluence, nid } from './util';
 import { generateJobs } from './jobs';
+import { generateStreetCrews } from './streetcrews';
 import type { AgendaKind, Background, Block, Business, BusinessType, District, Faction, FactionStyle, Id, Npc, OfficialKind, Role, SecretKind, Skill, Skills, Temperament, Trait, World } from './types';
 import { PLAYER, SKILLS } from './types';
 
@@ -39,7 +40,7 @@ export function newWorld(opts: NewGame): World {
   const w: World = {
     version: WORLD_VERSION, seed: opts.seed, rng: 0, day: 1,
     city: gen.city, districts: gen.districts, blocks: gen.blocks,
-    businesses: {}, npcs: {}, factions: {}, rackets: {}, safehouses: {}, jobs: {}, cases: {},
+    businesses: {}, npcs: {}, factions: {}, rackets: {}, safehouses: {}, jobs: {}, cases: {}, crews: {},
     events: [], scheduled: [], log: [], news: [], history: [], nextId: 1,
     player: undefined as unknown as World['player'],
   };
@@ -153,6 +154,9 @@ export function newWorld(opts: NewGame): World {
 
   w.rng = rng.state;
   generateJobs(w, 3);
+  // street crews come from their own stream, after everything else, so they changed no seed's city
+  generateStreetCrews(w);
+  ensureFixer(w);
   w.log.push({ day: 1, text: `${w.city.name}. ${w.city.motto} You start on ${start.name}, in ${w.districts[start.districtId].name}, with ${bg.cash.toLocaleString('en-US')} dollars and nobody's respect.`, tone: 'info', blockId: start.id });
   return w;
 }
@@ -308,4 +312,37 @@ function pickStart(w: World, rng: Rng): Block {
   // prefer ground nobody holds yet
   const quiet = pool.filter(b => Object.keys(b.influence).length === 0);
   return rng.pick(quiet.length ? quiet : pool.length ? pool : Object.values(w.blocks));
+}
+
+/**
+ * Bring a save from an earlier release up to date without changing anything it already had.
+ * Additions are generated from their own streams, so an old city gains them exactly as a new one
+ * with the same seed would.
+ */
+export function migrate(w: World): World {
+  if (!w.crews) generateStreetCrews(w);
+  ensureFixer(w);
+  return w;
+}
+
+/**
+ * Every city has a fixer. The main pass looks for one in a market, old quarter, strip or dock
+ * district, and a city generated without any of those had none — no washing before your own laundry,
+ * no specialists, ever. This finds one anywhere, from its own stream, so no other part of any seed's
+ * city moves.
+ */
+export function ensureFixer(w: World) {
+  if (w.fixerId && w.npcs[w.fixerId]) return;
+  const rng = new Rng(w.seed ^ 0xf1ce5);
+  const blocks = Object.values(w.blocks).filter(b => b.businessIds.length && !Object.values(w.factions).some(f => f.homeDistrictId === b.districtId));
+  const b = rng.pick(blocks.length ? blocks : Object.values(w.blocks).filter(x => x.businessIds.length));
+  if (!b) return;
+  const pn = personName(rng, rng.pick(NAME_GROUP_IDS));
+  const id = nid(w, 'n');
+  w.npcs[id] = {
+    id, first: pn.first, last: pn.last, nick: nickname(rng), pronoun: pn.pronoun, age: rng.int(35, 64), face: rng.int(1, 2 ** 30),
+    role: 'fixer', homeBlockId: b.id, skills: { muscle: 3, brains: rng.int(6, 9), charm: rng.int(6, 9), wheels: 4, tech: rng.int(3, 7) },
+    traits: ['quiet', 'greedy'], nerve: 70, wealth: 60, rel: { trust: 0, fear: 0, respect: 0, owes: 0 }, memory: [], ties: [], known: false, alive: true,
+  };
+  w.fixerId = id;
 }

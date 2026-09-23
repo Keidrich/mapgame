@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { APPROACH_INFO, JOBS, STYLES } from '@r/content/world';
+import { APPROACH_INFO, JOBS, SPECIALISTS, STYLES } from '@r/content/world';
 import { select, type Id } from '@r/sim/index';
-import type { Approach, Job } from '@r/sim/types';
+import type { Approach, Job, SpecialistKind } from '@r/sim/types';
+import { Face } from './Faces';
 import { Icon } from '@ui/icons';
 import { openSheet, useWorld } from '../store';
 import { Emblem, NpcFace } from './Faces';
@@ -79,6 +80,15 @@ export function JobSheet({ id }: { id: string }) {
           })}
           {j.status === 'offer' && <Do action={{ type: 'take_job', jobId: j.id, crewIds: pick }} label="Take it on" kind="primary" block sub={j.planDays ? `They spend ${j.planDays} day${j.planDays > 1 ? 's' : ''} planning; every day planned helps.` : 'Ready to go straight away.'} />}
           {j.status !== 'offer' && <Do action={{ type: 'drop_job', jobId: j.id }} label="Call it off" kind="ghost" small />}
+        </Section>
+      )}
+      {(j.status === 'planning' || j.status === 'ready') && (
+        <Section title="A specialist" right={<span className="r-note">through the fixer</span>}>
+          {j.specialist ? <Row left={<Face seed={j.specialist.face} size={36} />} title={`${j.specialist.name}, ${SPECIALISTS[j.specialist.kind].label.toLowerCase()}`} sub={`${j.specialist.skill} ${j.specialist.level} for this job · paid ${fmt(j.specialist.fee)}`} />
+            : <>
+              <p className="r-note">Somebody better than anybody you have, for this job only. Paid up front, win or lose.</p>
+              {(Object.keys(SPECIALISTS) as SpecialistKind[]).filter(k => j.leans.includes(SPECIALISTS[k].skill)).map(k => <Do key={k} action={{ type: 'hire_specialist', jobId: j.id, kind: k }} label={`Hire a ${SPECIALISTS[k].label.toLowerCase()} (${SPECIALISTS[k].skill})`} sub={SPECIALISTS[k].blurb} block />)}
+            </>}
         </Section>
       )}
       {team.length > 0 && j.status !== 'offer' && <Section title="The team">{team.map(nid => { const n = w.npcs[nid]; return n ? <Row key={nid} onClick={() => openSheet({ kind: 'person', id: nid })} left={<NpcFace n={n} size={30} />} title={select.fullName(n)} sub={j.leans.map(s => `${s} ${n.skills[s]}`).join(' · ')} /> : null; })}</Section>}

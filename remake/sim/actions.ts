@@ -4,7 +4,7 @@
  */
 import type { SitDownOffer } from './factions';
 import type { SceneKind } from './scenes';
-import type { Approach, Assignment, GearKind, Id, JobKind, LabKind, Owner, Product, RacketKind } from './types';
+import type { Approach, Assignment, GearKind, Id, JobKind, LabKind, Owner, Product, RacketKind, SpecialistKind } from './types';
 
 export type Action =
   | { type: 'travel'; blockId: Id }
@@ -29,6 +29,8 @@ export type Action =
   | { type: 'launch_job'; jobId: Id; approach: Approach }
   | { type: 'answer'; jobId: Id; optionId: string }
   | { type: 'drop_job'; jobId: Id }
+  | { type: 'hire_specialist'; jobId: Id; kind: SpecialistKind }
+  | { type: 'audit'; npcId: Id }
   | { type: 'case'; kind: JobKind; businessId?: Id; npcId?: Id }
   | { type: 'tribute'; factionId: Owner; amount: number }
   | { type: 'sit_down'; factionId: Owner; offer: SitDownOffer }

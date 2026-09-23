@@ -131,12 +131,24 @@ describe('laundering only when you ask for it', () => {
     expect(w.rackets[r.id].on).toBe(false);
     const dirty = w.player.dirty;
     w.events = []; w = dispatch(w, { type: 'end_day' });
-    expect(w.player.washedToday).toBe(0);
+    expect(w.history[w.history.length - 1].washed).toBe(0);
     expect(w.player.dirty).toBeGreaterThanOrEqual(dirty - 1000);   // wages and rent may come out of it; washing may not
     w.events = []; w = dispatch(w, { type: 'toggle_wash', racketId: r.id });
     const cash = w.player.cash;
     w.events = []; w = dispatch(w, { type: 'end_day' });
     expect(w.player.cash).toBeGreaterThan(cash);
+  });
+  it('the fixer\'s window opens again every morning', () => {
+    let w = mk();
+    const fx = w.npcs[w.fixerId!]; fx.rel.met = 1;
+    w.player.dirty = 20000;
+    const cap = select.fixerCap(w);
+    w = dispatch(w, { type: 'fixer_wash', amount: cap });
+    expect(can(w, { type: 'fixer_wash', amount: 500 }).ok, 'the window is spent for today').toBe(false);
+    w.events = []; w = dispatch(w, { type: 'end_day' });
+    expect(w.history[w.history.length - 1].washed).toBe(cap);
+    w.events = [];
+    expect(can(w, { type: 'fixer_wash', amount: cap }).ok, 'and open again tomorrow').toBe(true);
   });
   it('without a laundry of your own, dirty money stays dirty overnight', () => {
     let w = mk();

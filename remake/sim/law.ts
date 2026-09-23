@@ -71,7 +71,9 @@ export function tickLaw(w: World, rng: Rng) {
     }
   }
   // ---- cooling
-  const decay = 2.5 + p.heat * 0.035 + (p.lowDays > 0 ? 9 : 0);
+  // every captain on the payroll takes a point and a half off a day: the precinct looks elsewhere
+  const captains = Object.values(w.npcs).filter(n => n.official === 'captain' && n.payroll && n.alive).length;
+  const decay = 2.5 + p.heat * 0.035 + captains * 1.5 + (p.lowDays > 0 ? 9 : 0);
   p.heat = clamp(p.heat - decay);
   for (const b of Object.values(w.blocks)) if (b.heat > 0) b.heat = clamp(b.heat - 2.5);
   for (const d of Object.values(w.districts)) {

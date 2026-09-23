@@ -10,7 +10,7 @@ import { hashString } from '@r/sim/rng';
 import type { Background } from '@r/sim/types';
 import { Icon } from '@ui/icons';
 import { TitleTabs } from '@ui/components/TitleTabs';
-import { startGame } from '../store';
+import { deleteSlot, open, startGame, useSlots } from '../store';
 import { CityMap } from './CityMap';
 import { Emblem } from './Faces';
 
@@ -28,6 +28,10 @@ export function Start() {
   const preview = useMemo(() => newWorld({ seed, size, name: name || 'You', background: bg }), [seed, size, bg, name]);
   const factions = Object.values(preview.factions);
   const useSeedText = () => { const t = seedText.trim(); if (!t) return; setSeed(/^\d+$/.test(t) ? Number(t) : hashString(t.toLowerCase())); };
+  const slots = useSlots();
+  const saved = slots.filter((x): x is NonNullable<typeof x> => !!x);
+  const full = saved.length >= slots.length;
+  const [sure, setSure] = useState<number | null>(null);
   const begin = () => startGame(newWorld({ seed, size, name: name.trim() || 'Nobody', nick: nick.trim() || undefined, background: bg }));
 
   return (
@@ -38,6 +42,22 @@ export function Start() {
         <h1>RACKETS</h1>
         <p className="r-masthead-sub">The Remake — a crime empire in a city nobody has seen before</p>
       </header>
+
+      {saved.length > 0 && (
+        <section className="r-saved" aria-label="Your cities">
+          <h3 className="r-h3">Your cities</h3>
+          {saved.map(x => (
+            <div key={x.slot} className="r-saved-row">
+              <button type="button" className="r-saved-main" onClick={() => void open(x.slot)}>
+                <b>{x.city}</b>
+                <span>{x.name} · day {x.day} · worth ${x.worth.toLocaleString('en-US')} · seed {x.seed}</span>
+              </button>
+              <button type="button" className="r-btn primary small" onClick={() => void open(x.slot)}>Continue</button>
+              <button type="button" className={`r-btn small ${sure === x.slot ? 'danger' : 'ghost'}`} onClick={() => { if (sure === x.slot) { void deleteSlot(x.slot); setSure(null); } else setSure(x.slot); }}>{sure === x.slot ? 'Gone for good?' : 'Delete'}</button>
+            </div>
+          ))}
+        </section>
+      )}
 
       <section className="r-city-card" aria-label="Your city">
         <div className="r-city-map"><CityMap w={preview} mini /></div>
@@ -86,7 +106,8 @@ export function Start() {
       </section>
 
       <footer className="r-start-foot">
-        <button type="button" className="r-btn primary block big" onClick={begin}>Start in {preview.city.name}</button>
+        <button type="button" className="r-btn primary block big" onClick={begin} disabled={full}>Start in {preview.city.name}</button>
+        {full && <p className="r-why center">Three cities is the most you can keep. Delete one above to start another.</p>}
         <p className="r-hint center">Starting on {preview.blocks[preview.player.blockId].name}, {preview.districts[preview.blocks[preview.player.blockId].districtId].name}.</p>
       </footer>
     </div>

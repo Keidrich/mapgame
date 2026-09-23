@@ -14,7 +14,8 @@ export type Counter =
   | 'days' | 'chats' | 'threats' | 'protected' | 'squeezed' | 'recruited' | 'bribed' | 'settled' | 'leaned' | 'bought' | 'favours'
   | 'rackets' | 'upgrades' | 'washes' | 'fixer' | 'safehouses' | 'labs' | 'restocks' | 'street_sales' | 'gear'
   | 'jobs_taken' | 'jobs_done' | 'jobs_failed' | 'complications' | 'cased' | 'events' | 'tributes' | 'sitdowns' | 'wars'
-  | 'lieutenants' | 'guards' | 'runners' | 'lawyer' | 'lay_low' | 'travel' | 'cases_opened' | 'raids' | 'busts';
+  | 'lieutenants' | 'guards' | 'runners' | 'lawyer' | 'lay_low' | 'travel' | 'cases_opened' | 'raids' | 'busts'
+  | 'crews_paid' | 'crews_taken' | 'crews_run' | 'audits' | 'specialists';
 
 export const SYSTEMS: { label: string; needs: Counter[] }[] = [
   { label: 'talking to people', needs: ['chats'] },
@@ -37,6 +38,9 @@ export const SYSTEMS: { label: string; needs: Counter[] }[] = [
   { label: 'diplomacy', needs: ['tributes', 'sitdowns'] },
   { label: 'lieutenants', needs: ['lieutenants'] },
   { label: 'guards', needs: ['guards'] },
+  { label: 'street crews', needs: ['crews_paid', 'crews_taken', 'crews_run'] },
+  { label: 'audits', needs: ['audits'] },
+  { label: 'specialists', needs: ['specialists'] },
 ];
 
 export interface RunResult { w: World; counts: Partial<Record<Counter, number>>; actions: number; refused: number }
@@ -68,6 +72,7 @@ function day(c: Ctx) {
   // building comes before the street work: the street loop spends every action point it can
   // find, and a safehouse needs one — the first draft never rented a single one in sixty days
   build(c);
+  corners(c);
   runJobs(c);
   money(c);
   street(c);
@@ -152,6 +157,11 @@ const reserveForJobs = (c: Ctx) => Object.values(c.w.jobs).some(j => j.status ==
 function runJobs(c: Ctx) {
   const w = () => c.w;
   for (const j of Object.values(w().jobs).filter(x => x.status === 'ready')) {
+    // the big ones get a specialist when the money is there
+    if (j.tier >= 2 && !j.specialist && w().player.cash + w().player.dirty > 15000) {
+      const kind = (['safecracker', 'hacker', 'driver', 'gunman', 'face'] as const).find(k => can(w(), { type: 'hire_specialist', jobId: j.id, kind: k }).ok && j.leans.includes(({ safecracker: 'brains', hacker: 'tech', driver: 'wheels', gunman: 'muscle', face: 'charm' } as const)[k]));
+      if (kind && act(c, { type: 'hire_specialist', jobId: j.id, kind })) bump(c, 'specialists');
+    }
     const approach = bestApproach(c, j, j.crewIds);
     if (select.jobOdds(w(), j, j.crewIds, approach.a).chance < 35) { act(c, { type: 'drop_job', jobId: j.id }); continue; }
     if (act(c, { type: 'launch_job', jobId: j.id, approach: approach.a })) {
@@ -314,9 +324,30 @@ function pref(k: RacketKind, laundry: boolean, dirty: number) {
   return RACKETS[k].base;
 }
 
+// ----------------------------------------------------------------------------------- corners
+/** Before the street work, like building: this needs action points the street loop would spend. */
+function corners(c: Ctx) {
+  const w = () => c.w; const p = () => w().player;
+  // the corners: deal with any crew on ground we are working, the cheapest way that will land
+  for (const cr of Object.values(w().crews ?? {})) {
+    if (cr.terms !== 'none' || p().ap < 2) continue;
+    const b = w().blocks[cr.blockId];
+    const near = [b.id, ...b.neighborIds].some(id => (w().blocks[id].influence[PLAYER] ?? 0) > 5);
+    if (!near && cr.members < 10) continue;
+    const opts = (['crew_take', 'crew_pay', 'crew_run'] as const).map(k => ({ k, q: select.quote(w(), k, cr.bossId) })).filter(x => !x.q.disabled || x.q.disabled.startsWith('Go to'));
+    const best = opts.sort((a, x) => x.q.chance - a.q.chance)[0];
+    if (!best || best.q.chance < 40) continue;
+    if (best.k !== 'crew_run' && (p().cash + p().dirty) < (best.q.label.match(/\$([\d,]+)/) ? 30 * Number(best.q.label.match(/\$([\d,]+)/)![1].replace(/,/g, '')) : 0)) continue;
+    if (!goTo(c, cr.blockId)) continue;
+    if (act(c, { type: 'scene', kind: best.k, npcId: cr.bossId })) bump(c, best.k === 'crew_take' ? 'crews_taken' : best.k === 'crew_pay' ? 'crews_paid' : 'crews_run');
+  }
+}
+
 // ---------------------------------------------------------------------------------- politics
 function politics(c: Ctx) {
   const w = () => c.w; const p = () => w().player;
+  // lieutenants' books, once a fortnight
+  for (const n of select.crew(w())) if (n.crew?.assignment?.kind === 'district' && w().day % 14 === 0 && act(c, { type: 'audit', npcId: n.id })) bump(c, 'audits');
   for (const f of Object.values(w().factions)) {
     if (!f.alive) continue;
     if (f.standing < -50 && p().ap >= 2 && act(c, { type: 'sit_down', factionId: f.id, offer: 'truce' })) { bump(c, 'sitdowns'); continue; }

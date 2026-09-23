@@ -67,8 +67,8 @@ describe('the outfits and the city', () => {
       expect(select.blockController(w, b.id)).not.toBe(Object.keys(w.factions)[0]);
     }
   });
-  it('has the officials and a fixer', () => {
-    const w = mk();
+  it.each([1, 2, 3, 4, 5, 6, 7, 8])('seed %i has the officials and a fixer', seed => {
+    const w = mk(seed);
     const kinds = select.officials(w).map(n => n.official);
     for (const k of ['captain', 'judge', 'prosecutor', 'councillor']) expect(kinds).toContain(k);
     expect(w.fixerId && w.npcs[w.fixerId].alive).toBe(true);

@@ -8,7 +8,7 @@ import { APPROACH_INFO } from '@r/content/world';
 import { select, PLAYER } from '@r/sim/index';
 import { Icon } from '@ui/icons';
 import { setMode } from '@ui/mode';
-import { act, boot, closeRecap, closeSheets, dismissToast, focusBlock, openSheet, quitGame, setLayer, setTab, useUi, useWorld, type Layer, type Tab } from './store';
+import { act, boot, closeRecap, closeSheets, dismissToast, focusBlock, leaveGame, openSheet, quitGame, setLayer, setTab, useUi, useWorld, type Layer, type Tab } from './store';
 import { CityMap } from './components/CityMap';
 import { Face, NpcFace } from './components/Faces';
 import { JobSheet, FactionSheet } from './components/JobFaction';
@@ -129,6 +129,7 @@ function MapScreen() {
     <div className="r-mapwrap">
       <CityMap w={w} layer={layer} focus={focus} selected={sel} onBlock={id => { setSel(id); openSheet({ kind: 'block', id }); }} />
       {headline && <div className="r-paper"><span>{w.city.name.toUpperCase()} COURIER · DAY {headline.day}</span><b>{headline.text}</b></div>}
+      <LeadStrip />
       <div className="r-map-tools">
         <div className="r-seg small" role="group" aria-label="Map overlay">{LAYERS.map(l => <button type="button" key={l.id} className={layer === l.id ? 'on' : ''} aria-pressed={layer === l.id} onClick={() => setLayer(l.id)}>{l.label}</button>)}</div>
         <button type="button" className="r-btn small" onClick={() => focusBlock(w.player.blockId)}><Icon name="you" size={14} /> Where am I</button>
@@ -142,6 +143,35 @@ function MapScreen() {
         <span><i style={{ background: '#f0a841' }} />You</span>
         {factions.map(f => <span key={f.id}><i style={{ background: f.color }} />{f.short}</span>)}
       </div>}
+    </div>
+  );
+}
+
+/**
+ * The next thing worth doing, pointing at a real person or place. One line on the map, and a tap
+ * away from the whole list. Read off the world every render (`select.leads`), so it cannot drift.
+ */
+function LeadStrip() {
+  const w = useWorld();
+  const [open, setOpen] = useState(false);
+  const all = select.leads(w);
+  const todo = all.filter(l => !l.done);
+  if (!todo.length) return null;
+  const go = (l: select.Lead) => {
+    setOpen(false);
+    if (l.npcId) openSheet({ kind: 'person', id: l.npcId });
+    else if (l.businessId) openSheet({ kind: 'business', id: l.businessId });
+    else if (l.tab) setTab(l.tab);
+    else if (l.blockId) openSheet({ kind: 'block', id: l.blockId });
+  };
+  return (
+    <div className={`r-leads${open ? ' open' : ''}`}>
+      <button type="button" className="r-lead-top" onClick={() => go(todo[0])}>
+        <span className="r-kicker">Next · {all.length - todo.length}/{all.length}</span>
+        <b>{todo[0].text}</b>
+      </button>
+      <button type="button" className="r-lead-more" aria-expanded={open} aria-label="All leads" onClick={() => setOpen(o => !o)}><Icon name={open ? 'caret_up' : 'down'} size={16} /></button>
+      {open && <ol className="r-lead-list">{all.map(l => <li key={l.id} className={l.done ? 'done' : ''}><button type="button" disabled={l.done} onClick={() => go(l)}><b>{l.text}</b><span>{l.why}</span></button></li>)}</ol>}
     </div>
   );
 }
@@ -200,7 +230,7 @@ function RecapCard() {
   return (
     <div className="r-modal" role="dialog" aria-modal="true" aria-labelledby="r-recap-title">
       <div className="r-card paper">
-        <div className="r-paper-mast">{w.city.name} Courier · Day {r.day + 1}</div>
+        <div className="r-paper-mast">{w.city.name} Courier · Day {r.day + 1}{r.away ? ` · while you were away, ${r.away} day${r.away > 1 ? 's' : ''}` : ''}</div>
         {r.headline && <h2 id="r-recap-title" className="r-headline">{r.headline}</h2>}
         <div className="r-stats">
           <div><span>Clean in</span><b className="green">{fmt(r.clean)}</b></div>
@@ -264,8 +294,9 @@ function MenuSheet() {
       </div>
       <button type="button" className="r-btn block" onClick={() => openSheet({ kind: 'help' })}><Icon name="help" size={16} /> How to play</button>
       <button type="button" className="r-btn block" onClick={() => { closeSheets(); setMode('original'); }}><Icon name="map" size={16} /> Back to the original RACKETS</button>
-      <button type="button" className={`r-btn block ${sure ? 'danger' : 'ghost'}`} onClick={() => (sure ? quitGame() : setSure(true))}>{sure ? 'Tap again: this city is gone for good' : 'Start a new city'}</button>
-      <p className="r-note">The Remake saves on its own, separately from the original game.</p>
+      <button type="button" className="r-btn block" onClick={leaveGame}><Icon name="city_hall" size={16} /> Your cities — this one stays saved</button>
+      <button type="button" className={`r-btn block ${sure ? 'danger' : 'ghost'}`} onClick={() => (sure ? quitGame() : setSure(true))}>{sure ? 'Tap again: this city is gone for good' : 'Delete this city'}</button>
+      <p className="r-note">The Remake saves on its own, separately from the original game. You can keep three cities. While the app is closed a day passes every six hours, up to three, and the careful choice is made for you.</p>
       {void PLAYER}
     </Sheet>
   );

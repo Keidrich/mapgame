@@ -139,6 +139,12 @@ export type Assignment =
 
 export interface Crew {
   loyalty: number;
+  /** A lieutenant's hand in the till, accumulated since the last audit. Hidden from the player. */
+  skimmed?: number;
+  /** Day of the last audit, which is also what stops you auditing the same books every morning. */
+  auditedDay?: number;
+  /** Day they were last caught skimming: somebody just caught keeps their hands still for a while. */
+  caughtDay?: number;
   /** Daily wage, paid dirty-first at end of day. */
   cut: number;
   joined: number;
@@ -255,6 +261,24 @@ export interface Safehouse {
   labs: Lab[];
 }
 
+// ---------------------------------------------------------------------------------- street crews
+/**
+ * A handful of kids on a corner, belonging to nobody. They skim what you take off their block,
+ * and if nobody deals with them they grow — and a crew that gets big enough becomes an outfit.
+ */
+export interface StreetCrew {
+  id: Id;
+  name: string;
+  bossId: Id;
+  blockId: Id;
+  members: number;
+  since: number;
+  /** Left alone, paid off (they leave your places be and hold the corner for you), or yours. */
+  terms: 'none' | 'paid' | 'yours';
+  /** Daily price of the arrangement. */
+  wage: number;
+}
+
 // ---------------------------------------------------------------------------------------- factions
 export type FactionStyle = 'family' | 'syndicate' | 'gang' | 'cartel' | 'crew';
 export type Temperament = 'aggressive' | 'greedy' | 'cunning' | 'cautious';
@@ -290,6 +314,7 @@ export type JobKind =
   | 'burglary' | 'robbery' | 'heist' | 'hijack' | 'hit' | 'kidnap' | 'arson' | 'sabotage'
   | 'con' | 'fraud' | 'hack' | 'smuggle' | 'raid' | 'frame';
 export type Approach = 'quiet' | 'loud' | 'clever';
+export type SpecialistKind = 'safecracker' | 'driver' | 'hacker' | 'face' | 'gunman';
 
 export interface JobPayout { dirty: number; clean: number; goods: number; respect: number; fear: number }
 
@@ -331,6 +356,8 @@ export interface Job {
   /** Planning time counts: every day planned adds to the odds, to a cap. */
   intel: number;
   complication?: Complication;
+  /** Somebody the fixer found for this one job: a specialist's skill joins the team's. */
+  specialist?: { kind: SpecialistKind; name: string; face: number; skill: Skill; level: number; fee: number };
   /** The base roll, made at launch and held while a complication is answered. */
   rolled?: boolean;
   /** Once resolved: what actually happened, in the same numbers the purse moved by. */
@@ -391,6 +418,7 @@ export type Effect =
   | { k: 'kill'; npcId: Id }
   | { k: 'recruit'; npcId: Id }
   | { k: 'fire'; npcId: Id }
+  | { k: 'caught'; npcId: Id }
   | { k: 'heal'; npcId: Id }
   | { k: 'payroll'; npcId: Id; n: number }
   | { k: 'cut'; npcId: Id; n: number }
@@ -466,6 +494,7 @@ export interface World {
   safehouses: Record<Id, Safehouse>;
   jobs: Record<Id, Job>;
   cases: Record<Id, Case>;
+  crews: Record<Id, StreetCrew>;
   events: GameEvent[];
   scheduled: { day: number; template: string; npcId?: Id; businessId?: Id; factionId?: Owner }[];
   log: LogEntry[];

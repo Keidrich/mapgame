@@ -224,6 +224,8 @@ export function CityMap({ w, layer = 'control', onBlock, selected, focus, mini, 
         );
       })}
       {!mini && [...known].map(bid => { const b = w.blocks[bid!]; return b ? <g key={bid} transform={`translate(${b.center.x + u(14)} ${b.center.y - u(14)}) scale(${u(16) / 24})`} className="r-safe"><rect x="-2" y="-2" width="28" height="28" rx="4" fill="#11141b" stroke={GOLD} /><g style={{ color: GOLD }}><Icon name="safehouse" size={24} strokeWidth={2} /></g></g> : null; })}
+      {/* street crews: a fist on the corner, red while they are nobody's */}
+      {detail && Object.values(w.crews ?? {}).map(c => { const b = w.blocks[c.blockId]; if (!b) return null; const col = c.terms === 'none' ? '#e5534b' : GOLD; return <g key={c.id} transform={`translate(${b.center.x - u(16)} ${b.center.y + u(8)}) scale(${u(14) / 24})`}><rect x="-3" y="-3" width="30" height="30" rx="6" fill="#11141b" stroke={col} /><g style={{ color: col }}><Icon name="fist" size={24} strokeWidth={2} /></g></g>; })}
       {/* you */}
       {!mini && <g transform={`translate(${here.center.x} ${here.center.y})`} className="r-pin">
         <circle r={u(14)} className="r-pin-halo" />

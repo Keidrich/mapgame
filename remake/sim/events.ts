@@ -249,6 +249,15 @@ export const TEMPLATES: Template[] = [
         { id: 'end', label: 'End it', effects: [{ k: 'payroll', npcId: n.id, n: 0 }] },
       ], { npcId: n.id });
     } },
+  { id: 'light_books', weight: w => (Object.values(w.npcs).some(n => n.alive && (n.crew?.skimmed ?? 0) > 1200) ? 3 : 0),
+    build: (w, rng) => {
+      const n = rng.pick(Object.values(w.npcs).filter(x => x.alive && (x.crew?.skimmed ?? 0) > 1200));
+      const d = n.crew?.assignment?.kind === 'district' ? w.districts[n.crew.assignment.districtId].name : 'the district';
+      return card(w, 'The books feel light', `The take from ${d} has been coming in a little under what it should, week after week. ${fullName(n)} runs ${d}.`, [
+        { id: 'word', label: `Have a word with ${shortName(n)}`, effects: [{ k: 'caught', npcId: n.id }, { k: 'fear', n: 1 }] },
+        { id: 'let', label: 'Let it go — everybody takes a little', effects: [{ k: 'loyalty', npcId: n.id, n: 4 }] },
+      ], { npcId: n.id });
+    } },
   { id: 'lucky', weight: w => (crew(w).length ? 1 : 0),
     build: (w, rng) => {
       const n = rng.pick(crew(w));

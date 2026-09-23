@@ -15,6 +15,7 @@ import { freeFromAssignment, gainXp } from './people';
 import type { Rng } from './rng';
 import { controlShare } from './select-core';
 import { applyInfluence } from './territory';
+import { CREW, crewOn, tickStreetCrews } from './streetcrews';
 import type { AgendaKind, Id, Product, World } from './types';
 import { PLAYER } from './types';
 import { addHeat, clamp, fullName, log, money, spend } from './util';
@@ -27,7 +28,11 @@ export function endDay(w: World, rng: Rng) {
   const day = w.day;
   // dirty and clean are what came *in*; washing is a conversion and is counted on its own, so a day
   // that washed more than it earned never reports a negative take
-  const sum = { clean: 0, dirty: 0, spent: 0, washed: 0 };
+  const sum = { clean: 0, dirty: 0, spent: 0, washed: p.washedToday };
+  // The fixer's window is per day. This counter was never reset in the first cut, so after a day
+  // or two of washing the fixer refused for the rest of the game. What the fixer did today goes into
+  // the day's summary; the laundries wash overnight and do not eat tomorrow's window.
+  p.washedToday = 0;
   const gains: Record<Id, number> = {};
   const gain = (b: Id, n: number) => { gains[b] = (gains[b] ?? 0) + n; };
   const pay = (n: number) => { if (spend(w, n)) { sum.spent += n; return true; } return false; };
@@ -58,7 +63,9 @@ export function endDay(w: World, rng: Rng) {
     const full = def.vault ? b.till : b.income * 2.5;
     if (!def.vault && b.till < full) b.till = Math.round(b.till + b.income * 0.5);
     if (b.protection?.by === PLAYER) {
-      const take = protectionTake(b);
+      // a street crew nobody has dealt with helps itself to a quarter of it
+      const crew = crewOn(w, b.blockId);
+      const take = Math.round(protectionTake(b) * (crew && crew.terms === 'none' ? 1 - CREW.skim : 1));
       p.dirty += take; sum.dirty += take; gain(b.blockId, 1.5);
       const o = w.npcs[b.ownerId];
       if (o) {
@@ -85,7 +92,7 @@ export function endDay(w: World, rng: Rng) {
         const cap = Math.max(0, washCap(w, r));
         const amount = Math.min(p.dirty, cap);
         const clean = Math.round(amount * washRate(w));
-        p.dirty -= amount; p.cash += clean; p.washedToday += amount; sum.washed += amount;
+        p.dirty -= amount; p.cash += clean; sum.washed += amount;
         income = clean;
       }
     } else if (def.sells) {
@@ -100,11 +107,17 @@ export function endDay(w: World, rng: Rng) {
       p.dirty += income; sum.dirty += income;
     } else {
       income = racketIncome(w, r);
+      // a lieutenant with a hand in the till: the district's take arrives light, and nothing says so
+      const lt = skimmer(w, w.blocks[b.blockId].districtId);
+      if (lt) { const cut = Math.round(income * skimRate(lt)); income -= cut; lt.crew!.skimmed = (lt.crew!.skimmed ?? 0) + cut; }
       if (def.clean) { p.cash += income; sum.clean += income; } else { p.dirty += income; sum.dirty += income; }
     }
     r.lastIncome = income;
     // a racket is a standing risk, not an event: a little attention every day it runs
-    addHeat(w, def.heat * 0.12 * r.level, b.blockId);
+    // Measured: at 0.12 an empire of two dozen rackets sat at heat 90 all day with nothing left to
+    // do about it. At 0.08, and with captains cooling you (law.ts), a big operation lives in the
+    // fifties and a careful one lower.
+    addHeat(w, def.heat * 0.08 * r.level, b.blockId);
     if (r.runnerId) gainXp(w, r.runnerId, 4);
     const minded = !!r.runnerId;
     if (rng.chance(def.risk * (w.districts[w.blocks[b.blockId].districtId].attention / 50) * (minded ? 0.7 : 1.2))) {
@@ -143,6 +156,9 @@ export function endDay(w: World, rng: Rng) {
     if (!pay(n.payroll)) { n.payroll = undefined; log(w, `You missed the payment to ${fullName(n)}. The arrangement is over.`, 'bad', { npcId: n.id }); }
   }
   if (p.lawyer && !pay(150)) { p.lawyer = false; log(w, 'Your lawyer stops returning calls. Pay your bills.', 'bad'); }
+
+  // ---- the corners
+  tickStreetCrews(w, rng, pay);
 
   // ---- ground, jobs, the others, the law
   applyInfluence(w, gains);
@@ -200,3 +216,15 @@ export function endDay(w: World, rng: Rng) {
 export function stashCapacity(w: World): number {
   return 40 + w.player.safehouseIds.reduce((t, id) => t + (SAFEHOUSE_TIERS[(w.safehouses[id]?.tier ?? 1) - 1]?.capacity ?? 0), 0);
 }
+
+/**
+ * A lieutenant who is skimming. Greedy ones do it from the start, anybody does it once loyalty
+ * slips under 50, and somebody who was audited in the last three weeks keeps their hands still.
+ */
+export function skimmer(w: World, districtId: Id) {
+  const lt = Object.values(w.npcs).find(n => n.alive && n.crew?.assignment?.kind === 'district' && n.crew.assignment.districtId === districtId);
+  if (!lt?.crew) return undefined;
+  if (lt.crew.caughtDay !== undefined && w.day - lt.crew.caughtDay < 21) return undefined;
+  return lt.traits.includes('greedy') || lt.crew.loyalty < 50 ? lt : undefined;
+}
+export const skimRate = (lt: { traits: string[]; crew?: { loyalty: number } }) => (lt.traits.includes('greedy') ? 0.18 : 0.1) + Math.max(0, 50 - (lt.crew?.loyalty ?? 50)) / 250;

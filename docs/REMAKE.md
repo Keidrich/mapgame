@@ -185,15 +185,56 @@ identical replays, a job's result equal to the purse delta, event hints equal to
 laundering only while switched on (mutation-tested), the spill cap, bot soaks, and every sheet and
 tab rendered for every block, place, job and outfit.
 
-`npm run sim2 -- 60 7` plays sixty days and prints the curve and a coverage table. Baseline when this
-shipped (seed 7, city, grifter): worth $5k → $20k (day 20) → $56k (day 30) → $101k (day 60), control
+`npm run sim2 -- 60 7` plays sixty days and prints the curve and a coverage table. Baseline when the
+first version shipped (seed 7, city, grifter): worth $5k → $20k (day 20) → $56k (day 30) → $101k (day 60), control
 17.4%, crew 8, 22 rackets, heat peaking in the 60s; 19 of 20 systems reached (squeezing a till is
-rare by the bot's own caution).
+rare by the bot's own caution). After the second pass (street crews skimming, cooler rackets):
+seed 7 $59k and 10.8% on day 60, seed 1 $162k and 24.9%, seed 2 $132k and 24.2%.
 
-## 8. Deliberately not carried over (yet)
+## 8. The second pass: the corners, the books, the specialists, and coming back
 
-The original grew a great deal over many passes; the Remake rebuilt the core loop first. Not in
-this version: per-person kit (the Remake has outfit-level gear instead), street crews on corners,
-hostages, the Commission, specialists and landmark set-pieces, lieutenants skimming and audits,
-idle days resolving while the app is closed, an admin panel and scenario sweep for the bot, and
-more than one save slot. Each is a candidate for a later pass; none is half-built in the code.
+**Street crews** (`streetcrews.ts`). Two to five crews stand on corners nobody holds, in the poorer
+districts. Left alone they skim a quarter of whatever you take off their block and grow a member
+about once a week; at **14** a crew stops being a crew — its boss names it, colours it and it
+becomes an outfit with a home and ground. The city grows a new rival on its own, out of a corner you
+ignored. Their boss answers three new scenes: put them on a wage (they stop skimming and hold the
+corner for you), take them in (their corner builds your ground every day and they grow for you), or
+run them off (a muscle check against the crew's size). They are generated from their **own** rng
+stream after everything else, so adding them moved nothing in any seed's city, and a city saved by
+the first release gains exactly the crews a new game with its seed has (`migrate`, tested).
+
+**Lieutenants skim** (`tick.ts: skimmer`). A greedy lieutenant takes 18% of the district's racket
+take from day one; anybody does once loyalty slips under 50. Nothing says so until an event notices
+the books are light — or you **audit** them (brains against theirs, sly ones harder; once a week).
+Caught, they give 70% back and keep their hands still for three weeks. Checking costs a little
+loyalty either way.
+
+**Specialists** (`content/world.ts: SPECIALISTS`). Through the fixer, for one job: a safecracker,
+driver, hacker, face or gunman at skill 8–10, whose skill joins the team's for that job only and who
+counts as a pair of hands. Paid up front — a flat fee by tier plus 6% of the take — win or lose.
+
+**Every city has a fixer.** A city generated without a market, old quarter, strip or docks had none
+(no washing before your own laundry, no specialists); `ensureFixer` finds one anywhere, from its own
+stream.
+
+**Leads** (`select.leads`). Twelve steps from "introduce yourself" to "hold half the city", read off
+the world every render, each pointing at a real person, place or tab. The next one sits on the map
+under the headline; the whole list is a tap away. The original taught its opening in a sheet the
+player had to go and find.
+
+**Three cities** can be kept at once; the start screen lists them with continue and delete. Slot 0 is
+the key the first release saved under, so a city started then is still there.
+
+**Days pass while the app is closed** — one every six hours, up to three — with whatever comes up
+answered the careful way (the last option, written to be the one that risks nothing; a paused job
+takes its safe answer), and a recap of all of it before anything else.
+
+**Fixed on the way**: the fixer's daily window was never reset, so after a day or two of washing the
+fixer refused for the rest of the game. It resets every morning now, and the day's summary counts
+what the fixer washed alongside what the laundries did (tested, and mutation-tested).
+
+## 9. Deliberately not carried over (yet)
+
+Not in the Remake: per-person kit (it has outfit-level gear instead), hostages beyond the snatch
+job's ransom, the Commission, landmark set-pieces, an admin panel and scenario sweep for the bot.
+Each is a candidate for a later pass; none is half-built in the code.

@@ -185,7 +185,7 @@ export const GEAR: Record<GearKind, { label: string; skill: Skill; levels: { lab
 
 // ------------------------------------------------------------------------------------- officials
 export const OFFICIALS: Record<OfficialKind, { label: string; blurb: string; weekly: number; effect: string }> = {
-  captain: { label: 'Precinct Captain', blurb: 'Runs a station house.', weekly: 1400, effect: 'Police attention in the precinct falls faster, and you hear about raids first.' },
+  captain: { label: 'Precinct Captain', blurb: 'Runs a station house.', weekly: 1400, effect: 'Your heat cools a point and a half faster every day, attention in the precinct falls, and you hear about raids first.' },
   judge: { label: 'Judge', blurb: 'Sits on the criminal bench.', weekly: 2200, effect: 'Your people get out of jail sooner, and a trial against you starts behind.' },
   prosecutor: { label: 'District Attorney', blurb: 'Decides what gets charged.', weekly: 2600, effect: 'Case files against you build a third slower.' },
   councillor: { label: 'Councillor', blurb: 'Signs the permits.', weekly: 1200, effect: 'Buying a business costs a fifth less.' },
@@ -257,3 +257,16 @@ export const RANKS = [
   { at: 110, label: 'Boss', ap: 10 },
   { at: 150, label: 'Kingpin', ap: 11 },
 ];
+
+// ------------------------------------------------------------------------------------ specialists
+/**
+ * People the fixer can find for one job. Their skill joins the team's for that job only, at a
+ * level none of your own people start at; the fee is paid up front, win or lose.
+ */
+export const SPECIALISTS: Record<'safecracker' | 'driver' | 'hacker' | 'face' | 'gunman', { label: string; skill: Skill; blurb: string; base: number }> = {
+  safecracker: { label: 'Safecracker', skill: 'brains', blurb: 'Knows every lock made in the last forty years by the sound of it.', base: 500 },
+  driver: { label: 'Driver', skill: 'wheels', blurb: 'Never been caught. Never been followed further than a block.', base: 400 },
+  hacker: { label: 'Hacker', skill: 'tech', blurb: 'Alarms, cameras, doors with keypads. Brings a laptop and leaves nothing.', base: 500 },
+  face: { label: 'Face', skill: 'charm', blurb: 'A uniform, a clipboard and a voice people do what they are told by.', base: 400 },
+  gunman: { label: 'Gunman', skill: 'muscle', blurb: 'Makes sure nobody is brave. Costs extra because of what happens if they are.', base: 600 },
+};

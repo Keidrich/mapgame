@@ -39,6 +39,12 @@ export function BlockSheet({ id }: { id: string }) {
         <div><span>Your heat here</span><b>{Math.round(b.heat)}</b></div>
         <div><span>People</span><b>{b.population}</b></div>
       </div>
+      {(() => { const c = select.crewOn(w, id); if (!c) return null; const boss = w.npcs[c.bossId]; return (
+        <Section title="On the corner">
+          <Row onClick={() => openSheet({ kind: 'person', id: c.bossId })} left={boss ? <NpcFace n={boss} size={40} /> : undefined} title={`The ${c.name}`} sub={`${c.members} of them · run by ${boss ? select.fullName(boss) : 'nobody'} · ${c.terms === 'none' ? `nobody's — they skim ${Math.round(select.CREW.skim * 100)}% of what you take here, and they are growing` : c.terms === 'paid' ? `on your wage, ${fmt(c.wage)}/day` : `yours, ${fmt(c.wage)}/day`}`} right={<Chip tone={c.terms === 'none' ? 'red' : 'gold'}>{c.terms === 'none' ? `${c.members}/${select.CREW.outfitAt}` : c.terms}</Chip>} />
+          {c.terms === 'none' && <p className="r-note">Left alone, a crew that reaches {select.CREW.outfitAt} becomes an outfit. Talk to the boss: pay them, take them in, or run them off.</p>}
+        </Section>
+      ); })()}
       <Section title="Places">
         {biz.length ? biz.map(x => <BizRow key={x.id} id={x.id} />) : <Empty>No businesses on this block.</Empty>}
       </Section>

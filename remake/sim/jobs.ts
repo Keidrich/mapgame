@@ -14,12 +14,13 @@
  *   3. Nothing launches blind. A complication stops the job and asks, with each answer's check
  *      and price on the button.
  */
-import { APPROACH_INFO, BUSINESSES, GEAR, JOBS } from '@r/content/world';
+import { APPROACH_INFO, BUSINESSES, GEAR, JOBS, SPECIALISTS } from '@r/content/world';
+import { NAME_GROUP_IDS, personName } from '@r/content/names';
 import { COMPLICATIONS, PITCH, TITLE } from '@r/content/jobtext';
 import { openCase } from './law';
 import { gainXp, injure, jail, kill, practise, spreadWord } from './people';
 import { Rng } from './rng';
-import type { Approach, GearKind, Id, Job, JobKind, JobPayout, Npc, Owner, Skill, World } from './types';
+import type { Approach, GearKind, Id, Job, JobKind, JobPayout, Npc, Owner, Skill, SpecialistKind, World } from './types';
 import { PLAYER } from './types';
 import { addHeat, addInfluence, clamp, fullName, log, money, nid, remember, shortName } from './util';
 
@@ -29,9 +30,10 @@ const LEAN_W = [1, 0.7, 0.5, 0.35];
 export interface Odds { chance: number; factors: { label: string; n: number }[]; required: number; team: number }
 
 /** How a team stacks up on one skill: the best of them, plus a third of everybody else. */
-function teamSkill(w: World, crewIds: Id[], skill: Skill, withPlayer: boolean): number {
+function teamSkill(w: World, crewIds: Id[], skill: Skill, withPlayer: boolean, specialist?: Job['specialist']): number {
   const vals = crewIds.map(id => w.npcs[id]).filter(Boolean).map(n => n.skills[skill] + ((n.crew?.level ?? 1) - 1) * 0.4);
   if (withPlayer) vals.push(w.player.skills[skill]);
+  if (specialist?.skill === skill) vals.push(specialist.level);
   if (!vals.length) return 0;
   vals.sort((a, b) => b - a);
   const g = GEAR_FOR[skill];
@@ -52,7 +54,7 @@ export function leansFor(job: Job, approach: Approach): Skill[] {
 export function jobOdds(w: World, job: Job, crewIds: Id[], approach: Approach): Odds {
   const leans = leansFor(job, approach);
   let team = 0, wsum = 0;
-  leans.forEach((s, i) => { team += teamSkill(w, crewIds, s, true) * LEAN_W[i]; wsum += LEAN_W[i]; });
+  leans.forEach((s, i) => { team += teamSkill(w, crewIds, s, true, job.specialist) * LEAN_W[i]; wsum += LEAN_W[i]; });
   team = team / (wsum || 1);
   // A difficulty of 30 wants a team skill of about 4.5; 70 wants 8.5. Measured against a solo
   // start: the first draft (difficulty/9 + 2) put every early burglary at 13–28%, so a new player's
@@ -60,10 +62,11 @@ export function jobOdds(w: World, job: Job, crewIds: Id[], approach: Approach): 
   const required = job.difficulty / 10 + 1.5;
   const factors: Odds['factors'] = [];
   const skillPart = Math.round((team - required) * 8);
-  factors.push({ label: `Your people against the job (${leans.join(', ')})`, n: skillPart });
+  factors.push({ label: `Your people${job.specialist ? ` and ${job.specialist.name}` : ''} against the job (${leans.join(', ')})`, n: skillPart });
   const intel = Math.min(12, job.intel * 4); if (intel) factors.push({ label: 'Days of planning', n: intel });
-  const extra = Math.max(0, crewIds.length - job.crewMin) * 3; if (extra) factors.push({ label: 'Extra hands', n: extra });
-  const short = crewIds.length < job.crewMin ? -(job.crewMin - crewIds.length) * 15 : 0; if (short) factors.push({ label: 'Short-handed', n: short });
+  const hands = crewIds.length + (job.specialist ? 1 : 0);
+  const extra = Math.max(0, hands - job.crewMin) * 3; if (extra) factors.push({ label: 'Extra hands', n: extra });
+  const short = hands < job.crewMin ? -(job.crewMin - hands) * 15 : 0; if (short) factors.push({ label: 'Short-handed', n: short });
   const inside = insider(w, job); if (inside && approach === 'clever') factors.push({ label: `${shortName(inside)} on the inside`, n: 14 }); else if (inside) factors.push({ label: `${shortName(inside)} on the inside`, n: 6 });
   const heat = -Math.round(w.player.heat / 10); if (heat) factors.push({ label: 'Heat on you', n: heat });
   const block = w.blocks[job.blockId];
@@ -261,7 +264,7 @@ export function launchJob(w: World, job: Job, approach: Approach, rng: Rng) {
 /** The chance an answer to a complication comes off, shown on its button. */
 export function complicationOdds(w: World, job: Job, optionId: string): number {
   const o = job.complication?.options.find(x => x.id === optionId); if (!o) return 0;
-  const v = teamSkill(w, job.crewIds, o.skill, true);
+  const v = teamSkill(w, job.crewIds, o.skill, true, job.specialist);
   return clamp(Math.round(50 + (v - (o.difficulty / 10 + 1.5)) * 8), 5, 95);
 }
 
@@ -366,3 +369,14 @@ function applyTargetEffect(w: World, job: Job, rng: Rng): string {
 }
 
 export { GEAR };
+
+/** What a specialist costs for this job: a flat fee by tier and a small share of the take. */
+export function specialistFee(job: Job, kind: SpecialistKind): number {
+  return Math.round((SPECIALISTS[kind].base * job.tier + (job.payout.dirty + job.payout.clean) * 0.06) / 50) * 50;
+}
+export function hireSpecialist(w: World, job: Job, kind: SpecialistKind, rng: Rng) {
+  const fee = specialistFee(job, kind);
+  const pn = personName(rng, rng.pick(NAME_GROUP_IDS));
+  job.specialist = { kind, name: `${pn.first} ${pn.last}`, face: rng.int(1, 2 ** 30), skill: SPECIALISTS[kind].skill, level: rng.int(8, 10), fee };
+  log(w, `The fixer finds you a ${SPECIALISTS[kind].label.toLowerCase()} for ${job.title.toLowerCase()}: ${job.specialist.name}, ${money(fee)} up front.`, 'info');
+}

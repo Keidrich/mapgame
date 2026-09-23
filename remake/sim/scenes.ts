@@ -16,8 +16,9 @@ import { PLAYER } from './types';
 import { addHeat, addInfluence, clamp, fullName, log, money, remember, shortName, spend, spendClean, their, them, they, cap, vb } from './util';
 import { buildJob } from './jobs';
 import { bedsTotal } from './select-core';
+import { crewCost, crewOf, crewWage } from './streetcrews';
 
-export type SceneKind = 'chat' | 'intimidate' | 'protect' | 'squeeze' | 'recruit' | 'bribe' | 'settle' | 'lean' | 'buy' | 'favour';
+export type SceneKind = 'chat' | 'intimidate' | 'protect' | 'squeeze' | 'recruit' | 'bribe' | 'settle' | 'lean' | 'buy' | 'favour' | 'crew_pay' | 'crew_take' | 'crew_run';
 
 export interface SceneQuote {
   kind: SceneKind;
@@ -98,6 +99,7 @@ export function quote(w: World, kind: SceneKind, npcId: Id, opts: { businessId?:
       if (n.crew) return q({ label: 'Recruit', disabled: 'Already yours.' });
       if (n.faction && n.faction !== PLAYER) return q({ label: 'Recruit', disabled: `${cap(they(n))} ${vb(n, 'belong', 'belongs')} to the ${w.factions[n.faction]?.short ?? 'other side'}.` });
       if (n.official) return q({ label: 'Recruit', disabled: 'Officials go on the payroll, not the crew.' });
+      if (crewOf(w, n.id)) return q({ label: 'Recruit', disabled: 'They run a crew of their own. Deal with the crew.' });
       if (p.crewIds.length >= bedsTotal(w)) return q({ label: 'Recruit', disabled: `No room: ${bedsTotal(w)} beds. Rent or upgrade a safehouse.` });
       const f: SceneQuote['factors'] = [
         { label: 'Their trust', n: Math.round(n.rel.trust * 0.8) },
@@ -143,6 +145,23 @@ export function quote(w: World, kind: SceneKind, npcId: Id, opts: { businessId?:
       const cost = Math.round(price * premium);
       const inst = biz.tier === 3 && p.respect < INSTITUTION_RESPECT ? `An institution will not sell to somebody with less than ${INSTITUTION_RESPECT} respect.` : undefined;
       return q({ label: `Buy ${biz.name} (${money(cost)} clean)`, cash: cost, clean: true, gain: `Yours: ${money(biz.income)} a day, clean, and a solid foothold.`, risk: willing ? 'Nothing.' : 'They want a premium to sell to a stranger.', disabled: inst });
+    }
+    case 'crew_pay': case 'crew_take': case 'crew_run': {
+      const c = crewOf(w, n.id);
+      if (!c) return q({ label: 'Their crew', disabled: 'Not the boss of a street crew.' });
+      if (kind === 'crew_pay') {
+        if (c.terms === 'paid') return q({ label: 'Pay them', disabled: 'They are on your money already.' });
+        if (c.terms === 'yours') return q({ label: 'Pay them', disabled: 'They are yours.' });
+        const chance = clamp(Math.round(45 + n.rel.trust / 2 + p.respect / 4 + p.skills.charm * 2 - (n.traits.includes('ambitious') ? 15 : 0)), 5, 95);
+        return q({ label: `Put them on a wage (${money(crewWage(c))}/day)`, chance, factors: [{ label: 'Their trust', n: Math.round(n.rel.trust / 2) }, { label: 'Your respect', n: Math.round(p.respect / 4) }, { label: 'Your charm', n: p.skills.charm * 2 }], gain: 'They stop skimming your places on their block and hold the corner for you.', risk: 'A no, and they think you are soft.', disabled: away });
+      }
+      if (kind === 'crew_take') {
+        if (c.terms === 'yours') return q({ label: 'Take them in', disabled: 'They are yours.' });
+        const chance = clamp(Math.round(20 + n.rel.trust / 2 + p.respect / 3 + p.fear / 4 - c.members * 2 - (n.traits.includes('ambitious') ? 20 : 0)), 3, 90);
+        return q({ label: `Take them in (${money(crewCost(c))}/day)`, chance, factors: [{ label: 'Their trust', n: Math.round(n.rel.trust / 2) }, { label: 'What the street thinks of you', n: Math.round(p.respect / 3 + p.fear / 4) }, { label: `A crew of ${c.members}`, n: -c.members * 2 }], gain: 'Their corner builds your ground every day, and they grow for you instead of against you.', risk: 'A no, and they think you are a threat.', disabled: away ?? (n.rel.trust < 10 && p.respect < 30 ? 'They would need to trust you (10), or respect you (30).' : undefined) });
+      }
+      const chance = clamp(Math.round(30 + p.skills.muscle * 4 + p.fear / 3 + p.gear.weapons * 6 - c.members * 4), 5, 95);
+      return q({ label: 'Run them off', chance, factors: [{ label: 'Your muscle', n: p.skills.muscle * 4 }, { label: 'Your name', n: Math.round(p.fear / 3) }, { label: 'What you carry', n: p.gear.weapons * 6 }, { label: `A crew of ${c.members}`, n: -c.members * 4 }], gain: 'The corner is empty by tonight, and the street sees who emptied it.', risk: 'A fight you lose is a fight everybody hears about.', disabled: away });
     }
     case 'favour': {
       if (!n.rel.owes) return q({ label: 'Call in a favour', disabled: 'They owe you nothing.' });
@@ -289,6 +308,21 @@ export function playScene(w: World, kind: SceneKind, npcId: Id, rng: Rng, opts: 
       buyBusiness(w, biz);
       n.rel.trust = clamp(n.rel.trust + 5, -100, 100);
       log(w, `${biz.name} is yours for ${money(qt.cash ?? 0)}. ${fullName(n)} stays on to run it.`, 'money', { businessId: biz.id });
+      break;
+    }
+    case 'crew_pay': case 'crew_take': case 'crew_run': {
+      const c = crewOf(w, n.id)!;
+      if (kind === 'crew_run') {
+        addHeat(w, 5, c.blockId); practise(w, 'muscle', 5);
+        if (ok) { delete w.crews[c.id]; n.rel.fear = clamp(n.rel.fear + 40); spreadWord(w, n.id, c.blockId, 10, 3); addInfluence(w, c.blockId, PLAYER, 8); log(w, `You run the ${c.name} off their corner on ${w.blocks[c.blockId].name}. They will not be back.`, 'good', { blockId: c.blockId }); }
+        else { c.members = Math.max(1, c.members - 1); p.respect = clamp(p.respect - 3); p.ap = Math.max(0, p.ap - 1); log(w, `The ${c.name} do not run. It turns into a fight in the street, and it does not go your way.`, 'bad', { blockId: c.blockId }); }
+        break;
+      }
+      if (ok) {
+        c.terms = kind === 'crew_pay' ? 'paid' : 'yours'; c.wage = kind === 'crew_pay' ? crewWage(c) : crewCost(c);
+        n.rel.trust = clamp(n.rel.trust + 10, -100, 100);
+        log(w, kind === 'crew_pay' ? `The ${c.name} take your money: ${money(c.wage)} a day, and your places on ${w.blocks[c.blockId].name} are left alone.` : `The ${c.name} are yours now — ${c.members} of them, holding ${w.blocks[c.blockId].name} for you at ${money(c.wage)} a day.`, 'good', { blockId: c.blockId });
+      } else { n.rel.trust = clamp(n.rel.trust - 6, -100, 100); log(w, `${fullName(n)} laughs at the offer.`, 'bad', { npcId }); }
       break;
     }
     case 'favour': {

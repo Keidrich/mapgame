@@ -10,6 +10,8 @@ import { Chip, Dial, Do, Empty, Meter, Row, Section, Sheet, fmt } from './kit';
 export function roleLine(w: World, n: Npc): string {
   const work = n.workId ? w.businesses[n.workId] : undefined;
   if (n.crew) return `Your crew · level ${n.crew.level}`;
+  const sc = select.crewOf(w, n.id);
+  if (sc) return `Runs the ${sc.name} — ${sc.members} on the corner`;
   if (n.official) return `${OFFICIALS[n.official].label}${n.precinctId ? `, ${n.precinctId === 'p0' ? 'First' : n.precinctId === 'p1' ? 'Second' : 'Third'} Precinct` : ''}`;
   if (n.role === 'boss' && n.faction) return `Boss of ${w.factions[n.faction]?.name}`;
   if (n.role === 'lieutenant' && n.faction) return `Lieutenant, ${w.factions[n.faction]?.name}`;
@@ -85,6 +87,7 @@ function Scenes({ n }: { n: Npc }) {
   if (n.agenda?.known) kinds.push('settle');
   if (n.secret?.known) kinds.push('lean');
   if (n.rel.owes) kinds.push('favour');
+  if (select.crewOf(w, n.id)) kinds.push('crew_pay', 'crew_take', 'crew_run');
   return (
     <div className="r-scenes">
       {kinds.map(k => {
@@ -136,6 +139,7 @@ function CrewPanel({ n }: { n: Npc }) {
         {w.player.safehouseIds.flatMap(sid => w.safehouses[sid].labs.filter(l => !l.workerId).map(l => <Do key={l.id} action={{ type: 'assign', npcId: n.id, assignment: { kind: 'lab', labId: l.id } }} label={`Work the ${l.kind} at ${w.safehouses[sid].name}`} icon="production" small />))}
         {districts.map(d => <Do key={d} action={{ type: 'assign', npcId: n.id, assignment: { kind: 'district', districtId: d } }} label={`Lieutenant over ${w.districts[d].name}`} icon="lieutenant" small />)}
       </div>
+      {a?.kind === 'district' && <Do action={{ type: 'audit', npcId: n.id }} label={`Go through the books (${select.auditOdds(w, n)}% to catch a skim)`} icon="note" block sub="A lieutenant with a hand in the till makes the whole district arrive light. Checking costs them a little loyalty either way." />}
       <Do action={{ type: 'fire', npcId: n.id }} label="Let them go" kind="danger" small confirm="Tap again to let them go" />
     </Section>
   );

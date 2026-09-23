@@ -33,6 +33,7 @@ export function apply(w: World, effects: Effect[], rng: Rng) {
       case 'recruit': { const n = w.npcs[e.npcId]; if (n && !n.crew) hire(w, n, crewCut(n)); break; }
       case 'owes': { const n = w.npcs[e.npcId]; if (n) n.rel.owes += e.n; break; }
       case 'fire': { const n = w.npcs[e.npcId]; if (n?.crew) { freeFromAssignment(w, n); n.crew = undefined; n.faction = undefined; n.role = 'patron'; p.crewIds = p.crewIds.filter(x => x !== n.id); } break; }
+      case 'caught': { const n = w.npcs[e.npcId]; if (n?.crew) { const back = Math.round((n.crew.skimmed ?? 0) * 0.5); p.dirty += back; n.crew.skimmed = 0; n.crew.caughtDay = w.day; n.crew.loyalty = clamp(n.crew.loyalty - 8); } break; }
       case 'heal': { const n = w.npcs[e.npcId]; if (n?.crew?.status === 'injured') { n.crew.status = 'ready'; n.crew.statusDays = 0; } break; }
       case 'payroll': { const n = w.npcs[e.npcId]; if (n) n.payroll = e.n > 0 ? e.n : undefined; break; }
       case 'cut': { const n = w.npcs[e.npcId]; if (n?.crew) n.crew.cut = Math.max(0, n.crew.cut + e.n); break; }
@@ -73,6 +74,7 @@ export function describe(w: World, effects: Effect[]): string {
       case 'recruit': out.push(`${name(w, e.npcId)} joins you`); break;
       case 'owes': out.push(`${name(w, e.npcId)} owes you`); break;
       case 'fire': out.push(`${name(w, e.npcId)} leaves the crew`); break;
+      case 'caught': out.push(`${name(w, e.npcId)} stops skimming, and gives half of it back`); break;
       case 'heal': out.push(`${name(w, e.npcId)} back on their feet`); break;
       case 'payroll': out.push(e.n > 0 ? `${name(w, e.npcId)} on the payroll at ${money(e.n)}/wk` : `${name(w, e.npcId)} off the payroll`); break;
       case 'cut': out.push(`${name(w, e.npcId)}'s cut ${e.n > 0 ? '+' : '−'}${money(Math.abs(e.n))}/day`); break;

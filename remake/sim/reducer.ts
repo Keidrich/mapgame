@@ -5,11 +5,11 @@
  * on screen without throwing — a throw here is a blank screen, not a disabled button. Every refusal
  * says why in words the player can act on.
  */
-import { BUSINESSES, GEAR, LABS, RACKETS, SAFEHOUSE_TIERS, SLOTS } from '@r/content/world';
+import { BUSINESSES, GEAR, LABS, RACKETS, SAFEHOUSE_TIERS, SLOTS, SPECIALISTS } from '@r/content/world';
 import { fixerCap, fixerRate, streetPrice, upgradeCost } from './economy';
 import { apply } from './effects';
 import { sitDown, sitDownOdds, tributeEffect } from './factions';
-import { answerComplication, buildJob, caseKinds, dropJob, launchJob, takeJob } from './jobs';
+import { answerComplication, buildJob, caseKinds, dropJob, hireSpecialist, launchJob, specialistFee, takeJob } from './jobs';
 import { openCases } from './law';
 import { freeFromAssignment, practise } from './people';
 import { playScene, quote } from './scenes';
@@ -130,6 +130,20 @@ function canInner(w: World, a: Action): Affordance {
     }
     case 'answer': { const j = w.jobs[a.jobId]; return j?.status === 'paused' && j.complication?.options.some(o => o.id === a.optionId) ? yes() : no('Nothing to answer.'); }
     case 'drop_job': { const j = w.jobs[a.jobId]; return j && ['planning', 'ready', 'offer'].includes(j.status) ? yes() : no('Nothing to drop.'); }
+    case 'hire_specialist': {
+      const j = w.jobs[a.jobId]; if (!j || !['planning', 'ready'].includes(j.status)) return no('Take the job on first.');
+      if (j.specialist) return no(`${j.specialist.name} is already on it.`);
+      const fx = w.fixerId ? w.npcs[w.fixerId] : undefined;
+      if (!fx?.alive || !fx.rel.met) return no('Specialists come through the fixer. Introduce yourself first.');
+      if (!SPECIALISTS[a.kind]) return no('Nobody like that.');
+      const c = specialistFee(j, a.kind); const e = cost(w, c); return e ? no(e) : yes({ cash: c });
+    }
+    case 'audit': {
+      const n = w.npcs[a.npcId];
+      if (!n?.crew || n.crew.assignment?.kind !== 'district') return no('Only a lieutenant keeps books worth checking.');
+      if (n.crew.auditedDay !== undefined && w.day - n.crew.auditedDay < 7) return no(`You went through these books ${w.day - n.crew.auditedDay} days ago.`);
+      const r = ap(1); return r ? no(r) : yes({ ap: 1 });
+    }
     case 'case': {
       const kinds = caseKinds(w, { businessId: a.businessId, npcId: a.npcId });
       if (!kinds.includes(a.kind)) return no('Not a job that fits.');
@@ -233,6 +247,21 @@ export function dispatch(world: World, a: Action): World {
     case 'launch_job': launchJob(w, w.jobs[a.jobId], a.approach, rng); break;
     case 'answer': answerComplication(w, w.jobs[a.jobId], a.optionId, rng); break;
     case 'drop_job': dropJob(w, w.jobs[a.jobId]); break;
+    case 'hire_specialist': { const j = w.jobs[a.jobId]; spend(w, specialistFee(j, a.kind)); hireSpecialist(w, j, a.kind, rng); break; }
+    case 'audit': {
+      const n = w.npcs[a.npcId]; const c = n.crew!;
+      c.auditedDay = w.day; practise(w, 'brains', 4);
+      const skimmed = c.skimmed ?? 0;
+      if (skimmed > 0 && rng.float() * 100 < auditOdds(w, n)) {
+        const back = Math.round(skimmed * 0.7);
+        p.dirty += back; c.skimmed = 0; c.caughtDay = w.day; c.loyalty = clamp(c.loyalty - 10);
+        log(w, `The books do not add up. ${fullName(n)} has had ${money(skimmed)} out of the district; you get ${money(back)} of it back, and ${n.pronoun === 'they' ? 'they know' : `${n.pronoun} knows`} you are watching.`, 'money', { npcId: n.id });
+      } else {
+        c.loyalty = clamp(c.loyalty - 4);
+        log(w, skimmed > 0 ? `You go through ${fullName(n)}'s books and find nothing wrong. Nothing you can prove.` : `The books are clean. ${fullName(n)} noticed you checking.`, 'info', { npcId: n.id });
+      }
+      break;
+    }
     case 'case': {
       const b = a.businessId ? w.businesses[a.businessId] : undefined; const n = a.npcId ? w.npcs[a.npcId] : undefined;
       const j = buildJob(w, rng, { kind: a.kind, blockId: b?.blockId ?? n!.homeBlockId, businessId: a.businessId, npcId: a.npcId, faction: b?.protection?.by ?? n?.faction });
@@ -270,3 +299,8 @@ export function dispatch(world: World, a: Action): World {
 }
 
 export { openCases };
+
+/** The chance an audit finds a lieutenant's hand in the till, shown on the button. */
+export function auditOdds(w: World, n: { skills: { brains: number }; traits: string[] }): number {
+  return clamp(Math.round(50 + (w.player.skills.brains - n.skills.brains) * 8 - (n.traits.includes('sly') ? 15 : 0)), 10, 95);
+}
