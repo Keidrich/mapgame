@@ -13,6 +13,7 @@ import { newGame } from '@ui/store';
 import { gridChunk, loadChunk, reason } from '@ui/net/chunks';
 import { chunkBounds, chunkKeyAt, chunkNeighbors, type GeoChunk } from '@geo/chunks';
 import { Icon, iconMarkup } from '@ui/icons';
+import { TitleTabs } from './TitleTabs';
 
 type Mode = 'geo' | 'search' | 'pick';
 /**
@@ -151,6 +152,7 @@ export function Onboarding() {
 
   return (
     <div className="onboard">
+      <TitleTabs current="original" />
       <h1>RACKETS</h1>
       <p className="tag">Build a criminal empire on the real map. Start where you stand.</p>
 

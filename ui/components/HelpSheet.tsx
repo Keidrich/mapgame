@@ -1,5 +1,7 @@
 import type { CheatKind } from '@sim/actions';
 import { closeHelp, useStore } from '@ui/store';
+import { setMode } from '@ui/mode';
+import { Icon } from '@ui/icons';
 import { Act, Disclosure } from './Act';
 import { Sheet } from './Sheet';
 
@@ -36,6 +38,8 @@ export function HelpSheet() {
   return (
     <Sheet title="How to play" subtitle="The first five minutes" icon="help" onClose={closeHelp}>
       <div className="help">
+        {/* The one door from inside a running original game to the Remake: without it, a player with a save never sees the start screen again. */}
+        <button type="button" className="btn btn-block mb8" onClick={() => { closeHelp(); setMode('remake'); }}><Icon name="start" size={14} /> Play RACKETS: Remake — a separate game, your city here stays saved</button>
         <p className="small" style={{ margin: '0 0 10px', color: 'var(--gold)' }}>Anything with a dotted underline, or a ? in a chip, explains itself. Tap it (or hover on a computer) to find out what the number does.</p>
         <ol>
           <li>Tap the bright hex in the middle: that is your block. Open a business and read the owner's traits. Cowards and low-nerve owners fold fast; hotheads and honest owners fight back.</li>

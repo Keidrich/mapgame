@@ -20,8 +20,9 @@
       "@sim/*": ["sim/*"],
       "@content/*": ["content/*"],
       "@ui/*": ["ui/*"],
-      "@geo/*": ["geo/*"]
+      "@geo/*": ["geo/*"],
+      "@r/*": ["remake/*"]
     }
   },
-  "include": ["sim", "content", "geo", "ui", "scripts", "vite.config.ts", "vitest.config.ts"]
+  "include": ["sim", "content", "geo", "ui", "scripts", "remake", "vite.config.ts", "vitest.config.ts"]
 }

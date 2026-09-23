@@ -14,6 +14,67 @@ House rules for an entry (see `CLAUDE.md` → *Leave a trail*):
 
 ---
 
+## 2026-09-23 — RACKETS: Remake, a second game where every city is generated
+
+**What.** A new tab at the top of the start screen — *RACKETS* or *RACKETS: Remake* — and behind it a
+complete second game: the same idea rebuilt from nothing, with the city itself (coast, river,
+bridges, warped street grid, districts, parks, landmarks, building lots), every person (name,
+pronoun, traits, face, family, what they want, what they hide), every outfit (name, style, emblem,
+boss, ground), every business, every job, every event card and every headline generated from a seed.
+The original is untouched behind its own tab and the two never share a save. Asked for as "make a new
+tab at the start that leads to a completed remake… everything a better version of what it already
+is, and everything procedurally generated."
+
+**Why these choices.** The original's biggest standing cost was the map: every start was an
+Overpass request that could stall for forty-five seconds or fall back to a grid, and its design doc
+had an open question — "real POIs from OpenStreetMap, or fully procedural?" — that this answers for
+the Remake. Generating the city makes a start instant and offline, and makes a seed a thing you can
+share. Everywhere else the Remake keeps what the original's audits proved and designs out what they
+found broken:
+
+- **Odds shown are odds rolled**, for scenes, jobs and complications, with every term listed.
+- **Cards cannot lie**: event options are data and their hints are written from it; a job's result
+  equals the purse delta (tested).
+- **No unasked washing**: a laundry washes only while switched on; the offshore bug cannot exist.
+- **Spill with a share and a cap** from day one, and parks as blocks with nothing to protect.
+- **The bot came first**: `npm run sim2` and a coverage table existed before the UI did.
+
+**How.** `remake/sim` (pure, seeded, `dispatch`/`can`), `remake/content` (tables and text),
+`remake/ui` (React, SVG map, lazily loaded so the original's bundle carries none of it),
+`remake/scripts` (soak bot), `remake/tests` (57 tests). Fourteen generated job kinds replace seventy
+hand-written ops; complications stop a job and ask. Succession: conviction or a bullet hands the
+outfit to a lieutenant if one has earned it. Full design in `docs/REMAKE.md`.
+
+**Numbers.** `npm run sim2 -- 60 7`: worth $5k → $20k (day 20) → $101k (day 60), control 17.4%, crew 8,
+22 rackets, 19/20 systems reached. Generation: a medium city in ~10–25 ms, a whole populated world in
+well under a second.
+
+**Found while building, fixed before shipping.** Lieutenants generated with no surname (an explicit
+`last: undefined` spread over the drawn name — caught by the world test). Four outfits holding
+two-thirds of the city on day one. Every rival opening at "Tension". Rivers that clipped a corner and
+bridges laid along the bank. "He look like he have not slept" (pronoun–verb agreement in generated
+prose). Early jobs at 13–28% for a new player. One bust snowballing into a game-ending conviction —
+now softened for files with no witness, and survivable through succession.
+
+**Files.** `remake/**`, `ui/mode.ts`, `ui/components/TitleTabs.tsx`, `ui/App.tsx` (the switch and the
+lazy load), `ui/components/Onboarding.tsx` and `HelpSheet.tsx` (the two doors), `ui/styles.css` (the
+picker), `tsconfig.json` / `vite.config.ts` / `vitest.config.ts` (`@r/*` alias, tests), `package.json`
+(`sim2`), `docs/REMAKE.md`, `CLAUDE.md`, `README.md`.
+
+**Watch out.**
+
+- **The gate grew**: `npm run sim2 -- 60` joins it (CLAUDE.md). The original's honest curve is
+  unchanged — $384 dirty, heat 0, 15.6% control on day 60 — and its sweep still covers 47/47.
+- **`remake/sim/generate.ts` owns `WORLD_VERSION` for the Remake.** Reordering generation changes
+  every seed's city; bump the version when you do.
+- **Deliberately not carried over yet** (all listed in `docs/REMAKE.md` §8): per-person kit, street
+  crews, hostages, the Commission, specialists and set-pieces, lieutenant audits, idle catch-up,
+  an admin panel and scenario sweep, more than one save slot. None is half-built.
+- A player with a running original save never sees the start screen: the door for them is a
+  button at the top of the original's How to play sheet.
+
+---
+
 ## 2026-09-16 — Five bugs from play: the rat's money, the wash nobody asked for, and the safehouse that took the neighbourhood
 
 **What.** Five things reported from an actual save, fixed together. An op result card that

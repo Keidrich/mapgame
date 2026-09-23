@@ -5,6 +5,11 @@ Earth, lay a turf grid over the streets, and build: shake down owners, run racke
 rent safehouses, cook product, pull heists, and negotiate with (or fight) four AI
 factions who are building the same thing.
 
+**RACKETS: Remake** lives alongside it: pick it from the tab at the top of the start screen. The
+same game rebuilt from scratch, with every city — coast, river, bridges, streets, districts,
+people, faces, outfits, jobs, events and headlines — generated from a seed, so it starts instantly
+with no map server. Its design: [`docs/REMAKE.md`](docs/REMAKE.md). Code in `remake/`.
+
 Design: [`docs/DESIGN.md`](docs/DESIGN.md). What changed lately and why:
 [`docs/CHANGELOG.md`](docs/CHANGELOG.md).
 
@@ -17,6 +22,7 @@ npm run build      # typecheck + production build into dist/ (installable PWA)
 npm test           # sim unit tests
 npm run sim -- 60            # headless: honest play, 60 days, prints the economy curve
 npm run sim -- 60 7 all      # every scenario in turn + a coverage table (uses the admin panel)
+npm run sim2 -- 60 7         # the Remake, headless: 60 days on seed 7, curve + coverage
 ```
 
 ## Deploy (Cloudflare Workers, static assets)
@@ -37,6 +43,7 @@ it conflicts). `public/_headers` keeps the service worker fresh. Node 22 is pinn
 | `ui/` | React + MapLibre phone UI | Reads `World`, calls `select.*`, dispatches `Action`s. Never computes game logic. `ui/net` is the only network code (Overpass, tiles, IndexedDB). |
 | `scripts/` | Headless soak bot (`headless.ts`) and a real-OSM pipeline check (`real-osm.ts`) | |
 | `geo/` | Street geometry: Overpass parsing, planar-face polygonisation, chunking | Pure. |
+| `remake/` | RACKETS: Remake — its own `sim/`, `content/`, `ui/`, `scripts/` and `tests/`. Design in `docs/REMAKE.md`. | Same walls as above, one level down. |
 
 Every stat and piece of jargon in the UI explains itself: `content/glossary.ts` holds
 the text and `ui/components/Info.tsx` shows it on tap (phone) or hover (desktop). When

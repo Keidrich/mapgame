@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { Act } from './components/Act';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { HelpSheet } from './components/HelpSheet';
@@ -25,8 +25,21 @@ import { TIERS } from '@content/businesses';
 import { fmtMoney } from './derive';
 import { closeSheets, markVictorySeen, rebuildOnRealStreets, resetGame, setTab, useStore, useWorld } from './store';
 import { Icon } from '@ui/icons';
+import { useMode } from './mode';
+
+/**
+ * The Remake is its own game — its own sim under `remake/`, its own save — and it is loaded only
+ * when somebody picks it, so the original's bundle carries none of it.
+ */
+const RemakeApp = lazy(() => import('@r/ui/App').then(m => ({ default: m.RemakeApp })));
 
 export function App() {
+  const mode = useMode();
+  if (mode === 'remake') return <ErrorBoundary what="the Remake"><Suspense fallback={<div className="splash"><div className="spinner" /><b>RACKETS: Remake</b></div>}><RemakeApp /></Suspense></ErrorBoundary>;
+  return <OriginalApp />;
+}
+
+function OriginalApp() {
   const hasWorld = useStore(s => s.world !== null);
   const booting = useStore(s => s.booting);
   if (booting) return <div className="splash"><div className="spinner" /><b>RACKETS</b></div>;

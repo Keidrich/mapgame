@@ -16,6 +16,7 @@ export default defineConfig({
       '@content': dir('./content'),
       '@ui': dir('./ui'),
       '@geo': dir('./geo'),
+      '@r': dir('./remake'),
     },
   },
   plugins: [

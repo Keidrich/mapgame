@@ -13,7 +13,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "sim": "vite-node scripts/headless.ts --"
+    "sim": "vite-node scripts/headless.ts --",
+    "sim2": "vite-node remake/scripts/headless.ts --"
   },
   "dependencies": {
     "maplibre-gl": "^6.9.0",

@@ -13,8 +13,18 @@ the design authority. `docs/CHANGELOG.md` says what recent sessions changed and 
 - `/content` is data. Balance numbers live there or in the formulas in
   `sim/economy.ts`, not scattered through the reducer.
 
+## The Remake
+`remake/` is a second, separate game — RACKETS rebuilt with every city, person and job generated
+from a seed — reached from the tab on the start screen. `docs/REMAKE.md` is its design authority.
+The same hard walls apply inside it (`remake/sim` pure, `remake/ui` reads and dispatches,
+`remake/content` is data). The original never imports from `remake/`, except `ui/App.tsx` lazily
+loading `@r/ui/App`; the Remake may reuse the original's shared pieces (rng, name groups, icons,
+IndexedDB helper). Saves never mix: the Remake's key is `rackets.remake.save.v1`, versioned by
+`WORLD_VERSION` in `remake/sim/generate.ts` — changing the order of generation changes every seed's
+city, so bump it when you do.
+
 ## Before pushing
-`npm run typecheck && npm test && npm run sim -- 60` must all pass. The soak bot
+`npm run typecheck && npm test && npm run sim -- 60 && npm run sim2 -- 60` must all pass. The soak bot
 prints the economy curve; if income or faction growth looks broken, fix the balance
 before shipping.
 
