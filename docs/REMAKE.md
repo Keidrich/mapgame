@@ -175,8 +175,19 @@ after day 10: the end.
   when zoomed out, and overlays for who holds it, your heat, money and police. Pan and pinch move
   the `viewBox` directly and commit only when the gesture ends.
 - **People, Crew, Jobs, Empire, Rivals** tabs; sheets for a block, a place, a person, a job, an outfit.
-- **The paper.** The one loud design choice: headlines, events and the morning recap print on paper,
-  in a serif. The city reports on itself.
+- **The look ("neon arcade", since the UI remake).** Built to feel like the mobile games people keep
+  on their phones, not a newspaper: a deep-violet night palette; chunky buttons that press down
+  onto a darker edge; a HUD of currency pills (clean, dirty, energy for action points, heat) with
+  the rank as a level bar and a level badge on your face, and money that changes floating a +/−
+  number off its pill; a dock of big icon tiles with the current one lifted in gold and red count
+  badges; round tools down the map's right edge (the overlay cycles on a tap); the next lead as a
+  **quest** card with a progress ring; a big moon **End day** button that glows once the day's
+  energy is spent; sheets that rise with a handle and hold their content in lit cards; every scene
+  an action card with its odds in a coloured badge; events as pop-up cards whose first choice is
+  gold; and the morning recap as a **reward screen** — one to three stars for the day, the takings
+  popping in as tiles, the day's headline, and "Next day". Lilita One for display and numbers,
+  Nunito for text, both linked at runtime so the game still opens offline on rounded system faces.
+  Motion (the sheet rise, the pop-in, the shine on meters, the pulses) is off under reduced motion.
 
 ## 7. Testing and the soak
 

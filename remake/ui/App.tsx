@@ -3,7 +3,7 @@
  * and loaded lazily, so neither game carries the other's code until it is wanted.
  */
 import './remake.css';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { APPROACH_INFO } from '@r/content/world';
 import { select, PLAYER } from '@r/sim/index';
 import { Icon } from '@ui/icons';
@@ -18,12 +18,24 @@ import { Start } from './components/Start';
 import { RegionSheet } from './components/Region';
 import { CrewTab, EmpireTab, JobsTab, PeopleTab, RivalsTab } from './components/Tabs';
 import { Do, Meter, Sheet, fmt } from './components/kit';
+import { GBag, GBolt, GCash, GChevron, GFlame, GLayers, GStar, GTrophy } from './components/GameIcons';
+
+const FONTS = 'https://fonts.googleapis.com/css2?family=Lilita+One&family=Nunito:wght@500;600;700;800;900&display=swap';
+/** The two faces, linked once; if they cannot load the game falls back to rounded system fonts. */
+function useFonts() {
+  useEffect(() => {
+    if (document.querySelector(`link[href="${FONTS}"]`)) return;
+    const l = document.createElement('link'); l.rel = 'stylesheet'; l.href = FONTS;
+    document.head.appendChild(l);
+  }, []);
+}
 
 export function RemakeApp() {
+  useFonts();
   useEffect(() => { void boot(); }, []);
   const booting = useUi(s => s.booting);
   const has = useUi(s => !!s.world);
-  if (booting) return <div className="r-root"><div className="r-splash"><b>RACKETS</b><span>Remake</span></div></div>;
+  if (booting) return <div className="r-root"><div className="r-splash"><b>RACKETS</b><span>Loading your city…</span></div></div>;
   return <div className="r-root">{has ? <Game /> : <Start />}</div>;
 }
 
@@ -57,18 +69,22 @@ function Game() {
             {tab === 'rivals' && <RivalsTab />}
           </div>
         )}
-        <div className="r-fab">
-          {w.events.length ? <span className="r-btn danger">{w.events.length} thing{w.events.length > 1 ? 's' : ''} to decide</span> : <Do action={{ type: 'end_day' }} label={`End day ${w.day}`} icon="moon" kind="primary" small />}
+        {/* the end of the day: a big moon, glowing once the day's energy is spent */}
+        <div className={`g-endday${w.player.ap === 0 ? ' ready' : ''}`}>
+          {w.events.length ? <span className="g-decide">{w.events.length} to decide</span> : <Do action={{ type: 'end_day' }} label="End day" icon="moon" kind="primary" />}
         </div>
       </main>
       <nav className="r-tabbar" aria-label="Sections">
-        {TABS.map(t => (
-          <button type="button" key={t.id} className={tab === t.id ? 'on' : ''} aria-current={tab === t.id ? 'page' : undefined} onClick={() => setTab(t.id)}>
-            <Icon name={t.icon} size={20} />
-            <span>{t.label}</span>
-            {t.id === 'jobs' && (ready || offers) ? <i className={ready ? 'hot' : ''}>{ready || offers}</i> : null}
-          </button>
-        ))}
+        {TABS.map(t => {
+          const badge = t.id === 'jobs' ? ready || offers : t.id === 'crew' ? Object.values(w.hostages).filter(h => h.holder !== PLAYER).length : 0;
+          return (
+            <button type="button" key={t.id} className={tab === t.id ? 'on' : ''} aria-current={tab === t.id ? 'page' : undefined} onClick={() => setTab(t.id)}>
+              <span className="g-tile"><Icon name={t.icon} size={22} strokeWidth={tab === t.id ? 2.2 : 1.7} /></span>
+              <span>{t.label}</span>
+              {badge ? <i className={t.id === 'jobs' && ready ? 'hot' : t.id === 'crew' ? 'hot' : ''}>{badge}</i> : null}
+            </button>
+          );
+        })}
       </nav>
       {sheet && (
         <>
@@ -92,32 +108,68 @@ function Game() {
   );
 }
 
+/**
+ * The HUD, the way mobile games draw it: you on the left with your rank as a level bar, the day on
+ * the right, and four pills — clean money, dirty money, the day's energy, heat. Money that changes
+ * floats a +/− number off its pill, so a night's takings are something you see land.
+ */
 function Hud() {
   const w = useWorld();
   const p = w.player;
   const rank = select.rankOf(w);
+  const next = select.nextRank(w);
+  const n = select.notoriety(w);
+  const pct = next ? Math.max(0, Math.min(100, ((n - rank.at) / (next.at - rank.at)) * 100)) : 100;
+  const level = select.rankIndex(w) + 1;
   return (
-    <header className="r-hud">
-      <button type="button" className="r-hud-me" onClick={() => openSheet({ kind: 'menu' })} aria-label="Menu">
-        <Face seed={p.face} pronoun="they" age={34} mood="neutral" size={36} tint="#2b2418" />
-      </button>
-      <div className="r-hud-mid">
-        <div className="r-hud-line1"><b>{p.nick ? `"${p.nick}"` : p.name}</b><span className="r-rank">{rank.label}</span><span className="r-day">Day {w.day}</span></div>
-        <div className="r-hud-line2">
-          <span className="green" title="Clean money">{fmt(p.cash)}</span>
-          <span className="orange" title="Dirty money">{fmt(p.dirty)}</span>
-          <span className="r-ap" title="Action points left today">{Array.from({ length: p.apMax }, (_, i) => <i key={i} className={i < p.ap ? 'on' : ''} />)}</span>
+    <header className="g-hud">
+      <div className="g-hud-top">
+        <button type="button" className="g-avatar" onClick={() => openSheet({ kind: 'menu' })} aria-label="Menu">
+          <Face seed={p.face} pronoun="they" age={34} mood="neutral" size={44} tint="#3b2f7a" />
+          <span className="g-lvl">{level}</span>
+        </button>
+        <div className="g-who">
+          <b>{p.nick ? `"${p.nick}"` : p.name}</b>
+          <div className="g-xp" title={next ? `${next.at - n} more fear and respect to ${next.label}` : 'The top'}><i style={{ width: `${pct}%` }} /><span>{rank.label}{next ? ` · ${n}/${next.at}` : ''}</span></div>
         </div>
+        <button type="button" className="g-day" onClick={() => openSheet({ kind: 'menu' })} aria-label={`Day ${w.day}`}><span>DAY</span><b>{w.day}</b></button>
       </div>
-      <div className="r-hud-heat" title={`Heat ${Math.round(p.heat)}`}>
-        <span>Heat</span>
-        <div className="r-heatbar"><div style={{ width: `${p.heat}%` }} className={p.heat >= 60 ? 'hot' : ''} /></div>
+      <div className="g-res">
+        <Pill kind="clean" icon={<GCash size={26} />} value={p.cash} title="Clean money" />
+        <Pill kind="dirty" icon={<GBag size={26} />} value={p.dirty} title="Dirty money" />
+        <div className={`g-pill energy${p.ap === 0 ? ' empty' : ''}`} title="Action points left today">
+          <GBolt size={26} /><b>{p.ap}/{p.apMax}</b>
+        </div>
+        <div className={`g-pill heat${p.heat >= 60 ? ' hot' : ''}`} title={`Heat ${Math.round(p.heat)}`}>
+          <GFlame size={26} hot={p.heat >= 60} /><b>{Math.round(p.heat)}</b>
+          <span className="g-heatbar"><i style={{ width: `${p.heat}%` }} /></span>
+        </div>
       </div>
     </header>
   );
 }
 
-const LAYERS: { id: Layer; label: string }[] = [{ id: 'control', label: 'Who holds it' }, { id: 'heat', label: 'Your heat' }, { id: 'wealth', label: 'Money' }, { id: 'police', label: 'Police' }];
+/** A currency pill that floats the change off it when the number moves. */
+function Pill({ kind, icon, value, title }: { kind: string; icon: ReactNode; value: number; title: string }) {
+  const prev = useRef(value);
+  const [deltas, setDeltas] = useState<{ id: number; n: number }[]>([]);
+  useEffect(() => {
+    const d = value - prev.current; prev.current = value;
+    if (!d) return;
+    const id = Date.now() + Math.random();
+    setDeltas(x => [...x.slice(-2), { id, n: d }]);
+    const t = setTimeout(() => setDeltas(x => x.filter(y => y.id !== id)), 1500);
+    return () => clearTimeout(t);
+  }, [value]);
+  return (
+    <div className={`g-pill ${kind}`} title={title}>
+      {icon}<b>{fmt(value)}</b>
+      {deltas.map(d => <span key={d.id} className={`g-delta ${d.n > 0 ? 'up' : 'down'}`}>{d.n > 0 ? '+' : '−'}{fmt(Math.abs(d.n))}</span>)}
+    </div>
+  );
+}
+
+const LAYERS: { id: Layer; label: string; short: string }[] = [{ id: 'control', label: 'Who holds it', short: 'Owners' }, { id: 'heat', label: 'Your heat', short: 'Heat' }, { id: 'wealth', label: 'Money', short: 'Money' }, { id: 'police', label: 'Police', short: 'Police' }];
 
 function MapScreen() {
   const w = useWorld();
@@ -135,10 +187,11 @@ function MapScreen() {
       <CityMap w={view} layer={layer} focus={focus} selected={sel} onBlock={id => { setSel(id); openSheet({ kind: 'block', id }); }} />
       {headline && <div className="r-paper"><span>{select.cityName(w, cityId).toUpperCase()} COURIER · DAY {headline.day}</span><b>{headline.text}</b></div>}
       <LeadStrip />
+      {/* round tools down the right edge: the overlay cycles on a tap, like a game's view toggle */}
       <div className="r-map-tools">
-        <div className="r-seg small" role="group" aria-label="Map overlay">{LAYERS.map(l => <button type="button" key={l.id} className={layer === l.id ? 'on' : ''} aria-pressed={layer === l.id} onClick={() => setLayer(l.id)}>{l.label}</button>)}</div>
-        <button type="button" className="r-btn small" onClick={() => focusBlock(w.player.blockId)}><Icon name="you" size={14} /> Where am I</button>
-        <button type="button" className="r-btn small" onClick={() => openSheet({ kind: 'region' })}><Icon name="map" size={14} /> Region</button>
+        <button type="button" className="g-fab" onClick={() => setLayer(LAYERS[(LAYERS.findIndex(l => l.id === layer) + 1) % LAYERS.length].id)} aria-label={`Map overlay: ${LAYERS.find(l => l.id === layer)?.label}. Tap for the next.`}><GLayers size={24} /><small>{LAYERS.find(l => l.id === layer)?.short}</small></button>
+        <button type="button" className="g-fab" onClick={() => focusBlock(w.player.blockId)} aria-label="Where am I"><Icon name="you" size={24} strokeWidth={2} /><small>Me</small></button>
+        <button type="button" className="g-fab gold" onClick={() => openSheet({ kind: 'region' })} aria-label="The region"><Icon name="map" size={24} strokeWidth={2.2} /><small>Region</small></button>
       </div>
       <button type="button" className="r-here-card" onClick={() => openSheet({ kind: 'block', id: here.id })}>
         <span className="r-kicker">You are on{Object.keys(w.cities ?? {}).length ? ` · ${select.cityName(w, cityId)}` : ''}</span>
@@ -172,12 +225,24 @@ function LeadStrip() {
   };
   return (
     <div className={`r-leads${open ? ' open' : ''}`}>
+      <QuestRing done={all.length - todo.length} of={all.length} />
       <button type="button" className="r-lead-top" onClick={() => go(todo[0])}>
-        <span className="r-kicker">Next · {all.length - todo.length}/{all.length}</span>
+        <span className="r-kicker">Quest</span>
         <b>{todo[0].text}</b>
       </button>
-      <button type="button" className="r-lead-more" aria-expanded={open} aria-label="All leads" onClick={() => setOpen(o => !o)}><Icon name={open ? 'caret_up' : 'down'} size={16} /></button>
-      {open && <ol className="r-lead-list">{all.map(l => <li key={l.id} className={l.done ? 'done' : ''}><button type="button" disabled={l.done} onClick={() => go(l)}><b>{l.text}</b><span>{l.why}</span></button></li>)}</ol>}
+      <button type="button" className="r-lead-more" aria-expanded={open} aria-label="All quests" onClick={() => setOpen(o => !o)}><Icon name={open ? 'caret_up' : 'down'} size={20} strokeWidth={2.4} /></button>
+      {open && <ol className="r-lead-list">{all.map(l => <li key={l.id} className={l.done ? 'done' : ''}><button type="button" disabled={l.done} onClick={() => go(l)}><GStar size={22} dim={!l.done} /><b>{l.text}</b><span>{l.why}</span></button></li>)}</ol>}
+    </div>
+  );
+}
+
+/** How far along the quest line you are, as a ring. */
+function QuestRing({ done, of }: { done: number; of: number }) {
+  const r = 18, c = 2 * Math.PI * r;
+  return (
+    <div className="g-quest-ring" aria-label={`${done} of ${of} done`}>
+      <svg width="44" height="44" viewBox="0 0 44 44"><circle cx="22" cy="22" r={r} fill="#110f2a" stroke="#2c2862" strokeWidth="5" /><circle cx="22" cy="22" r={r} fill="none" stroke="#ffcc33" strokeWidth="5" strokeLinecap="round" strokeDasharray={`${(done / Math.max(1, of)) * c} ${c}`} /></svg>
+      <b>{done}/{of}</b>
     </div>
   );
 }
@@ -230,23 +295,32 @@ function ComplicationCard() {
   );
 }
 
+/**
+ * The end of the day as a reward screen: stars for how the day went, the takings as tiles that pop
+ * in one by one, the day's headline, and everything that happened in a list. Three stars is a day
+ * that made money and cooled off; one is a day that cost you.
+ */
 function RecapCard() {
   const w = useWorld();
   const r = useUi(s => s.recap)!;
+  const net = r.clean + r.dirty - r.spent;
+  const stars = net > 0 ? (r.heat < 40 ? 3 : 2) : 1;
   return (
     <div className="r-modal" role="dialog" aria-modal="true" aria-labelledby="r-recap-title">
       <div className="r-card paper">
-        <div className="r-paper-mast">{w.city.name} Courier · Day {r.day + 1}{r.away ? ` · while you were away, ${r.away} day${r.away > 1 ? 's' : ''}` : ''}</div>
-        {r.headline && <h2 id="r-recap-title" className="r-headline">{r.headline}</h2>}
-        <div className="r-stats">
-          <div><span>Clean in</span><b className="green">{fmt(r.clean)}</b></div>
-          <div><span>Dirty in</span><b className="orange">{fmt(r.dirty)}</b></div>
-          <div><span>Paid out</span><b>{fmt(r.spent)}</b></div>
-          {r.washed > 0 && <div><span>Washed</span><b>{fmt(r.washed)}</b></div>}
-          <div><span>Heat</span><b>{r.heat}</b></div>
+        <div className="g-burst" />
+        <div className="r-paper-mast">Day {r.day} complete{r.away ? ` · ${r.away} day${r.away > 1 ? 's' : ''} away` : ''}</div>
+        <div className="g-stars">{[0, 1, 2].map(i => <GStar key={i} size={i === 1 ? 54 : 42} dim={i >= stars} />)}</div>
+        <h2 id="r-recap-title" className="r-headline">{r.headline ?? `${w.city.name} sleeps`}</h2>
+        <div className="g-reward">
+          <div><GCash size={30} /><b className="green">{fmt(r.clean)}</b><span>Clean</span></div>
+          <div><GBag size={30} /><b className="orange">{fmt(r.dirty)}</b><span>Dirty</span></div>
+          <div><Icon name="cash" size={28} /><b>−{fmt(r.spent)}</b><span>Paid out</span></div>
+          <div><GFlame size={30} hot={r.heat >= 60} /><b>{r.heat}</b><span>Heat</span></div>
+          {r.washed > 0 && <div><Icon name="laundering" size={28} /><b>{fmt(r.washed)}</b><span>Washed</span></div>}
         </div>
         {r.lines.length > 0 && <ul className="r-recap-lines">{r.lines.map((l, i) => <li key={i} className={l.tone}>{l.text}</li>)}</ul>}
-        <button type="button" className="r-btn primary block" onClick={closeRecap} autoFocus>{w.events.length ? `On to what needs deciding (${w.events.length})` : 'Morning'}</button>
+        <button type="button" className="r-btn primary block big" onClick={closeRecap} autoFocus>{w.events.length ? `Decide (${w.events.length})` : 'Next day'} <GChevron size={20} /></button>
       </div>
     </div>
   );
@@ -256,7 +330,9 @@ function WinCard() {
   const w = useWorld();
   return (
     <div className="r-modal" role="dialog" aria-modal="true"><div className="r-card paper">
-      <div className="r-paper-mast">{w.city.name} Courier · Special edition</div>
+      <div className="g-burst" />
+      <div className="r-paper-mast">Victory</div>
+      <div className="g-stars"><GTrophy size={84} /></div>
       <h2 className="r-headline">THE CITY HAS A NEW OWNER</h2>
       <p className="r-card-text">Half of {w.city.name} answers to you{Object.values(w.factions).every(f => !f.alive) ? ', and every outfit that stood against you is gone' : ''}. The game goes on — hold it.</p>
       <Do action={{ type: 'seen_win' }} label="Keep going" kind="primary" block />
@@ -270,7 +346,9 @@ function OverCard() {
   const title = { kingpin: 'Kingpin', straight: 'Out clean', dead: 'Dead', convicted: 'Convicted', broke: 'Finished' }[o.ending];
   return (
     <div className="r-modal" role="dialog" aria-modal="true"><div className="r-card paper">
-      <div className="r-paper-mast">{w.city.name} Courier · Day {o.day}</div>
+      {(o.ending === 'kingpin' || o.ending === 'straight') && <div className="g-burst" />}
+      <div className="r-paper-mast">{o.ending === 'kingpin' || o.ending === 'straight' ? 'You made it' : 'Game over'} · day {o.day}</div>
+      <div className="g-stars">{o.ending === 'kingpin' || o.ending === 'straight' ? <GTrophy size={76} /> : [0, 1, 2].map(i => <GStar key={i} size={i === 1 ? 50 : 40} dim />)}</div>
       <h2 className="r-headline">{title.toUpperCase()}</h2>
       <p className="r-card-text">{o.text}</p>
       <div className="r-stats">

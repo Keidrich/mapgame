@@ -38,9 +38,9 @@ export function Start() {
     <div className="r-start">
       <TitleTabs current="remake" />
       <header className="r-masthead">
-        <div className="r-masthead-rule"><span>Vol. II</span><span>Every city generated</span><span>Late edition</span></div>
+        <div className="r-masthead-rule"><span>Every city generated</span><span>72 kinds of job</span><span>Plays offline</span></div>
         <h1>RACKETS</h1>
-        <p className="r-masthead-sub">The Remake — a crime empire in a city nobody has seen before</p>
+        <p className="r-masthead-sub">Build a crime empire in a city nobody has seen before</p>
       </header>
 
       {saved.length > 0 && (
@@ -106,7 +106,7 @@ export function Start() {
       </section>
 
       <footer className="r-start-foot">
-        <button type="button" className="r-btn primary block big" onClick={begin} disabled={full}>Start in {preview.city.name}</button>
+        <button type="button" className="r-btn primary block big" onClick={begin} disabled={full}><span className="g-city">Play · {preview.city.name}</span></button>
         {full && <p className="r-why center">Three cities is the most you can keep. Delete one above to start another.</p>}
         <p className="r-hint center">Starting on {preview.blocks[preview.player.blockId].name}, {preview.districts[preview.blocks[preview.player.blockId].districtId].name}.</p>
       </footer>

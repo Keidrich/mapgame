@@ -178,7 +178,7 @@ export function RivalsTab() {
       {fs.map(f => {
         const stance = select.stanceOf(f, w.day);
         return (
-          <button type="button" key={f.id} className="r-rival" onClick={() => openSheet({ kind: 'faction', id: f.id })} style={{ borderLeftColor: f.color }}>
+          <button type="button" key={f.id} className="r-rival" onClick={() => openSheet({ kind: 'faction', id: f.id })} style={{ ['--f' as string]: f.color }}>
             <Emblem e={f.emblem} size={44} />
             <div className="grow">
               <div className="r-row-title">{f.name} {!f.alive && <Chip tone="red">Finished</Chip>}</div>

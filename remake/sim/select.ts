@@ -20,6 +20,8 @@ export { restockCost, auditOdds } from './reducer';
 export { crewOn, crewOf, crewWage, crewCost, CREW } from './streetcrews';
 export { specialistFee, present } from './jobs';
 export { needsMet, isDerelict } from './catalogue';
+import { RANKS as RANKS_ } from '@r/content/world';
+import { rankOf as rankOf_ } from './economy';
 export { HOME, REGION, arrivalIn, cityBlocks, cityGeo, cityName_ as cityName, cityOfBlock, controlIn, currentCity, demandIn, fare, isOpen, regionCity, routePrice, safehouseIn } from './region';
 import { HOME as HOME_, cityGeo as cityGeo_ } from './region';
 /**
@@ -82,6 +84,8 @@ export function holderName(w: World, blockId: Id): string {
   if (!c) return 'Nobody';
   return c === PLAYER ? 'You' : w.factions[c]?.name ?? 'Nobody';
 }
+/** Where you are on the rank ladder, 0 for Nobody: the number on the HUD's level badge. */
+export const rankIndex = (w: World) => RANKS_.findIndex(r => r.label === rankOf_(w).label);
 export const pendingJob = (w: World) => Object.values(w.jobs).find(j => j.status === 'paused');
 
 // ------------------------------------------------------------------------------------ leads

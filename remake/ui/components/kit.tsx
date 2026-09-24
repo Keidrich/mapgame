@@ -2,6 +2,7 @@
 import { useState, type ReactNode } from 'react';
 import { can, type Action } from '@r/sim/index';
 import { Icon } from '@ui/icons';
+import { GClose } from './GameIcons';
 import { act, closeSheet, useWorld } from '../store';
 
 /**
@@ -63,7 +64,7 @@ export function Sheet({ title, kicker, children, art, onClose = closeSheet }: { 
             {kicker && <div className="r-kicker">{kicker}</div>}
             <h2>{title}</h2>
           </div>
-          <button type="button" className="r-close" aria-label="Close" onClick={onClose}><Icon name="cross" size={18} /></button>
+          <button type="button" className="r-close" aria-label="Close" onClick={onClose}><GClose size={18} /></button>
         </header>
         <div className="r-sheet-body">{children}</div>
       </section>

@@ -14,6 +14,45 @@ House rules for an entry (see `CLAUDE.md` → *Leave a trail*):
 
 ---
 
+## 2026-09-24 — Remake: the UI remake — "neon arcade"
+
+**What.** The Remake's screens rebuilt to look and feel like a modern mobile game: a deep-violet
+night palette, chunky buttons that press down, a HUD of currency pills with floating +/− money
+numbers, rank as a level bar with a level badge, a dock of icon tiles with badges, round map tools,
+the next lead as a quest card with a progress ring, a glowing moon End-day button, sheets of lit
+cards, action cards with odds badges, pop-up event cards, a star-rated reward screen at the end of
+every day, and a title screen with a big breathing Play button. The original game is untouched.
+
+**Why.** The user asked for "something sleek, mobile friendly and inspired by popular mobile games"
+— and to have fun with it.
+
+**How.** Mostly `remake/ui/remake.css`, rewritten as a design system: palette tokens (the old
+`--r-*` names kept as aliases for inline styles), a 3D button recipe (gradient, inset highlight,
+darker edge that the press drops onto), card sections, thick glossy meters with a travelling shine,
+and pop/rise/float keyframes (all off under reduced motion). Structure in `remake/ui/App.tsx` (HUD
+with `Pill` deltas, dock, map tools, `QuestRing`, reward-screen `RecapCard`, victory and game-over
+cards) and a new `remake/ui/components/GameIcons.tsx` — filled, two-tone glyphs (cash, bag, bolt,
+flame, star, trophy, layers) because resource pills only read as a game with solid icons.
+`select.rankIndex` gives the level badge its number.
+
+**Bugs the screenshots caught, fixed before shipping.**
+- A font `@import` in the lazily-loaded stylesheet fails the *whole* stylesheet in Chromium when
+  Google Fonts is unreachable, and the Remake would not open at all ("Unable to preload CSS").
+  Offline players would have hit it. The fonts are now linked at runtime from `App.tsx`; a failure
+  just leaves the rounded system faces. The service worker caches them once seen (`vite.config.ts`).
+- `.r-root button { color: inherit }` out-ranked every button's own colour, so gold buttons had
+  white text. The reset is now `:where(...)`, zero specificity.
+- A `position: relative` on every card child pulled the reward screen's sunburst into the layout.
+
+**Watch out.** Nothing in `/sim` changed except the read-only `rankIndex`; no save change. The
+sticky Play button on the title screen breathes, which makes Playwright call it "not stable" — use
+`force: true` in screenshot scripts. The fonts are the only network dependency the Remake has.
+
+**Files.** `remake/ui/remake.css`, `remake/ui/App.tsx`, `remake/ui/components/{GameIcons.tsx (new),kit.tsx,Start.tsx,Tabs.tsx}`,
+`remake/sim/select.ts`, `vite.config.ts`, `docs/REMAKE.md` §6.
+
+---
+
 ## 2026-09-24 — Remake: the region — more than one city, trade and work between them
 
 **What.** Every Remake save now has a region of five or six cities on a map. Hold a quarter of a city
