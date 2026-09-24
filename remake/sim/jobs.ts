@@ -14,30 +14,32 @@
  *   3. Nothing launches blind. A complication stops the job and asks, with each answer's check
  *      and price on the button.
  */
-import { APPROACH_INFO, BUSINESSES, GEAR, JOBS, SPECIALISTS } from '@r/content/world';
+import { APPROACH_INFO, BUSINESSES, JOBS, SPECIALISTS } from '@r/content/world';
 import { NAME_GROUP_IDS, personName } from '@r/content/names';
 import { COMPLICATIONS, PITCH, TITLE } from '@r/content/jobtext';
 import { openCase } from './law';
+import { armourOf, kitOf, skillOf } from './kit';
+import { holdHostage, holdingRoom } from './hostages';
+import { SETPIECES, SETPIECE_RANK, setpieceFor } from '@r/content/setpieces';
 import { gainXp, injure, jail, kill, practise, spreadWord } from './people';
 import { Rng } from './rng';
-import type { Approach, GearKind, Id, Job, JobKind, JobPayout, Npc, Owner, Skill, SpecialistKind, World } from './types';
+import type { Approach, Id, Job, JobKind, JobPayout, Npc, Owner, Skill, SpecialistKind, World } from './types';
 import { PLAYER } from './types';
 import { addHeat, addInfluence, clamp, fullName, log, money, nid, remember, shortName } from './util';
 
-const GEAR_FOR: Record<Skill, GearKind | undefined> = { muscle: 'weapons', brains: 'tools', wheels: 'wheels', tech: 'tech', charm: undefined };
 const LEAN_W = [1, 0.7, 0.5, 0.35];
 
 export interface Odds { chance: number; factors: { label: string; n: number }[]; required: number; team: number }
 
 /** How a team stacks up on one skill: the best of them, plus a third of everybody else. */
 function teamSkill(w: World, crewIds: Id[], skill: Skill, withPlayer: boolean, specialist?: Job['specialist']): number {
-  const vals = crewIds.map(id => w.npcs[id]).filter(Boolean).map(n => n.skills[skill] + ((n.crew?.level ?? 1) - 1) * 0.4);
-  if (withPlayer) vals.push(w.player.skills[skill]);
+  // each person counts with what they carry: a pistol in the gunman's belt, not the bookkeeper's
+  const vals = crewIds.filter(id => w.npcs[id]).map(id => skillOf(w, id, skill) + ((w.npcs[id].crew?.level ?? 1) - 1) * 0.4);
+  if (withPlayer) vals.push(skillOf(w, PLAYER, skill));
   if (specialist?.skill === skill) vals.push(specialist.level);
   if (!vals.length) return 0;
   vals.sort((a, b) => b - a);
-  const g = GEAR_FOR[skill];
-  return vals[0] + vals.slice(1).reduce((t, x) => t + x, 0) * 0.3 + (g ? w.player.gear[g] * 1.2 : 0);
+  return vals[0] + vals.slice(1).reduce((t, x) => t + x, 0) * 0.3;
 }
 
 /** Which skills the approach leans on, reordered from the job's own list. */
@@ -95,6 +97,7 @@ export function payoutFor(job: Job, approach: Approach | undefined): JobPayout {
 
 // ---------------------------------------------------------------------------------- generation
 interface Target { kind: JobKind; blockId: Id; businessId?: Id; npcId?: Id; faction?: Owner; source?: Npc }
+export type { Target };
 
 /** Build a job on a target. Everything about it — size, difficulty, take — is read off the target. */
 export function buildJob(w: World, rng: Rng, t: Target): Job | undefined {
@@ -121,9 +124,18 @@ export function buildJob(w: World, rng: Rng, t: Target): Job | undefined {
     case 'smuggle': difficulty = district.attention / 2 + 20; goods = 0; dirty = rng.int(12, 30) * 100; respect = 2; fear = 0; tname = block.name; break;
     case 'raid': if (!fac) return; difficulty = 35 + fac.soldiers * 2; dirty = Math.round(Math.min(fac.cash * 0.25, 20000)); goods = rng.int(10, 30); fear = 8; respect = 6; break;
     case 'frame': if (!npc) return; difficulty = 45 + npc.skills.brains * 2; fear = 2; respect = 4; break;
+    case 'setpiece': {
+      const sp = setpieceFor(block.landmark); if (!sp) return;
+      const r = (x: [number, number]) => Math.round((x[0] + rng.float() * (x[1] - x[0])) / 100) * 100;
+      difficulty = sp.difficulty; dirty = r(sp.payout.dirty); clean = r(sp.payout.clean); goods = Math.round(sp.payout.goods[0] + rng.float() * (sp.payout.goods[1] - sp.payout.goods[0]));
+      respect = sp.respect; fear = sp.fear; tier = 4;
+      tname = block.landmark!;
+      break;
+    }
   }
-  const title = rng.pick(TITLE[t.kind]).replace('{T}', tname).replace('{B}', block.name);
-  const pitch = rng.pick(PITCH[t.kind]).replace(/\{T\}/g, tname).replace(/\{B\}/g, block.name).replace(/\{S\}/g, t.source ? shortName(t.source) : 'Word on the street');
+  const sp = t.kind === 'setpiece' ? setpieceFor(block.landmark) : undefined;
+  const title = sp ? sp.title.replace('{L}', tname) : rng.pick(TITLE[t.kind]).replace('{T}', tname).replace('{B}', block.name);
+  const pitch = sp ? sp.pitch.replace(/\{L\}/g, tname) : rng.pick(PITCH[t.kind]).replace(/\{T\}/g, tname).replace(/\{B\}/g, block.name).replace(/\{S\}/g, t.source ? shortName(t.source) : 'Word on the street');
   const job: Job = {
     id: nid(w, 'job'), kind: t.kind, title, pitch, sourceId: t.source?.id, tier: tier as Job['tier'], blockId: t.blockId,
     targetBusinessId: t.businessId, targetNpcId: t.npcId, targetFaction: t.faction ?? npc?.faction ?? (biz?.protection?.by !== PLAYER ? biz?.protection?.by : undefined),
@@ -131,6 +143,7 @@ export function buildJob(w: World, rng: Rng, t: Target): Job | undefined {
     planDays: def.planDays, expires: w.day + rng.int(3, 6), payout: { dirty, clean, goods, respect, fear }, heat: def.heat, exposure: def.exposure,
     status: 'offer', crewIds: [], daysLeft: def.planDays, intel: 0,
   };
+  if (sp) { job.leans = sp.leans; job.heat = sp.heat; job.setpiece = { id: sp.id, landmark: block.landmark!, stages: sp.stages, stage: 0, mult: 1, heat: 0, messy: false }; }
   // a target that belongs to an outfit is a declaration, and the board says so
   if (job.targetFaction === PLAYER) job.targetFaction = undefined;
   w.jobs[job.id] = job;
@@ -176,6 +189,11 @@ function pickTarget(w: World, rng: Rng): Target | undefined {
     if (kind === 'hit' && lt.length) { const t = rng.pick(lt); return { kind, blockId: t.homeBlockId, npcId: t.id, faction: f.id, source }; }
     if (kind === 'sabotage') { const rk = Object.values(w.rackets).filter(x => x.owner === f.id); if (rk.length) { const x = rng.pick(rk); const b = w.businesses[x.businessId]; return { kind, blockId: b.blockId, businessId: b.id, faction: f.id, source }; } }
     return { kind: 'raid', blockId, faction: f.id, source };
+  }
+  // a set-piece, once in a while, for somebody the street takes seriously
+  if (r < 0.62 && r >= 0.55 && w.player.fear + w.player.respect >= SETPIECE_RANK && !Object.values(w.jobs).some(j => j.kind === 'setpiece' && ['offer', 'planning', 'ready'].includes(j.status))) {
+    const marks = Object.values(w.blocks).filter(b => setpieceFor(b.landmark));
+    if (marks.length) { const b = rng.pick(marks); return { kind: 'setpiece', blockId: b.id, source: w.fixerId ? w.npcs[w.fixerId] : source }; }
   }
   // the fixer deals in paper
   if (r < 0.68 && w.fixerId) {
@@ -250,6 +268,7 @@ export function launchJob(w: World, job: Job, approach: Approach, rng: Rng) {
   job.approach = approach;
   const odds = jobOdds(w, job, job.crewIds, approach);
   job.rolled = rng.float() * 100 < odds.chance;
+  if (job.setpiece) { job.setpiece.stage = 1; job.setpiece.mult = 1; job.setpiece.heat = 0; job.setpiece.messy = false; nextStage(w, job, rng); return; }
   const pool = COMPLICATIONS.filter(c => !c.kinds || c.kinds.includes(job.kind));
   if (pool.length && rng.chance(COMPLICATION_CHANCE[job.tier])) {
     const c = rng.pick(pool);
@@ -277,8 +296,26 @@ export function answerComplication(w: World, job: Job, optionId: string, rng: Rn
   const heat = ok ? o.heat : o.heat * 1.5 + 3;
   if (!ok && !o.safe) job.rolled = job.rolled && rng.chance(0.5);
   if (o.payout === 0) job.rolled = false;
+  const was = job.complication!.id;
   job.complication = undefined;
+  const sp = job.setpiece;
+  if (sp) {
+    sp.mult *= mult; sp.heat += heat; sp.messy ||= !ok;
+    // a set-piece goes on to the next stage unless it is already lost or somebody walked
+    if (sp.stage < sp.stages && job.rolled && o.payout > 0) { sp.stage++; nextStage(w, job, rng, was); return; }
+    finishJob(w, job, rng, Math.min(1.6, sp.mult), sp.heat, sp.messy);
+    return;
+  }
   finishJob(w, job, rng, mult, heat, !ok);
+}
+
+/** A set-piece stops and asks at every stage: always a complication, never the same one twice running. */
+function nextStage(w: World, job: Job, rng: Rng, not?: string) {
+  const pool = COMPLICATIONS.filter(c => c.id !== not && (!c.kinds || c.kinds.some(k => k === 'heist' || k === 'burglary' || k === 'robbery')));
+  const c = rng.pick(pool);
+  job.complication = { id: c.id, title: `Stage ${job.setpiece!.stage} of ${job.setpiece!.stages}: ${c.title.toLowerCase()}`, text: c.text, options: c.options.map(o => ({ ...o })) };
+  job.status = 'paused';
+  log(w, `${job.title}, stage ${job.setpiece!.stage}: ${c.title.toLowerCase()}. Your call.`, 'warn');
 }
 
 function finishJob(w: World, job: Job, rng: Rng, mult: number, extraHeat: number, messy = false) {
@@ -288,10 +325,14 @@ function finishJob(w: World, job: Job, rng: Rng, mult: number, extraHeat: number
   const success = !!job.rolled;
   const pay = payoutFor(job, job.approach);
   const k = success ? mult : 0;
-  const dirty = Math.round(pay.dirty * k), clean = Math.round(pay.clean * k), goods = Math.round(pay.goods * k);
+  let dirty = Math.round(pay.dirty * k);
+  const clean = Math.round(pay.clean * k), goods = Math.round(pay.goods * k);
+  // a snatch with somewhere to keep them is a hostage, not a payout: the family pays more by the day
+  let heldAt: Id | undefined;
+  if (success && job.kind === 'kidnap' && job.targetNpcId) { heldAt = holdingRoom(w); if (heldAt) { holdHostage(w, job.targetNpcId, dirty, heldAt); dirty = 0; } else dirty = Math.round(dirty * 0.5); }
   const heatBefore = p.heat;
   const bgHeat = p.background === 'hacker' && (job.kind === 'hack' || job.kind === 'fraud') ? 0.6 : 1;
-  addHeat(w, (def.heat * ap.heat * (success ? 1 : 1.4) + extraHeat) * bgHeat, job.blockId);
+  addHeat(w, (job.heat * ap.heat * (success ? 1 : 1.4) + extraHeat) * bgHeat, job.blockId);
   p.dirty += dirty; p.cash += clean;
   if (goods) { const lot = p.stash.goods; lot.q = lot.n + goods > 0 ? Math.round((lot.q * lot.n + 55 * goods) / (lot.n + goods)) : 0; lot.n += goods; }
   const injured: Id[] = [], jailed: Id[] = [], killed: Id[] = [];
@@ -300,7 +341,9 @@ function finishJob(w: World, job: Job, rng: Rng, mult: number, extraHeat: number
   for (const id of job.crewIds) {
     const n = w.npcs[id]; if (!n?.alive) continue;
     if (!success && rng.chance(0.18 * (job.approach === 'loud' ? 1.3 : 0.8))) { jail(w, id, rng.int(5, 15), `caught on ${job.title.toLowerCase()}`); jailed.push(id); continue; }
-    if (rng.chance(hurtChance)) { if (!success && job.approach === 'loud' && rng.chance(0.15)) { kill(w, id, `shot on ${job.title.toLowerCase()}`); killed.push(id); } else { injure(w, id, rng.int(2, 6), `on ${job.title.toLowerCase()}`); injured.push(id); } }
+    // armour turns aside a share of what a bad night does, and the shot that would have killed
+    const armour = armourOf(kitOf(w, id));
+    if (rng.chance(hurtChance * (1 - armour))) { if (!success && job.approach === 'loud' && rng.chance(0.15 * (1 - armour))) { kill(w, id, `shot on ${job.title.toLowerCase()}`); killed.push(id); } else { injure(w, id, rng.int(2, 6), `on ${job.title.toLowerCase()}`); injured.push(id); } }
     gainXp(w, id, success ? 25 + job.tier * 10 : 10);
     if (n.crew && n.crew.status !== 'jailed') n.crew.loyalty = clamp(n.crew.loyalty + (success ? 3 : -2));
   }
@@ -352,7 +395,8 @@ function applyTargetEffect(w: World, job: Job, rng: Rng): string {
     case 'robbery': case 'burglary': if (biz) { biz.till = Math.round(biz.till * 0.2); const o = w.npcs[biz.ownerId]; if (o) remember(o, w.day, 'robbed', 'Somebody cleaned out the till.'); } return '';
     case 'heist': if (biz) { biz.till = Math.round(biz.till * 0.1); biz.security = clamp(biz.security + 12); } return 'They will double the guard now.';
     case 'hit': if (npc) { kill(w, npc.id, 'a job of yours'); return ''; } return '';
-    case 'kidnap': if (npc) { npc.rel.fear = clamp(npc.rel.fear + 50); remember(npc, w.day, 'hurt', 'Taken and held for ransom.'); npc.wealth = Math.max(5, npc.wealth - 30); } return 'The family paid.';
+    case 'kidnap': if (npc && !Object.values(w.hostages).some(h => h.npcId === npc.id)) { npc.rel.fear = clamp(npc.rel.fear + 50); remember(npc, w.day, 'hurt', 'Taken, and let go when the family paid what was in the house.'); npc.wealth = Math.max(5, npc.wealth - 30); return 'Nowhere to keep them, so you took what the family had in the house.'; } return npc ? `${fullName(npc)} is yours to bargain with.` : '';
+    case 'setpiece': return setpieceEffect(w, job);
     case 'arson': if (biz) { biz.closed = rng.int(6, 14); for (const rid of biz.racketIds) if (w.rackets[rid]) w.rackets[rid].down = biz.closed; return `${biz.name} is shut for ${biz.closed} days.`; } return '';
     case 'sabotage': if (biz) { let n = 0; for (const rid of biz.racketIds) { const r = w.rackets[rid]; if (r && r.owner !== PLAYER) { r.down = rng.int(4, 9); n++; } } return n ? `Their operation at ${biz.name} is down.` : ''; } return '';
     case 'raid': if (fac) { const took = Math.min(fac.cash, job.payout.dirty); fac.cash -= took; fac.soldiers = Math.max(0, fac.soldiers - rng.int(1, 3)); addInfluence(w, job.blockId, fac.id, -12); return `The ${fac.short} are short money and men.`; } return '';
@@ -368,8 +412,6 @@ function applyTargetEffect(w: World, job: Job, rng: Rng): string {
   }
 }
 
-export { GEAR };
-
 /** What a specialist costs for this job: a flat fee by tier and a small share of the take. */
 export function specialistFee(job: Job, kind: SpecialistKind): number {
   return Math.round((SPECIALISTS[kind].base * job.tier + (job.payout.dirty + job.payout.clean) * 0.06) / 50) * 50;
@@ -379,4 +421,24 @@ export function hireSpecialist(w: World, job: Job, kind: SpecialistKind, rng: Rn
   const pn = personName(rng, rng.pick(NAME_GROUP_IDS));
   job.specialist = { kind, name: `${pn.first} ${pn.last}`, face: rng.int(1, 2 ** 30), skill: SPECIALISTS[kind].skill, level: rng.int(8, 10), fee };
   log(w, `The fixer finds you a ${SPECIALISTS[kind].label.toLowerCase()} for ${job.title.toLowerCase()}: ${job.specialist.name}, ${money(fee)} up front.`, 'info');
+}
+
+/** What a set-piece does beyond the money. The evidence locker is the only way to burn paper in bulk. */
+function setpieceEffect(w: World, job: Job): string {
+  const sp = SETPIECES.find(x => x.id === job.setpiece?.id); if (!sp) return '';
+  switch (sp.effect) {
+    case 'evidence': {
+      let n = 0;
+      for (const c of Object.values(w.cases)) {
+        const ours = c.suspectId === PLAYER || w.player.crewIds.includes(c.suspectId as Id);
+        if (!ours || (c.status !== 'open' && c.status !== 'charged')) continue;
+        c.evidence = clamp(c.evidence - 70); if (c.status === 'charged') { c.status = 'open'; c.trialDay = undefined; } n++;
+      }
+      return n ? `${n} file${n > 1 ? 's' : ''} on you and yours went up in smoke.` : 'There was nothing on you down there — this time.';
+    }
+    case 'sacrilege': return 'Every church on every corner is praying about you tonight.';
+    case 'police': addHeat(w, 10, job.blockId); return 'Every cop in the city takes this one personally.';
+    case 'records': return 'On paper, some of the city now belongs to people who work for you.';
+    default: return '';
+  }
 }

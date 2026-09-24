@@ -2,7 +2,7 @@
  * The remake's tables. Balance lives here and in the formulas in `remake/sim/economy.ts`, never
  * scattered through the reducer — the same house rule as the original.
  */
-import type { Background, BusinessType, DistrictKind, FactionStyle, GearKind, JobKind, LabKind, OfficialKind, Product, RacketKind, Skill, Skills, Temperament, Tier, Trait } from '@r/sim/types';
+import type { Background, BusinessType, DistrictKind, FactionStyle, JobKind, LabKind, OfficialKind, Product, RacketKind, Skill, Skills, Temperament, Tier, Trait } from '@r/sim/types';
 
 // ------------------------------------------------------------------------------------ districts
 export interface DistrictDef {
@@ -175,14 +175,6 @@ export const SAFEHOUSE_TIERS = [
   { label: 'Compound', rent: 250, buy: 12000, capacity: 600, labs: 3, beds: 12 },
 ];
 
-// ------------------------------------------------------------------------------------------ gear
-export const GEAR: Record<GearKind, { label: string; skill: Skill; levels: { label: string; price: number }[]; blurb: string }> = {
-  weapons: { label: 'Weapons', skill: 'muscle', blurb: 'What your people carry. Every loud job and every fight.', levels: [{ label: 'Bare hands', price: 0 }, { label: 'Bats and knives', price: 800 }, { label: 'Handguns', price: 4000 }, { label: 'Heavy iron', price: 15000 }] },
-  tools: { label: 'Tools', skill: 'brains', blurb: 'Picks, drills, a man who knows safes. Quiet jobs.', levels: [{ label: 'A crowbar', price: 0 }, { label: 'Lockpicks', price: 700 }, { label: 'Drills and torches', price: 3500 }, { label: 'Thermal lances', price: 13000 }] },
-  wheels: { label: 'Wheels', skill: 'wheels', blurb: 'Getaway cars and vans. Every job that has to leave.', levels: [{ label: 'The bus', price: 0 }, { label: 'A clean sedan', price: 900 }, { label: 'Fast cars', price: 4500 }, { label: 'A garage full', price: 14000 }] },
-  tech: { label: 'Tech', skill: 'tech', blurb: 'Scanners, jammers, laptops. Alarms, cameras and the wire.', levels: [{ label: 'A phone', price: 0 }, { label: 'Scanners', price: 900 }, { label: 'Jammers and a rig', price: 5000 }, { label: 'A proper crew of hackers', price: 16000 }] },
-};
-
 // ------------------------------------------------------------------------------------- officials
 export const OFFICIALS: Record<OfficialKind, { label: string; blurb: string; weekly: number; effect: string }> = {
   captain: { label: 'Precinct Captain', blurb: 'Runs a station house.', weekly: 1400, effect: 'Your heat cools a point and a half faster every day, attention in the precinct falls, and you hear about raids first.' },
@@ -240,6 +232,7 @@ export const JOBS: Record<JobKind, JobDef> = {
   hack: { label: 'Wire job', verb: 'Get inside the systems at', blurb: 'Accounts, cards, a back door. No masks needed.', leans: ['tech', 'brains'], crew: [1, 2], tier: 2, planDays: 2, heat: 3, exposure: 0.12, crime: 'fraud', approaches: ['quiet', 'clever'] },
   smuggle: { label: 'Run', verb: 'Run a load through', blurb: 'Product in the back of a van, past whoever is looking.', leans: ['wheels', 'charm'], crew: [1, 2], tier: 1, planDays: 1, heat: 4, exposure: 0.15, crime: 'robbery', approaches: ['quiet', 'clever'] },
   raid: { label: 'Raid', verb: 'Raid', blurb: 'Hit a rival\'s stash house and take what is inside.', leans: ['muscle', 'wheels'], crew: [2, 4], tier: 2, planDays: 1, heat: 10, exposure: 0.3, crime: 'violence', approaches: ['loud', 'quiet'] },
+  setpiece: { label: 'Set-piece', verb: 'Take', blurb: 'The job a city has only one of. Stages, a specialist, and a story people tell for years.', leans: ['brains', 'tech', 'wheels', 'muscle'], crew: [3, 5], tier: 4, planDays: 5, heat: 24, exposure: 0.5, crime: 'robbery', approaches: ['quiet', 'loud', 'clever'] },
   frame: { label: 'Frame', verb: 'Frame', blurb: 'The police find exactly what you left for them.', leans: ['brains', 'charm', 'tech'], crew: [1, 2], tier: 2, planDays: 3, heat: -5, exposure: 0.1, crime: 'fraud', approaches: ['clever'] },
 };
 

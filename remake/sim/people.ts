@@ -22,6 +22,8 @@ export function jail(w: World, id: Id, days: number, why: string) {
 export function kill(w: World, id: Id, why: string) {
   const n = w.npcs[id]; if (!n?.alive) return;
   n.alive = false;
+  // nobody holds a dead person: a hostage record outliving them would ransom a corpse
+  for (const h of Object.values(w.hostages ?? {})) if (h.npcId === id) delete w.hostages[h.id];
   if (n.crew) { freeFromAssignment(w, n); w.player.crewIds = w.player.crewIds.filter(x => x !== id); }
   for (const r of Object.values(w.rackets)) if (r.runnerId === id) r.runnerId = undefined;
   for (const s of Object.values(w.safehouses)) for (const l of s.labs) if (l.workerId === id) l.workerId = undefined;

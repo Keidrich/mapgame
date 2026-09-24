@@ -10,6 +10,7 @@ import { BUSINESSES, OFFICIALS, TRAITS } from '@r/content/world';
 import { INSTITUTION_RESPECT, businessPrice, crewCut, FAIR_RATE } from './economy';
 import { openCase } from './law';
 import { hire, practise, spreadWord } from './people';
+import { kitBonus, kitOf } from './kit';
 import type { Rng } from './rng';
 import type { Business, Id, Npc, World } from './types';
 import { PLAYER } from './types';
@@ -57,7 +58,7 @@ export function quote(w: World, kind: SceneKind, npcId: Id, opts: { businessId?:
       const f: SceneQuote['factors'] = [
         { label: 'Your muscle', n: p.skills.muscle * 4 },
         { label: 'Your name', n: Math.round(p.fear / 4) },
-        { label: 'What you carry', n: p.gear.weapons * 5 },
+        { label: 'What you carry', n: carried(w) * 4 },
         { label: 'Their nerve', n: -Math.round(n.nerve * 0.55) },
         { label: 'People behind them', n: -backup(w, n) * 3 },
       ];
@@ -160,8 +161,8 @@ export function quote(w: World, kind: SceneKind, npcId: Id, opts: { businessId?:
         const chance = clamp(Math.round(20 + n.rel.trust / 2 + p.respect / 3 + p.fear / 4 - c.members * 2 - (n.traits.includes('ambitious') ? 20 : 0)), 3, 90);
         return q({ label: `Take them in (${money(crewCost(c))}/day)`, chance, factors: [{ label: 'Their trust', n: Math.round(n.rel.trust / 2) }, { label: 'What the street thinks of you', n: Math.round(p.respect / 3 + p.fear / 4) }, { label: `A crew of ${c.members}`, n: -c.members * 2 }], gain: 'Their corner builds your ground every day, and they grow for you instead of against you.', risk: 'A no, and they think you are a threat.', disabled: away ?? (n.rel.trust < 10 && p.respect < 30 ? 'They would need to trust you (10), or respect you (30).' : undefined) });
       }
-      const chance = clamp(Math.round(30 + p.skills.muscle * 4 + p.fear / 3 + p.gear.weapons * 6 - c.members * 4), 5, 95);
-      return q({ label: 'Run them off', chance, factors: [{ label: 'Your muscle', n: p.skills.muscle * 4 }, { label: 'Your name', n: Math.round(p.fear / 3) }, { label: 'What you carry', n: p.gear.weapons * 6 }, { label: `A crew of ${c.members}`, n: -c.members * 4 }], gain: 'The corner is empty by tonight, and the street sees who emptied it.', risk: 'A fight you lose is a fight everybody hears about.', disabled: away });
+      const chance = clamp(Math.round(30 + p.skills.muscle * 4 + p.fear / 3 + carried(w) * 5 - c.members * 4), 5, 95);
+      return q({ label: 'Run them off', chance, factors: [{ label: 'Your muscle', n: p.skills.muscle * 4 }, { label: 'Your name', n: Math.round(p.fear / 3) }, { label: 'What you carry', n: carried(w) * 5 }, { label: `A crew of ${c.members}`, n: -c.members * 4 }], gain: 'The corner is empty by tonight, and the street sees who emptied it.', risk: 'A fight you lose is a fight everybody hears about.', disabled: away });
     }
     case 'favour': {
       if (!n.rel.owes) return q({ label: 'Call in a favour', disabled: 'They owe you nothing.' });
@@ -379,3 +380,6 @@ export function secretLine(n: Npc): string {
     default: return '';
   }
 }
+
+/** The weapon on the boss, in muscle points: what a scene reads as "what you carry". */
+function carried(w: World) { return kitBonus(kitOf(w, PLAYER), 'muscle'); }

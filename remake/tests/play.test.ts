@@ -6,7 +6,8 @@
  *   - The same seed and the same choices give the same game.
  */
 import { describe, expect, it } from 'vitest';
-import { RACKETS, JOBS, LABS, GEAR } from '@r/content/world';
+import { RACKETS, JOBS, LABS } from '@r/content/world';
+import { ITEMS, SLOTS_ORDER, type ItemId } from '@r/content/kit';
 import { can, dispatch, newWorld, select, PLAYER, type Action, type World } from '@r/sim/index';
 import { apply, describe as describeEffects } from '@r/sim/effects';
 import { Rng } from '@r/sim/rng';
@@ -35,7 +36,17 @@ function everyAction(w: World): Action[] {
   for (const r of Object.values(w.rackets)) out.push({ type: 'upgrade_racket', racketId: r.id }, { type: 'close_racket', racketId: r.id }, { type: 'toggle_wash', racketId: r.id });
   for (const j of Object.values(w.jobs)) for (const a of ['quiet', 'loud', 'clever'] as const) out.push({ type: 'take_job', jobId: j.id, crewIds: [] }, { type: 'launch_job', jobId: j.id, approach: a }, { type: 'drop_job', jobId: j.id }, { type: 'answer', jobId: j.id, optionId: 'x' });
   for (const f of Object.values(w.factions)) out.push({ type: 'tribute', factionId: f.id, amount: 500 }, { type: 'sit_down', factionId: f.id, offer: 'truce' }, { type: 'sit_down', factionId: f.id, offer: 'alliance' }, { type: 'sit_down', factionId: f.id, offer: 'split' }, { type: 'declare_war', factionId: f.id });
-  for (const g of Object.keys(GEAR)) out.push({ type: 'buy_gear', kind: g as never });
+  for (const i of Object.keys(ITEMS) as ItemId[]) {
+    out.push({ type: 'buy_item', item: i, at: 'fixer' }, { type: 'equip', item: i, to: PLAYER });
+    for (const b of Object.values(w.businesses).slice(0, 40)) out.push({ type: 'buy_item', item: i, at: b.id });
+    for (const id of w.player.crewIds) out.push({ type: 'equip', item: i, to: id });
+  }
+  for (const s of SLOTS_ORDER) { out.push({ type: 'unequip', from: PLAYER, slot: s }); for (const id of w.player.crewIds) out.push({ type: 'unequip', from: id, slot: s }); }
+  for (const h of Object.values(w.hostages)) for (const c of ['ransom', 'release', 'trade', 'kill', 'pay'] as const) out.push({ type: 'hostage', id: h.id, choice: c });
+  out.push({ type: 'hostage', id: 'nobody', choice: 'ransom' }, { type: 'commission_vote', vote: 'yes' });
+  for (const f of Object.values(w.factions)) out.push({ type: 'lobby', factionId: f.id, side: 'yes' }, { type: 'lobby', factionId: f.id, side: 'no' });
+  for (const b of Object.values(w.blocks)) out.push({ type: 'case', kind: 'setpiece', blockId: b.id });
+  for (const j of Object.values(w.jobs)) for (const id of w.player.crewIds) out.push({ type: 'join_job', jobId: j.id, npcId: id });
   for (const s of Object.values(w.safehouses)) { out.push({ type: 'upgrade_safehouse', safehouseId: s.id }); for (const k of Object.keys(LABS)) out.push({ type: 'build_lab', safehouseId: s.id, kind: k as never }); }
   for (const p of ['booze', 'green', 'pills', 'goods'] as const) out.push({ type: 'sell_street', product: p, n: 5 });
   return out;

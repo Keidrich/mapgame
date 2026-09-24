@@ -6,6 +6,8 @@ import { Icon } from '@ui/icons';
 import { act, openSheet, useWorld } from '../store';
 import { NpcFace } from './Faces';
 import { Chip, Dial, Do, Empty, Meter, Row, Section, Sheet, fmt } from './kit';
+import { KitList, ShopSection } from './Armoury';
+import { HostageCard } from './Hostages';
 
 export function roleLine(w: World, n: Npc): string {
   const work = n.workId ? w.businesses[n.workId] : undefined;
@@ -38,6 +40,7 @@ export function PersonSheet({ id }: { id: string }) {
         {n.known ? n.traits.map(t => <Chip key={t} title={TRAITS[t].blurb}>{TRAITS[t].label}</Chip>) : <Chip tone="muted">Not sized up — talk to them</Chip>}
         {n.known && <Chip tone="muted" title="How much pressure it takes before they fold">Nerve {n.nerve}</Chip>}
         {n.payroll ? <Chip tone="gold">On your payroll</Chip> : null}
+        {select.isHeld(w, n.id) ? <Chip tone="red">{select.heldBy(w, n.id)!.holder === PLAYER ? 'In your back room' : 'Being held'}</Chip> : null}
         {n.rel.owes ? <Chip tone="gold">Owes you {n.rel.owes > 1 ? `×${n.rel.owes}` : 'one'}</Chip> : null}
         <Chip tone="muted">{n.age} · {n.pronoun === 'he' ? 'he/him' : n.pronoun === 'she' ? 'she/her' : 'they/them'}</Chip>
       </div>
@@ -58,6 +61,8 @@ export function PersonSheet({ id }: { id: string }) {
         </Section>
       )}
 
+      {select.heldBy(w, n.id) && <HostageCard h={select.heldBy(w, n.id)!} />}
+      {n.id === w.fixerId && n.alive && (n.rel.met ? <ShopSection at="fixer" title="What the fixer can get you" /> : <p className="r-note">Introduce yourself and the fixer will sell you what no shop will.</p>)}
       {n.known && (
         <Section title="Skills">
           <div className="r-skills">{SKILLS.map(s => <div key={s}><span>{s}</span><b>{n.skills[s]}</b></div>)}</div>
@@ -140,6 +145,8 @@ function CrewPanel({ n }: { n: Npc }) {
         {districts.map(d => <Do key={d} action={{ type: 'assign', npcId: n.id, assignment: { kind: 'district', districtId: d } }} label={`Lieutenant over ${w.districts[d].name}`} icon="lieutenant" small />)}
       </div>
       {a?.kind === 'district' && <Do action={{ type: 'audit', npcId: n.id }} label={`Go through the books (${select.auditOdds(w, n)}% to catch a skim)`} icon="note" block sub="A lieutenant with a hand in the till makes the whole district arrive light. Checking costs them a little loyalty either way." />}
+      <p className="r-over">What they carry</p>
+      <KitList who={n.id} />
       <Do action={{ type: 'fire', npcId: n.id }} label="Let them go" kind="danger" small confirm="Tap again to let them go" />
     </Section>
   );

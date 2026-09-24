@@ -1,7 +1,11 @@
 import { useState } from 'react';
-import { GEAR, JOBS, PRODUCTS } from '@r/content/world';
+import { JOBS, PRODUCTS } from '@r/content/world';
+import { ITEMS, SLOTS_ORDER } from '@r/content/kit';
 import { select, PLAYER } from '@r/sim/index';
-import type { GearKind, Product } from '@r/sim/types';
+import type { Product } from '@r/sim/types';
+import { ArmourySection } from './Armoury';
+import { HostageList } from './Hostages';
+import { CommissionSection } from './Commission';
 import { Icon } from '@ui/icons';
 import { openSheet, useWorld, focusBlock } from '../store';
 import { Emblem, NpcFace } from './Faces';
@@ -47,11 +51,13 @@ export function CrewTab() {
   return (
     <div className="r-tab">
       <h2 className="r-tab-title">Crew <span className="r-note">{crew.length}/{beds} beds</span></h2>
+      {Object.values(w.hostages).some(h => h.holder !== PLAYER) && <Section title="Taken"><HostageList filter={h => h.holder !== PLAYER} /></Section>}
       {crew.length ? crew.map(n => {
         const a = n.crew!.assignment;
         const where = !a ? 'Free' : a.kind === 'racket' ? `Runs ${w.rackets[a.racketId]?.kind.replace(/_/g, ' ')}` : a.kind === 'lab' ? 'In a lab' : a.kind === 'guard' ? `Guards ${w.blocks[a.blockId]?.name}` : a.kind === 'district' ? `Lieutenant, ${w.districts[a.districtId]?.name}` : `On ${w.jobs[a.jobId]?.title}`;
         const best = (Object.entries(n.skills) as [string, number][]).sort((x, y) => y[1] - x[1]).slice(0, 2).map(([s, v]) => `${s} ${v}`).join(' · ');
-        return <Row key={n.id} onClick={() => openSheet({ kind: 'person', id: n.id })} left={<NpcFace n={n} size={42} />} title={select.fullName(n)} sub={`L${n.crew!.level} · ${best} · loyalty ${Math.round(n.crew!.loyalty)} · ${fmt(n.crew!.cut)}/day`} right={<Chip tone={n.crew!.status === 'ready' ? (a ? 'muted' : 'green') : 'red'}>{n.crew!.status === 'ready' ? where : n.crew!.status}</Chip>} />;
+        const kit = select.kitOf(w, n.id); const carries = SLOTS_ORDER.filter(s => kit[s]).map(s => ITEMS[kit[s]!].label.toLowerCase());
+        return <Row key={n.id} onClick={() => openSheet({ kind: 'person', id: n.id })} left={<NpcFace n={n} size={42} />} title={select.fullName(n)} sub={`L${n.crew!.level} · ${best} · loyalty ${Math.round(n.crew!.loyalty)} · ${fmt(n.crew!.cut)}/day${carries.length ? ` · ${carries.join(', ')}` : ''}`} right={<Chip tone={n.crew!.status === 'ready' ? (a ? 'muted' : 'green') : 'red'}>{n.crew!.status === 'ready' ? where : n.crew!.status}</Chip>} />;
       }) : <Empty>Nobody works for you yet. Build trust with the regulars in a bar or a gym, then recruit them. You have beds for {beds}.</Empty>}
       <p className="r-note">Crew earn more as they level up — running a racket, working a lab, guarding a block and going on jobs all teach them. At level 2 and loyalty 55 one of them can run a district for you.</p>
     </div>
@@ -83,14 +89,14 @@ export function EmpireTab() {
   const cases = select.openCases(w);
   const owned = p.businessIds.map(id => w.businesses[id]).filter(Boolean);
   const prot = select.protectedBy(w);
-  const [view, setView] = useState<'money' | 'holdings' | 'law' | 'you'>('money');
+  const [view, setView] = useState<'money' | 'holdings' | 'kit' | 'law' | 'you'>('money');
   const hist = w.history.slice(-30);
   const max = Math.max(1, ...hist.map(h => h.clean + h.dirty));
   return (
     <div className="r-tab">
       <h2 className="r-tab-title">Empire</h2>
       <div className="r-seg full" role="tablist">
-        {(['money', 'holdings', 'law', 'you'] as const).map(v => <button type="button" key={v} role="tab" aria-selected={view === v} className={view === v ? 'on' : ''} onClick={() => setView(v)}>{v === 'money' ? 'Money' : v === 'holdings' ? 'Holdings' : v === 'law' ? `Law${cases.length ? ` (${cases.length})` : ''}` : 'You'}</button>)}
+        {(['money', 'holdings', 'kit', 'law', 'you'] as const).map(v => <button type="button" key={v} role="tab" aria-selected={view === v} className={view === v ? 'on' : ''} onClick={() => setView(v)}>{v === 'money' ? 'Money' : v === 'holdings' ? 'Holdings' : v === 'kit' ? 'Kit' : v === 'law' ? `Law${cases.length ? ` (${cases.length})` : ''}` : 'You'}</button>)}
       </div>
       {view === 'money' && <>
         <div className="r-stats">
@@ -115,11 +121,10 @@ export function EmpireTab() {
         <Section title="The stash" right={<span className="r-note">{select.stashTotal(w)}/{select.stashCapacity(w)}</span>}>
           {(Object.keys(PRODUCTS) as Product[]).map(k => { const lot = p.stash[k]; return <Row key={k} left={<Icon name={k === 'goods' ? 'hot_goods' : k} />} title={`${PRODUCTS[k].label}: ${lot.n}`} sub={lot.n ? `quality ${lot.q} · ${k === 'goods' ? 'needs a fence' : `${fmt(select.streetPrice(w, k, p.blockId))} each on this corner`}` : 'none'} right={lot.n && k !== 'goods' ? <Do action={{ type: 'sell_street', product: k, n: lot.n }} label="Sell here" small /> : undefined} />; })}
         </Section>
-        <Section title="Gear">
-          {(Object.keys(GEAR) as GearKind[]).map(k => { const g = GEAR[k]; const lvl = p.gear[k]; return <Row key={k} left={<Icon name={k === 'weapons' ? 'pistol' : k === 'tools' ? 'lockpicks' : k === 'wheels' ? 'sedan' : 'laptop'} />} title={`${g.label}: ${g.levels[lvl].label}`} sub={g.blurb} right={lvl < 3 ? <Do action={{ type: 'buy_gear', kind: k }} label={g.levels[lvl + 1].label} small /> : <Chip tone="gold">Best</Chip>} />; })}
-        </Section>
       </>}
+      {view === 'kit' && <ArmourySection />}
       {view === 'holdings' && <>
+        {Object.values(w.hostages).some(h => h.holder === PLAYER) && <Section title="In the back room"><HostageList filter={h => h.holder === PLAYER} /></Section>}
         <Section title={`Rackets (${p.racketIds.length})`}>{p.racketIds.length ? p.racketIds.map(id => w.rackets[id] ? <div key={id}><p className="r-over">{w.businesses[w.rackets[id].businessId].name}</p><RacketRow id={id} /></div> : null) : <Empty>No rackets yet. Protect or buy a place, then start one from its sheet.</Empty>}</Section>
         <Section title={`Places you own (${owned.length})`}>{owned.length ? owned.map(b => <BizRow key={b.id} id={b.id} />) : <Empty>Buy a place with clean money from its owner.</Empty>}</Section>
         <Section title={`Places that pay you (${prot.length})`}>{prot.length ? prot.map(b => <BizRow key={b.id} id={b.id} />) : <Empty>Nobody pays you yet.</Empty>}</Section>
@@ -166,6 +171,7 @@ export function RivalsTab() {
   return (
     <div className="r-tab">
       <h2 className="r-tab-title">Rivals</h2>
+      <CommissionSection />
       {fs.map(f => {
         const stance = select.stanceOf(f, w.day);
         return (

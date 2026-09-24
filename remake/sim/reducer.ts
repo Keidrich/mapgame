@@ -5,12 +5,17 @@
  * on screen without throwing — a throw here is a blank screen, not a disabled button. Every refusal
  * says why in words the player can act on.
  */
-import { BUSINESSES, GEAR, LABS, RACKETS, SAFEHOUSE_TIERS, SLOTS, SPECIALISTS } from '@r/content/world';
+import { BUSINESSES, LABS, RACKETS, SAFEHOUSE_TIERS, SLOTS, SPECIALISTS } from '@r/content/world';
 import { fixerCap, fixerRate, streetPrice, upgradeCost } from './economy';
 import { apply } from './effects';
 import { sitDown, sitDownOdds, tributeEffect } from './factions';
 import { answerComplication, buildJob, caseKinds, dropJob, hireSpecialist, launchJob, specialistFee, takeJob } from './jobs';
 import { openCases } from './law';
+import { ITEMS } from '@r/content/kit';
+import { SETPIECE_RANK, setpieceFor } from '@r/content/setpieces';
+import { equip, returnKit, shopItems, unequip } from './kit';
+import { hostageChoices, isHeld, resolveHostage } from './hostages';
+import { LOBBY_PULL, lobbyCost } from './commission';
 import { freeFromAssignment, practise } from './people';
 import { playScene, quote } from './scenes';
 import { travelCost } from './select-core';
@@ -43,6 +48,7 @@ function canInner(w: World, a: Action): Affordance {
     }
     case 'scene': {
       const n = w.npcs[a.npcId]; if (!n) return no('Nobody.');
+      if (isHeld(w, a.npcId)) return no(n.crew ? 'They are being held. Pay, or wait.' : 'They are in a back room, and not talking.');
       const q = quote(w, a.kind, a.npcId, { businessId: a.businessId, rate: a.rate });
       if (q.disabled) return no(q.disabled);
       if (busy) return no(busy);
@@ -78,7 +84,7 @@ function canInner(w: World, a: Action): Affordance {
       if (as.kind === 'lab') { const found = p.safehouseIds.some(id => w.safehouses[id]?.labs.some(l => l.id === as.labId)); if (!found) return no('Not your lab.'); }
       return yes();
     }
-    case 'fire': return w.npcs[a.npcId]?.crew ? yes() : no('Not one of yours.');
+    case 'fire': return !w.npcs[a.npcId]?.crew ? no('Not one of yours.') : isHeld(w, a.npcId) ? no('Get them back first.') : yes();
     case 'rent_safehouse': {
       const b = w.blocks[a.blockId]; if (!b) return no('Nowhere.');
       if (b.safehouseId) return no('You already have a place here.');
@@ -102,7 +108,46 @@ function canInner(w: World, a: Action): Affordance {
       if (a.product === 'goods') return no('Hot goods go to a fence, not a corner.');
       const r = ap(1); return r ? no(r) : yes({ ap: 1 });
     }
-    case 'buy_gear': { const g = GEAR[a.kind]; const lvl = p.gear[a.kind]; if (lvl >= 3) return no('The best there is.'); const c = g.levels[lvl + 1].price; const e = cost(w, c); return e ? no(e) : yes({ cash: c }); }
+    case 'buy_item': {
+      const d = ITEMS[a.item]; if (!d) return no('Nothing like that for sale.');
+      if (!shopItems(w, a.at).includes(a.item)) return no('Not sold here.');
+      if (a.at === 'fixer') {
+        const f = w.fixerId ? w.npcs[w.fixerId] : undefined;
+        if (!f?.alive) return no('There is no fixer any more.');
+        if (!f.rel.met) return no(`Find the fixer first: ${fullName(f)}, on ${w.blocks[f.homeBlockId].name}.`);
+      } else if (w.businesses[a.at].blockId !== p.blockId) return no(`You have to be there: ${w.blocks[w.businesses[a.at].blockId].name}.`);
+      const e = cost(w, d.price); return e ? no(e) : yes({ cash: d.price });
+    }
+    case 'equip': {
+      if (!p.armoury.includes(a.item)) return no('Not in the armoury.');
+      if (a.to === PLAYER) return yes();
+      const n = w.npcs[a.to];
+      if (!n?.crew || !n.alive) return no('Not one of yours.');
+      if (n.crew.status === 'jailed' || n.crew.status === 'held') return no('They are not here to hand it to.');
+      return yes();
+    }
+    case 'unequip': {
+      const kit = a.from === PLAYER ? p.kit : w.npcs[a.from]?.crew?.kit;
+      if (!kit?.[a.slot]) return no('Nothing there.');
+      if (a.from !== PLAYER && ['jailed', 'held'].includes(w.npcs[a.from].crew!.status)) return no('They are not here to hand it back.');
+      return yes();
+    }
+    case 'hostage': {
+      const h = w.hostages[a.id]; if (!h) return no('Nobody held.');
+      const c = hostageChoices(w, h).find(x => x.choice === a.choice);
+      if (!c) return no('Not an option.');
+      return c.disabled ? no(c.disabled) : yes(h.holder !== PLAYER ? { cash: h.ransom } : {});
+    }
+    case 'lobby': {
+      const c = w.commission, f = w.factions[a.factionId];
+      if (!c.proposal) return no('Nothing on the table yet.');
+      if (!f?.alive) return no('Gone.');
+      if (c.pulls[a.factionId]) return no('You have already had that conversation.');
+      const boss = w.npcs[f.bossId];
+      if ((boss?.rel.owes ?? 0) > 0) { const r = ap(1); return r ? no(r) : yes({ ap: 1 }); }
+      const k = lobbyCost(f); const e = cost(w, k) ?? ap(1); return e ? no(e) : yes({ cash: k, ap: 1 });
+    }
+    case 'commission_vote': return !w.commission.seated ? no('You have no seat at the table.') : !w.commission.proposal ? no('Nothing on the table.') : yes();
     case 'fixer_wash': {
       const f = w.fixerId ? w.npcs[w.fixerId] : undefined;
       if (!f?.alive) return no('There is no fixer any more.');
@@ -119,6 +164,16 @@ function canInner(w: World, a: Action): Affordance {
       for (const id of a.crewIds) { const n = w.npcs[id]; if (!n?.crew || !n.alive) return no('Not one of yours.'); if (n.crew.status !== 'ready') return no(`${fullName(n)} is ${n.crew.status}.`); if (n.crew.assignment?.kind === 'job') return no(`${fullName(n)} is on another job.`); }
       if (busy) return no(busy);
       return yes();
+    }
+    case 'join_job': {
+      // somebody went to hospital or to a cell halfway through the planning: send somebody else
+      const j = w.jobs[a.jobId]; if (!j || (j.status !== 'planning' && j.status !== 'ready')) return no('Nothing being planned.');
+      if (j.crewIds.length >= j.crewMax) return no(`No more than ${j.crewMax}.`);
+      const n = w.npcs[a.npcId]; if (!n?.crew || !n.alive) return no('Not one of yours.');
+      if (j.crewIds.includes(n.id)) return no('Already on it.');
+      if (n.crew.status !== 'ready') return no(`${fullName(n)} is ${n.crew.status}.`);
+      if (n.crew.assignment?.kind === 'job') return no(`${fullName(n)} is on another job.`);
+      return busy ? no(busy) : yes();
     }
     case 'launch_job': {
       const j = w.jobs[a.jobId]; if (!j) return no('Gone.');
@@ -145,6 +200,15 @@ function canInner(w: World, a: Action): Affordance {
       const r = ap(1); return r ? no(r) : yes({ ap: 1 });
     }
     case 'case': {
+      if (a.kind === 'setpiece') {
+        const b = a.blockId ? w.blocks[a.blockId] : undefined;
+        if (!b || !setpieceFor(b.landmark)) return no('Nothing there worth a set-piece.');
+        if (p.fear + p.respect < SETPIECE_RANK) return no(`Nobody brings a job like this to somebody the street does not know yet (fear + respect ${SETPIECE_RANK}).`);
+        if (Object.values(w.jobs).some(j => j.kind === 'setpiece' && ['offer', 'planning', 'ready'].includes(j.status))) return no('One of these at a time.');
+        if (busy) return no(busy);
+        const r = ap(1); return r ? no(r) : yes({ ap: 1 });
+      }
+      if (a.npcId && isHeld(w, a.npcId)) return no('They are in somebody\'s back room.');
       const kinds = caseKinds(w, { businessId: a.businessId, npcId: a.npcId });
       if (!kinds.includes(a.kind)) return no('Not a job that fits.');
       if (a.businessId && w.businesses[a.businessId]?.ownedBy === PLAYER) return no('It is yours.');
@@ -218,7 +282,7 @@ export function dispatch(world: World, a: Action): World {
       if (as?.kind === 'district') log(w, `${fullName(n)} runs ${w.districts[as.districtId].name} for you now.`, 'good', { npcId: n.id });
       break;
     }
-    case 'fire': { const n = w.npcs[a.npcId]; freeFromAssignment(w, n); n.crew = undefined; n.faction = undefined; n.role = 'patron'; n.rel.trust = clamp(n.rel.trust - 20, -100, 100); p.crewIds = p.crewIds.filter(x => x !== n.id); log(w, `${fullName(n)} is out.`, 'info', { npcId: n.id }); break; }
+    case 'fire': { const n = w.npcs[a.npcId]; freeFromAssignment(w, n); returnKit(w, n.id); n.crew = undefined; n.faction = undefined; n.role = 'patron'; n.rel.trust = clamp(n.rel.trust - 20, -100, 100); p.crewIds = p.crewIds.filter(x => x !== n.id); log(w, `${fullName(n)} is out.`, 'info', { npcId: n.id }); break; }
     case 'rent_safehouse': {
       const b = w.blocks[a.blockId]; spend(w, SAFEHOUSE_TIERS[0].buy);
       const id = nid(w, 's');
@@ -241,9 +305,27 @@ export function dispatch(world: World, a: Action): World {
       log(w, `You sell ${n} ${a.product} on ${w.blocks[p.blockId].name} for ${money(n * price)}.${n < a.n ? ' That is all one pair of hands can move in a day.' : ''}`, 'money');
       break;
     }
-    case 'buy_gear': { const lvl = p.gear[a.kind] + 1; spend(w, GEAR[a.kind].levels[lvl].price); p.gear[a.kind] = lvl; log(w, `${GEAR[a.kind].label}: ${GEAR[a.kind].levels[lvl].label}.`, 'good'); break; }
+    case 'buy_item': {
+      const d = ITEMS[a.item]; spend(w, d.price); p.armoury.push(a.item);
+      // the first of anything goes straight on the boss if the boss has nothing in that slot
+      if (!p.kit[d.slot]) equip(w, a.item, PLAYER);
+      log(w, `${d.label}, ${money(d.price)}${a.at === 'fixer' ? ' from the fixer' : ` at ${w.businesses[a.at].name}`}.`, 'good');
+      break;
+    }
+    case 'equip': equip(w, a.item, a.to); break;
+    case 'unequip': unequip(w, a.from, a.slot); break;
+    case 'hostage': resolveHostage(w, w.hostages[a.id], a.choice); break;
+    case 'lobby': {
+      const f = w.factions[a.factionId]; const boss = w.npcs[f.bossId];
+      if ((boss?.rel.owes ?? 0) > 0) { boss.rel.owes--; log(w, `You call in what ${fullName(boss)} owes you: ${f.short} votes your way.`, 'info'); }
+      else { spend(w, lobbyCost(f)); f.cash += lobbyCost(f); log(w, `An envelope to ${theName(f)} before the meeting.`, 'info'); }
+      w.commission.pulls[a.factionId] = a.side === 'yes' ? LOBBY_PULL : -LOBBY_PULL;
+      break;
+    }
+    case 'commission_vote': w.commission.vote = a.vote; log(w, `You will vote ${a.vote} at the table.`, 'info'); break;
     case 'fixer_wash': { const clean = Math.round(a.amount * fixerRate(w)); p.dirty -= a.amount; p.cash += clean; p.washedToday += a.amount; log(w, `The fixer turns ${money(a.amount)} dirty into ${money(clean)} clean.`, 'money'); break; }
     case 'take_job': takeJob(w, w.jobs[a.jobId], a.crewIds); break;
+    case 'join_job': { const j = w.jobs[a.jobId]; const n = w.npcs[a.npcId]; freeFromAssignment(w, n); j.crewIds.push(n.id); n.crew!.assignment = { kind: 'job', jobId: j.id }; log(w, `${fullName(n)} joins ${j.title.toLowerCase()}.`, 'info', { npcId: n.id }); break; }
     case 'launch_job': launchJob(w, w.jobs[a.jobId], a.approach, rng); break;
     case 'answer': answerComplication(w, w.jobs[a.jobId], a.optionId, rng); break;
     case 'drop_job': dropJob(w, w.jobs[a.jobId]); break;
@@ -263,6 +345,11 @@ export function dispatch(world: World, a: Action): World {
       break;
     }
     case 'case': {
+      if (a.kind === 'setpiece') {
+        const j = buildJob(w, rng, { kind: 'setpiece', blockId: a.blockId! });
+        if (j) { j.expires = w.day + 10; j.intel = 1; practise(w, 'brains', 3); log(w, `You spend a day around ${w.blocks[a.blockId!].landmark}. ${j.title} is on your board.`, 'info'); }
+        break;
+      }
       const b = a.businessId ? w.businesses[a.businessId] : undefined; const n = a.npcId ? w.npcs[a.npcId] : undefined;
       const j = buildJob(w, rng, { kind: a.kind, blockId: b?.blockId ?? n!.homeBlockId, businessId: a.businessId, npcId: a.npcId, faction: b?.protection?.by ?? n?.faction });
       if (j) { j.expires = w.day + 7; j.intel = 1; practise(w, 'brains', 3); log(w, `You case ${b?.name ?? fullName(n!)}. ${j.title} is on your board.`, 'info'); }

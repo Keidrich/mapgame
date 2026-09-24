@@ -8,12 +8,13 @@ import { openSheet, useWorld } from '../store';
 import { Emblem, NpcFace } from './Faces';
 import { Chip, Dial, Do, Empty, Row, Section, Sheet, fmt } from './kit';
 
-const JOB_ICON: Record<string, string> = { burglary: 'lockpicks', robbery: 'robbery', heist: 'heist_bank', hijack: 'hijack_load', hit: 'hit', kidnap: 'kidnap', arson: 'arson_hire', sabotage: 'war_strike', con: 'long_con', fraud: 'check_kiting', hack: 'hack', smuggle: 'smuggle_run', raid: 'raid_rival', frame: 'frame' };
+const JOB_ICON: Record<string, string> = { burglary: 'lockpicks', robbery: 'robbery', heist: 'heist_bank', hijack: 'hijack_load', hit: 'hit', kidnap: 'kidnap', arson: 'arson_hire', sabotage: 'war_strike', con: 'long_con', fraud: 'check_kiting', hack: 'hack', smuggle: 'smuggle_run', raid: 'raid_rival', frame: 'frame', setpiece: 'crown' };
 export const jobIcon = (j: Job) => JOB_ICON[j.kind] ?? 'ops';
 
 export function payoutLine(j: Job, approach?: Approach): string {
   const p = select.payoutFor(j, approach);
   const parts = [p.dirty ? `${fmt(p.dirty)} dirty` : '', p.clean ? `${fmt(p.clean)} clean` : '', p.goods ? `${p.goods} hot goods` : ''].filter(Boolean);
+  if (j.setpiece && !parts.length) return j.setpiece.id === 'locker' ? 'Nothing in the bag — the paper on you burns' : 'Respect, and what it does';
   return parts.length ? parts.join(' + ') : j.kind === 'hit' || j.kind === 'frame' || j.kind === 'sabotage' || j.kind === 'arson' ? 'Nothing in the bag — the point is what it does' : 'Respect, mostly';
 }
 
@@ -46,6 +47,7 @@ export function JobSheet({ id }: { id: string }) {
         <Chip tone="muted">Leans on {j.leans.join(', ')}</Chip>
         {j.status !== 'offer' && j.status !== 'done' && j.status !== 'failed' && <Chip tone="gold">{j.status === 'planning' ? `Planning · ${j.daysLeft}d left` : j.status === 'ready' ? 'Ready' : 'Waiting on you'}</Chip>}
         {j.status === 'offer' && <Chip tone="muted">Off the board day {j.expires}</Chip>}
+        {j.setpiece && <Chip tone="violet">{j.setpiece.stages} stages{j.setpiece.stage ? ` · on stage ${j.setpiece.stage}` : ''} — a call at every one</Chip>}
       </div>
 
       {j.result && <div className={`r-callout ${j.result.success ? '' : 'dark'}`}><b>{j.result.success ? 'Done.' : 'It went wrong.'}</b> {j.result.text}</div>}
@@ -62,6 +64,11 @@ export function JobSheet({ id }: { id: string }) {
         </Section>
       )}
 
+      {(j.status === 'ready' || j.status === 'planning') && j.crewIds.length < j.crewMax && avail.length > 0 && (
+        <Section title="Short a pair of hands?" right={<span className="r-note">{j.crewIds.length}/{j.crewMax}</span>}>
+          {avail.map(n => <Row key={n.id} left={<NpcFace n={n} size={28} />} title={select.fullName(n)} sub={j.leans.map(s => `${s} ${n.skills[s]}`).join(' · ')} right={<Do action={{ type: 'join_job', jobId: j.id, npcId: n.id }} label="Send them" small />} />)}
+        </Section>
+      )}
       {(j.status === 'offer' || j.status === 'ready' || j.status === 'planning') && (
         <Section title={j.status === 'offer' ? 'How it would go' : 'Go'}>
           {def.approaches.map(a => {

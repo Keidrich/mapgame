@@ -5,6 +5,9 @@ import { Icon } from '@ui/icons';
 import { openSheet, useWorld } from '../store';
 import { Emblem, NpcFace } from './Faces';
 import { Chip, Do, Empty, Meter, Row, Section, Sheet, fmt } from './kit';
+import { SETPIECE_RANK, setpieceFor } from '@r/content/setpieces';
+import { ShopSection } from './Armoury';
+import { HostageList } from './Hostages';
 
 export function BlockSheet({ id }: { id: string }) {
   const w = useWorld();
@@ -43,6 +46,12 @@ export function BlockSheet({ id }: { id: string }) {
         <Section title="On the corner">
           <Row onClick={() => openSheet({ kind: 'person', id: c.bossId })} left={boss ? <NpcFace n={boss} size={40} /> : undefined} title={`The ${c.name}`} sub={`${c.members} of them · run by ${boss ? select.fullName(boss) : 'nobody'} · ${c.terms === 'none' ? `nobody's — they skim ${Math.round(select.CREW.skim * 100)}% of what you take here, and they are growing` : c.terms === 'paid' ? `on your wage, ${fmt(c.wage)}/day` : `yours, ${fmt(c.wage)}/day`}`} right={<Chip tone={c.terms === 'none' ? 'red' : 'gold'}>{c.terms === 'none' ? `${c.members}/${select.CREW.outfitAt}` : c.terms}</Chip>} />
           {c.terms === 'none' && <p className="r-note">Left alone, a crew that reaches {select.CREW.outfitAt} becomes an outfit. Talk to the boss: pay them, take them in, or run them off.</p>}
+        </Section>
+      ); })()}
+      {(() => { const sp = setpieceFor(b.landmark); if (!sp) return null; const ready = select.notoriety(w) >= SETPIECE_RANK; return (
+        <Section title={`The job ${b.landmark} is for`}>
+          <p className="r-note">{sp.pitch.replace(/\{L\}/g, b.landmark!)} {sp.stages} stages, a decision at each. {ready ? '' : `Nobody brings a job like this to somebody the street does not know yet: fear and respect of ${SETPIECE_RANK} between them (you have ${select.notoriety(w)}).`}</p>
+          <Do action={{ type: 'case', kind: 'setpiece', blockId: id }} label={`Case ${b.landmark}`} icon="crown" block sub="A day around the place. The job goes on your board with a head start on the planning." />
         </Section>
       ); })()}
       <Section title="Places">
@@ -101,6 +110,7 @@ export function BusinessSheet({ id }: { id: string }) {
         ))}
         {!mine && !protectedByMe && !rackets.length && <Empty>{def.rackets.length ? 'Protect or own it to run something out of the back.' : 'Nothing runs out of a place like this. It is a job, not a racket.'}</Empty>}
       </Section>
+      {b.closed <= 0 && <ShopSection at={id} title={w.player.blockId === b.blockId ? 'For sale here' : `For sale here — go to ${w.blocks[b.blockId].name}`} />}
       {cases.length > 0 && !mine && (
         <Section title="Case it">
           <p className="r-note">Spend an hour watching the place, and put a job on your board.</p>
@@ -154,6 +164,7 @@ export function SafehousePanel({ id }: { id: string }) {
           </div>
         </div>
       ))}
+      <HostageList filter={h => h.safehouseId === id} />
       <div className="r-inline-actions">{(Object.keys(LABS) as LabKind[]).filter(k => !s.labs.some(l => l.kind === k)).map(k => <Do key={k} action={{ type: 'build_lab', safehouseId: id, kind: k }} label={`Build a ${LABS[k].label.toLowerCase()}`} icon={k === 'lab' ? 'lab' : k === 'grow' ? 'grow_op' : 'still'} small />)}</div>
     </div>
   );

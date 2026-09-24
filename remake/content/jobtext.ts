@@ -19,6 +19,7 @@ export const PITCH: Record<JobKind, string[]> = {
   hack: ['{S} says the network at {T} still runs on the default password.', 'The card terminals at {T} phone home over an open line.', '{T} backs up to a server in the basement nobody patched.'],
   smuggle: ['A load is waiting at the docks. {S} needs it walked through {B} without anybody looking.', '{S} has product coming in and no way past the checkpoint on {B}.', 'Somebody has to drive a van from the water to {B}. Somebody careful.'],
   raid: ['{T} keeps a stash house on {B}. {S} counted the guards: not enough.', 'The {T} are sitting on a pile of cash and product. They will not be for long.', '{S} knows where the {T} count their money.'],
+  setpiece: ['{T}.'],
   frame: ['{T} is a problem the police could solve for you, with a little help.', 'Plant it, tip it, watch {T} explain it to a detective.', '{S} has something of {T}\'s that would look very bad in the wrong drawer.'],
 };
 
@@ -36,6 +37,7 @@ export const TITLE: Record<JobKind, string[]> = {
   hack: ['Inside {T}', 'The back door at {T}', 'Wire job: {T}'],
   smuggle: ['Walk a load through {B}', 'The van to {B}', 'A run past the checkpoint'],
   raid: ['Hit the {T} stash', 'Take the {T} count', 'Raid on {B}'],
+  setpiece: ['{T}'],
   frame: ['Hang it on {T}', 'A gift for the police: {T}', '{T} takes the fall'],
 };
 

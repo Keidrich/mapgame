@@ -15,6 +15,8 @@ import { Rng } from './rng';
 import { addInfluence, nid } from './util';
 import { generateJobs } from './jobs';
 import { generateStreetCrews } from './streetcrews';
+import { migrateGear } from './kit';
+import { newCommission } from './commission';
 import type { AgendaKind, Background, Block, Business, BusinessType, District, Faction, FactionStyle, Id, Npc, OfficialKind, Role, SecretKind, Skill, Skills, Temperament, Trait, World } from './types';
 import { PLAYER, SKILLS } from './types';
 
@@ -40,7 +42,7 @@ export function newWorld(opts: NewGame): World {
   const w: World = {
     version: WORLD_VERSION, seed: opts.seed, rng: 0, day: 1,
     city: gen.city, districts: gen.districts, blocks: gen.blocks,
-    businesses: {}, npcs: {}, factions: {}, rackets: {}, safehouses: {}, jobs: {}, cases: {}, crews: {},
+    businesses: {}, npcs: {}, factions: {}, rackets: {}, safehouses: {}, jobs: {}, cases: {}, crews: {}, hostages: {}, commission: newCommission(),
     events: [], scheduled: [], log: [], news: [], history: [], nextId: 1,
     player: undefined as unknown as World['player'],
   };
@@ -145,7 +147,7 @@ export function newWorld(opts: NewGame): World {
     cash: bg.cash, dirty: 0, heat: 0, fear: opts.background === 'bruiser' ? 8 : 0, respect: 0, ap: 8, apMax: 8,
     blockId: start.id, crewIds: [], businessIds: [], racketIds: [], safehouseIds: [],
     stash: { booze: { n: 0, q: 0 }, green: { n: 0, q: 0 }, pills: { n: 0, q: 0 }, goods: { n: 0, q: 0 } },
-    gear: { weapons: 0, tools: 0, wheels: 0, tech: 0 }, lawyer: false, washedToday: 0, lowDays: 0, straightDays: 0, busts: 0, generation: 1,
+    armoury: [], kit: {}, lawyer: false, washedToday: 0, lowDays: 0, straightDays: 0, busts: 0, generation: 1,
   };
   addInfluence(w, start.id, PLAYER, 12);
   // a couple of people on your own street already know your face
@@ -321,6 +323,9 @@ function pickStart(w: World, rng: Rng): Block {
  */
 export function migrate(w: World): World {
   if (!w.crews) generateStreetCrews(w);
+  migrateGear(w);
+  if (!w.hostages) w.hostages = {};
+  if (!w.commission) w.commission = newCommission();
   ensureFixer(w);
   return w;
 }

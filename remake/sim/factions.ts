@@ -6,6 +6,8 @@
 import { BUSINESSES, RACKETS } from '@r/content/world';
 import { openCase } from './law';
 import { succeed } from './legacy';
+import { armourOf, kitBonus, kitOf } from './kit';
+import { snatchCrew } from './hostages';
 import { injure, kill } from './people';
 import { Rng } from './rng';
 import { racketIncome } from './economy';
@@ -117,10 +119,13 @@ function hostile(w: World, f: Faction, rng: Rng, k: number) {
     if (guard && rng.chance(0.6)) log(w, `The ${f.short} came to lean on ${b.name}. Your people were there first.`, 'good', { businessId: b.id });
     else { b.protection = { by: f.id, rate: 0.15, since: w.day }; addInfluence(w, b.blockId, PLAYER, -8); log(w, `The ${f.short} take ${b.name} off you. The owner pays them now.`, 'war', { businessId: b.id }); }
   }
-  const crew = p.crewIds.map(id => w.npcs[id]).filter(n => n?.alive && n.crew?.status !== 'jailed');
+  const crew = p.crewIds.map(id => w.npcs[id]).filter(n => n?.alive && n.crew?.status !== 'jailed' && n.crew?.status !== 'held');
   if (crew.length && rng.chance((f.standing < -55 ? 0.06 : 0.02) * k)) {
     const n = rng.pick(crew);
-    if (rng.chance(0.25)) kill(w, n.id, `shot by the ${f.short}`);
+    // at war, one time in four they take somebody instead — one at a time, so there is a price to pay
+    const holding = Object.values(w.hostages).some(h => h.holder === f.id);
+    if (f.standing < -55 && !holding && rng.chance(0.25)) snatchCrew(w, f.id, n.id, rng);
+    else if (rng.chance(0.25 * (1 - armourOf(kitOf(w, n.id))))) kill(w, n.id, `shot by the ${f.short}`);
     else injure(w, n.id, rng.int(3, 8), `jumped by ${f.short} soldiers`);
   }
   // at war, somebody eventually comes for you personally
@@ -129,10 +134,15 @@ function hostile(w: World, f: Faction, rng: Rng, k: number) {
 
 function attemptOnPlayer(w: World, f: Faction, rng: Rng) {
   const p = w.player;
-  const guards = p.crewIds.filter(id => { const n = w.npcs[id]; return n?.alive && n.crew?.assignment?.kind === 'guard' && (n.crew.assignment as { blockId: Id }).blockId === p.blockId; }).length;
-  const defence = 0.35 + guards * 0.18 + p.gear.weapons * 0.1 + p.skills.muscle * 0.02;
+  const guardIds = p.crewIds.filter(id => { const n = w.npcs[id]; return n?.alive && n.crew?.assignment?.kind === 'guard' && (n.crew.assignment as { blockId: Id }).blockId === p.blockId; });
+  const guards = guardIds.length;
+  // what you and the people watching you carry: a gun on you is worth about what a guard is, a
+  // gun on the guard adds to them. Measured against the old flat gear level (0.1 a step).
+  const armed = kitBonus(kitOf(w, PLAYER), 'muscle') * 0.05 + guardIds.reduce((t, id) => t + kitBonus(kitOf(w, id), 'muscle') * 0.03, 0);
+  const defence = 0.35 + guards * 0.18 + armed + p.skills.muscle * 0.02;
   if (rng.float() < defence) { log(w, `Two ${f.short} soldiers come for you outside ${w.blocks[p.blockId].name}. They do not get close${guards ? ' — your people saw them first' : ''}.`, 'war'); f.soldiers = Math.max(0, f.soldiers - 1); return; }
-  if (rng.chance(0.3)) {
+  // armour is the difference between hospital and the morning paper
+  if (rng.chance(0.3 * (1 - armourOf(kitOf(w, PLAYER))))) {
     log(w, `The ${f.short} got to you on ${w.blocks[p.blockId].name}.`, 'war');
     succeed(w, 'dead', `${cap(theName(f))} got to you on ${w.blocks[p.blockId].name}. ${w.city.name} reads about it in the morning paper.`);
     f.standing = clamp(f.standing + 30, -100, 100);   // they have had their blood

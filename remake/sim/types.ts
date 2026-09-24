@@ -129,7 +129,7 @@ export interface Agenda {
 export type SecretKind = 'affair' | 'skimming' | 'debts' | 'past' | 'informant' | 'habit';
 export interface Secret { kind: SecretKind; known: boolean }
 
-export type CrewStatus = 'ready' | 'busy' | 'injured' | 'jailed';
+export type CrewStatus = 'ready' | 'busy' | 'injured' | 'jailed' | 'held';
 export type Assignment =
   | { kind: 'racket'; racketId: Id }
   | { kind: 'lab'; labId: Id }
@@ -153,7 +153,11 @@ export interface Crew {
   assignment?: Assignment;
   xp: number;
   level: number;
+  /** What they carry. Owned by the outfit; see `content/kit.ts`. */
+  kit?: Kit;
 }
+
+export type Kit = Partial<Record<Slot, ItemId>>;
 
 export interface Npc {
   id: Id;
@@ -261,6 +265,38 @@ export interface Safehouse {
   labs: Lab[];
 }
 
+// -------------------------------------------------------------------------------------- hostages
+/**
+ * Somebody held against their will. `holder` is the player (in one of your safehouses) or an
+ * outfit holding one of your crew.
+ */
+export interface Hostage {
+  id: Id;
+  npcId: Id;
+  holder: Owner;
+  safehouseId?: Id;
+  since: number;
+  /** What the other side is offering (or asking) today, and what they offered on the first day. */
+  ransom: number;
+  first: number;
+  caseId?: Id;
+}
+
+// ------------------------------------------------------------------------------------ commission
+export type ProposalKind = 'peace' | 'tax' | 'sanction' | 'claim' | 'seat';
+export interface Proposal { kind: ProposalKind; target?: Owner; districtId?: Id; announced: number }
+/** The bosses at one table, every ten days, once there are three of them worth the name. */
+export interface Commission {
+  nextDay: number;
+  proposal?: Proposal;
+  seated: boolean;
+  /** Lobbying for the coming vote, by outfit: + toward yes, − toward no. Cleared after each meeting. */
+  pulls: Record<Owner, number>;
+  /** How you will vote, if you have a seat. */
+  vote?: 'yes' | 'no';
+  history: { day: number; kind: ProposalKind; passed: boolean; text: string }[];
+}
+
 // ---------------------------------------------------------------------------------- street crews
 /**
  * A handful of kids on a corner, belonging to nobody. They skim what you take off their block,
@@ -312,7 +348,7 @@ export interface Faction {
 // ------------------------------------------------------------------------------------------- jobs
 export type JobKind =
   | 'burglary' | 'robbery' | 'heist' | 'hijack' | 'hit' | 'kidnap' | 'arson' | 'sabotage'
-  | 'con' | 'fraud' | 'hack' | 'smuggle' | 'raid' | 'frame';
+  | 'con' | 'fraud' | 'hack' | 'smuggle' | 'raid' | 'frame' | 'setpiece';
 export type Approach = 'quiet' | 'loud' | 'clever';
 export type SpecialistKind = 'safecracker' | 'driver' | 'hacker' | 'face' | 'gunman';
 
@@ -356,6 +392,8 @@ export interface Job {
   /** Planning time counts: every day planned adds to the odds, to a cap. */
   intel: number;
   complication?: Complication;
+  /** A landmark set-piece: which one, how many stages, which stage it is on, and what has built up. */
+  setpiece?: { id: string; landmark: string; stages: number; stage: number; mult: number; heat: number; messy: boolean };
   /** Somebody the fixer found for this one job: a specialist's skill joins the team's. */
   specialist?: { kind: SpecialistKind; name: string; face: number; skill: Skill; level: number; fee: number };
   /** The base roll, made at launch and held while a complication is answered. */
@@ -433,6 +471,9 @@ export type Effect =
   | { k: 'schedule'; template: string; days: number; npcId?: Id; businessId?: Id; factionId?: Owner }
   | { k: 'log'; text: string; tone: Tone };
 
+import type { ItemId, Slot } from '@r/content/kit';
+export type { ItemId, Slot };
+
 export type Tone = 'info' | 'good' | 'bad' | 'money' | 'warn' | 'war' | 'law';
 export interface LogEntry { day: number; text: string; tone: Tone; blockId?: Id; npcId?: Id; businessId?: Id }
 
@@ -440,7 +481,6 @@ export interface Headline { day: number; text: string; weight: number }
 
 // ------------------------------------------------------------------------------------------ player
 export type Background = 'bruiser' | 'grifter' | 'brain' | 'wheelman' | 'hacker' | 'drifter';
-export type GearKind = 'weapons' | 'tools' | 'wheels' | 'tech';
 
 export interface Player {
   name: string;
@@ -462,7 +502,10 @@ export interface Player {
   racketIds: Id[];
   safehouseIds: Id[];
   stash: Record<Product, Lot>;
-  gear: Record<GearKind, number>;
+  /** Kit the outfit owns that nobody is carrying. */
+  armoury: ItemId[];
+  /** What you carry yourself. */
+  kit: Kit;
   lawyer: boolean;
   /** Laundered today, so the day's caps hold across rackets and the fixer. */
   washedToday: number;
@@ -495,6 +538,8 @@ export interface World {
   jobs: Record<Id, Job>;
   cases: Record<Id, Case>;
   crews: Record<Id, StreetCrew>;
+  hostages: Record<Id, Hostage>;
+  commission: Commission;
   events: GameEvent[];
   scheduled: { day: number; template: string; npcId?: Id; businessId?: Id; factionId?: Owner }[];
   log: LogEntry[];

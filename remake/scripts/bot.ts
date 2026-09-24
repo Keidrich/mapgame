@@ -3,8 +3,14 @@
  * doors — and counts what it touched, so "the bot never reached it" is a number rather than a
  * surprise. Same idea as the original's bot, built in from day one this time instead of after
  * three passes shipped blind.
+ *
+ * It plays in one of five temperaments, from a boss who never takes a job under 75% and pays every
+ * corner crew off, to one who declares war on everybody by day ten and kills every hostage. The
+ * same seed under each is the ferocity sweep: `npm run sim2 -- 60 7 medium grifter all`.
  */
-import { BUSINESSES, GEAR, LABS, RACKETS } from '@r/content/world';
+import { BUSINESSES, LABS, RACKETS } from '@r/content/world';
+import { ITEMS, SLOTS_ORDER, type ItemId, type Slot } from '@r/content/kit';
+import { SETPIECES, SETPIECE_RANK, setpieceFor } from '@r/content/setpieces';
 import { can, dispatch, newWorld, select, PLAYER, type Action, type Background, type Id, type Job, type World } from '@r/sim/index';
 import { Rng } from '@r/sim/rng';
 import type { CitySize } from '@r/sim/city';
@@ -15,7 +21,9 @@ export type Counter =
   | 'rackets' | 'upgrades' | 'washes' | 'fixer' | 'safehouses' | 'labs' | 'restocks' | 'street_sales' | 'gear'
   | 'jobs_taken' | 'jobs_done' | 'jobs_failed' | 'complications' | 'cased' | 'events' | 'tributes' | 'sitdowns' | 'wars'
   | 'lieutenants' | 'guards' | 'runners' | 'lawyer' | 'lay_low' | 'travel' | 'cases_opened' | 'raids' | 'busts'
-  | 'crews_paid' | 'crews_taken' | 'crews_run' | 'audits' | 'specialists';
+  | 'crews_paid' | 'crews_taken' | 'crews_run' | 'audits' | 'specialists'
+  | 'kit_bought' | 'kit_equipped' | 'hostages_taken' | 'hostages_resolved' | 'crew_snatched' | 'ransom_paid'
+  | 'meetings' | 'lobbied' | 'voted' | 'setpieces_cased' | 'setpiece_stages' | 'setpieces_done' | 'declared';
 
 export const SYSTEMS: { label: string; needs: Counter[] }[] = [
   { label: 'talking to people', needs: ['chats'] },
@@ -30,7 +38,8 @@ export const SYSTEMS: { label: string; needs: Counter[] }[] = [
   { label: 'laundering', needs: ['washes', 'fixer'] },
   { label: 'safehouses and labs', needs: ['labs'] },
   { label: 'selling product', needs: ['street_sales'] },
-  { label: 'gear', needs: ['gear'] },
+  { label: 'buying kit', needs: ['kit_bought'] },
+  { label: 'handing out kit', needs: ['kit_equipped'] },
   { label: 'jobs', needs: ['jobs_done', 'jobs_failed'] },
   { label: 'complications', needs: ['complications'] },
   { label: 'casing a target', needs: ['cased'] },
@@ -41,10 +50,62 @@ export const SYSTEMS: { label: string; needs: Counter[] }[] = [
   { label: 'street crews', needs: ['crews_paid', 'crews_taken', 'crews_run'] },
   { label: 'audits', needs: ['audits'] },
   { label: 'specialists', needs: ['specialists'] },
+  { label: 'hostages', needs: ['hostages_resolved'] },
+  { label: 'the Commission', needs: ['lobbied', 'voted'] },
+  { label: 'set-pieces', needs: ['setpieces_done'] },
+  { label: 'war', needs: ['declared'] },
 ];
 
+// ---------------------------------------------------------------------------------- temperaments
+/**
+ * How a boss plays. Every number here is a threshold the bot already had, pulled out so the same
+ * bot can be timid or rabid. `steady` is the bot as it was before temperaments existed, and is the
+ * default so `npm run sim2 -- 60` keeps meaning what it meant.
+ */
+export interface Style {
+  label: string;
+  blurb: string;
+  /** Take a job at this chance or better; drop a planned one that has fallen under `launchAt`. */
+  takeAt: number; launchAt: number;
+  /** Jobs planned at once. */
+  maxJobs: number;
+  /** Points off the loud approach when choosing (negative: prefers it), and onto clever. */
+  loudCost: number; cleverBonus: number;
+  /** How much heat worries it, in complications and events. */
+  heatCare: number;
+  /** Weight on threats versus talk, and how often it squeezes a till. */
+  threaten: number; squeeze: number;
+  /** How it deals with a corner crew: a bias toward that answer. */
+  corner: 'crew_pay' | 'crew_take' | 'crew_run';
+  /** Heat at which it lays low (undefined: never) and starts buying officials (Infinity: never). */
+  layLow?: number; bribeAt: number;
+  /** Sit down for a truce below this standing (undefined: never); send tribute when cool. */
+  truceAt?: number; tribute: boolean;
+  /** Wars it starts: none, on the weakest outfit once it has a crew, or on everybody. */
+  war: 'never' | 'weakest' | 'everyone';
+  /** Kit: buys an item when the purse is this many times its price, in this slot order. */
+  kitMult: number; kitSlots: Slot[];
+  /** Hostages: what it does and after how many days; pays for its own people at purse ≥ ransom × this (undefined: never). */
+  hostage: 'ransom' | 'release' | 'trade' | 'kill'; holdDays: number; payFor?: number;
+  /** Cases a kidnap target when it has somewhere to keep them. */
+  kidnaps: boolean;
+  /** The Commission: never lobbies, only when it is the target, or on everything. And whether it wants peace. */
+  lobby: 'never' | 'defend' | 'always'; peace: boolean;
+  /** Goes after the landmark set-pieces. */
+  setpieces: boolean;
+}
+export type StyleId = 'timid' | 'steady' | 'schemer' | 'ruthless' | 'maniac';
+export const STYLES: Record<StyleId, Style> = {
+  timid: { label: 'Timid', blurb: 'Only sure things, pays everybody off, lays low early.', takeAt: 75, launchAt: 60, maxJobs: 1, loudCost: 20, cleverBonus: 0, heatCare: 2.5, threaten: 0.4, squeeze: 0.03, corner: 'crew_pay', layLow: 55, bribeAt: 25, truceAt: -30, tribute: true, war: 'never', kitMult: 6, kitSlots: ['armour', 'car', 'look'], hostage: 'ransom', holdDays: 0, payFor: 1.2, kidnaps: false, lobby: 'defend', peace: true, setpieces: false },
+  steady: { label: 'Steady', blurb: 'The bot as it always played: good odds, fair dealing, a war only if it comes.', takeAt: 55, launchAt: 35, maxJobs: 2, loudCost: 6, cleverBonus: 0, heatCare: 1, threaten: 0.8, squeeze: 0.25, corner: 'crew_take', layLow: 85, bribeAt: 35, truceAt: -50, tribute: true, war: 'never', kitMult: 4, kitSlots: ['weapon', 'tool', 'car', 'armour', 'tech', 'look'], hostage: 'ransom', holdDays: 3, payFor: 2, kidnaps: false, lobby: 'defend', peace: true, setpieces: true },
+  schemer: { label: 'Schemer', blurb: 'Clever over loud, officials early, works every vote at the table.', takeAt: 55, launchAt: 40, maxJobs: 2, loudCost: 14, cleverBonus: 6, heatCare: 1.2, threaten: 0.5, squeeze: 0.1, corner: 'crew_take', layLow: 80, bribeAt: 15, truceAt: -45, tribute: true, war: 'never', kitMult: 4, kitSlots: ['look', 'tech', 'tool', 'car', 'armour'], hostage: 'trade', holdDays: 2, payFor: 1.5, kidnaps: true, lobby: 'always', peace: true, setpieces: true },
+  ruthless: { label: 'Ruthless', blurb: 'Takes long odds, runs crews off, picks a war with the weakest outfit.', takeAt: 45, launchAt: 30, maxJobs: 2, loudCost: 0, cleverBonus: 0, heatCare: 0.5, threaten: 1.4, squeeze: 0.5, corner: 'crew_run', layLow: 92, bribeAt: 50, truceAt: -85, tribute: false, war: 'weakest', kitMult: 2.5, kitSlots: ['weapon', 'armour', 'car', 'tool'], hostage: 'ransom', holdDays: 5, payFor: 3, kidnaps: true, lobby: 'defend', peace: false, setpieces: true },
+  maniac: { label: 'Maniac', blurb: 'Anything over 30%, always loud, war on everybody, no hostage comes home.', takeAt: 30, launchAt: 20, maxJobs: 3, loudCost: -10, cleverBonus: 0, heatCare: 0, threaten: 2, squeeze: 0.8, corner: 'crew_run', bribeAt: Infinity, tribute: false, war: 'everyone', kitMult: 1.5, kitSlots: ['weapon', 'armour'], hostage: 'kill', holdDays: 1, kidnaps: true, lobby: 'never', peace: false, setpieces: true },
+};
+export const STYLE_IDS = Object.keys(STYLES) as StyleId[];
+
 export interface RunResult { w: World; counts: Partial<Record<Counter, number>>; actions: number; refused: number }
-interface Ctx { w: World; rng: Rng; counts: Partial<Record<Counter, number>>; actions: number; refused: number }
+interface Ctx { w: World; rng: Rng; s: Style; counts: Partial<Record<Counter, number>>; actions: number; refused: number; seen: Set<Id> }
 
 const bump = (c: Ctx, k: Counter, n = 1) => { c.counts[k] = (c.counts[k] ?? 0) + n; };
 function act(c: Ctx, a: Action): boolean {
@@ -54,11 +115,12 @@ function act(c: Ctx, a: Action): boolean {
   return true;
 }
 
-export function run(opts: { days: number; seed: number; size?: CitySize; background?: Background }): RunResult {
-  const c: Ctx = { w: newWorld({ seed: opts.seed, size: opts.size ?? 'medium', name: 'Bot', background: opts.background ?? 'grifter' }), rng: new Rng(opts.seed * 31 + 7), counts: {}, actions: 0, refused: 0 };
+export function run(opts: { days: number; seed: number; size?: CitySize; background?: Background; style?: StyleId }): RunResult {
+  const c: Ctx = { w: newWorld({ seed: opts.seed, size: opts.size ?? 'medium', name: 'Bot', background: opts.background ?? 'grifter' }), rng: new Rng(opts.seed * 31 + 7), s: STYLES[opts.style ?? 'steady'], counts: {}, actions: 0, refused: 0, seen: new Set() };
   while (c.w.day <= opts.days && !c.w.over) {
     day(c);
     check(c);
+    watch(c);
     bump(c, 'days');
   }
   return { w: c.w, counts: c.counts, actions: c.actions, refused: c.refused };
@@ -67,16 +129,19 @@ export function run(opts: { days: number; seed: number; size?: CitySize; backgro
 function day(c: Ctx) {
   answerEverything(c);
   const p = () => c.w.player;
-  if (p().heat > 85 && p().lowDays === 0) { if (act(c, { type: 'lay_low', days: 3 })) bump(c, 'lay_low'); answerEverything(c); return; }
+  if (c.s.layLow !== undefined && p().heat > c.s.layLow && p().lowDays === 0) { if (act(c, { type: 'lay_low', days: 3 })) bump(c, 'lay_low'); answerEverything(c); return; }
   manageCrew(c);
+  hostages(c);
   // building comes before the street work: the street loop spends every action point it can
   // find, and a safehouse needs one — the first draft never rented a single one in sixty days
   build(c);
   corners(c);
   runJobs(c);
   money(c);
+  kit(c);
   street(c);
   politics(c);
+  commission(c);
   answerEverything(c);
   if (act(c, { type: 'end_day' })) { /* counted in run */ }
   answerEverything(c);
@@ -88,8 +153,11 @@ function answerEverything(c: Ctx) {
   while (guard++ < 10) {
     const j = select.pendingJob(c.w);
     if (j?.complication) {
-      const best = j.complication.options.map(o => ({ o, v: select.complicationOdds(c.w, j, o.id) / 100 * o.payout - o.heat / 40 })).sort((a, b) => b.v - a.v)[0];
-      if (act(c, { type: 'answer', jobId: j.id, optionId: best.o.id })) { bump(c, 'complications'); const r = c.w.jobs[j.id]?.result; if (r) bump(c, r.success ? 'jobs_done' : 'jobs_failed'); }
+      const best = j.complication.options.map(o => ({ o, v: select.complicationOdds(c.w, j, o.id) / 100 * o.payout - o.heat / 40 * c.s.heatCare })).sort((a, b) => b.v - a.v)[0];
+      if (act(c, { type: 'answer', jobId: j.id, optionId: best.o.id })) {
+        bump(c, 'complications'); if (j.setpiece) bump(c, 'setpiece_stages');
+        const r = c.w.jobs[j.id]?.result; if (r) { bump(c, r.success ? 'jobs_done' : 'jobs_failed'); if (j.kind === 'setpiece') bump(c, 'setpieces_done'); }
+      }
       continue;
     }
     const e = c.w.events[0]; if (!e) break;
@@ -104,7 +172,7 @@ function scoreEffects(c: Ctx, effects: World['events'][number]['options'][number
   let v = 0;
   for (const e of effects) {
     if (e.k === 'cash' || e.k === 'dirty') v += e.n / 400;
-    if (e.k === 'heat') v -= e.n * (hot > 50 ? 0.6 : 0.2);
+    if (e.k === 'heat') v -= e.n * (hot > 50 ? 0.6 : 0.2) * c.s.heatCare;
     if (e.k === 'respect' || e.k === 'fear') v += e.n * 0.4;
     if (e.k === 'loyalty') v += e.n * 0.15;
     if (e.k === 'standing') v += e.n * 0.12;
@@ -155,7 +223,12 @@ const reserveForJobs = (c: Ctx) => Object.values(c.w.jobs).some(j => j.status ==
 
 // -------------------------------------------------------------------------------------- jobs
 function runJobs(c: Ctx) {
-  const w = () => c.w;
+  const w = () => c.w; const p = () => w().player;
+  // top up a plan somebody dropped out of, before deciding whether it is still worth launching
+  for (const j of Object.values(w().jobs).filter(x => (x.status === 'planning' || x.status === 'ready') && x.crewIds.length < Math.max(x.crewMin, x.kind === 'setpiece' ? x.crewMax : 0))) {
+    const spare = select.crew(w()).filter(n => n.crew!.status === 'ready' && n.crew!.assignment?.kind !== 'job' && (j.kind === 'setpiece' || !n.crew!.assignment || n.crew!.assignment.kind === 'guard')).sort((a, b) => j.leans.reduce((t, s) => t + b.skills[s] - a.skills[s], 0));
+    for (const n of spare) { if (w().jobs[j.id].crewIds.length >= Math.max(j.crewMin, j.kind === 'setpiece' ? j.crewMax : 0)) break; act(c, { type: 'join_job', jobId: j.id, npcId: n.id }); }
+  }
   for (const j of Object.values(w().jobs).filter(x => x.status === 'ready')) {
     // the big ones get a specialist when the money is there
     if (j.tier >= 2 && !j.specialist && w().player.cash + w().player.dirty > 15000) {
@@ -163,23 +236,40 @@ function runJobs(c: Ctx) {
       if (kind && act(c, { type: 'hire_specialist', jobId: j.id, kind })) bump(c, 'specialists');
     }
     const approach = bestApproach(c, j, j.crewIds);
-    if (select.jobOdds(w(), j, j.crewIds, approach.a).chance < 35) { act(c, { type: 'drop_job', jobId: j.id }); continue; }
+    if (select.jobOdds(w(), j, j.crewIds, approach.a).chance < c.s.launchAt) { act(c, { type: 'drop_job', jobId: j.id }); continue; }
     if (act(c, { type: 'launch_job', jobId: j.id, approach: approach.a })) {
       const r = w().jobs[j.id];
       if (r?.status === 'paused') answerEverything(c);
       else if (r?.result) bump(c, r.result.success ? 'jobs_done' : 'jobs_failed');
     }
   }
+  // a set-piece, cased on purpose, once the street takes us seriously and there are hands for it
+  if (c.s.setpieces && p().fear + p().respect >= SETPIECE_RANK && select.crew(w()).length >= 2 && p().ap >= 2 && !Object.values(w().jobs).some(j => j.kind === 'setpiece' && ['offer', 'planning', 'ready'].includes(j.status))) {
+    // the evidence locker first if there is paper worth burning, otherwise the richest
+    const paper = select.openCases(w()).some(x => x.evidence > 40);
+    const marks = Object.values(w().blocks).filter(b => setpieceFor(b.landmark)).map(b => ({ b, d: setpieceFor(b.landmark)! }))
+      .sort((x, y) => (y.d.effect === 'evidence' && paper ? 1e6 : 0) + y.d.payout.dirty[1] + y.d.payout.clean[1] + y.d.payout.goods[1] * 50 - ((x.d.effect === 'evidence' && paper ? 1e6 : 0) + x.d.payout.dirty[1] + x.d.payout.clean[1] + x.d.payout.goods[1] * 50));
+    const m = marks.find(x => x.d.effect !== 'sacrilege' || c.s.war !== 'never');
+    if (m && act(c, { type: 'case', kind: 'setpiece', blockId: m.b.id })) bump(c, 'setpieces_cased');
+  }
   // take the best offer we can staff
   const offers = Object.values(w().jobs).filter(j => j.status === 'offer');
   const free = select.crew(w()).filter(n => n.crew!.status === 'ready' && (!n.crew!.assignment || n.crew!.assignment.kind === 'guard'));
   for (const j of offers.sort((a, b) => value(b) - value(a))) {
-    if (Object.values(w().jobs).filter(x => x.status === 'planning' || x.status === 'ready').length >= 2) break;
-    const team = free.filter(n => !n.crew!.assignment || n.crew!.assignment.kind === 'guard').sort((a, b) => j.leans.reduce((t, s) => t + b.skills[s] - a.skills[s], 0)).slice(0, Math.max(j.crewMin, Math.min(j.crewMax, 2)));
+    if (Object.values(w().jobs).filter(x => x.status === 'planning' || x.status === 'ready').length >= c.s.maxJobs) break;
+    // a set-piece takes every hand it can hold; anything else, two
+    // and a set-piece is worth pulling runners off their rackets for, which the bot would never
+    // otherwise do — without this the bot cased the courthouse three times with nobody free to send
+    const hands = j.kind === 'setpiece' ? j.crewMax : 2;
+    const pool = j.kind === 'setpiece' ? select.crew(w()).filter(n => n.crew!.status === 'ready' && n.crew!.assignment?.kind !== 'job') : free;
+    const team = pool.sort((a, b) => j.leans.reduce((t, s) => t + b.skills[s] - a.skills[s], 0)).slice(0, Math.max(j.crewMin, Math.min(j.crewMax, hands)));
     if (team.length < j.crewMin) continue;
+    if (j.kind === 'kidnap' && !c.s.kidnaps) continue;
     const ap = bestApproach(c, j, team.map(n => n.id));
-    if (ap.chance < 55) continue;
-    for (const n of team) if (n.crew!.assignment?.kind === 'guard') act(c, { type: 'assign', npcId: n.id, assignment: null });
+    // five days of planning add about eight points before launch; the set-piece is the only job
+    // long enough for the bot to count on them
+    if (ap.chance + (j.kind === 'setpiece' ? 8 : 0) < c.s.takeAt) continue;
+    for (const n of team) if (n.crew!.assignment) act(c, { type: 'assign', npcId: n.id, assignment: null });
     if (act(c, { type: 'take_job', jobId: j.id, crewIds: team.map(n => n.id) })) { bump(c, 'jobs_taken'); break; }
   }
   // case something now and then, so the board is not only what the city offers
@@ -188,11 +278,20 @@ function runJobs(c: Ctx) {
     const t = here[0];
     if (t) { const kinds = select.caseKinds(w(), { businessId: t.id }); if (kinds.length && act(c, { type: 'case', kind: kinds[0], businessId: t.id })) bump(c, 'cased'); }
   }
+  // somebody worth taking, when there is a back room to keep them in
+  if (c.s.kidnaps && select.holdingRoom(w()) && p().ap >= 2 && c.rng.chance(0.3) && !Object.values(w().jobs).some(j => j.kind === 'kidnap' && j.status !== 'done' && j.status !== 'failed' && j.status !== 'expired')) {
+    const rich = select.peopleOn(w(), p().blockId).concat(w().blocks[p().blockId].neighborIds.flatMap(id => select.peopleOn(w(), id)))
+      .filter(n => n.wealth >= 50 && !n.faction && !n.official && !select.isHeld(w(), n.id)).sort((a, b) => b.wealth - a.wealth)[0];
+    if (rich && act(c, { type: 'case', kind: 'kidnap', npcId: rich.id })) bump(c, 'cased');
+  }
 }
-const value = (j: Job) => j.payout.dirty + j.payout.clean * 1.3 + j.payout.goods * 50 + j.payout.respect * 200;
+// a set-piece goes to the top of the pile: the bot cased it on purpose, and the courthouse locker
+// pays nothing in money at all — valued by its purse alone it sat behind every burglary and expired
+const value = (j: Job) => (j.setpiece ? 1e6 : 0) + j.payout.dirty + j.payout.clean * 1.3 + j.payout.goods * 50 + j.payout.respect * 200;
 function bestApproach(c: Ctx, j: Job, crewIds: Id[]): { a: Approach; chance: number } {
   const all: Approach[] = ['quiet', 'loud', 'clever'];
-  return all.map(a => ({ a, chance: select.jobOdds(c.w, j, crewIds, a).chance - (a === 'loud' ? 6 : 0) })).sort((x, y) => y.chance - x.chance)[0];
+  // the bias is for choosing only; the chance returned is the real one
+  return all.map(a => { const chance = select.jobOdds(c.w, j, crewIds, a).chance; return { a, chance, v: chance - (a === 'loud' ? c.s.loudCost : 0) + (a === 'clever' ? c.s.cleverBonus : 0) }; }).sort((x, y) => y.v - x.v)[0];
 }
 
 // ------------------------------------------------------------------------------------- money
@@ -214,12 +313,6 @@ function money(c: Ctx) {
     const dealer = p().racketIds.some(id => w().rackets[id]?.kind === 'dealing');
     if (n >= 10 && (!dealer || n > 60) && act(c, { type: 'sell_street', product: prod, n })) bump(c, 'street_sales');
   }
-  // gear, once there is money to spare
-  for (const k of ['weapons', 'tools', 'wheels', 'tech'] as const) {
-    const lvl = p().gear[k]; if (lvl >= 3) continue;
-    const price = GEAR[k].levels[lvl + 1].price;
-    if (p().cash + p().dirty > price * 4 && act(c, { type: 'buy_gear', kind: k })) bump(c, 'gear');
-  }
   if (!p().lawyer && select.openCases(w()).some(x => x.evidence > 50) && act(c, { type: 'lawyer', on: true })) bump(c, 'lawyer');
 }
 
@@ -230,6 +323,13 @@ function goTo(c: Ctx, blockId: Id): boolean {
 }
 
 // ------------------------------------------------------------------------------------ street
+/**
+ * How much more a soft-spoken style likes talk. Exactly 1 at `steady`'s 0.8 and above, so the
+ * default bot is the bot it always was. The first cut divided by `threaten`, which made a chat worth
+ * 70 to the schemer — more than protecting anything — and the schemer and the timid boss spent sixty
+ * days talking and ended holding 0–4% of the city.
+ */
+const chatLean = (c: Ctx) => (c.s.threaten >= 0.8 ? 1 : 1 + (0.8 - c.s.threaten) * 0.5);
 function street(c: Ctx) {
   const w = () => c.w; const p = () => w().player;
   let guard = 0;
@@ -246,15 +346,15 @@ function street(c: Ctx) {
         if ((!q.disabled || q.disabled.startsWith('Go to')) && q.chance >= 45) cands.push({ a: { type: 'scene', kind: 'protect', npcId: o.id, businessId: b.id, rate: 0.12 }, v: q.chance * (b.income / 100) * (b.protection ? 0.5 : 1), k: 'protected', block: b.blockId });
         if (q.chance < 45) {
           const t = select.quote(w(), 'intimidate', o.id);
-          if (o.rel.fear < 50 && t.chance >= 45) cands.push({ a: { type: 'scene', kind: 'intimidate', npcId: o.id }, v: t.chance * 0.8, k: 'threats', block: o.homeBlockId });
-          if (o.rel.trust < 30) cands.push({ a: { type: 'scene', kind: 'chat', npcId: o.id }, v: 25 + (o.rel.met ? 0 : 10), k: 'chats', block: o.homeBlockId });
+          if (o.rel.fear < 50 && t.chance >= 45) cands.push({ a: { type: 'scene', kind: 'intimidate', npcId: o.id }, v: t.chance * c.s.threaten, k: 'threats', block: o.homeBlockId });
+          if (o.rel.trust < 30) cands.push({ a: { type: 'scene', kind: 'chat', npcId: o.id }, v: (25 + (o.rel.met ? 0 : 10)) * chatLean(c), k: 'chats', block: o.homeBlockId });
         }
       }
       if (o.agenda?.known && o.agenda.cost && o.agenda.cost < (p().cash + p().dirty) * 0.25) cands.push({ a: { type: 'scene', kind: 'settle', npcId: o.id }, v: 55, k: 'settled', block: o.homeBlockId });
       if (o.rel.owes && b.protection?.by === PLAYER) cands.push({ a: { type: 'scene', kind: 'favour', npcId: o.id }, v: 50, k: 'favours', block: o.homeBlockId });
       if (!o.rel.met) cands.push({ a: { type: 'scene', kind: 'chat', npcId: o.id }, v: 20, k: 'chats', block: o.homeBlockId });
       if (o.secret?.known && c.rng.chance(0.3)) cands.push({ a: { type: 'scene', kind: 'lean', npcId: o.id }, v: 30, k: 'leaned', block: o.homeBlockId });
-      if (b.protection?.by !== PLAYER && b.till > b.income * 1.5 && o.rel.fear > 25 && c.rng.chance(0.25)) cands.push({ a: { type: 'scene', kind: 'squeeze', npcId: o.id, businessId: b.id }, v: 20, k: 'squeezed', block: b.blockId });
+      if (b.protection?.by !== PLAYER && b.till > b.income * 1.5 && o.rel.fear > 25 && c.rng.chance(c.s.squeeze)) cands.push({ a: { type: 'scene', kind: 'squeeze', npcId: o.id, businessId: b.id }, v: 20 + Math.max(0, c.s.threaten - 0.8) * 30, k: 'squeezed', block: b.blockId });
       // patrons: future crew
       for (const pid of b.patronIds) {
         const n = w().npcs[pid]; if (!n?.alive || n.crew || n.faction) continue;
@@ -267,7 +367,7 @@ function street(c: Ctx) {
       }
     }
     // officials when hot
-    if (p().heat > 35) for (const o of select.officials(w())) {
+    if (p().heat > c.s.bribeAt) for (const o of select.officials(w())) {
       if (o.payroll) continue;
       const q = select.quote(w(), 'bribe', o.id);
       if (!q.disabled && q.chance >= 40 && (q.cash ?? 0) * 3 < p().cash + p().dirty) cands.push({ a: { type: 'scene', kind: 'bribe', npcId: o.id }, v: 70, k: 'bribed', block: o.homeBlockId });
@@ -335,7 +435,8 @@ function corners(c: Ctx) {
     const near = [b.id, ...b.neighborIds].some(id => (w().blocks[id].influence[PLAYER] ?? 0) > 5);
     if (!near && cr.members < 10) continue;
     const opts = (['crew_take', 'crew_pay', 'crew_run'] as const).map(k => ({ k, q: select.quote(w(), k, cr.bossId) })).filter(x => !x.q.disabled || x.q.disabled.startsWith('Go to'));
-    const best = opts.sort((a, x) => x.q.chance - a.q.chance)[0];
+    const lean = (k: string) => (k === c.s.corner ? 15 : 0);
+    const best = opts.sort((a, x) => x.q.chance + lean(x.k) - a.q.chance - lean(a.k))[0];
     if (!best || best.q.chance < 40) continue;
     if (best.k !== 'crew_run' && (p().cash + p().dirty) < (best.q.label.match(/\$([\d,]+)/) ? 30 * Number(best.q.label.match(/\$([\d,]+)/)![1].replace(/,/g, '')) : 0)) continue;
     if (!goTo(c, cr.blockId)) continue;
@@ -350,9 +451,123 @@ function politics(c: Ctx) {
   for (const n of select.crew(w())) if (n.crew?.assignment?.kind === 'district' && w().day % 14 === 0 && act(c, { type: 'audit', npcId: n.id })) bump(c, 'audits');
   for (const f of Object.values(w().factions)) {
     if (!f.alive) continue;
-    if (f.standing < -50 && p().ap >= 2 && act(c, { type: 'sit_down', factionId: f.id, offer: 'truce' })) { bump(c, 'sitdowns'); continue; }
-    if (f.standing < -20 && f.standing >= -50 && p().cash + p().dirty > 6000 && act(c, { type: 'tribute', factionId: f.id, amount: 1500 })) bump(c, 'tributes');
+    if (c.s.truceAt !== undefined && f.standing < c.s.truceAt && p().ap >= 2 && act(c, { type: 'sit_down', factionId: f.id, offer: 'truce' })) { bump(c, 'sitdowns'); continue; }
+    if (c.s.tribute && f.standing < -20 && f.standing >= (c.s.truceAt ?? -50) && p().cash + p().dirty > 6000 && act(c, { type: 'tribute', factionId: f.id, amount: 1500 })) bump(c, 'tributes');
   }
+  // starting wars: the ruthless pick the weakest outfit once they have the people for it; the
+  // maniac declares on somebody new every five days from day ten
+  const live = Object.values(w().factions).filter(f => f.alive && (f.truceUntil ?? 0) < w().day);
+  const atWar = live.filter(f => f.standing <= -56);
+  if (c.s.war === 'weakest' && !atWar.length && select.crew(w()).length >= 6 && w().day >= 20) {
+    const f = live.sort((a, b) => a.soldiers - b.soldiers)[0];
+    if (f && act(c, { type: 'declare_war', factionId: f.id })) bump(c, 'declared');
+  }
+  if (c.s.war === 'everyone' && w().day >= 10 && w().day % 5 === 0) {
+    const f = live.find(x => x.standing > -56);
+    if (f && act(c, { type: 'declare_war', factionId: f.id })) bump(c, 'declared');
+  }
+}
+
+// --------------------------------------------------------------------------------------- kit
+/**
+ * Buy what the style cares about, best first, where it can: the fixer (once met) or a shop on the
+ * block it is standing on or next door. Then hand the armoury out — the boss first, then whoever
+ * leans on the slot's skill hardest.
+ */
+function kit(c: Ctx) {
+  const w = () => c.w; const p = () => w().player;
+  const purse = () => p().cash + p().dirty;
+  const worn = (who: Id | typeof PLAYER, slot: Slot) => select.kitOf(w(), who)[slot];
+  const score = (id?: ItemId) => (id ? ITEMS[id].bonus + (ITEMS[id].armour ?? 0) * 8 : 0);
+  const here = w().blocks[p().blockId];
+  const shops = [here.id, ...here.neighborIds].flatMap(id => select.businessesIn(w(), id)).filter(b => select.isShop(w(), b.id));
+  const fixerMet = !!(w().fixerId && w().npcs[w().fixerId!]?.rel.met);
+  for (const slot of c.s.kitSlots) {
+    // who most needs one: the boss, or the crew member with the worst thing in this slot
+    const people = [PLAYER as Id, ...select.crew(w()).filter(n => n.crew!.status === 'ready' || n.crew!.status === 'busy').map(n => n.id)];
+    const need = people.map(id => score(worn(id, slot))).reduce((a, b) => Math.min(a, b), Infinity);
+    const stocked = p().armoury.filter(i => ITEMS[i].slot === slot).map(score).reduce((a, b) => Math.max(a, b), 0);
+    if (stocked > need) continue;   // something better is already sitting in the armoury
+    const offers: { item: ItemId; at: Id | 'fixer'; block?: Id }[] = [];
+    if (fixerMet) for (const i of select.shopItems(w(), 'fixer')) offers.push({ item: i, at: 'fixer' });
+    for (const b of shops) for (const i of select.shopItems(w(), b.id)) offers.push({ item: i, at: b.id, block: b.blockId });
+    const buy = offers.filter(o => ITEMS[o.item].slot === slot && score(o.item) > need && purse() > ITEMS[o.item].price * c.s.kitMult)
+      .sort((a, b) => score(b.item) - score(a.item) || ITEMS[a.item].price - ITEMS[b.item].price)[0];
+    if (!buy) continue;
+    if (buy.block && !goTo(c, buy.block)) continue;
+    if (act(c, { type: 'buy_item', item: buy.item, at: buy.at })) bump(c, 'kit_bought');
+  }
+  // hand out the armoury
+  for (const item of [...p().armoury]) {
+    const d = ITEMS[item];
+    const takers = [PLAYER as Id, ...select.crew(w()).filter(n => n.crew!.status !== 'jailed' && n.crew!.status !== 'held').sort((a, b) => (d.skill ? b.skills[d.skill] - a.skills[d.skill] : b.skills.muscle - a.skills.muscle)).map(n => n.id)];
+    const to = takers.find(id => score(worn(id, d.slot)) < score(item));
+    if (to && act(c, { type: 'equip', item, to })) bump(c, 'kit_equipped');
+  }
+  void SLOTS_ORDER;
+}
+
+// ---------------------------------------------------------------------------------- hostages
+function hostages(c: Ctx) {
+  const w = () => c.w; const p = () => w().player;
+  for (const h of Object.values(w().hostages)) {
+    if (h.holder !== PLAYER) {
+      if (c.s.payFor !== undefined && p().cash + p().dirty >= h.ransom * c.s.payFor && act(c, { type: 'hostage', id: h.id, choice: 'pay' })) { bump(c, 'ransom_paid'); bump(c, 'hostages_resolved'); }
+      continue;
+    }
+    const days = w().day - h.since;
+    const file = h.caseId ? w().cases[h.caseId]?.evidence ?? 0 : 0;
+    const opts = select.hostageChoices(w(), h).filter(o => !o.disabled).map(o => o.choice);
+    let choice: typeof c.s.hostage | undefined;
+    if (days >= c.s.holdDays) choice = opts.includes(c.s.hostage) ? c.s.hostage : 'ransom';
+    // a file this thick changes everybody's mind except the maniac's: the ruthless make it go away
+    if (file >= 70 && c.s.hostage !== 'kill') choice = c.s.war === 'never' ? 'release' : 'kill';
+    if (choice && act(c, { type: 'hostage', id: h.id, choice })) bump(c, 'hostages_resolved');
+  }
+}
+
+// -------------------------------------------------------------------------------- commission
+/** What this boss wants from the table: yes, no, or nothing worth an envelope. */
+function wants(c: Ctx, prop: NonNullable<World['commission']['proposal']>): 'yes' | 'no' | undefined {
+  const w = c.w;
+  switch (prop.kind) {
+    case 'sanction': return prop.target === PLAYER ? 'no' : c.s.lobby === 'always' ? 'yes' : undefined;
+    case 'seat': return 'yes';
+    case 'tax': return prop.target === PLAYER ? 'yes' : w.commission.seated ? 'no' : undefined;
+    case 'peace': return c.s.peace ? 'yes' : 'no';
+    case 'claim': return w.districts[prop.districtId!]?.blockIds.some(id => (w.blocks[id].influence[PLAYER] ?? 0) > 10) ? 'no' : undefined;
+  }
+}
+function commission(c: Ctx) {
+  const w = () => c.w; const p = () => w().player;
+  const prop = w().commission.proposal; if (!prop) return;
+  const want = wants(c, prop); if (!want) return;
+  if (w().commission.seated && w().commission.vote !== want && act(c, { type: 'commission_vote', vote: want })) bump(c, 'voted');
+  if (c.s.lobby === 'never') return;
+  if (c.s.lobby === 'defend' && !(prop.target === PLAYER || prop.kind === 'seat')) return;
+  const t = select.tally(w(), prop);
+  if ((t.passes ? 'yes' : 'no') === want) return;   // already going our way
+  // the cheapest boss an envelope would actually turn
+  const turnable = Object.values(w().factions).filter(f => f.alive && !w().commission.pulls[f.id])
+    .map(f => ({ f, lean: select.leanOf(w(), f, prop) }))
+    .filter(x => (want === 'yes' ? x.lean <= 0 && x.lean + select.LOBBY_PULL > 0 : x.lean > 0 && x.lean - select.LOBBY_PULL <= 0))
+    .sort((a, b) => select.lobbyCost(a.f) - select.lobbyCost(b.f));
+  for (const x of turnable) {
+    if (p().cash + p().dirty < select.lobbyCost(x.f) * 2) break;
+    if (act(c, { type: 'lobby', factionId: x.f.id, side: want })) bump(c, 'lobbied');
+    if ((select.tally(w(), prop).passes ? 'yes' : 'no') === want) break;
+  }
+}
+
+/** Things that happen to the bot rather than things it does, counted as they appear. */
+function watch(c: Ctx) {
+  for (const h of Object.values(c.w.hostages)) {
+    if (c.seen.has(h.id)) continue;
+    c.seen.add(h.id);
+    bump(c, h.holder === PLAYER ? 'hostages_taken' : 'crew_snatched');
+  }
+  const meetings = c.w.commission.history.length;
+  if (meetings > (c.counts.meetings ?? 0)) c.counts.meetings = meetings;
 }
 
 // -------------------------------------------------------------------------------- invariants
@@ -365,6 +580,9 @@ function check(c: Ctx) {
   for (const f of Object.values(w.factions)) { bad(f.cash, `faction cash ${f.id}`); bad(f.standing, `standing ${f.id}`); }
   for (const id of p.crewIds) if (!w.npcs[id]?.crew) throw new Error(`crew list names ${id}, who is not crew`);
   for (const r of Object.values(w.rackets)) if (!w.businesses[r.businessId]?.racketIds.includes(r.id)) throw new Error(`racket ${r.id} not listed on its business`);
+  for (const h of Object.values(w.hostages)) if (!w.npcs[h.npcId]?.alive) throw new Error(`hostage ${h.id} is somebody dead`);
+  for (const i of p.armoury) if (!ITEMS[i]) throw new Error(`armoury holds ${i}, which is nothing`);
+  void SETPIECES;
 }
 
 export function missing(counts: RunResult['counts']): string[] {

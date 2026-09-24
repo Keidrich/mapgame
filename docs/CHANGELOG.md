@@ -14,6 +14,90 @@ House rules for an entry (see `CLAUDE.md` → *Leave a trail*):
 
 ---
 
+## 2026-09-24 — Remake, third pass: kit, hostages, the Commission, landmark set-pieces, and a bot sweep at five ferocities
+
+**What.** The four things `docs/REMAKE.md` still listed as missing, and a soak bot that plays five
+ways. Kit is carried by people and bought at real shops; a successful snatch holds somebody in your
+back room and the ransom climbs; outfits at war take your people too; the bosses meet as a
+Commission every ten days and you can see and work every vote; every landmark but a park carries a
+one-off multi-stage job; and the bot plays *timid*, *steady*, *schemer*, *ruthless* or *maniac*,
+with `npm run sim2 -- 60 7 medium grifter all` comparing all five on one seed.
+
+**Why.** The user asked for the missing systems and "a pass over with multiple types of bots at
+different ferocity levels". A single careful bot only ever told us how a careful player fares; the
+sweep is what shows whether violence, patience or cunning is the dominant strategy, and it found
+two bot bugs and one unreachable system along the way (below).
+
+**How.**
+- *Kit* — `remake/content/kit.ts` (30 items, six slots, prices, who sells them), `remake/sim/kit.ts`
+  (`skillOf`, `armourOf`, `equip`/`unequip`/`returnKit`, `migrateGear`). Every person-skill read on
+  a job or scene goes through `skillOf`; armour scales the injury and death rolls on jobs, in wars
+  and in the attempt on your life. Actions `buy_item` (on the shop's block, or from a met fixer),
+  `equip`, `unequip`. The Empire tab has a Kit view; a shop's sheet and the fixer's sheet sell.
+- *Hostages* — `remake/sim/hostages.ts`. Kidnap success with a back room → `holdHostage` (offer
+  +12% of the first a day to 160%, kidnap file +4 a day, escapes when unguarded); without one, half
+  the ransom at once. `snatchCrew` for outfits at war (one hit in four, one hostage per outfit), dead
+  on day five unpaid. Action `hostage {id, choice}` with the five choices from `hostageChoices`.
+  Crew status `held`. `kill()` now drops any hostage record for the dead.
+- *The Commission* — `remake/sim/commission.ts`, ticked at the end of `endDay`. Proposals: peace,
+  the pot, a sanction, a claim, a seat. `leanOf` is the vote; `lobby` (envelope or a favour owed,
+  ±30, once per boss per meeting) and `commission_vote` (seated only). Rivals tab, top.
+- *Set-pieces* — `remake/content/setpieces.ts`, `JobKind 'setpiece'`. Offered at rank Made (fear +
+  respect 75) or cased from the landmark's block sheet (`case` with a `blockId`). Every stage stops
+  with a complication (`nextStage` in `jobs.ts`); multipliers and heat accumulate. The courthouse
+  evidence locker takes 70 off every open or charged file on you and your crew.
+- *`join_job`* — send somebody onto a planned job when a member landed in hospital or a cell. The
+  sweep found this gap: the ruthless bot cased the courthouse three times and never had a full team
+  by launch day, because injured and jailed crew leave a plan and nothing could fill the seat.
+- *Bots* — `STYLES` in `remake/scripts/bot.ts`: every threshold the bot had, pulled out. `steady` is
+  the default and plays exactly the pass-2 formulas. New counters and SYSTEMS rows for kit, hostages,
+  the Commission, set-pieces and war.
+
+**What the sweep found** (sixty days, medium city, grifter; worth · control · ending):
+
+| | seed 7 | seed 1 | seed 2 |
+|---|---|---|---|
+| timid | $15k · 1.2% | $36k · 8.9% | $12k · 2.7% |
+| steady | $101k · 21.6% | $81k · 21.3% | $63k · 22.6% |
+| schemer | $46k · 7.8% | $77k · 9.5% | $23k · 5.4% |
+| ruthless | $44k · 15.0% | $51k · 22.5% | $75k · 23.1% |
+| maniac | $56k · 18.6% | $7k · 3.0%, convicted d22 | $14k · 2.7%, dead d33 |
+
+- Steady and ruthless are the strong strategies and neither dominates; the maniac is a coin toss that
+  usually ends in a cell or a grave inside five weeks, which is what it should be. Timid play is safe
+  (heat 13–41) and slow. The schemer runs the most jobs and ends with the *highest* heat (73–78):
+  volume, kidnaps and held hostages, not the clever approach (0.8× heat).
+- **Bot bug, fixed:** the first cut divided a chat's value by the style's threaten weight, so talk
+  outranked protection for the soft styles; schemer and timid ended at 0–4% control. `chatLean` is
+  1 at steady and above.
+- **Bot bug, fixed:** set-pieces were valued by their purse, and the evidence locker's purse is
+  zero, so it sat behind every burglary and expired. Set-pieces go to the top of the bot's pile, and
+  it will pull runners and lieutenants off their posts for one.
+- **Unreached, fixed:** no style squeezed a till once kit made protection land more often; the violent
+  styles now value a squeeze by their temperament. Seed 7 (the reference) reaches every system across
+  the five styles, and a test holds it there.
+- Kit spending: the steady bot buys ~45 items in sixty days. Average worth across the three seeds
+  fell from $118k (pass 2) to $82k while average control rose from 20.0% to 21.8% — money turned into
+  guns and vests is not counted in worth. Watch this if worth is ever used as a balance target.
+
+**Files.** `remake/content/{kit,setpieces}.ts`, `remake/sim/{kit,hostages,commission}.ts`, edits in
+`remake/sim/{jobs,reducer,actions,types,generate,factions,scenes,tick,people,select}.ts`,
+`remake/ui/components/{Armoury,Hostages,Commission}.tsx` and the tabs and sheets that show them,
+`remake/scripts/{bot,headless}.ts`, `remake/tests/pass3.test.ts` (37 tests), `docs/REMAKE.md` §9–10.
+
+**Watch out.**
+- **No `WORLD_VERSION` bump; existing Remake saves load.** `migrate` turns old gear levels into items
+  on the boss (`migrateGear`) and adds empty hostages and a fresh Commission.
+- `remake/tests/pass3.test.ts` yields a macrotask after every test. Without it the file's long bot
+  runs starve vitest's worker RPC and the run fails on a timeout with every assertion green.
+- Team skill counts each person's kit, so a fully kitted crew clears most tier-2 jobs easily; the
+  set-pieces (difficulty 55–74) are where the numbers still bite. If jobs feel too easy, the lever
+  is the kit bonuses in `content/kit.ts`, not `jobOdds`.
+- Left out on purpose: set-pieces do not change the landmark afterwards, and there is still no admin
+  panel or scenario runner for the Remake — the five styles stand in for it.
+
+---
+
 ## 2026-09-23 — Remake, second pass: street crews, skimming lieutenants, specialists, leads, three cities
 
 **What.** Street crews on the corners that grow into new outfits if ignored; lieutenants who skim

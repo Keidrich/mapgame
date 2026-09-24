@@ -3,8 +3,10 @@
  * The UI never changes the world any other way.
  */
 import type { SitDownOffer } from './factions';
+import type { PLAYER } from './types';
 import type { SceneKind } from './scenes';
-import type { Approach, Assignment, GearKind, Id, JobKind, LabKind, Owner, Product, RacketKind, SpecialistKind } from './types';
+import type { HostageChoice } from './hostages';
+import type { Approach, Assignment, Id, ItemId, Slot, JobKind, LabKind, Owner, Product, RacketKind, SpecialistKind } from './types';
 
 export type Action =
   | { type: 'travel'; blockId: Id }
@@ -23,15 +25,21 @@ export type Action =
   | { type: 'upgrade_lab'; safehouseId: Id; labId: Id }
   | { type: 'restock_lab'; safehouseId: Id; labId: Id; days: number }
   | { type: 'sell_street'; product: Product; n: number }
-  | { type: 'buy_gear'; kind: GearKind }
+  | { type: 'buy_item'; item: ItemId; at: Id | 'fixer' }
+  | { type: 'equip'; item: ItemId; to: typeof PLAYER | Id }
+  | { type: 'unequip'; from: typeof PLAYER | Id; slot: Slot }
+  | { type: 'hostage'; id: Id; choice: HostageChoice }
+  | { type: 'lobby'; factionId: Owner; side: 'yes' | 'no' }
+  | { type: 'commission_vote'; vote: 'yes' | 'no' }
   | { type: 'fixer_wash'; amount: number }
   | { type: 'take_job'; jobId: Id; crewIds: Id[] }
   | { type: 'launch_job'; jobId: Id; approach: Approach }
+  | { type: 'join_job'; jobId: Id; npcId: Id }
   | { type: 'answer'; jobId: Id; optionId: string }
   | { type: 'drop_job'; jobId: Id }
   | { type: 'hire_specialist'; jobId: Id; kind: SpecialistKind }
   | { type: 'audit'; npcId: Id }
-  | { type: 'case'; kind: JobKind; businessId?: Id; npcId?: Id }
+  | { type: 'case'; kind: JobKind; businessId?: Id; npcId?: Id; blockId?: Id }
   | { type: 'tribute'; factionId: Owner; amount: number }
   | { type: 'sit_down'; factionId: Owner; offer: SitDownOffer }
   | { type: 'declare_war'; factionId: Owner }

@@ -33,7 +33,7 @@ deliberate and written down here.
 | Dir | What |
 |---|---|
 | `remake/sim/` | The whole game. Pure TypeScript: no React, no fetch, no `Math.random`. Every change goes through `dispatch(world, action)`; `can()` says whether and why not. |
-| `remake/content/` | Data: districts, businesses, rackets, labs, gear, officials, backgrounds, job kinds, complication and pitch text, naming parts. Balance lives here and in `remake/sim/economy.ts`. |
+| `remake/content/` | Data: districts, businesses, rackets, labs, kit (`kit.ts`), landmark set-pieces (`setpieces.ts`), officials, backgrounds, job kinds, complication and pitch text, naming parts. Balance lives here and in `remake/sim/economy.ts`. |
 | `remake/ui/` | React. Reads the world, asks `select.*`, dispatches. Never computes an outcome. Loaded lazily from the original's `App`, so neither bundle carries the other. |
 | `remake/scripts/` | The soak bot (`bot.ts`) and `npm run sim2 -- <days> <seed> [size] [background]`. |
 | `remake/tests/` | The Remake's tests; they run in `npm test` with everything else. |
@@ -131,7 +131,7 @@ sabotage, con, fraud, wire job, run, raid, frame — each built from a real targ
 till or vault, its owner's nerve, its outfit. The board fills daily from people who trust you, known
 grudges, wars and the fixer; you can also **case** any place or person. Each approach (quiet, loud,
 clever) reorders the skills the job leans on and changes heat, take and injuries. Odds: team skill
-(the best of you plus a third of the rest, plus gear) against `difficulty/10 + 1.5`, ±8 a point,
+(the best of you plus a third of the rest, each counted with the kit they carry — §9) against `difficulty/10 + 1.5`, ±8 a point,
 plus planning days, extra hands, an insider who trusts you, heat and police attention. Tier 2+ jobs
 can stop halfway with a **complication** — a silent alarm, a witness, another crew, a time lock —
 whose answers are skill checks with their own odds, take and heat on the button.
@@ -233,8 +233,68 @@ takes its safe answer), and a recap of all of it before anything else.
 fixer refused for the rest of the game. It resets every morning now, and the day's summary counts
 what the fixer washed alongside what the laundries did (tested, and mutation-tested).
 
-## 9. Deliberately not carried over (yet)
+## 9. The third pass: kit, hostages, the Commission, set-pieces, and bots with a temperament
 
-Not in the Remake: per-person kit (it has outfit-level gear instead), hostages beyond the snatch
-job's ransom, the Commission, landmark set-pieces, an admin panel and scenario sweep for the bot.
-Each is a candidate for a later pass; none is half-built in the code.
+**Kit is carried by people** (`content/kit.ts`, `sim/kit.ts`). The outfit-wide gear levels are gone.
+Thirty items in six slots — weapon, armour, tools, tech, car, look — each adding to one skill (a
+pistol +2 muscle, a safe kit +3 brains, a uniform +3 charm) or stopping a share of harm (a stab vest
+25%, a plate carrier 60%). **Everything that reads a person's skill reads it through `skillOf`**, so a
+gun counts on the job its carrier goes on and nowhere else; team skill is the best person plus a
+third of the rest, each with their own kit. Armour stacks as 1 − Π(1 − a) and scales down both the
+injury and the death roll on a job, a shooting in a war, and the attempt on your life. Items are sold
+by real businesses — a pawnshop, gym, garage, scrapyard, boutique or electronics shop — while you
+stand on the block, and by the fixer (the tier 3–4 things) from anywhere once you have met. What you
+buy goes on you if the slot is empty, otherwise into the **armoury**, from which you hand things out;
+anything replaced comes back to it, and so does the kit of anybody you let go (the dead keep theirs).
+A save from the gear days is migrated: each gear level becomes the matching item on the boss.
+
+**Hostages** (`sim/hostages.ts`). A successful snatch with a free back room (one per safehouse tier)
+no longer pays on the spot: the person is held, the family's offer climbs 12% of the first a day to
+160%, a kidnap file thickens by 4 a day, and with nobody of yours guarding the block they may get
+out (6% a day, rising, and they talk). You choose: take the money, let them go (the file thins, the
+street hears you kept your word), trade an outfit's person back for twenty days of truce and a block
+you both want, or kill them (fear, and the file becomes a murder file). Without a back room the snatch
+takes what the family had in the house — half. It runs the other way: an outfit at war with you takes
+one of yours one time in four instead of hurting them, asks 2,000 + 1,500 a level (a tenth more a day),
+and on the fifth unpaid day kills them, which every other member of your crew notices.
+
+**The Commission** (`sim/commission.ts`). From day 20, every ten days, while three outfits stand, the
+bosses meet. The proposal is chosen from the city: two wars or more and it is a peace; somebody past a
+fifth of the blocks and it is a sanction on them (which can be you); a player with respect 40 and no
+seat is offered one; otherwise the pot (a tenth of every outfit's cash to the biggest) or a claim on a
+district. It is announced three days ahead. Every boss's vote is the sign of `leanOf` —
+temperament, self-interest, standing with you, a favour they owe you — and the Rivals tab shows each
+lean before the meeting, so a vote you lose is one you watched coming. You can lean on a boss once
+per meeting: an envelope (1,500 plus 60 per point of standing below zero) or the favour they owe you,
+moving their lean 30 either way. With a seat, your own vote counts, and the boss a proposal names
+remembers which way you voted (±5 standing).
+
+**Landmark set-pieces** (`content/setpieces.ts`). Every landmark but a park carries one job the city
+has exactly one of: derby day at the racetrack, the mail car at the terminal, the penthouse safe, the
+stadium payroll, the gala cloakroom, the cathedral reliquary, the courthouse **evidence locker** (the
+only way to burn paper in bulk: −70 on every open or charged file on you and your crew, charges
+dropped back to open), the station-house property room (its precinct takes it personally: +10 heat),
+the city hall records room (clean money on paper), and a strongroom anywhere else. Difficulty 55–74,
+three to five hands, five days of planning, heat 14–34. They come only to somebody at rank **Made**
+(fear + respect 75) — offered now and then, or cased from the landmark's block sheet. Launching one
+stops at **every stage** (two or three) with a complication, never the same twice running; each answer
+multiplies the take and adds its heat, and a walked-away or blown stage ends it there. A crew member
+who lands in hospital or a cell during the planning leaves a gap; **`join_job`** sends somebody else.
+
+**Bots with a temperament** (`remake/scripts/bot.ts: STYLES`). The same bot plays five ways, every
+threshold it had pulled out into a `Style`: *timid* (takes only 75%+ jobs, pays corner crews off, lays
+low at heat 55, never starts a war, takes the first ransom offered), *steady* (the bot as it was — the
+default, so `npm run sim2 -- 60` still means what it meant), *schemer* (clever over loud, officials at
+heat 15, lobbies every vote, trades hostages for truces), *ruthless* (45%+ jobs, runs crews off, a war
+on the weakest outfit once it has six crew, holds hostages to the ceiling) and *maniac* (anything over
+30%, always loud, war on somebody new every five days from day ten, never a truce or a bribe, no hostage
+comes home). `npm run sim2 -- 60 7 medium grifter all` plays one seed all five ways and prints a table
+— worth, control, heat, crew, jobs, wars, hostages, kit bought, heirs, ending — and coverage taken
+across all five. What the sweep found and what changed because of it is in the changelog entry for
+this pass.
+
+## 10. Deliberately not carried over (yet)
+
+Not in the Remake: an admin panel and scenario sweep for the bot (the temperament sweep covers what
+the scenarios were for), and set-pieces that change the landmark afterwards (a looted cathedral stays a
+cathedral). Neither is half-built in the code.
