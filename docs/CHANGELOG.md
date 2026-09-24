@@ -14,6 +14,35 @@ House rules for an entry (see `CLAUDE.md` → *Leave a trail*):
 
 ---
 
+## 2026-09-24 — Remake: the start screen's scrolling and padding on phones
+
+**What.** Four fixes to the Remake's start screen on an iPhone:
+- It no longer pans sideways.
+- The page no longer scrolls up under the status-bar clock.
+- The cards no longer show through in a strip below the pinned Play button.
+- The two name fields' boxes now line up when one label wraps.
+
+**Why.** The user sent a screenshot from an iPhone PWA.
+- The page had slid left: the Play button ran off the screen's left edge, and a horizontal scrollbar showed.
+- The map was under the clock.
+- Background cards ("Keid", "Leave it to the street") were visible below the sticky footer.
+
+**How** (`remake/ui/remake.css`, start-screen block):
+- **Sideways pan.** `.r-masthead::before` (the gold glow behind the title) was inset `-20px` sideways, 6px past the scroller's 14px side padding. Because the scroller had `overflow-y: auto`, its overflow-x computed to auto too, so its scrollWidth was 396 on a 390-wide screen.
+  - The glow now stops at the edges (inset 0 sideways).
+  - `.r-start` sets `overflow-x: hidden`.
+- **Status bar.** The top safe-area inset was padding inside the scroller, so it scrolled away. It is now a margin on the scroller, so the scroll area starts below the status bar.
+- **Strip under Play.** A `position: sticky; bottom: 0` footer sticks to the scroller's padding edge, not its bottom, so the old `28px + home-bar` bottom padding was a band where content scrolled past below the button.
+  - The scroller now has no bottom padding.
+  - The footer carries the home-bar inset itself.
+  - The footer's fade is now a fixed 22px, so the hint text sits on solid ground.
+- **Name fields.** The field row aligns its fields to the bottom.
+- **Side gutters.** The side gutters are now 16px, or the safe-area inset in landscape if that is larger.
+
+Measured in Chromium at 390×844 with a 47px/34px safe area simulated: the scroller's width is 390/390 (was 396), and nothing shows below the footer. The in-game scrollers were checked the same way and had no sideways overflow.
+
+**Files.** `remake/ui/remake.css`.
+
 ## 2026-09-24 — Remake: everything that was still missing — crews by city, a Commission per city, landmarks that remember, testing tools
 
 **What.** Every item earlier passes listed as not built, plus the rule the user asked for:
