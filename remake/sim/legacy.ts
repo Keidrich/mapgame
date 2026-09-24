@@ -9,10 +9,13 @@
  */
 import { BACKGROUNDS } from '@r/content/world';
 import { freeFromAssignment } from './people';
+import { underboss } from './family';
 import type { Ending, Npc, World } from './types';
 import { clamp, fullName, log } from './util';
 
 export function heirOf(w: World): Npc | undefined {
+  // the underboss first, whatever their level: that is what the post is for (`family.ts`)
+  const ub = underboss(w); if (ub) return ub;
   return w.player.crewIds.map(id => w.npcs[id]).filter(n => n?.alive && n.crew && n.crew.status !== 'jailed' && n.crew.level >= 2 && n.crew.loyalty >= 55)
     .sort((a, b) => (b.crew!.level * 10 + b.crew!.loyalty) - (a.crew!.level * 10 + a.crew!.loyalty))[0];
 }

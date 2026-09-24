@@ -15,6 +15,7 @@
  * city's is `w.commission`, where it always was; the others are in `w.commissions`, made the first
  * night a city is founded, and first meet ten days later.
  */
+import { lobbyMult } from './family';
 import { factionBlocks } from './factions';
 import type { Rng } from './rng';
 import type { Commission, Faction, Owner, Proposal, World } from './types';
@@ -91,7 +92,8 @@ export function leanOf(w: World, f: Faction, p: Proposal): number {
 }
 
 /** What leaning on a boss before the vote costs: more the less they like you. */
-export const lobbyCost = (f: Faction) => Math.round((1500 + Math.max(0, -f.standing) * 60) / 100) * 100;
+/** An envelope for one boss before a meeting; the consigliere knows who takes less (`family.ts`). */
+export const lobbyCost = (f: Faction, w?: World) => Math.round(((1500 + Math.max(0, -f.standing) * 60) * (w ? lobbyMult(w) : 1)) / 100) * 100;
 export const LOBBY_PULL = 30;
 
 export function tally(w: World, p: Proposal): { yes: number; no: number; passes: boolean; votes: { id: Owner; yes: boolean }[] } {

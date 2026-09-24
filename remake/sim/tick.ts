@@ -7,6 +7,7 @@
 import { BUSINESSES, LABS, OFFICIALS, PRODUCTS, RACKETS, SAFEHOUSE_TIERS } from '@r/content/world';
 import { FAIR_RATE, labOutput, labQuality, protectionTake, racketIncome, rankOf, sellCapacity, stashTotal, streetPrice, washCap, washRate, netWorth } from './economy';
 import { drawEvents } from './events';
+import { tickFamily } from './family';
 import { splitHours } from '@r/content/clock';
 import { tickFactions } from './factions';
 import { tickHostages } from './hostages';
@@ -52,7 +53,8 @@ export function endDay(w: World, rng: Rng) {
     const a = c.assignment;
     if (a?.kind === 'guard') { gain(a.blockId, 3); gainXp(w, id, 3); }
     if (a?.kind === 'district') { for (const bid of w.districts[a.districtId].blockIds) if ((w.blocks[bid].influence[PLAYER] ?? 0) > 10) gain(bid, 0.5); gainXp(w, id, 3); }
-    if (c.loyalty < 15 && rng.chance(0.25)) {
+    // made men do not walk out (`family.ts` keeps them at a floor); associates can
+    if (!c.made && c.loyalty < 15 && rng.chance(0.25)) {
       freeFromAssignment(w, n); n.crew = undefined; n.faction = undefined; n.role = 'patron'; n.rel.trust = -30;
       p.crewIds = p.crewIds.filter(x => x !== id);
       log(w, `${fullName(n)} walked. Nobody saw them go.`, 'bad', { npcId: id });
@@ -170,6 +172,8 @@ export function endDay(w: World, rng: Rng) {
   tickFactions(w, rng);
   // hostages before the law, so a day's thicker kidnap file is the one the prosecutor reads
   tickHostages(w, rng);
+  // the family before the law: a rat's night of talking is in the file the prosecutor reads
+  tickFamily(w, rng);
   tickLaw(w, rng);
   tickCommission(w, rng);
   tickRegion(w, rng);

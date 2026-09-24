@@ -25,7 +25,8 @@ export type Counter =
   | 'crews_paid' | 'crews_taken' | 'crews_run' | 'audits' | 'specialists'
   | 'kit_bought' | 'kit_equipped' | 'hostages_taken' | 'hostages_resolved' | 'crew_snatched' | 'ransom_paid'
   | 'meetings' | 'lobbied' | 'voted' | 'setpieces_cased' | 'setpiece_stages' | 'setpieces_done' | 'declared'
-  | 'cities' | 'routes' | 'route_sales' | 'remote_jobs' | 'crew_moved' | 'nights' | 'night_events';
+  | 'cities' | 'routes' | 'route_sales' | 'remote_jobs' | 'crew_moved' | 'nights' | 'night_events'
+  | 'made' | 'appointed' | 'rats_found' | 'coups';
 
 export const SYSTEMS: { label: string; needs: Counter[] }[] = [
   { label: 'talking to people', needs: ['chats'] },
@@ -47,6 +48,9 @@ export const SYSTEMS: { label: string; needs: Counter[] }[] = [
   { label: 'casing a target', needs: ['cased'] },
   { label: 'events', needs: ['events'] },
   { label: 'nightfall', needs: ['nights'] },
+  { label: 'making members', needs: ['made'] },
+  { label: 'the posts', needs: ['appointed'] },
+  { label: 'rats and coups', needs: ['rats_found', 'coups'] },
   { label: 'night encounters', needs: ['night_events'] },
   { label: 'diplomacy', needs: ['tributes', 'sitdowns'] },
   { label: 'lieutenants', needs: ['lieutenants'] },
@@ -67,6 +71,10 @@ export const SYSTEMS: { label: string; needs: Counter[] }[] = [
 ];
 /** The rows only the region reaches: excluded from the natural sweep's must-reach list, held by the region scenario instead. */
 export const REGION_SYSTEMS = ['another city', 'trade routes', 'remote work', 'moving crew'];
+/** Rows only the family scenario reaches: a well-run outfit has no rats and no coups in sixty days. */
+export const FAMILY_SYSTEMS = ['rats and coups'];
+/** Every row that a natural sixty days is not expected to reach, held by its own scenario instead. */
+export const SCENARIO_ONLY = [...REGION_SYSTEMS, ...FAMILY_SYSTEMS];
 
 // ---------------------------------------------------------------------------------- temperaments
 /**
@@ -153,10 +161,11 @@ function act(c: Ctx, a: Action): boolean {
   return true;
 }
 
-export function run(opts: { days: number; seed: number; size?: CitySize; background?: Background; style?: StyleId; scenario?: 'catalogue' | 'region'; onDay?: (w: World) => void }): RunResult {
+export function run(opts: { days: number; seed: number; size?: CitySize; background?: Background; style?: StyleId; scenario?: Scenario; onDay?: (w: World) => void }): RunResult {
   const w0 = newWorld({ seed: opts.seed, size: opts.size ?? 'medium', name: 'Bot', background: opts.background ?? 'grifter' });
   if (opts.scenario === 'catalogue') boost(w0);
   if (opts.scenario === 'region') boostRegion(w0);
+  if (opts.scenario === 'family') boostFamily(w0);
   const c: Ctx = { w: w0, rng: new Rng(opts.seed * 31 + 7), s: STYLES[opts.scenario === 'catalogue' ? 'collector' : opts.style ?? 'steady'], counts: {}, kinds: {}, offered: {}, taken: {}, actions: 0, refused: 0, seen: new Set() };
   while (c.w.day <= opts.days && !c.w.over) {
     day(c);
@@ -182,6 +191,8 @@ function day(c: Ctx) {
 }
 function shift(c: Ctx) {
   manageCrew(c);
+  family(c);
+  legal(c);
   hostages(c);
   // building comes before the street work: the street loop spends every action point it can
   // find, and a safehouse needs one — the first draft never rented a single one in sixty days
@@ -195,6 +206,43 @@ function shift(c: Ctx) {
   politics(c);
   commission(c);
   answerEverything(c);
+}
+
+// ------------------------------------------------------------------------------------ the law
+/**
+ * A file against you grows while its witnesses talk. Lean on a talking witness (45 fear and they
+ * go quiet), and take a lawyer once a file is getting serious. The bots did neither until the
+ * family pass, and a single early burglary with two witnesses convicted the steady bot by day 27.
+ */
+function legal(c: Ctx) {
+  const w = () => c.w; const p = () => w().player;
+  const files = select.openCases(w()).filter(x => x.suspectId === PLAYER && x.status === 'open' && x.evidence > 20);
+  if (!files.length) return;
+  if (!p().lawyer && files.some(x => x.evidence > 40) && act(c, { type: 'lawyer', on: true })) bump(c, 'lawyer');
+  let tries = 0;
+  for (const f of files.sort((a, b) => b.evidence - a.evidence)) for (const id of f.witnessIds) {
+    const n = w().npcs[id]; if (!n?.alive || n.rel.fear >= 45 || tries >= 2 || p().ap < 2) continue;
+    const q = select.quote(w(), 'intimidate', n.id);
+    if (q.chance < 35) continue;
+    tries++;
+    if (goTo(c, select.whereIs(w(), n)) && act(c, { type: 'scene', kind: 'intimidate', npcId: n.id })) bump(c, 'threats');
+  }
+}
+
+// ------------------------------------------------------------------------------------ the family
+/**
+ * Make whoever qualifies once there is money for it three times over, and keep both posts filled:
+ * the underboss is the best-levelled made man, the consigliere the best talker among the rest.
+ */
+function family(c: Ctx) {
+  const w = () => c.w; const p = () => w().player;
+  for (const n of select.crew(w())) {
+    if (select.makeBlock(n) || p().cash + p().dirty < select.MAKING.cost * 3) continue;
+    if (act(c, { type: 'make_member', npcId: n.id })) bump(c, 'made');
+  }
+  const made = select.crew(w()).filter(n => n.crew!.made && n.crew!.status === 'ready');
+  if (!select.underboss(w())) { const ub = made.slice().sort((a, b) => b.crew!.level - a.crew!.level)[0]; if (ub && act(c, { type: 'appoint', post: 'underboss', npcId: ub.id })) bump(c, 'appointed'); }
+  if (!select.consigliere(w())) { const cg = made.filter(n => n.id !== w().player.family?.underboss).sort((a, b) => b.skills.charm - a.skills.charm)[0]; if (cg && act(c, { type: 'appoint', post: 'consigliere', npcId: cg.id })) bump(c, 'appointed'); }
 }
 
 // ------------------------------------------------------------------------------------ events
@@ -213,7 +261,7 @@ function answerEverything(c: Ctx) {
     const e = c.w.events[0]; if (!e) break;
     const scored = e.options.filter(o => !o.disabled).map(o => ({ o, v: scoreEffects(c, o.effects) }));
     const pick = scored.sort((a, b) => b.v - a.v)[0]?.o ?? e.options[e.options.length - 1];
-    if (act(c, { type: 'resolve_event', eventId: e.id, optionId: pick.id })) { bump(c, 'events'); if (e.template.startsWith('night_')) bump(c, 'night_events'); }
+    if (act(c, { type: 'resolve_event', eventId: e.id, optionId: pick.id })) { bump(c, 'events'); if (e.template.startsWith('night_')) bump(c, 'night_events'); if (e.template === 'rat_found') bump(c, 'rats_found'); if (e.template === 'coup') bump(c, 'coups'); }
     else break;
   }
 }
@@ -625,6 +673,25 @@ function region(c: Ctx) {
     const from = mine.find(x => x.id !== to.id)!;
     if (to.demand[prod] < 1.05) continue;
     if (act(c, { type: 'open_route', from: from.id, to: to.id, product: prod })) bump(c, 'routes');
+  }
+}
+
+export type Scenario = 'catalogue' | 'region' | 'family';
+
+/**
+ * The family scenario: the catalogue's mid-game empire, whose family has gone sour — an associate
+ * who hates the job with a file open on you, and an ambitious capo who has stopped caring. Proves
+ * a rat talks and is found, and a capo makes his move.
+ */
+export function boostFamily(w: World) {
+  boost(w);
+  const crew = w.player.crewIds.map(id => w.npcs[id]).filter(n => n?.crew);
+  const [rat, capo] = crew;
+  if (rat?.crew) { rat.crew.loyalty = 20; rat.crew.made = false; rat.crew.rat = { since: w.day }; }
+  if (capo?.crew) {
+    const d = Object.values(w.districts).find(x => !x.cityId && x.blockIds.some(id => (w.blocks[id].influence[PLAYER] ?? 0) > 0)) ?? Object.values(w.districts)[0];
+    capo.crew.assignment = { kind: 'district', districtId: d.id }; capo.crew.loyalty = 10; capo.crew.made = true; capo.crew.level = Math.max(capo.crew.level, 2);
+    if (!capo.traits.includes('ambitious')) capo.traits = [...capo.traits.slice(0, 1), 'ambitious'];
   }
 }
 

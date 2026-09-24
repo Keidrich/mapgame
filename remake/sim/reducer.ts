@@ -24,6 +24,8 @@ import { freeFromAssignment, practise } from './people';
 import { playScene, quote } from './scenes';
 import { blockCity, crewCity, travelCost } from './select-core';
 import { closedNow, isNight, nightfall } from './clock';
+import { appoint, auditBonus, makeBlock, makeMember } from './family';
+import { MAKING } from '@r/content/family';
 import { endDay, STRAIGHT } from './tick';
 import type { Action, Affordance } from './actions';
 import { no, yes } from './actions';
@@ -195,7 +197,7 @@ function canInner(w: World, a: Action): Affordance {
       if (c.pulls[a.factionId]) return no('You have already had that conversation.');
       const boss = w.npcs[f.bossId];
       if ((boss?.rel.owes ?? 0) > 0) { const r = ap(1); return r ? no(r) : yes({ ap: 1 }); }
-      const k = lobbyCost(f); const e = cost(w, k) ?? ap(1); return e ? no(e) : yes({ cash: k, ap: 1 });
+      const k = lobbyCost(f, w); const e = cost(w, k) ?? ap(1); return e ? no(e) : yes({ cash: k, ap: 1 });
     }
     case 'commission_vote': { const c = commissionOf(w, a.cityId ?? currentCity(w)); return !c.seated ? no('You have no seat at that table.') : !c.proposal ? no('Nothing on the table.') : yes(); }
     case 'fixer_wash': {
@@ -297,6 +299,20 @@ function canInner(w: World, a: Action): Affordance {
       return o.disabled ? no(o.disabled) : yes();
     }
     case 'retire': return p.straightDays >= STRAIGHT.days ? yes() : no(`Getting out needs ${money(STRAIGHT.clean)} clean, heat under ${STRAIGHT.heat} and no open files, held for ${STRAIGHT.days} days (${p.straightDays} so far).`);
+    case 'make_member': {
+      const n = w.npcs[a.npcId]; if (!n) return no('Nobody.');
+      const why = makeBlock(n); if (why) return no(why);
+      if (busy) return no(busy);
+      const e = ap(MAKING.ap) ?? cost(w, MAKING.cost); return e ? no(e) : yes({ ap: MAKING.ap, cash: MAKING.cost });
+    }
+    case 'appoint': {
+      if (a.npcId === null) return yes();
+      const n = w.npcs[a.npcId]; if (!n?.crew || !n.alive) return no('Not one of yours.');
+      if (!n.crew.made) return no(`Only a made man sits at the top. Make ${n.first} first.`);
+      if (n.crew.status === 'jailed' || n.crew.status === 'held') return no(`${n.first} is ${n.crew.status}.`);
+      if (w.player.family?.[a.post] === n.id) return no(`${n.first} already is.`);
+      return yes();
+    }
     case 'nightfall': return busy ? no(busy) : yes();
     case 'end_day': return busy ? no(busy) : yes();
     case 'seen_win': return yes();
@@ -401,7 +417,7 @@ export function dispatch(world: World, a: Action): World {
     case 'lobby': {
       const f = w.factions[a.factionId]; const boss = w.npcs[f.bossId];
       if ((boss?.rel.owes ?? 0) > 0) { boss.rel.owes--; log(w, `You call in what ${fullName(boss)} owes you: ${f.short} votes your way.`, 'info'); }
-      else { spend(w, lobbyCost(f)); f.cash += lobbyCost(f); log(w, `An envelope to ${theName(f)} before the meeting.`, 'info'); }
+      else { const k = lobbyCost(f, w); spend(w, k); f.cash += k; log(w, `An envelope to ${theName(f)} before the meeting.`, 'info'); }
       commissionOf(w, w.districts[f.homeDistrictId]?.cityId || 'c0').pulls[a.factionId] = a.side === 'yes' ? LOBBY_PULL : -LOBBY_PULL;
       break;
     }
@@ -441,7 +457,7 @@ export function dispatch(world: World, a: Action): World {
       if (j) { j.expires = w.day + 7; j.intel = 1; practise(w, 'brains', 3); log(w, `You look into it: ${j.title} is on your board.`, 'info'); }
       break;
     }
-    case 'tribute': { const f = w.factions[a.factionId]; spend(w, a.amount); const s = tributeEffect(f, a.amount); f.standing = clamp(f.standing + s, -100, 100); f.cash += a.amount; log(w, `You send the ${f.short} ${money(a.amount)}. Standing +${s}.`, 'info'); break; }
+    case 'tribute': { const f = w.factions[a.factionId]; spend(w, a.amount); const s = tributeEffect(f, a.amount, w); f.standing = clamp(f.standing + s, -100, 100); f.cash += a.amount; log(w, `You send the ${f.short} ${money(a.amount)}. Standing +${s}.`, 'info'); break; }
     case 'sit_down': { const f = w.factions[a.factionId]; spend(w, sitDownOdds(w, f, a.offer).cost); sitDown(w, f, a.offer, rng); break; }
     case 'declare_war': { const f = w.factions[a.factionId]; f.standing = -70; f.truceUntil = undefined; p.respect = clamp(p.respect + 5); p.fear = clamp(p.fear + 5); log(w, `You declare war on ${theName(f)}.`, 'war'); break; }
     case 'drop_payroll': { const n = w.npcs[a.npcId]; n.payroll = undefined; log(w, `${fullName(n)} is off the payroll.`, 'info'); break; }
@@ -464,6 +480,8 @@ export function dispatch(world: World, a: Action): World {
       break;
     }
     case 'retire': { w.retired = true; w.over = { ending: 'straight', day: w.day, text: `You walk away with ${money(p.cash)} clean and nobody looking for you. In ${w.city.name} they still tell stories.` }; break; }
+    case 'make_member': spend(w, MAKING.cost); makeMember(w, w.npcs[a.npcId]); break;
+    case 'appoint': appoint(w, a.post, a.npcId ? w.npcs[a.npcId] : undefined); break;
     case 'nightfall': nightfall(w, rng); break;
     // in daylight, sleeping skips the night: no encounter, no night hours, straight to morning
     case 'end_day': if (!isNight(w)) w.phase = 'night'; endDay(w, rng); break;
@@ -478,5 +496,5 @@ export { openCases };
 
 /** The chance an audit finds a lieutenant's hand in the till, shown on the button. */
 export function auditOdds(w: World, n: { skills: { brains: number }; traits: string[] }): number {
-  return clamp(Math.round(50 + (w.player.skills.brains - n.skills.brains) * 8 - (n.traits.includes('sly') ? 15 : 0)), 10, 95);
+  return clamp(Math.round(50 + (w.player.skills.brains - n.skills.brains) * 8 - (n.traits.includes('sly') ? 15 : 0) + auditBonus(w)), 10, 95);
 }

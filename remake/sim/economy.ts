@@ -3,6 +3,7 @@
  * number will be, so what the screen promises is what the day pays — the lesson the original's
  * op-payout audit taught the hard way.
  */
+import { unmindedFloor } from './family';
 import { BUSINESSES, LABS, PRODUCTS, RACKETS, RACKET_LEVEL, RANKS, SATURATION, SYNERGY } from '@r/content/world';
 import type { Business, Lab, Npc, Product, Racket, Skill, World } from './types';
 import { PLAYER } from './types';
@@ -55,7 +56,8 @@ export function runnerFactor(w: World, r: Racket): number {
   const b = w.businesses[r.businessId];
   const d = b ? w.blocks[b.blockId].districtId : '';
   const lt = Object.values(w.npcs).find(n => n.crew?.assignment?.kind === 'district' && n.crew.assignment.districtId === d && n.alive && n.crew.status !== 'jailed');
-  return lt ? 0.85 : 0.6;
+  // the underboss keeps an eye on what nobody is minding (`family.ts`)
+  return Math.max(lt ? 0.85 : 0.6, unmindedFloor(w));
 }
 
 export function saturationMult(w: World, r: Racket): number {

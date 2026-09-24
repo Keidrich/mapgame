@@ -9,7 +9,7 @@
  * With `tutorial`, a rookie who only follows the quest strip (`tutorial.ts`), and the day each
  * temperament finished each quest.
  */
-import { run, missing, SYSTEMS, STYLES, STYLE_IDS, type RunResult, type StyleId } from './bot';
+import { run, missing, SYSTEMS, STYLES, STYLE_IDS, type RunResult, type Scenario, type StyleId } from './bot';
 import { tutorial, OPENING } from './tutorial';
 import { select } from '@r/sim/index';
 import { JOBS } from '@r/content/world';
@@ -22,7 +22,7 @@ const size = (sizeArg as 'small' | 'medium' | 'large') ?? 'medium';
 const background = (bgArg as Background) ?? 'grifter';
 
 const w0 = (r: RunResult) => r.w;
-function one(style: StyleId, scenario?: 'catalogue' | 'region'): RunResult {
+function one(style: StyleId, scenario?: Scenario): RunResult {
   const t0 = performance.now();
   const r = run({ days, seed, size, background, style, scenario });
   if (scenario) console.log(`scenario ${scenario} (a mid-game empire on day one — this is not an economy curve)`);
@@ -73,6 +73,7 @@ if (styleArg === 'all') {
     ...STYLE_IDS.map(id => ({ name: STYLES[id].label, r: run({ days, seed, size, background, style: id }) })),
     { name: 'catalogue', r: run({ days, seed, size, background, scenario: 'catalogue' }) },
     { name: 'region', r: run({ days, seed, size, background, scenario: 'region' }) },
+    { name: 'family', r: run({ days, seed, size, background, scenario: 'family' }) },
   ];
   console.log(`scenario sweep, seed ${seed}, ${days} days:`);
   for (const { name, r } of runs) {
@@ -101,6 +102,9 @@ if (styleArg === 'all') {
   const cols = STYLE_IDS.map(id => { const done: Record<string, number> = {}; run({ days, seed, size, background, style: id, onDay: w => { for (const l of select.leads(w)) if (l.done && done[l.id] === undefined) done[l.id] = w.day - 1; } }); return { id, done }; });
   console.log(`  ${'quest'.padEnd(11)} ${cols.map(c => STYLES[c.id].label.padStart(9)).join('')}`);
   for (const id of ids) console.log(`  ${id.padEnd(11)} ${cols.map(c => String(c.done[id] ?? '-').padStart(9)).join('')}`);
+} else if (styleArg === 'family') {
+  const r = one('steady', 'family');
+  coverage(r.counts);
 } else if (styleArg === 'region') {
   const r = one('steady', 'region');
   coverage(r.counts);

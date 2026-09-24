@@ -12,7 +12,7 @@ import { COMMISSION, LOBBY_PULL, leanOf, lobbyCost, tally } from '@r/sim/commiss
 import { hire } from '@r/sim/people';
 import { buildJob } from '@r/sim/jobs';
 import { Rng } from '@r/sim/rng';
-import { missing, run, REGION_SYSTEMS, STYLES, STYLE_IDS } from '@r/scripts/bot';
+import { missing, run, SCENARIO_ONLY, STYLES, STYLE_IDS } from '@r/scripts/bot';
 
 // vitest runs a file's tests back to back without giving the event loop a turn, so its worker
 // cannot answer the runner while this file's long bot runs go on, and after sixty seconds the run
@@ -339,6 +339,6 @@ describe('the bots, from timid to maniac', () => {
   }, 60000);
   it('between them, those runs reach every system — set-pieces, hostages and the Commission included', () => {
     // the region's rows are held by the region scenario (region.test.ts), not by sixty natural days
-    expect(missing(union).filter(x => !REGION_SYSTEMS.includes(x))).toEqual([]);
+    expect(missing(union).filter(x => !SCENARIO_ONLY.includes(x))).toEqual([]);
   });
 });

@@ -53,6 +53,31 @@ function wantsRaise(w: World, n: Npc): boolean {
 }
 
 export const TEMPLATES: Template[] = [
+  // ---------------------------------------------------------------- the family (`family.ts`): scheduled, never drawn
+  { id: 'rat_found', weight: () => 0,
+    build: (w, _rng, ctx) => {
+      const n = ctx.npcId ? w.npcs[ctx.npcId] : undefined; if (!n?.alive || !n.crew?.rat) return undefined;
+      const who = w.player.family?.consigliere ? `Your consigliere has been watching ${fullName(n)}` : `A cop you drink with lets a name slip: ${fullName(n)}`;
+      return card(w, `${shortName(n)} has been talking`, `${who}. Meetings nobody mentioned, a car outside the precinct. Every night since day ${n.crew.rat.since}, your file has been getting thicker.`, [
+        { id: 'whack', label: 'Take them for a drive', effects: [{ k: 'kill', npcId: n.id }, { k: 'fear', n: 4 }, { k: 'heat', n: 5 }] },
+        { id: 'exile', label: 'Put them on a bus out of town', effects: [{ k: 'fire', npcId: n.id }, { k: 'respect', n: -1 }] },
+        { id: 'feed', label: 'Say nothing, and feed them lies', effects: [{ k: 'ratFed', npcId: n.id }] },
+      ], { npcId: n.id });
+    } },
+  { id: 'coup', weight: () => 0,
+    build: (w, _rng, ctx) => {
+      const n = ctx.npcId ? w.npcs[ctx.npcId] : undefined; const c = n?.crew; if (!n?.alive || !c || c.assignment?.kind !== 'district') return undefined;
+      const d = w.districts[c.assignment.districtId];
+      const price = Math.round((c.cut * 12) / 100) * 100;
+      const p = w.player;
+      const chance = Math.max(10, Math.min(90, Math.round(40 + p.fear / 2 + p.skills.muscle * 4 - n.skills.muscle * 4)));
+      return card(w, `${shortName(n)} makes a move`, `${fullName(n)} has been running ${d.name} like it is ${their(n)} own, and tonight ${they(n)} ${vb(n, 'say', 'says')} so. Either ${they(n)} get${n.pronoun === 'they' ? '' : 's'} a bigger piece, or ${d.name} goes with ${them(n)}.`, [
+        { id: 'pay', label: `A bigger piece: ${money(price)} now`, effects: [...pay(w, price), { k: 'loyalty', npcId: n.id, n: 30 }, { k: 'cut', npcId: n.id, n: Math.round(c.cut * 0.2) }], disabled: afford(w, price) },
+        { id: 'face', label: `Face ${them(n)} down (${chance}%)`, effects: [{ k: 'showdown', npcId: n.id, chance }] },
+        { id: 'go', label: `Let ${them(n)} go`, effects: [{ k: 'defect', npcId: n.id }] },
+      ], { npcId: n.id });
+    } },
+
   { id: 'crew_raise', weight: w => (crew(w).some(n => wantsRaise(w, n)) ? 3 : 0),
     build: (w, rng) => {
       const n = rng.pick(crew(w).filter(x => wantsRaise(w, x)));

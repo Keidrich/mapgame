@@ -23,6 +23,8 @@ export { crewOn, crewOf, crewWage, crewCost, CREW } from './streetcrews';
 export { specialistFee, present, setpieceOpen, SETPIECE_REST, SETPIECE_HARDEN } from './jobs';
 export { needsMet, isDerelict } from './catalogue';
 export { CHEATS } from './cheats';
+export { consigliere, underboss, familyRank, makeBlock } from './family';
+export { MAKING, RANK_LABEL, RANK_BLURB, POSTS } from '@r/content/family';
 export { half, isNight, hours, whereIs, whereLine, jobHour, closedNow, hourFactor } from './clock';
 import { closedNow as closedNow_ } from './clock';
 import { RANKS as RANKS_ } from '@r/content/world';

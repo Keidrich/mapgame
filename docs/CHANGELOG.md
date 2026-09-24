@@ -14,6 +14,57 @@ House rules for an entry (see `CLAUDE.md` → *Leave a trail*):
 
 ---
 
+## 2026-09-24 — Remake: the family — ranks, the making ceremony, consigliere and underboss, rats and coups (roadmap 1 of 8)
+
+**What.** Crew become a family, with ranks and posts that do real work, and betrayal that can hurt you:
+- **Ranks:** associate → soldier (made in a night-time ceremony) → capo over a district.
+- **Posts:** a consigliere (better sit-downs, tribute and lobbying, spots rats) and an underboss
+  (unrun rackets earn more; your heir first).
+- **Rats** who feed your file to the police, and **coups** by sour, ambitious capos.
+- **Screen:** a family tree on the Crew tab, and a family panel on each crew member's sheet.
+
+**Why.** The user said: "Do the whole roadmap please." This is the first of the eight pillars in
+`docs/REMAKE.md` §15.
+
+**How.**
+- **Data and sim.** `content/family.ts` holds the numbers; `sim/family.ts` holds the logic.
+  `tickFamily` runs before the law each night. Rats and coups arrive as scheduled cards
+  (`rat_found`, `coup`), with new effects `ratFed`, `defect` and `showdown` (resolved with the
+  night's rng).
+- **New state and actions.** `Crew.made`, `Crew.rat`, `Player.family`, and actions `make_member`
+  (at night) and `appoint`.
+- **Hooks where the posts count:** `sitDownOdds`, `tributeEffect(f, n, w)`, `lobbyCost(f, w)`,
+  `runnerFactor`, `auditOdds` and `heirOf`.
+- **Bots.**
+  - `family()` makes members and fills the posts.
+  - `legal()` leans on talking witnesses and takes a lawyer once a file passes 40.
+  - A new family scenario proves the rat card, and the pass-3 coverage test now excludes all
+    scenario-only rows (`SCENARIO_ONLY`).
+- **Tests.** `remake/tests/family.test.ts`, 10 of them. One caught the ceremony showing its price
+  and never charging it.
+
+**Numbers** (five seeds, 60 days):
+- Steady: 22.4% control, never convicted.
+- Ruthless: 23%, convicted in 1 of 5.
+- Maniac: convicted in 3 of 5.
+- The steady bot's conviction rate on the build shipped just before this was 3 of 5.
+- The honest baseline in the original game is unchanged.
+
+**Watch out.**
+- **A regression shipped in the day/night commit.** Its balance table was measured before the
+  last round of bot fixes (bots finding people at their haunts, specialists, tonight-only jobs).
+  Re-measured on that build, the steady bot held 16% and was convicted in 3 of 5 cities. The
+  cause: the bots never dealt with witnesses. Fixed here in `legal()`.
+- Rats and coups are rare for a player who pays attention to loyalty, and that is deliberate.
+- No save bump. Old crew are associates.
+
+**Files.**
+- New: `remake/content/family.ts`, `remake/sim/family.ts`, `remake/tests/family.test.ts`.
+- Changed: `remake/sim/{types,actions,effects,events,reducer,tick,factions,commission,economy,legacy,select}.ts`,
+  `remake/content/clock.ts`, `remake/scripts/{bot,headless}.ts`, `remake/scripts/ui-tutorial.mjs`,
+  `remake/tests/pass3.test.ts`, `remake/ui/components/{PersonSheet,Tabs,JobFaction,Commission}.tsx`,
+  and `docs/REMAKE.md` §16.
+
 ## 2026-09-24 — Remake: day and night, and the road to the full game
 
 **What.** Every day now has two halves, each with different people, conversations and

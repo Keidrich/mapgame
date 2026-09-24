@@ -162,7 +162,7 @@ export function FactionSheet({ id }: { id: string }) {
       {f.alive && (
         <Section title="Talk to them">
           <div className="r-inline-actions">
-            {[500, 1500, 5000].map(a => <Do key={a} action={{ type: 'tribute', factionId: id, amount: a }} label={`Send ${fmt(a)}`} small sub={`standing +${select.tributeEffect(f, a)}`} />)}
+            {[500, 1500, 5000].map(a => <Do key={a} action={{ type: 'tribute', factionId: id, amount: a }} label={`Send ${fmt(a)}`} small sub={`standing +${select.tributeEffect(f, a, w)}`} />)}
           </div>
           {(['truce', 'split', 'alliance'] as const).map(o => { const q = select.sitDownOdds(w, f, o); return <Do key={o} action={{ type: 'sit_down', factionId: id, offer: o }} label={`Sit down: ${o === 'truce' ? 'a truce' : o === 'split' ? 'split the difference' : 'an alliance'} (${q.chance}%)`} sub={q.text} block />; })}
           <Do action={{ type: 'declare_war', factionId: id }} label="Declare war" kind="danger" block confirm="Tap again: this is war" sub="Their standing drops to war. Your name grows; so does the danger." />

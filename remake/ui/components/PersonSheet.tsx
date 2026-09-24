@@ -145,6 +145,7 @@ function CrewPanel({ n }: { n: Npc }) {
         <Meter value={c.xp} max={100 * c.level} tone="gold" label={`Level ${c.level}`} right={`${c.xp}/${100 * c.level}`} />
       </div>
       <p className="r-note">{where}. Paid {fmt(c.cut)} a day.</p>
+      <FamilyPanel n={n} />
       <div className="r-assign">
         {a && a.kind !== 'job' && <Do action={{ type: 'assign', npcId: n.id, assignment: null }} label="Stand down" small />}
         <Do action={{ type: 'assign', npcId: n.id, assignment: { kind: 'guard', blockId: w.player.blockId } }} label={`Guard ${w.blocks[w.player.blockId].name}`} icon="guard" small />
@@ -161,5 +162,30 @@ function CrewPanel({ n }: { n: Npc }) {
       </>}
       <Do action={{ type: 'fire', npcId: n.id }} label="Let them go" kind="danger" small confirm="Tap again to let them go" />
     </Section>
+  );
+}
+
+/**
+ * Where they stand in the family, and the two things you can do about it: make them (at night, in
+ * a back room, with money on the table) and, once they are made, give them a post at the top.
+ */
+function FamilyPanel({ n }: { n: Npc }) {
+  const w = useWorld();
+  const c = n.crew!;
+  const rank = select.familyRank(w, n);
+  const f = w.player.family ?? {};
+  return (
+    <div className="r-family-panel">
+      <p className="r-over">In the family</p>
+      <div className="r-chips">
+        <Chip tone={rank === 'associate' ? 'muted' : 'gold'} title={select.RANK_BLURB[rank]}>{select.RANK_LABEL[rank]}</Chip>
+        {c.rat?.found && <Chip tone="red">Talking to the police</Chip>}
+      </div>
+      {!c.made && select.makeBlock(n) && <p className="r-note">Not ready to be made: {select.makeBlock(n)}</p>}
+      {!c.made && !select.makeBlock(n) && <Do action={{ type: 'make_member', npcId: n.id }} label={`Make ${n.first}`} icon="crown" block sub={`A ceremony after dark. Loyalty +${select.MAKING.loyaltyGain}; their cut rises a fifth; made men never walk out on you.`} />}
+      {c.made && (['underboss', 'consigliere'] as const).map(post => f[post] === n.id
+        ? <Do key={post} action={{ type: 'appoint', post, npcId: null }} label={`Step ${n.first} down as ${post}`} small kind="ghost" />
+        : <Do key={post} action={{ type: 'appoint', post, npcId: n.id }} label={`Make ${n.first} ${post}`} icon={post === 'underboss' ? 'crown' : 'note'} block sub={select.POSTS[post].blurb + (f[post] ? ` Replaces ${select.fullName(w.npcs[f[post]!])}.` : '')} />)}
+    </div>
   );
 }

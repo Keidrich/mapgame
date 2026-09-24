@@ -30,7 +30,7 @@ export function CommissionSection() {
             <div key={f.id} className="r-racket">
               <Row left={<Emblem e={f.emblem} size={28} />} title={f.name} sub={`${lean > 0 ? 'Voting yes' : 'Voting no'} (${lean > 0 ? '+' : ''}${lean})${pulled ? ' · you have had a word' : ''}`} right={<Chip tone={lean > 0 ? 'green' : 'red'}>{lean > 0 ? 'Yes' : 'No'}</Chip>} />
               {!pulled && <div className="r-inline-actions">
-                {(['yes', 'no'] as const).map(side => <Do key={side} action={{ type: 'lobby', factionId: f.id, side }} label={`Lean on them: ${side}`} sub={owes ? 'Their boss owes you: this is the favour.' : `${fmt(select.lobbyCost(f))} in an envelope, ${side === 'yes' ? '+' : '−'}${select.LOBBY_PULL}.`} small />)}
+                {(['yes', 'no'] as const).map(side => <Do key={side} action={{ type: 'lobby', factionId: f.id, side }} label={`Lean on them: ${side}`} sub={owes ? 'Their boss owes you: this is the favour.' : `${fmt(select.lobbyCost(f, w))} in an envelope, ${side === 'yes' ? '+' : '−'}${select.LOBBY_PULL}.`} small />)}
               </div>}
             </div>
           );

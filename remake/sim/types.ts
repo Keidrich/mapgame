@@ -153,6 +153,10 @@ export interface Crew {
   caughtDay?: number;
   /** Day they last asked for a raise: the ask comes once in a while, not every few nights. */
   askedDay?: number;
+  /** Made in a ceremony (`family.ts`): they do not walk out, and they cost more. */
+  made?: boolean;
+  /** Talking to the police: `found` once you know, `fed` once you are feeding them lies. */
+  rat?: { since: number; found?: boolean; fed?: boolean };
   /** Daily wage, paid dirty-first at end of day. */
   cut: number;
   joined: number;
@@ -519,7 +523,11 @@ export type Effect =
   | { k: 'racketDown'; racketId: Id; days: number }
   | { k: 'jobOffer'; job: Omit<Job, 'id'>; /** Gone by morning: an offer that exists only tonight. */ tonight?: boolean }
   | { k: 'schedule'; template: string; days: number; npcId?: Id; businessId?: Id; factionId?: Owner }
-  | { k: 'log'; text: string; tone: Tone };
+  | { k: 'log'; text: string; tone: Tone }
+  /** The family: feed a rat lies, a capo walks off with his district, or a showdown decided on the night. */
+  | { k: 'ratFed'; npcId: Id }
+  | { k: 'defect'; npcId: Id }
+  | { k: 'showdown'; npcId: Id; chance: number };
 
 import type { ItemId, Slot } from '@r/content/kit';
 import type { CatalogueKind } from '@r/content/catalogue';
@@ -574,6 +582,8 @@ export interface Player {
   busts: number;
   /** Once the player has been taken off the board: an heir from the crew plays on. */
   generation: number;
+  /** The posts at the top of the family (`family.ts`). */
+  family?: { consigliere?: Id; underboss?: Id };
 }
 
 export interface DaySummary { day: number; clean: number; dirty: number; spent: number; heat: number; control: number; worth: number; washed?: number }

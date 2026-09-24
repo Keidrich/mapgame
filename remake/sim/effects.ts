@@ -10,6 +10,8 @@ import type { Rng } from './rng';
 import type { Effect, World } from './types';
 import { addHeat, addInfluence, clamp, fullName, log, money, shortName } from './util';
 import { crewCut } from './economy';
+import { RAT } from '@r/content/family';
+import { PLAYER } from './types';
 
 export function apply(w: World, effects: Effect[], rng: Rng) {
   const p = w.player;
@@ -46,8 +48,32 @@ export function apply(w: World, effects: Effect[], rng: Rng) {
       case 'jobOffer': { const j = e.job; const built = buildJob(w, rng, { kind: j.kind, blockId: j.blockId, businessId: j.targetBusinessId, npcId: j.targetNpcId, faction: j.targetFaction, source: j.sourceId ? w.npcs[j.sourceId] : undefined }); if (built) { built.intel = j.intel; if (j.title) built.title = j.title; if (e.tonight) { built.expires = w.day; built.planDays = 0; built.tonight = true; } } break; }
       case 'schedule': w.scheduled.push({ day: w.day + e.days, template: e.template, npcId: e.npcId, businessId: e.businessId, factionId: e.factionId }); break;
       case 'log': log(w, e.text, e.tone); break;
+      case 'ratFed': { const n = w.npcs[e.npcId]; if (n?.crew?.rat) { n.crew.rat.fed = true; const worst = Object.values(w.cases).filter(c => c.status === 'open' && c.suspectId === PLAYER).sort((a, b) => b.evidence - a.evidence)[0]; if (worst) worst.evidence = clamp(worst.evidence - RAT.fedCut); log(w, `${fullName(n)} goes on talking, and now it is your story they tell.`, 'good', { npcId: n.id }); } break; }
+      case 'defect': defect(w, e.npcId); break;
+      case 'showdown': {
+        const n = w.npcs[e.npcId]; if (!n?.crew) break;
+        if (rng.float() * 100 < e.chance) { n.crew.loyalty = clamp(n.crew.loyalty + 20); p.fear = clamp(p.fear + 5, 0, 100); log(w, `${fullName(n)} looks at you a long time, and backs down.`, 'good', { npcId: n.id }); }
+        else defect(w, e.npcId);
+        break;
+      }
     }
   }
+}
+
+/** A capo walks, and takes his district's rackets dark and a share of the street with him. */
+function defect(w: World, id: string) {
+  const n = w.npcs[id]; if (!n?.crew) return;
+  const a = n.crew.assignment;
+  const d = a?.kind === 'district' ? a.districtId : undefined;
+  if (d) {
+    for (const rid of w.player.racketIds) { const r = w.rackets[rid]; const b = r && w.businesses[r.businessId]; if (b && w.blocks[b.blockId]?.districtId === d) r.down = Math.max(r.down, 10); }
+    for (const bid of w.districts[d]?.blockIds ?? []) addInfluence(w, bid, PLAYER, -10);
+  }
+  freeFromAssignment(w, n);
+  w.player.crewIds = w.player.crewIds.filter(x => x !== id);
+  n.crew = undefined; n.faction = undefined; n.role = 'patron'; n.rel.trust = -40;
+  const f = w.player.family; if (f) { if (f.consigliere === id) f.consigliere = undefined; if (f.underboss === id) f.underboss = undefined; }
+  log(w, `${fullName(n)} walks, and ${d ? `${w.districts[d].name} goes dark behind him` : 'takes a few friends along'}.`, 'war', { npcId: id });
 }
 
 /** The hint on a button, written from what it does. */
@@ -85,6 +111,9 @@ export function describe(w: World, effects: Effect[]): string {
       case 'openCase': out.push('a case file opens'); break;
       case 'racketDown': out.push(`a racket shut ${e.days}d`); break;
       case 'jobOffer': out.push('a job on your board'); break;
+      case 'ratFed': out.push(`${name(w, e.npcId)} starts carrying your lies to the police`); break;
+      case 'defect': out.push(`${name(w, e.npcId)} walks, and their district goes dark`); break;
+      case 'showdown': out.push(`${e.chance}% they back down; otherwise they walk with their district`); break;
       default: break;
     }
   }

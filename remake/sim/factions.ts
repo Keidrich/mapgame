@@ -3,6 +3,7 @@
  * and they remember what you did to them. Standing with the player is one number, −100..100, and
  * the stance is read off it, so a sit-down, a tribute or a raid all move the same dial.
  */
+import { sitDownBonus, tributeMult } from './family';
 import { BUSINESSES, RACKETS } from '@r/content/world';
 import { openCase } from './law';
 import { succeed } from './legacy';
@@ -176,12 +177,13 @@ function dissolve(w: World, f: Faction) {
 }
 
 // ---------------------------------------------------------------------------------- diplomacy
-export function tributeEffect(f: Faction, amount: number) { return Math.round(Math.min(25, amount / (f.temperament === 'greedy' ? 150 : 250))); }
+/** Standing an envelope buys; the consigliere makes it land better (`family.ts`). */
+export function tributeEffect(f: Faction, amount: number, w?: World) { return Math.round(Math.min(25, (amount / (f.temperament === 'greedy' ? 150 : 250)) * (w ? tributeMult(w) : 1))); }
 
 export type SitDownOffer = 'truce' | 'alliance' | 'split';
 export function sitDownOdds(w: World, f: Faction, offer: SitDownOffer): { chance: number; cost: number; text: string } {
   const p = w.player;
-  const base = 30 + f.standing * 0.5 + p.respect / 3 + p.skills.charm * 3;
+  const base = 30 + f.standing * 0.5 + p.respect / 3 + p.skills.charm * 3 + sitDownBonus(w);
   if (offer === 'truce') return { chance: clamp(Math.round(base + 20), 5, 95), cost: 2000 + Math.max(0, -f.standing) * 60, text: 'A truce for 20 days. Nobody moves on anybody.' };
   if (offer === 'alliance') return { chance: clamp(Math.round(base - 25 + (f.temperament === 'cunning' ? 10 : 0)), 3, 90), cost: 5000, text: 'Allies: they leave your streets alone and your standing with them climbs.' };
   return { chance: clamp(Math.round(base), 5, 95), cost: 0, text: 'Split the difference: you give up a block you both want, they call off the beef.' };

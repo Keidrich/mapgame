@@ -53,6 +53,8 @@ export type Action =
   | { type: 'lay_low'; days: number }
   | { type: 'resolve_event'; eventId: Id; optionId: string }
   | { type: 'retire' }
+  | { type: 'make_member'; npcId: Id }
+  | { type: 'appoint'; post: 'consigliere' | 'underboss'; npcId: Id | null }
   | { type: 'nightfall' }
   | { type: 'end_day' }
   | { type: 'seen_win' }

@@ -587,6 +587,60 @@ Every day has two halves (`sim/clock.ts`; the rules are data in `content/clock.t
 
 Nights add work and add risk.
 
+## 16. The family
+
+Crew are a family now (`sim/family.ts`; the numbers are data in `content/family.ts`).
+
+- **Ranks.** Everybody hired is an **associate**. A **making ceremony** (`make_member`) makes one a
+  **soldier**. It needs:
+  - the night, in a back room;
+  - level 2 and loyalty 50;
+  - $2,500 and 2 hours.
+  They come out +15 loyalty with a fifth more on their cut. Made men never walk out: loyalty is held
+  at a floor of 30. A made man over a district is a **capo**.
+- **Posts.** `appoint` gives a made man one of two posts. One person holds one post, and taking a
+  post leaves any other.
+  - **Consigliere:**
+    - sit-downs +8 plus their charm;
+    - tribute buys a quarter more standing;
+    - Commission envelopes cost a quarter less;
+    - audits +3 per point of brains;
+    - spots a rat 25% of nights (5% by luck without one).
+  - **Underboss:**
+    - a racket nobody runs earns 72% instead of 60%;
+    - is the heir first (`legacy.heirOf`), whatever their level.
+- **Rats.** An associate under 30 loyalty, with a file open on you or yours, can turn:
+  - The chance is 3% a night, plus 0.1% per point under 30, and a quarter of that if made.
+  - A rat adds 3 evidence to your worst file every night, or opens one.
+  - Once found, a card (`rat_found`) offers three choices:
+    - whack them (fear, heat);
+    - put them on a bus;
+    - feed them lies: the file drops 15 at once, then shrinks a point a night.
+- **Coups.** A capo who is ambitious or greedy, under 25 loyalty, moves on 4% of nights. The card
+  (`coup`) offers three choices:
+  - buy him off (twelve days' cut, +30 loyalty);
+  - face him down, at a chance from your fear and muscle against his;
+  - let him go. He walks: the district's rackets go dark for 10 days, and your influence there falls 10.
+- **Screen.** The Crew tab opens on the family tree: the two posts (or how to fill them), capos,
+  soldiers and associates. A crew member's sheet shows their rank, what they still need to be made,
+  the ceremony, and the posts.
+- **Bots and coverage.**
+  - The bots make whoever qualifies once they have three times the price, and keep both posts filled.
+  - They also now go after the law: they lean on talking witnesses and take a lawyer once a file
+    passes 40. The day-and-night build shipped without this, and the steady bot was being convicted
+    in 3 cities of 5 on a single early burglary.
+  - Rats and coups never happen to a well-run outfit in sixty days. The **family scenario**
+    (`npm run sim2 -- 60 7 medium grifter family`) starts with a rat already talking and a sour
+    capo, and holds those rows (`FAMILY_SYSTEMS`).
+
+**Balance (five seeds, 60 days):**
+
+| Bot | Control | Convicted |
+|---|---|---|
+| Steady | 22.4% | never |
+| Ruthless | 23% | 1 of 5 |
+| Maniac | — | 3 of 5 |
+
 ## 15. The road: the whole game
 
 The Remake is heading toward the full game its inspirations add up to: City of Gangsters (a

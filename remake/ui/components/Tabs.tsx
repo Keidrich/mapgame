@@ -53,6 +53,7 @@ export function CrewTab() {
   return (
     <div className="r-tab">
       <h2 className="r-tab-title">Crew <span className="r-note">{crew.length}/{beds} beds</span></h2>
+      {crew.length > 0 && <FamilyTree />}
       {Object.values(w.hostages).some(h => h.holder !== PLAYER) && <Section title="Taken"><HostageList filter={h => h.holder !== PLAYER} /></Section>}
       {crew.length ? (() => {
         // with more than one city, your people are listed where they are: they work only there
@@ -73,6 +74,31 @@ export function CrewTab() {
         const kit = select.kitOf(w, n.id); const carries = SLOTS_ORDER.filter(s => kit[s]).map(s => ITEMS[kit[s]!].label.toLowerCase());
         return <Row key={n.id} onClick={() => openSheet({ kind: 'person', id: n.id })} left={<NpcFace n={n} size={42} />} title={select.fullName(n)} sub={`L${n.crew!.level} · ${best} · loyalty ${Math.round(n.crew!.loyalty)} · ${fmt(n.crew!.cut)}/day${carries.length ? ` · ${carries.join(', ')}` : ''}`} right={<Chip tone={n.crew!.status === 'ready' ? (a ? 'muted' : 'green') : n.crew!.status === 'travel' ? 'blue' : 'red'}>{n.crew!.status === 'ready' ? where : n.crew!.status === 'travel' ? 'on the train' : n.crew!.status}</Chip>} />;
   }
+}
+
+/**
+ * The family at a glance: you at the head, the two posts, the capos over their districts, and the
+ * made men and associates under them. An empty post says how to fill it.
+ */
+function FamilyTree() {
+  const w = useWorld();
+  const crew = select.crew(w);
+  const by = (r: string) => crew.filter(n => select.familyRank(w, n) === r);
+  const post = (k: 'underboss' | 'consigliere') => {
+    const n = k === 'underboss' ? select.underboss(w) : select.consigliere(w);
+    return n ? <Row key={k} onClick={() => openSheet({ kind: 'person', id: n.id })} left={<NpcFace n={n} size={36} />} title={select.fullName(n)} sub={`${select.RANK_LABEL[k]} · ${select.RANK_BLURB[k]}`} />
+      : <Row key={k} left={<span className="r-bizicon"><Icon name={k === 'underboss' ? 'crown' : 'note'} size={18} /></span>} title={`No ${k}`} sub={`Make somebody, then appoint them from their sheet. ${select.RANK_BLURB[k]}`} />;
+  };
+  const capos = by('capo'), soldiers = by('soldier'), associates = by('associate');
+  return (
+    <Section title="The family" right={<span className="r-note">{capos.length + soldiers.length + (select.underboss(w) ? 1 : 0) + (select.consigliere(w) ? 1 : 0)} made · {associates.length} associates</span>}>
+      {post('underboss')}
+      {post('consigliere')}
+      {capos.map(n => <Row key={n.id} onClick={() => openSheet({ kind: 'person', id: n.id })} left={<NpcFace n={n} size={32} />} title={select.fullName(n)} sub={`Capo · ${n.crew!.assignment?.kind === 'district' ? w.districts[n.crew!.assignment.districtId]?.name : ''}`} />)}
+      {soldiers.length > 0 && <p className="r-note">Soldiers: {soldiers.map(n => n.first).join(', ')}.</p>}
+      {associates.length > 0 && <p className="r-note">Associates: {associates.map(n => n.first).join(', ')}. {associates.some(n => !select.makeBlock(n)) ? 'Somebody is ready to be made — after dark, from their sheet.' : `Level ${select.MAKING.level} and loyalty ${select.MAKING.loyalty} to be made.`}</p>}
+    </Section>
+  );
 }
 
 export function JobsTab() {

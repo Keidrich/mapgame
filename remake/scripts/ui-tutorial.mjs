@@ -56,7 +56,10 @@ for (let step = 0; step < 500; step++) {   // two halves a day: roughly twice th
     if (/protection/.test(text) && (await odds('Offer protection')) < 35) alts = (await odds('Lean on them')) >= 45 ? ['Lean on them'] : ['Talk', 'Introduce yourself'];
     if (/recruit/.test(text) && (await odds('Recruit')) < 40) alts = ['Talk', 'Introduce yourself'];
     // "hold a block" opens the block: a person goes into a place nobody protects, then its owner
-    if (/^Hold a block/.test(text)) {
+    // protection is a daytime pitch: at night there is nothing to do for this step but let the clock run
+    const isNight = (await p.innerText('.r-dayno span')).trim() === 'Night';
+    if (/^Hold a block/.test(text) && isNight) alts = [];
+    else if (/^Hold a block/.test(text)) {
       for (const r of await p.$$('.r-sheet .r-row')) { if (/Pays nobody/.test(await r.innerText())) { await r.evaluate(el => el.click()); await p.waitForTimeout(200); break; } }
       for (const r of await p.$$('.r-sheet .r-row')) { if (/Trust|never spoken/.test(await r.innerText())) { await r.evaluate(el => el.click()); await p.waitForTimeout(200); break; } }
       alts = (await odds('Offer protection')) >= 35 ? ['Offer protection'] : (await odds('Lean on them')) >= 45 ? ['Lean on them'] : ['Talk', 'Introduce yourself'];
