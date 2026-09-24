@@ -18,6 +18,8 @@ import { agendaLine } from './scenes';
 import { bedsTotal, playerBlocks } from './select-core';
 import { crewCut } from './economy';
 import { ambushOdds } from './fights';
+import { bribePrice, detective, duelOdds, heir } from './stories';
+import { DETECTIVE, HEIR } from '@r/content/stories';
 
 interface Ctx { npcId?: Id; businessId?: Id; factionId?: Id }
 interface Template {
@@ -54,6 +56,89 @@ function wantsRaise(w: World, n: Npc): boolean {
 }
 
 export const TEMPLATES: Template[] = [
+  // ---- stories (`stories.ts`): schedule-only, sent by `tickStories` at the arcs' turning points
+  { id: 'det_intro', weight: () => 0,
+    build: (w, _rng, ctx) => {
+      const n = w.npcs[ctx.npcId!]; if (!n?.alive) return undefined;
+      return card(w, `Detective ${n.last}`, `A man in a raincoat is waiting by your door. "${fullName(n)}, Organised Crime. I know who you are, and I know what you do, and I have time." He hands you a card with his number on it, in case you ever want to talk.`, [
+        { id: 'polite', label: 'Take the card, say nothing', effects: [] },
+        { id: 'cold', label: 'Tell him to get off your step', effects: [{ k: 'detFile', n: 3 }, { k: 'respect', n: 1 }] },
+        { id: 'drink', label: 'Offer him a drink', effects: [...pay(w, 100), { k: 'trust', npcId: n.id, n: 5 }], disabled: afford(w, 100) },
+      ], { npcId: n.id });
+    } },
+  { id: 'det_watch', weight: () => 0,
+    build: (w, _rng, ctx) => {
+      const n = w.npcs[ctx.npcId!]; if (!n?.alive) return undefined;
+      return card(w, 'A car across the street', `The same grey sedan has been parked across from your place three nights running. ${fullName(n)} does not even pretend to read the paper.`, [
+        { id: 'ignore', label: 'Let him watch', effects: [] },
+        { id: 'lose', label: 'Lose him: back doors, borrowed cabs', effects: [...pay(w, 200), { k: 'detFile', n: -5 }], disabled: afford(w, 200) },
+        { id: 'flowers', label: 'Send flowers to his wife', effects: [{ k: 'npcFear', npcId: n.id, n: 10 }, { k: 'detFile', n: 8 }] },
+      ], { npcId: n.id });
+    } },
+  { id: 'det_witness', weight: () => 0,
+    build: (w, rng, ctx) => {
+      const n = w.npcs[ctx.npcId!]; if (!n?.alive) return undefined;
+      const pool = Object.values(w.npcs).filter(x => x.alive && x.rel.met && !x.crew && !x.official && !x.faction && !x.nemesis);
+      if (!pool.length) return undefined;
+      const wit = rng.pick(pool);
+      return card(w, `${shortName(wit)} has been talking`, `${fullName(n)} has found somebody who will say your name in court: ${fullName(wit)}, who has seen more than ${they(wit)} should.`, [
+        { id: 'reach', label: `Get to ${them(wit)} first`, effects: [...pay(w, 1500), { k: 'npcFear', npcId: wit.id, n: 30 }, { k: 'trust', npcId: wit.id, n: 10 }, { k: 'detFile', n: 5 }], disabled: afford(w, 1500) },
+        { id: 'ride', label: 'Let it ride', effects: [{ k: 'openCase', crime: 'racketeering', suspect: 'player', witnessId: wit.id, summary: `Racketeering: what ${fullName(wit)} told Detective ${n.last}.` }] },
+      ], { npcId: wit.id });
+    } },
+  { id: 'det_raid', weight: () => 0,
+    build: (w, _rng, ctx) => {
+      const n = w.npcs[ctx.npcId!]; if (!n?.alive) return undefined;
+      return card(w, 'The warrant', `Five in the morning. ${fullName(n)} is at the door with a warrant, a dozen uniforms and a photographer. His file on you is thick enough to stand up on its own.`, [
+        { id: 'open', label: 'Open the door', effects: [{ k: 'detRaid' }] },
+      ], { npcId: n.id });
+    } },
+  { id: 'det_more', weight: () => 0,
+    build: (w, _rng, ctx) => {
+      const n = w.npcs[ctx.npcId!]; const d = detective(w); if (!n?.alive || !d || d.status !== 'bought') return undefined;
+      const price = Math.round(bribePrice(d) / 2);
+      return card(w, `Detective ${n.last} wants more`, `The money you gave ${fullName(n)} is gone, and so is his patience. "Same again, or I remember where I left my notebook."`, [
+        { id: 'pay', label: `Pay him again: ${money(price)} clean`, effects: [{ k: 'cash', n: -price }, { k: 'detKeep', days: DETECTIVE.boughtDays }], disabled: affordClean(w, price) },
+        { id: 'refuse', label: 'Tell him the well is dry', effects: [{ k: 'detFree' }] },
+      ], { npcId: n.id });
+    } },
+  { id: 'heir_oath', weight: () => 0,
+    build: (w, _rng, ctx) => {
+      const n = w.npcs[ctx.npcId!]; const f = w.factions[ctx.factionId!]; if (!n?.alive || !f) return undefined;
+      return card(w, `${shortName(n)} makes a promise`, `At a table in the back of ${theName(f)}'s club, ${fullName(n)} puts a hand on the boss's shoulder and says, loud enough to carry, that one day ${they(n)} will bury you. People who were there are still repeating it.`, [
+        { id: 'note', label: 'Let them talk', effects: [] },
+        { id: 'gift', label: `Send your respects: ${money(HEIR.gift.cost)}`, effects: [...pay(w, HEIR.gift.cost), { k: 'heirGrudge', n: -HEIR.gift.cut }], disabled: afford(w, HEIR.gift.cost) },
+      ], { npcId: n.id, factionId: f.id });
+    } },
+  { id: 'heir_message', weight: () => 0,
+    build: (w, _rng, ctx) => {
+      const n = w.npcs[ctx.npcId!]; const f = w.factions[ctx.factionId!]; if (!n?.alive || !f) return undefined;
+      return card(w, `A message from ${shortName(n)}`, `A box on your step, tied with ribbon. You do not need to open it to know what is inside; the flies have told you. The card says ${fullName(n)}.`, [
+        { id: 'answer', label: 'Send one back', effects: [{ k: 'fear', n: 2 }, { k: 'heirGrudge', n: 5 }] },
+        { id: 'ignore', label: 'Throw it in the river', effects: [{ k: 'respect', n: -1 }] },
+        { id: 'tribute', label: `Pay for the peace: ${money(1500)}`, effects: [...pay(w, 1500), { k: 'heirGrudge', n: -10 }], disabled: afford(w, 1500) },
+      ], { npcId: n.id, factionId: f.id });
+    } },
+  { id: 'heir_hit', weight: () => 0,
+    build: (w, _rng, ctx) => {
+      const n = w.npcs[ctx.npcId!]; const f = w.factions[ctx.factionId!]; if (!n?.alive || !f) return undefined;
+      const r = w.player.racketIds.map(id => w.rackets[id]).find(x => x && !x.down);
+      if (!r) return undefined;
+      const b = w.businesses[r.businessId];
+      return card(w, `${shortName(n)} hits ${b.name}`, `${fullName(n)}'s people put a brick through the window at ${b.name} and a man in hospital. The ${RACKETS[r.kind].label.toLowerCase()} there is shut for three days.`, [
+        { id: 'back', label: `Hit back, tonight (${ambushOdds(w, f.id)}%)`, effects: [{ k: 'racketDown', racketId: r.id, days: 3 }, { k: 'fight', factionId: f.id, odds: ambushOdds(w, f.id) }, { k: 'heirGrudge', n: 5 }] },
+        { id: 'absorb', label: 'Swallow it', effects: [{ k: 'racketDown', racketId: r.id, days: 3 }, { k: 'respect', n: -2 }] },
+      ], { npcId: n.id, factionId: f.id, businessId: b.id });
+    } },
+  { id: 'heir_showdown', weight: () => 0,
+    build: (w, _rng, ctx) => {
+      const n = w.npcs[ctx.npcId!]; const f = w.factions[ctx.factionId!]; const h = heir(w); if (!n?.alive || !f || h?.status !== 'active') return undefined;
+      return card(w, `${shortName(n)} comes for you`, `${fullName(n)} has stopped sending messages. ${cap(they(n))} ${vb(n, 'are', 'is')} standing across the street from your door with ${their(n)} people behind ${them(n)}, and the whole block has gone quiet to watch.`, [
+        { id: 'partner', label: `Offer a partnership: ${money(HEIR.partner.cost)}`, effects: [...pay(w, HEIR.partner.cost), { k: 'heirEnd', how: 'partner' }], disabled: afford(w, HEIR.partner.cost) },
+        { id: 'duel', label: `Walk out and face ${them(n)} (${duelOdds(w)}%)`, effects: [{ k: 'heirEnd', how: 'duel' }] },
+        { id: 'kill', label: 'Have them killed before morning', effects: [{ k: 'heirEnd', how: 'kill' }] },
+      ], { npcId: n.id, factionId: f.id });
+    } },
   // ---------------------------------------------------------------- the family (`family.ts`): scheduled, never drawn
   { id: 'rat_found', weight: () => 0,
     build: (w, _rng, ctx) => {

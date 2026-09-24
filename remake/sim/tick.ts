@@ -11,6 +11,7 @@ import { tickFamily } from './family';
 import { tickSupply } from './supply';
 import { drawNumbers } from './backroom';
 import { tickCars } from './cars';
+import { tickStories } from './stories';
 import { hurtHours } from './fights';
 import { habitMorning } from './character';
 import { splitHours } from '@r/content/clock';
@@ -189,6 +190,8 @@ export function endDay(w: World, rng: Rng) {
   tickLaw(w, rng);
   tickCommission(w, rng);
   tickRegion(w, rng);
+  // stories last: they read the day's heat and files, and their cards come with the morning
+  tickStories(w);
 
   // ---- people's own lives: fear fades, trust settles, somebody always needs something
   for (const n of Object.values(w.npcs)) {

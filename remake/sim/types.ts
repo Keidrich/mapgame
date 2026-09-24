@@ -185,6 +185,8 @@ export interface Npc {
   face: number;
   role: Role;
   official?: OfficialKind;
+  /** Somebody whose story is you (`stories.ts`): the detective with your file, the heir with your name. */
+  nemesis?: 'detective' | 'heir';
   /** A captain's station house. */
   precinctId?: Id;
   homeBlockId: Id;
@@ -497,6 +499,13 @@ export interface GameEvent {
 
 /** Everything an event can do, as data — so an option can describe itself before you press it. */
 export type Effect =
+  /** Stories (`stories.ts`): the detective's file, his raid and his price; the heir's grudge and its end. */
+  | { k: 'detFile'; n: number }
+  | { k: 'detRaid' }
+  | { k: 'detKeep'; days: number }
+  | { k: 'detFree' }
+  | { k: 'heirGrudge'; n: number }
+  | { k: 'heirEnd'; how: 'partner' | 'duel' | 'kill' }
   | { k: 'table'; businessId: Id; npcId: Id; stake: number }
   | { k: 'cash'; n: number }
   | { k: 'dirty'; n: number }
@@ -645,6 +654,8 @@ export interface World {
   seed: number;
   rng: number;
   day: number;
+  /** The detective and the heir (`stories.ts`). */
+  stories?: { detective?: import('./stories').Detective; heir?: import('./stories').Heir };
   /** The card table you are sitting at, or the dice you just rolled (`backroom.ts`). */
   table?: Table;
   /** Last night's number. */

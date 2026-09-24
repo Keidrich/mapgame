@@ -7,6 +7,7 @@ import { ArmourySection } from './Armoury';
 import { HostageList } from './Hostages';
 import { NumbersSection } from './Backroom';
 import { GarageSection } from './Cars';
+import { DetectivePanel, HeirPanel } from './Stories';
 import { CommissionSection } from './Commission';
 import { CaseSection } from './JobFaction';
 import { Icon } from '@ui/icons';
@@ -186,6 +187,7 @@ export function EmpireTab() {
       {view === 'law' && <>
         <Meter value={p.heat} tone="heat" label="Heat" right={`${Math.round(p.heat)} — ${p.heat >= 80 ? 'they are coming' : p.heat >= 60 ? 'raids likely' : p.heat >= 30 ? 'noticed' : 'quiet'}`} />
         <p className="r-note">Heat falls by itself, faster the higher it is. Past 60 the police raid your rackets; at 100 they come through your door. A case file is different: it does not cool while its witnesses keep talking.</p>
+        <DetectivePanel />
         <Section title="Case files">
           {cases.length ? cases.map(c => <div key={c.id} className="r-case">
             <b>{c.summary}</b>
@@ -239,6 +241,7 @@ export function RivalsTab() {
   return (
     <div className="r-tab">
       <h2 className="r-tab-title">Rivals</h2>
+      <HeirPanel />
       <CommissionSection />
       <div className="r-rivals">{fs.map(f => {
         const stance = select.stanceOf(f, w.day);

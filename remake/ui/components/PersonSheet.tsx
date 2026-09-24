@@ -13,6 +13,8 @@ import { CaseSection } from './JobFaction';
 
 export function roleLine(w: World, n: Npc): string {
   const work = n.workId ? w.businesses[n.workId] : undefined;
+  if (n.nemesis === 'detective') return 'Detective, Organised Crime · has a file on you';
+  if (n.nemesis === 'heir' && n.faction) return `${n.role === 'boss' ? 'Boss' : 'Heir'} of ${w.factions[n.faction]?.name} · swore to bury you`;
   if (n.crew) return `Your crew · level ${n.crew.level}`;
   const sc = select.crewOf(w, n.id);
   if (sc) return `Runs the ${sc.name} — ${sc.members} on the corner`;

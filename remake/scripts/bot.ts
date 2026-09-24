@@ -31,7 +31,8 @@ export type Counter =
   | 'outlets_set' | 'drivers' | 'deliveries' | 'hijacked' | 'delivered_self'
   | 'trained' | 'boosts' | 'dried_out'
   | 'poker_hands' | 'poker_won' | 'cheated' | 'dice_rolls' | 'numbers_played'
-  | 'cars_stolen' | 'cars_chopped' | 'cars_resprayed' | 'cars_kept' | 'cars_sold';
+  | 'cars_stolen' | 'cars_chopped' | 'cars_resprayed' | 'cars_kept' | 'cars_sold'
+  | 'det_cards' | 'det_moves' | 'heir_cards' | 'heir_moves';
 
 export const SYSTEMS: { label: string; needs: Counter[] }[] = [
   { label: 'talking to people', needs: ['chats'] },
@@ -66,6 +67,8 @@ export const SYSTEMS: { label: string; needs: Counter[] }[] = [
   { label: 'the numbers', needs: ['numbers_played'] },
   { label: 'stealing cars', needs: ['cars_stolen'] },
   { label: 'the garage', needs: ['cars_chopped', 'cars_resprayed'] },
+  { label: 'the detective', needs: ['det_cards', 'det_moves'] },
+  { label: 'the heir', needs: ['heir_cards', 'heir_moves'] },
   { label: 'night encounters', needs: ['night_events'] },
   { label: 'diplomacy', needs: ['tributes', 'sitdowns'] },
   { label: 'lieutenants', needs: ['lieutenants'] },
@@ -221,6 +224,7 @@ function shift(c: Ctx) {
   region(c);   // before money: the stash is what a route ships, and money() sells it on the corner
   money(c);
   kit(c);
+  stories(c);
   cars(c);
   backroom(c);
   character(c);   // before the street work, which spends every hour it can find; rationed inside
@@ -334,6 +338,34 @@ function character(c: Ctx) {
   if (act(c, { type: 'train', skill, at: b.id })) bump(c, 'trained');
 }
 
+// --------------------------------------------------------------------------------------- stories
+/**
+ * The detective, once his file is past 45: blackmail if there is dirt; dig for it by day; bribe
+ * (once — if he turns out honest, never again); have him moved with a councillor on the payroll;
+ * the ruthless lean on him and the maniac makes him disappear. The heir: a gift once the grudge is
+ * past 70, and the talkers sit down with them.
+ */
+function stories(c: Ctx) {
+  const w = () => c.w; const p = () => w().player;
+  const purse = () => p().cash + p().dirty;
+  const d = select.detective(w());
+  if (d?.status === 'active' && d.file >= 45) {
+    const move = d.dirt ? 'blackmail'
+      : c.s.war === 'everyone' && d.file >= 70 ? 'disappear'
+      : !select.detBlock(w(), 'transfer') ? 'transfer'
+      : !c.seen.has('det-honest') && p().cash > select.bribePrice(d) * 2 ? 'bribe'
+      : c.s.threaten >= 1.4 && select.leanOdds(w(), d) >= 50 ? 'lean'
+      : 'dig';
+    const before = d.status;
+    if (act(c, { type: 'detective', move })) { bump(c, 'det_moves'); if (move === 'bribe' && select.detective(w())!.status === before) c.seen.add('det-honest'); }
+  }
+  const h = select.heir(w());
+  if (h?.status === 'active' && h.grudge >= 70) {
+    if (purse() > 6000 && act(c, { type: 'heir', move: 'gift' })) bump(c, 'heir_moves');
+    else if (c.s.threaten < 1 && select.meetOdds(w()) >= 50 && act(c, { type: 'heir', move: 'meet' })) bump(c, 'heir_moves');
+  }
+}
+
 // ------------------------------------------------------------------------------------------ cars
 /**
  * After day 20, the fighters take what is parked on their block or next door, every other night,
@@ -379,6 +411,8 @@ function backroom(c: Ctx) {
   const here = w().blocks[p().blockId];
   const spot = [here.id, ...here.neighborIds].flatMap(bid => w().blocks[bid].businessIds.map(id => w().businesses[id])).find(b => select.hasTable(w(), b));
   if (!spot) return;
+  // the collector rolls once, for the catalogue scenario's coverage: nobody else in the sweep is sure to
+  if (style === 'collector' && !c.seen.has('dice-once') && goTo(c, spot.blockId) && act(c, { type: 'dice', businessId: spot.id, stake: 50 })) { c.seen.add('dice-once'); bump(c, 'dice_rolls'); act(c, { type: 'table_leave' }); }
   if (style === 'maniac' && purse() > 5000 && w().day % 3 === 0 && goTo(c, spot.blockId)) {
     for (let i = 0; i < 2; i++) if (act(c, { type: 'dice', businessId: spot.id, stake: 200 })) bump(c, 'dice_rolls');
     act(c, { type: 'table_leave' });
@@ -459,7 +493,7 @@ function answerEverything(c: Ctx) {
     const e = c.w.events[0]; if (!e) break;
     const scored = e.options.filter(o => !o.disabled).map(o => ({ o, v: scoreEffects(c, o.effects) }));
     const pick = scored.sort((a, b) => b.v - a.v)[0]?.o ?? e.options[e.options.length - 1];
-    if (act(c, { type: 'resolve_event', eventId: e.id, optionId: pick.id })) { bump(c, 'events'); if (e.template.startsWith('night_')) bump(c, 'night_events'); if (e.template === 'rat_found') bump(c, 'rats_found'); if (e.template === 'coup') bump(c, 'coups'); if (e.template === 'night_ambush') { bump(c, 'ambushes'); if (pick.id === 'fight') { bump(c, 'fights'); if (c.w.fight?.won) bump(c, 'fights_won'); } } }
+    if (act(c, { type: 'resolve_event', eventId: e.id, optionId: pick.id })) { bump(c, 'events'); if (e.template.startsWith('night_')) bump(c, 'night_events'); if (e.template === 'rat_found') bump(c, 'rats_found'); if (e.template === 'coup') bump(c, 'coups'); if (e.template.startsWith('det_')) bump(c, 'det_cards'); if (e.template.startsWith('heir_')) bump(c, 'heir_cards'); if (e.template === 'night_ambush') { bump(c, 'ambushes'); if (pick.id === 'fight') { bump(c, 'fights'); if (c.w.fight?.won) bump(c, 'fights_won'); } } }
     else break;
   }
 }
@@ -482,6 +516,12 @@ function scoreEffects(c: Ctx, effects: World['events'][number]['options'][number
     // only the schemer takes the chair: the one-hand option's trust is what the steady bot builds on,
     // and taking the chair instead cost it four points of the city over five seeds
     if (e.k === 'table') v += c.s.cleverBonus > 0 ? 1 : -1;
+    // stories: his file and their grudge are debts that come due; the showdown by temperament
+    if (e.k === 'detFile') v -= e.n / 5;
+    if (e.k === 'detKeep') v += 3;
+    if (e.k === 'detFree') v -= 3;
+    if (e.k === 'heirGrudge') v -= e.n / 8;
+    if (e.k === 'heirEnd') v += e.how === 'partner' ? (c.s.peace ? 4 : 0) : e.how === 'duel' ? (select.duelOdds(c.w) - 55) / 8 : (c.s.war === 'everyone' ? 5 : -5);
   }
   return v;
 }

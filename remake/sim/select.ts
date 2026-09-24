@@ -32,6 +32,8 @@ export { hasTable, tableBlock, diceBlock, numbersBlock, yourNumbers, nextBlock, 
 export { POKER, DICE, NUMBERS } from '@r/content/backroom';
 export { parkedOn, stealOdds, garageRoom, chopper, sprayShop, chopValue, sellValue, getawayBonus } from './cars';
 export { MODELS, STEAL, CHOP, RESPRAY, SELL, GETAWAY } from '@r/content/cars';
+export { detective, heir, bribePrice, digOdds, leanOdds, meetOdds, duelOdds, detBlock, heirBlock } from './stories';
+export { DETECTIVE, HEIR } from '@r/content/stories';
 export { fightOdds, soldiersOn, sideOf, personPower, ambushOdds } from './fights';
 export { GUNS, BULLETS, HURT, ATTACK } from '@r/content/fights';
 export { MAKING, RANK_LABEL, RANK_BLURB, POSTS } from '@r/content/family';

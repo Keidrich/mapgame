@@ -888,6 +888,62 @@ Cars on the street, a garage, and cars on the job (`sim/cars.ts`; the numbers ar
 
 Car theft is heat, and the fighters live on the edge of the law.
 
+## 22. Stories
+
+Two people with your name in their mouths, whose arcs run for weeks (`sim/stories.ts`; the numbers
+are data in `content/stories.ts`; the turning points are schedule-only cards in `events.ts`).
+
+- **The detective.** He turns up at heat 40 or on day 14, whichever comes first. He is a real
+  person, made from his own rng stream, living in the city you are in. He is honest 60% of the
+  time.
+  - His file grows every night: 0.4, + heat/100, + 0.3 per open case against you.
+  - He acts once at each threshold:
+    - at 30, a car across the street (`det_watch`);
+    - at 60, a turned witness (`det_witness`), with a racketeering file if you let it ride;
+    - at 90, the raid (`det_raid`): half your dirty money, a racketeering file (evidence 50) with
+      him as the witness, and his file back to 40.
+  - What you can do (`detective {move}`; Empire → the law):
+    - dig (by day, 2 hours, 30% + 6% per point of brains) for dirt, then blackmail: file −50, and
+      he is bought for good;
+    - bribe with clean money: $4,000 + $40 per point of the file. An honest man writes it down
+      instead (+10). A bought man wants paying again after 20 days (`det_more`);
+    - lean on him: success is −20 on the file; failure is +15 and 5 heat;
+    - have him moved: a councillor on the payroll and $3,000;
+    - make him disappear, at night: $5,000, 35 heat and a murder file.
+- **The heir.** An heir rises in the outfit whose standing with you first sinks to −50: a
+  lieutenant if there is one, never the boss.
+  - The grudge starts at 40 and grows 0.5 a day, 1 while the outfit's standing is under −60. If
+    the boss dies, the heir takes the chair and the grudge jumps 20.
+  - A beat every week: a message (answer it, ignore it, or pay), then a hit on one of your
+    rackets (hit back at the odds, or swallow it).
+  - You can send a gift ($2,000, −15), or sit down with them at night (charm; −25, or +10 if it
+    goes badly).
+  - At 90, the showdown (`heir_showdown`):
+    - a partnership: $5,000, +50 standing and a 20-day truce;
+    - facing them in the street, at the odds of you and your guards against their people: a win
+      finishes them (respect +8); a loss hurts you and leaves the grudge at 60;
+    - having them killed: 20 heat and a war.
+- **Screen.** A detective panel on Empire → the law, and an heir panel on Rivals, each with a
+  meter and the moves. Their person sheets say who they are, and there is a line in How to play.
+- **Bots.**
+  - They answer the cards through effect scoring: the file and the grudge count as debts.
+  - Once his file is past 45, they deal with the detective: blackmail with dirt; the maniac makes
+    him disappear; a transfer with a councillor on the payroll; one bribe (never again once
+    refused); the ruthless lean on him; otherwise they dig.
+  - They gift the heir past a grudge of 70; the talkers sit down with them.
+
+**Balance.** Over five seeds the steady bot fell from 24.8% to 20.8%, but the detective barely
+touched it: no raids, and he was transferred early. Over ten fresh seeds (100–109), with stories
+against without:
+
+| Bot | Control | Outcome |
+|---|---|---|
+| Steady | 23.9% (21.7%) | none lost (none) |
+| Maniac | 20% | lost 5 of 10 (7 of 10) |
+
+The five-seed drop was chaos: a new person in the city and cards in the morning slots shift every
+later roll.
+
 ## 15. The road: the whole game
 
 The Remake is heading toward the full game its inspirations add up to: City of Gangsters (a

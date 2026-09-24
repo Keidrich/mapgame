@@ -14,6 +14,62 @@ House rules for an entry (see `CLAUDE.md` → *Leave a trail*):
 
 ---
 
+## 2026-09-24 — Remake: stories — the detective and the heir (roadmap 7 of 8)
+
+**What.** Two arcs that run for weeks instead of one card:
+- **A detective** keeps a file on you by name. At 30, 60 and 90 it brings surveillance, a turned
+  witness and a raid. You can dig up dirt and blackmail him, bribe him (if he is not honest), lean
+  on him, have him moved, or make him disappear.
+- **An heir** rises in an outfit that hates you. The grudge grows; weekly they send messages and
+  hits; at a full grudge there is a showdown: a partnership, facing them in the street, or a
+  killing.
+
+**Why.** Roadmap pillar 7 (`docs/REMAKE.md` §15, now §22). Everything in the city reacted to you in
+aggregate; nobody had a story with you in it.
+
+**How.**
+- **Data and sim.** `content/stories.ts` (`DETECTIVE`, `HEIR`). `sim/stories.ts`:
+  - the detective: `makeDetective` (his own rng stream), `tickDetective`, `detectiveRaid`,
+    `detBlock` / `detMove`;
+  - the heir: `makeHeir`, `tickHeir`, `heirBlock` / `heirMove`, `duelOdds`, `endHeir`;
+  - `tickStories`, run in `endDay` after the region.
+- **Cards and effects.** Nine schedule-only cards in `events.ts` (`det_intro`, `det_watch`,
+  `det_witness`, `det_raid`, `det_more`, `heir_oath`, `heir_message`, `heir_hit`,
+  `heir_showdown`). New effects `detFile`, `detRaid`, `detKeep`, `detFree`, `heirGrudge` and
+  `heirEnd`.
+- **New state and actions.** `World.stories` and `Npc.nemesis`, both optional (no migration, no save
+  bump). Actions `detective {move}` and `heir {move}`.
+- **Screen.** `ui/components/Stories.tsx`: a detective panel on Empire → the law and an heir panel on
+  Rivals. Their person sheets name them, and there is a line in How to play.
+- **Bots.** `stories()`, plus scoring for the new effects. Coverage rows "the detective" and "the
+  heir".
+- **Tests.** `remake/tests/stories.test.ts`, 6 of them.
+- **Coverage fixes.**
+  - The catalogue test now takes its union over seeds 7, 1, 3 and 11. `vote_buying` sits at the end
+    of a chain (`campaign_wash` first, $20k, four hands), and this pass's shifted dice left it
+    unreached on the first three.
+  - The collector rolls dice once, so the scenario sweep always covers dice.
+
+**Numbers.**
+- Over five seeds the steady bot read 20.8% (24.8% before). A ten-seed check on fresh seeds
+  (100–109) says that was chaos: steady 23.9% with stories against 21.7% without; the maniac lost 5
+  of 10 against 7.
+- The honest baseline in the original game is unchanged.
+
+**Watch out.**
+- One detective and one heir per game, not one per city. The detective works the city he was made
+  in, and a second city has none yet.
+- The detective is a new NPC. Adding a person shifts every pool the dice pick from, which is why
+  five-seed averages move for reasons that have nothing to do with him.
+- The heir's showdown duel is resolved on the odds, not played out as a fight report card.
+
+**Files.**
+- New: `remake/content/stories.ts`, `remake/sim/stories.ts`, `remake/tests/stories.test.ts`,
+  `remake/ui/components/Stories.tsx`.
+- Changed: `remake/sim/{types,actions,reducer,effects,events,tick,select}.ts`,
+  `remake/scripts/bot.ts`, `remake/ui/App.tsx`, `remake/ui/components/{PersonSheet,Tabs}.tsx`, and
+  `docs/REMAKE.md` §22.
+
 ## 2026-09-24 — Remake: cars — stealing, the garage, chop and respray, getaways (roadmap 6 of 8)
 
 **What.**
