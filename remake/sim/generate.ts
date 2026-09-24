@@ -70,7 +70,7 @@ export function newWorld(opts: NewGame): World {
     cash: bg.cash, dirty: 0, heat: 0, fear: opts.background === 'bruiser' ? 8 : 0, respect: 0, ap: splitHours(8).day, apMax: 8,
     blockId: start.id, crewIds: [], businessIds: [], racketIds: [], safehouseIds: [],
     stash: { booze: { n: 0, q: 0 }, green: { n: 0, q: 0 }, pills: { n: 0, q: 0 }, goods: { n: 0, q: 0 } },
-    armoury: [], kit: {}, lawyer: false, washedToday: 0, lowDays: 0, straightDays: 0, busts: 0, generation: 1,
+    armoury: [], kit: {}, bullets: 0, lawyer: false, washedToday: 0, lowDays: 0, straightDays: 0, busts: 0, generation: 1,
   };
   addInfluence(w, start.id, PLAYER, 12);
   // a couple of people on your own street already know your face
@@ -342,6 +342,7 @@ function pickStart(w: World, rng: Rng): Block {
  */
 export function migrate(w: World): World {
   // day and night: a save from before them wakes up in the morning with the day's half of its hours
+  if (w.player.bullets === undefined) w.player.bullets = 0;
   if (!w.phase) { w.phase = 'day'; w.player.ap = Math.min(w.player.ap, splitHours(w.player.apMax).day); }
   if (!w.crews) generateStreetCrews(w);
   migrateGear(w);

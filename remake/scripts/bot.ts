@@ -26,7 +26,8 @@ export type Counter =
   | 'kit_bought' | 'kit_equipped' | 'hostages_taken' | 'hostages_resolved' | 'crew_snatched' | 'ransom_paid'
   | 'meetings' | 'lobbied' | 'voted' | 'setpieces_cased' | 'setpiece_stages' | 'setpieces_done' | 'declared'
   | 'cities' | 'routes' | 'route_sales' | 'remote_jobs' | 'crew_moved' | 'nights' | 'night_events'
-  | 'made' | 'appointed' | 'rats_found' | 'coups';
+  | 'made' | 'appointed' | 'rats_found' | 'coups'
+  | 'fights' | 'fights_won' | 'ambushes' | 'bullets_bought';
 
 export const SYSTEMS: { label: string; needs: Counter[] }[] = [
   { label: 'talking to people', needs: ['chats'] },
@@ -51,6 +52,8 @@ export const SYSTEMS: { label: string; needs: Counter[] }[] = [
   { label: 'making members', needs: ['made'] },
   { label: 'the posts', needs: ['appointed'] },
   { label: 'rats and coups', needs: ['rats_found', 'coups'] },
+  { label: 'street fights', needs: ['fights', 'ambushes'] },
+  { label: 'buying rounds', needs: ['bullets_bought'] },
   { label: 'night encounters', needs: ['night_events'] },
   { label: 'diplomacy', needs: ['tributes', 'sitdowns'] },
   { label: 'lieutenants', needs: ['lieutenants'] },
@@ -193,6 +196,7 @@ function shift(c: Ctx) {
   manageCrew(c);
   family(c);
   legal(c);
+  fights(c);
   hostages(c);
   // building comes before the street work: the street loop spends every action point it can
   // find, and a safehouse needs one — the first draft never rented a single one in sixty days
@@ -206,6 +210,32 @@ function shift(c: Ctx) {
   politics(c);
   commission(c);
   answerEverything(c);
+}
+
+// ------------------------------------------------------------------------------------ fights
+/**
+ * Rounds for whoever carries a gun, and — after dark, for the temperaments that fight wars — taking
+ * it to an outfit you are at war or beef with, on one of its blocks next to you, when the odds are
+ * good enough for the temperament. A war the bot is not in is a war it does not start here.
+ */
+function fights(c: Ctx) {
+  const w = () => c.w; const p = () => w().player;
+  const armed = [PLAYER as string, ...p().crewIds].some(id => select.GUNS.includes((id === PLAYER ? p().kit : w().npcs[id]?.crew?.kit)?.weapon as never));
+  if (armed && p().bullets < 30 && p().cash + p().dirty > 3000 && act(c, { type: 'buy_bullets', n: 100, at: 'fixer' })) bump(c, 'bullets_bought');
+  if (c.s.war === 'never' || !select.isNight(w()) || p().ap < select.ATTACK.ap + 1) return;
+  const need = c.s.war === 'everyone' ? 45 : 58;
+  const here = w().blocks[p().blockId];
+  const city = select.currentCity(w());
+  const crew = select.crew(w()).filter(n => (n.crew!.cityId || 'c0') === city && n.crew!.status === 'ready' && n.crew!.assignment?.kind !== 'job').sort((a, b) => b.skills.muscle - a.skills.muscle).slice(0, select.ATTACK.maxCrew);
+  for (const bid of [here.id, ...here.neighborIds]) {
+    const b = w().blocks[bid];
+    const f = Object.values(w().factions).find(x => x.alive && (b.influence[x.id] ?? 0) >= 10 && ['war', 'beef'].includes(select.stanceOf(x, w().day)) && !(x.truceUntil !== undefined && w().day < x.truceUntil));
+    if (!f) continue;
+    if (select.fightOdds(w(), select.sideOf(w(), crew.map(n => n.id)), select.soldiersOn(w(), f)) < need) continue;
+    if (!goTo(c, bid)) continue;
+    if (act(c, { type: 'attack', factionId: f.id, blockId: bid, crewIds: crew.map(n => n.id) })) { bump(c, 'fights'); if (w().fight?.won) bump(c, 'fights_won'); }
+    break;
+  }
 }
 
 // ------------------------------------------------------------------------------------ the law
@@ -261,7 +291,7 @@ function answerEverything(c: Ctx) {
     const e = c.w.events[0]; if (!e) break;
     const scored = e.options.filter(o => !o.disabled).map(o => ({ o, v: scoreEffects(c, o.effects) }));
     const pick = scored.sort((a, b) => b.v - a.v)[0]?.o ?? e.options[e.options.length - 1];
-    if (act(c, { type: 'resolve_event', eventId: e.id, optionId: pick.id })) { bump(c, 'events'); if (e.template.startsWith('night_')) bump(c, 'night_events'); if (e.template === 'rat_found') bump(c, 'rats_found'); if (e.template === 'coup') bump(c, 'coups'); }
+    if (act(c, { type: 'resolve_event', eventId: e.id, optionId: pick.id })) { bump(c, 'events'); if (e.template.startsWith('night_')) bump(c, 'night_events'); if (e.template === 'rat_found') bump(c, 'rats_found'); if (e.template === 'coup') bump(c, 'coups'); if (e.template === 'night_ambush') { bump(c, 'ambushes'); if (pick.id === 'fight') { bump(c, 'fights'); if (c.w.fight?.won) bump(c, 'fights_won'); } } }
     else break;
   }
 }
@@ -279,6 +309,8 @@ function scoreEffects(c: Ctx, effects: World['events'][number]['options'][number
     if (e.k === 'jobOffer' || e.k === 'agendaKnown' || e.k === 'secretKnown' || e.k === 'recruit') v += 2;
     if (e.k === 'fire' || e.k === 'injure' || e.k === 'jail' || e.k === 'kill') v -= 3;
     if (e.k === 'goods' || e.k === 'product') v += e.n * 0.05;
+    // a fight is worth its odds: a sure one is a win, a coin toss is somebody in hospital
+    if (e.k === 'fight') v += (e.odds - 55) / 8;
   }
   return v;
 }

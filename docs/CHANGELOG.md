@@ -14,6 +14,50 @@ House rules for an entry (see `CLAUDE.md` → *Leave a trail*):
 
 ---
 
+## 2026-09-24 — Remake: fights — rounds, bullets, taking it to them, ambushes, the hospital (roadmap 2 of 8)
+
+**What.** Fights you can start, and fights that come to you, all resolved one way:
+- three rounds, where muscle, kit, loaded guns and numbers count;
+- a fight report card, round by round;
+- attacking a rival's soldiers on their block after dark;
+- ambushes at nightfall from outfits at war or beef with you;
+- bullets as a resource;
+- being hurt costs you hours until you mend, or until a doctor patches you up.
+
+**Why.** Roadmap pillar 2 (`docs/REMAKE.md` §15). The user: "Do the whole roadmap please."
+
+**How.**
+- **Data and sim.** `content/fights.ts` holds the numbers; `sim/fights.ts` has `personPower`,
+  `soldiersOn`, `fightOdds` (the same model as the dice, so the button is honest), `brawl`,
+  `attack`, `ambush`, `ambushOdds` and `hurtHours`.
+- **New state.** `Player.bullets` (migrated to 0), `Player.hurtDays`, `World.fight`.
+- **New actions and events.** Actions `attack` (night only), `buy_bullets`, `patch_up` and
+  `seen_fight`. Effect `fight`. A `night_ambush` encounter.
+- **Screen.** A FightCard, a "Take it to them" section on rival blocks, rounds for sale where guns
+  are sold, the doctor on the kit view, and "Hurt Nd" in the ledger bar.
+- **Bots.** `fights()` buys rounds and attacks when the odds clear the temperament's bar, and
+  ambushes are scored by their odds.
+- **Tests.** `remake/tests/fights.test.ts`, 7 of them. The first run caught rival blocks being
+  close to unwinnable: 1% for five strong fighters. The soldiers were recalibrated.
+
+**Numbers** (five seeds, 60 days):
+- Ruthless: 17.8 fights, 15.6 won; control 26.5%; never convicted.
+- Maniac: 20 fights; convicted in 2 of 5, killed in 1.
+- Steady: control 24.3%; never convicted.
+- The honest baseline in the original game is unchanged.
+
+**Watch out.**
+- Crew can die in a fight against an armed outfit (12% per blow).
+- The player cannot die in a street fight, only be hurt. Deaths still come from the existing
+  faction hits.
+- No save bump.
+
+**Files.**
+- New: `remake/content/fights.ts`, `remake/sim/fights.ts`, `remake/tests/fights.test.ts`.
+- Changed: `remake/sim/{types,actions,reducer,tick,effects,events,generate,select}.ts`,
+  `remake/content/clock.ts`, `remake/scripts/bot.ts`, `remake/ui/{App.tsx,remake.css}`,
+  `remake/ui/components/{PlaceSheets,Armoury}.tsx`, and `docs/REMAKE.md` §17.
+
 ## 2026-09-24 — Remake: the family — ranks, the making ceremony, consigliere and underboss, rats and coups (roadmap 1 of 8)
 
 **What.** Crew become a family, with ranks and posts that do real work, and betrayal that can hurt you:

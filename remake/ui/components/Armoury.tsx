@@ -23,6 +23,7 @@ export function ShopSection({ at, title }: { at: Id | 'fixer'; title: string }) 
         const d = ITEMS[id];
         return <Row key={id} left={<Icon name={d.icon} />} title={`${d.label} · ${SLOT_LABEL[d.slot].toLowerCase()}`} sub={`${itemLine(id)} — ${d.blurb}`} right={<Do action={{ type: 'buy_item', item: id, at }} label={fmt(d.price)} small />} />;
       })}
+      {items.some(i => select.GUNS.includes(i)) && <Row left={<Icon name="pistol" />} title={`Rounds · you have ${w.player.bullets}`} sub={`${fmt(select.BULLETS.price)} each. A gun without them is something to swing.`} right={<div className="r-inline-actions">{select.BULLETS.packs.map(n => <Do key={n} action={{ type: 'buy_bullets', n, at }} label={`${n}`} small />)}</div>} />}
       <p className="r-note">It goes on you if you have nothing in that slot; otherwise into the armoury, to hand out.</p>
     </Section>
   );
@@ -46,7 +47,10 @@ export function ArmourySection() {
   const fx = w.fixerId ? w.npcs[w.fixerId] : undefined;
   return (
     <>
-      <Section title="On you"><KitList who={PLAYER} /></Section>
+      <Section title="On you" right={<span className="r-note">{p.bullets} rounds</span>}>
+        <KitList who={PLAYER} />
+        {p.hurtDays ? <Do action={{ type: 'patch_up' }} label={`See the fixer's doctor (${fmt(select.HURT.doctor)})`} icon="help" block sub={`You are hurt: ${p.hurtDays} days mending, ${select.HURT.hoursLost} fewer hours each morning. The doctor halves it.`} /> : null}
+      </Section>
       <Section title={`The armoury (${p.armoury.length})`}>
         {p.armoury.length ? p.armoury.map((id, i) => {
           const d = ITEMS[id];

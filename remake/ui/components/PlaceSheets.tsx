@@ -56,6 +56,7 @@ export function BlockSheet({ id }: { id: string }) {
           <Do action={{ type: 'case', kind: 'setpiece', blockId: id }} label={`Case ${b.landmark}`} icon="crown" block sub="A day around the place. The job goes on your board with a head start on the planning." />
         </Section>
       ); })()}
+      <TakeItToThem blockId={id} />
       <CaseSection target={{ blockId: id }} only={k => select.jobTarget(k) !== 'none'} title="Work these streets" note={`Jobs on ${b.name} itself, and across ${d.name}.`} />
       <Section title="Places">
         {biz.length ? biz.map(x => <BizRow key={x.id} id={x.id} />) : <Empty>No businesses on this block.</Empty>}
@@ -164,5 +165,29 @@ export function SafehousePanel({ id }: { id: string }) {
       <HostageList filter={h => h.safehouseId === id} />
       <div className="r-inline-actions">{(Object.keys(LABS) as LabKind[]).filter(k => !s.labs.some(l => l.kind === k)).map(k => <Do key={k} action={{ type: 'build_lab', safehouseId: id, kind: k }} label={`Build a ${LABS[k].label.toLowerCase()}`} icon={k === 'lab' ? 'lab' : k === 'grow' ? 'grow_op' : 'still'} small />)}</div>
     </div>
+  );
+}
+
+/**
+ * A rival's soldiers on this block, and what it would take to run them off: you and the hardest of
+ * your people who are free here, against however many of theirs stand on it. After dark, standing
+ * on the block. The odds are the fight's own (`fights.fightOdds`).
+ */
+function TakeItToThem({ blockId }: { blockId: string }) {
+  const w = useWorld();
+  const b = w.blocks[blockId];
+  const f = Object.values(w.factions).filter(x => x.alive && (b.influence[x.id] ?? 0) >= 10).sort((x, y) => (b.influence[y.id] ?? 0) - (b.influence[x.id] ?? 0))[0];
+  if (!f) return null;
+  const city = select.cityOfBlock(w, blockId);
+  const crew = select.crew(w).filter(n => (n.crew!.cityId || 'c0') === city && n.crew!.status === 'ready' && n.crew!.assignment?.kind !== 'job')
+    .sort((x, y) => y.skills.muscle - x.skills.muscle).slice(0, select.ATTACK.maxCrew);
+  const side = select.sideOf(w, crew.map(n => n.id));
+  const them = select.soldiersOn(w, f);
+  const odds = select.fightOdds(w, side, them);
+  return (
+    <Section title="Take it to them" right={<Chip tone={odds >= 60 ? 'green' : odds >= 40 ? 'gold' : 'red'}>{odds}%</Chip>}>
+      <p className="r-note">About {them.count} of the {f.short}'s soldiers stand on {b.name}{them.guns ? ', armed' : ''}. You would go in with {crew.length ? crew.map(n => n.first).join(', ') : 'nobody but yourself'}{w.player.bullets ? `, and ${w.player.bullets} rounds` : ' and no rounds'}. Win and the block leans your way and they are short of men; lose and your people end up in hospital. Either way it is war talk.</p>
+      <Do action={{ type: 'attack', factionId: f.id, blockId, crewIds: crew.map(n => n.id) }} label={`Hit the ${f.short} on ${b.name}`} icon="fist" kind="danger" block confirm="Tap again: this is a fight" />
+    </Section>
   );
 }

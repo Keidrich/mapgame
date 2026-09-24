@@ -526,6 +526,8 @@ export type Effect =
   | { k: 'log'; text: string; tone: Tone }
   /** The family: feed a rat lies, a capo walks off with his district, or a showdown decided on the night. */
   | { k: 'ratFed'; npcId: Id }
+  /** An ambush: a fight with an outfit's soldiers where you stand, resolved on the night. */
+  | { k: 'fight'; factionId: Owner; odds: number }
   | { k: 'defect'; npcId: Id }
   | { k: 'showdown'; npcId: Id; chance: number };
 
@@ -582,6 +584,10 @@ export interface Player {
   busts: number;
   /** Once the player has been taken off the board: an heir from the crew plays on. */
   generation: number;
+  /** Rounds for the guns (`fights.ts`). */
+  bullets: number;
+  /** Days still mending from a fight: fewer hours each morning until it is zero. */
+  hurtDays?: number;
   /** The posts at the top of the family (`family.ts`). */
   family?: { consigliere?: Id; underboss?: Id };
 }
@@ -590,11 +596,16 @@ export interface DaySummary { day: number; clean: number; dirty: number; spent: 
 
 export type Ending = 'kingpin' | 'straight' | 'dead' | 'convicted' | 'broke';
 
+/** A fight, as it is shown: a title, what happened each round, and who won. */
+export interface FightReport { day: number; title: string; lines: string[]; won: boolean; seen?: boolean; down?: number }
+
 export interface World {
   version: number;
   seed: number;
   rng: number;
   day: number;
+  /** The last fight, round by round, until you have read it (`fights.ts`). */
+  fight?: FightReport;
   /** Which half of the day it is (`sim/clock.ts`). Absent in saves from before day and night: day. */
   phase?: 'day' | 'night';
   city: City;

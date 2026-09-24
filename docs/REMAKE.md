@@ -641,6 +641,56 @@ Crew are a family now (`sim/family.ts`; the numbers are data in `content/family.
 | Ruthless | 23% | 1 of 5 |
 | Maniac | — | 3 of 5 |
 
+## 17. Fights
+
+One resolver for every fight (`sim/fights.ts`; the numbers are data in `content/fights.ts`).
+
+- **The fight.**
+  - It is three rounds. Each side's power rolls up or down a quarter every round.
+  - A person is worth a base of 20, plus 6 per point of muscle (kit included), plus 25 for a gun
+    *with bullets behind it*. Each gunman spends 3 rounds a round, and an empty gun is something to
+    swing.
+  - The round's winner puts somebody on the other side down.
+  - Armour (`armourOf`) can turn a blow aside.
+  - Against guns, a blow kills 12% of the time. You are never killed in a street fight; you are hurt
+    for 4–8 days.
+  - Best of three wins. The odds on every button are `fightOdds`, the same model.
+- **Their side.** A rival's soldiers on one of its blocks: soldiers ÷ blocks held × 1.2, between 2
+  and 6. Each is worth 36, or 50 if the outfit has $20k to arm them. The first cut (42, ×2, up to 7)
+  gave five of your hardest people 1% against a full block.
+- **Taking it to them** (`attack`; block sheet → "Take it to them"):
+  - The rules: after dark, standing on a block the outfit holds, never inside a truce, never against
+    allies. It costs 2 hours, and you bring up to five of your people.
+  - Win:
+    - their soldiers there are down;
+    - the block leans your way (+12 yours, −15 theirs);
+    - fear +4, respect +2;
+    - standing −15 with them;
+    - heat +6 (+4 more with guns).
+  - Lose: the people who went down are in hospital, and standing falls anyway.
+- **Ambushes** (`night_ambush`). Most nights with an outfit at war or beef with you, the night
+  encounter can be them, waiting. The card offers three choices:
+  - stand and fight, at the odds, alongside whoever is guarding the block;
+  - slip out the kitchen door;
+  - pay them off.
+- **Rounds** (`buy_bullets`) come in boxes of 25 or 100, at $6 each, wherever a gun is sold and from
+  the fixer.
+- **Hurt.** While `hurtDays` lasts, each morning has 3 fewer hours (never under 3). The fixer's
+  doctor (`patch_up`, $1,200) halves it.
+- **Screen.** A fight report card, round by round, shows until read (`World.fight`, `seen_fight`).
+  The ledger bar shows "Hurt Nd". The kit view shows your rounds and the doctor.
+- **Bots.** They buy rounds when armed. The ruthless and the maniac take it to an outfit at war or
+  beef on a block next to them when the odds clear their bar (58%, or 45% for the maniac). Every bot
+  answers ambushes by the odds.
+
+**Balance (five seeds, 60 days):**
+
+| Bot | Fights (won) | Control | Worth | Outcome |
+|---|---|---|---|---|
+| Ruthless | 17.8 (15.6) | 26.5% | $89k | never convicted |
+| Maniac | 20 | 14% | — | convicted in 2 of 5, killed in 1 |
+| Steady | — | 24.3% | — | never convicted |
+
 ## 15. The road: the whole game
 
 The Remake is heading toward the full game its inspirations add up to: City of Gangsters (a

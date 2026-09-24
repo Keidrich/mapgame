@@ -11,6 +11,7 @@ import type { Effect, World } from './types';
 import { addHeat, addInfluence, clamp, fullName, log, money, shortName } from './util';
 import { crewCut } from './economy';
 import { RAT } from '@r/content/family';
+import { ambush } from './fights';
 import { PLAYER } from './types';
 
 export function apply(w: World, effects: Effect[], rng: Rng) {
@@ -50,6 +51,7 @@ export function apply(w: World, effects: Effect[], rng: Rng) {
       case 'log': log(w, e.text, e.tone); break;
       case 'ratFed': { const n = w.npcs[e.npcId]; if (n?.crew?.rat) { n.crew.rat.fed = true; const worst = Object.values(w.cases).filter(c => c.status === 'open' && c.suspectId === PLAYER).sort((a, b) => b.evidence - a.evidence)[0]; if (worst) worst.evidence = clamp(worst.evidence - RAT.fedCut); log(w, `${fullName(n)} goes on talking, and now it is your story they tell.`, 'good', { npcId: n.id }); } break; }
       case 'defect': defect(w, e.npcId); break;
+      case 'fight': ambush(w, rng, e.factionId); break;
       case 'showdown': {
         const n = w.npcs[e.npcId]; if (!n?.crew) break;
         if (rng.float() * 100 < e.chance) { n.crew.loyalty = clamp(n.crew.loyalty + 20); p.fear = clamp(p.fear + 5, 0, 100); log(w, `${fullName(n)} looks at you a long time, and backs down.`, 'good', { npcId: n.id }); }
@@ -112,6 +114,7 @@ export function describe(w: World, effects: Effect[]): string {
       case 'racketDown': out.push(`a racket shut ${e.days}d`); break;
       case 'jobOffer': out.push('a job on your board'); break;
       case 'ratFed': out.push(`${name(w, e.npcId)} starts carrying your lies to the police`); break;
+      case 'fight': out.push(`a fight: about ${e.odds}% to see them off`); break;
       case 'defect': out.push(`${name(w, e.npcId)} walks, and their district goes dark`); break;
       case 'showdown': out.push(`${e.chance}% they back down; otherwise they walk with their district`); break;
       default: break;

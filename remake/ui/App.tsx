@@ -107,7 +107,8 @@ function Game() {
       )}
       {recap && <RecapCard />}
       {!recap && paused?.complication && <ComplicationCard />}
-      {!recap && !paused && !dusk && w.events.length > 0 && <EventCard />}
+      {!recap && !dusk && w.fight && !w.fight.seen && <FightCard />}
+      {!recap && !paused && !dusk && !(w.fight && !w.fight.seen) && w.events.length > 0 && <EventCard />}
       {w.won && !w.wonSeen && !recap && <WinCard />}
       {w.over && <OverCard />}
       <Toasts />
@@ -137,7 +138,7 @@ function Hud() {
         <button type="button" className="r-dayno" onClick={() => openSheet({ kind: 'menu' })} aria-label={`${night ? 'Night' : 'Day'} ${w.day}. Menu`}><span>{night ? 'Night' : 'Day'}</span><b>{w.day}</b></button>
         <button type="button" className="r-who" onClick={() => setTab('empire')} aria-label="Your empire">
           <b>{p.nick ? `"${p.nick}"` : p.name} · {select.cityName(w, select.currentCity(w))}</b>
-          <span>{rank.label}{next ? <><i title={`${next.at - n} more fear and respect to ${next.label}`}><u style={{ width: `${pct}%` }} /></i>{next.label}</> : null}</span>
+          <span>{p.hurtDays ? <em className="r-hurt">Hurt {p.hurtDays}d</em> : null}{rank.label}{next ? <><i title={`${next.at - n} more fear and respect to ${next.label}`}><u style={{ width: `${pct}%` }} /></i>{next.label}</> : null}</span>
         </button>
         <button type="button" className="r-iconbtn" onClick={() => openSheet({ kind: 'menu' })} aria-label="Menu"><svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><circle cx="3.5" cy="9" r="1.6" fill="currentColor" /><circle cx="9" cy="9" r="1.6" fill="currentColor" /><circle cx="14.5" cy="9" r="1.6" fill="currentColor" /></svg></button>
       </div>
@@ -277,6 +278,23 @@ function EventCard() {
             </button>
           ))}
         </div>
+      </div>
+    </div>
+  );
+}
+
+/** A fight, round by round, until it has been read. */
+function FightCard() {
+  const w = useWorld();
+  const f = w.fight!;
+  return (
+    <div className="r-modal" role="dialog" aria-modal="true" aria-labelledby="r-fight-title">
+      <div className={`r-card${f.won ? '' : ' danger'}`}>
+        <div className="r-kicker">{f.won ? 'You won' : 'You lost'} · {select.isNight(w) ? 'Night' : 'Day'} {f.day}</div>
+        <h2 id="r-fight-title">{f.title}</h2>
+        <ol className="r-fight-lines">{f.lines.map((l, i) => <li key={i}>{l}</li>)}</ol>
+        <p className="r-note">{w.player.bullets} rounds left{w.player.hurtDays ? ` · you are hurt: ${w.player.hurtDays} days mending, fewer hours each morning` : ''}.</p>
+        <Do action={{ type: 'seen_fight' }} label="Right" kind="primary" block />
       </div>
     </div>
   );

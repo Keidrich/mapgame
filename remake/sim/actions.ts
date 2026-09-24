@@ -53,6 +53,10 @@ export type Action =
   | { type: 'lay_low'; days: number }
   | { type: 'resolve_event'; eventId: Id; optionId: string }
   | { type: 'retire' }
+  | { type: 'attack'; factionId: Owner; blockId: Id; crewIds: Id[] }
+  | { type: 'buy_bullets'; n: number; at: Id | 'fixer' }
+  | { type: 'patch_up' }
+  | { type: 'seen_fight' }
   | { type: 'make_member'; npcId: Id }
   | { type: 'appoint'; post: 'consigliere' | 'underboss'; npcId: Id | null }
   | { type: 'nightfall' }

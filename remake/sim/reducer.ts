@@ -8,7 +8,7 @@
 import { BUSINESSES, LABS, RACKETS, SAFEHOUSE_TIERS, SLOTS, SPECIALISTS } from '@r/content/world';
 import { fixerCap, fixerRate, streetPrice, upgradeCost } from './economy';
 import { apply } from './effects';
-import { sitDown, sitDownOdds, tributeEffect } from './factions';
+import { sitDown, sitDownOdds, stanceOf, tributeEffect } from './factions';
 import { answerComplication, buildJob, caseKinds, dropJob, hireSpecialist, launchJob, present, setpieceOpen, SETPIECE_REST, specialistFee, takeJob } from './jobs';
 import { openCases } from './law';
 import { ITEMS } from '@r/content/kit';
@@ -26,6 +26,8 @@ import { blockCity, crewCity, travelCost } from './select-core';
 import { closedNow, isNight, nightfall } from './clock';
 import { appoint, auditBonus, makeBlock, makeMember } from './family';
 import { MAKING } from '@r/content/family';
+import { ATTACK, BULLETS, GUNS, HURT } from '@r/content/fights';
+import { attack } from './fights';
 import { endDay, STRAIGHT } from './tick';
 import type { Action, Affordance } from './actions';
 import { no, yes } from './actions';
@@ -299,6 +301,29 @@ function canInner(w: World, a: Action): Affordance {
       return o.disabled ? no(o.disabled) : yes();
     }
     case 'retire': return p.straightDays >= STRAIGHT.days ? yes() : no(`Getting out needs ${money(STRAIGHT.clean)} clean, heat under ${STRAIGHT.heat} and no open files, held for ${STRAIGHT.days} days (${p.straightDays} so far).`);
+    case 'attack': {
+      const f = w.factions[a.factionId]; if (!f?.alive) return no('There is nobody left to fight.');
+      const b = w.blocks[a.blockId]; if (!b) return no('Nowhere.');
+      if (p.blockId !== a.blockId) return no(`Go to ${b.name} first.`);
+      if ((b.influence[a.factionId] ?? 0) < 10) return no(`The ${f.short} have nobody on ${b.name} to fight.`);
+      const st = stanceOf(f, w.day);
+      if (st === 'allied') return no(`The ${f.short} are your allies.`);
+      if (f.truceUntil !== undefined && w.day < f.truceUntil) return no(`You gave your word: a truce until day ${f.truceUntil}.`);
+      if (busy) return no(busy);
+      const e = ap(ATTACK.ap); return e ? no(e) : yes({ ap: ATTACK.ap });
+    }
+    case 'buy_bullets': {
+      if (!BULLETS.packs.includes(a.n)) return no('They come in boxes.');
+      if (a.at === 'fixer') { const fx = w.fixerId ? w.npcs[w.fixerId] : undefined; if (!fx?.alive || !fx.rel.met) return no('Find the fixer first.'); }
+      else { const b = w.businesses[a.at]; if (!b || !shopItems(w, a.at).some(i => GUNS.includes(i))) return no('Nobody here sells rounds.'); if (b.blockId !== p.blockId) return no(`You have to be there: ${w.blocks[b.blockId].name}.`); }
+      const c = a.n * BULLETS.price; const e = cost(w, c); return e ? no(e) : yes({ cash: c });
+    }
+    case 'patch_up': {
+      if (!p.hurtDays) return no('Nothing to patch up.');
+      const fx = w.fixerId ? w.npcs[w.fixerId] : undefined; if (!fx?.alive || !fx.rel.met) return no('The fixer knows a doctor. Find the fixer first.');
+      const e = cost(w, HURT.doctor); return e ? no(e) : yes({ cash: HURT.doctor });
+    }
+    case 'seen_fight': return w.fight && !w.fight.seen ? yes() : no('Nothing to read.');
     case 'make_member': {
       const n = w.npcs[a.npcId]; if (!n) return no('Nobody.');
       const why = makeBlock(n); if (why) return no(why);
@@ -480,6 +505,10 @@ export function dispatch(world: World, a: Action): World {
       break;
     }
     case 'retire': { w.retired = true; w.over = { ending: 'straight', day: w.day, text: `You walk away with ${money(p.cash)} clean and nobody looking for you. In ${w.city.name} they still tell stories.` }; break; }
+    case 'attack': attack(w, rng, a.factionId, a.blockId, a.crewIds); break;
+    case 'buy_bullets': spend(w, a.n * BULLETS.price); p.bullets += a.n; log(w, `A box of ${a.n} rounds.`, 'info'); break;
+    case 'patch_up': spend(w, HURT.doctor); p.hurtDays = Math.floor((p.hurtDays ?? 0) / 2); log(w, 'A doctor who does not write anything down sets it, stitches it, and takes cash.', 'good'); break;
+    case 'seen_fight': if (w.fight) w.fight.seen = true; break;
     case 'make_member': spend(w, MAKING.cost); makeMember(w, w.npcs[a.npcId]); break;
     case 'appoint': appoint(w, a.post, a.npcId ? w.npcs[a.npcId] : undefined); break;
     case 'nightfall': nightfall(w, rng); break;

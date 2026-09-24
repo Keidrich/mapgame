@@ -17,6 +17,7 @@ import { cap, fullName, money, nid, shortName, they, their, them, theName, vb } 
 import { agendaLine } from './scenes';
 import { bedsTotal, playerBlocks } from './select-core';
 import { crewCut } from './economy';
+import { ambushOdds } from './fights';
 
 interface Ctx { npcId?: Id; businessId?: Id; factionId?: Id }
 interface Template {
@@ -372,6 +373,18 @@ function nightSpots(w: World): Business[] {
 const regulars = (w: World, b: Business) => b.patronIds.map(id => w.npcs[id]).filter((n): n is Npc => !!n?.alive && !n.crew && !n.faction && !n.official);
 
 export const NIGHT: Template[] = [
+  { id: 'night_ambush', half: 'night', weight: w => (Object.values(w.factions).some(f => f.alive && (stanceOf(f, w.day) === 'war' || stanceOf(f, w.day) === 'beef') && f.soldiers > 0) ? 4 : 0),
+    build: (w, rng) => {
+      const f = rng.pick(Object.values(w.factions).filter(x => x.alive && (stanceOf(x, w.day) === 'war' || stanceOf(x, w.day) === 'beef') && x.soldiers > 0));
+      const here = w.blocks[w.player.blockId];
+      const odds = ambushOdds(w, f.id);
+      const price = Math.round((800 + f.soldiers * 60) / 100) * 100;
+      return card(w, `The ${f.short} are waiting`, `A car idling across from where you are on ${here.name}, lights off, four shapes in it. When you step out, the doors open. ${w.player.bullets ? `You have ${w.player.bullets} rounds.` : 'You have nothing to shoot with.'}`, [
+        { id: 'fight', label: `Stand and fight (${odds}%)`, effects: [{ k: 'fight', factionId: f.id, odds }] },
+        { id: 'run', label: 'Back inside, out the kitchen door', effects: [{ k: 'respect', n: -2 }, { k: 'fear', n: -1 }] },
+        { id: 'pay', label: `Hand over ${money(price)} and a message for their boss`, effects: [...pay(w, price), { k: 'standing', factionId: f.id, n: 8 }], disabled: afford(w, price) },
+      ], { factionId: f.id });
+    } },
   { id: 'night_cards', half: 'night', weight: w => (nightSpots(w).some(b => regulars(w, b).length) ? 3 : 0),
     build: (w, rng) => {
       const b = rng.pick(nightSpots(w).filter(x => regulars(w, x).length)); const n = rng.pick(regulars(w, b));
