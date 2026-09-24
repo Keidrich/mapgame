@@ -31,6 +31,8 @@ export interface UiState {
   toasts: Toast[];
   recap: Recap | null;
   layer: Layer;
+  /** The map in 3D (`CityMap3D.tsx`) instead of flat. A device setting, remembered on this device, not in the save. */
+  map3d: boolean;
   /** A request for the map to fly somewhere. Bumped, not stored: the map reads and clears it. */
   focus?: { blockId: Id; n: number };
   /** A city you are looking at on the map without being there (the region sheet's "look at the map"). */
@@ -38,7 +40,9 @@ export interface UiState {
   slots: (SlotInfo | null)[];
 }
 
-let state: UiState = { world: null, booting: true, tab: 'map', sheets: [], toasts: [], recap: null, layer: 'control', slots: [null, null, null] };
+const MAP3D_KEY = 'rackets.remake.map3d.v1';
+const readMap3d = () => { try { return localStorage.getItem(MAP3D_KEY) === '1'; } catch { return false; } };
+let state: UiState = { world: null, booting: true, tab: 'map', sheets: [], toasts: [], recap: null, layer: 'control', map3d: readMap3d(), slots: [null, null, null] };
 const listeners = new Set<() => void>();
 function set(p: Partial<UiState>) { state = { ...state, ...p }; for (const l of listeners) l(); }
 const subscribe = (l: () => void) => { listeners.add(l); return () => { listeners.delete(l); }; };
@@ -208,6 +212,7 @@ export function closeSheet() { set({ sheets: state.sheets.slice(0, -1) }); }
 export function closeSheets() { set({ sheets: [] }); }
 export function closeRecap() { set({ recap: null }); }
 export function setLayer(layer: Layer) { set({ layer }); }
+export function setMap3d(on: boolean) { set({ map3d: on }); try { localStorage.setItem(MAP3D_KEY, on ? '1' : '0'); } catch { /* this session only */ } }
 /** Look at another city's map from where you are; undefined looks back at your own. */
 export function viewCity(id: string | undefined, focusOn?: Id) { set({ viewCity: id, tab: 'map', sheets: [], ...(focusOn ? { focus: { blockId: focusOn, n: Date.now() } } : {}) }); }
 export function focusBlock(blockId: Id) { set({ focus: { blockId, n: Date.now() }, tab: 'map', sheets: [] }); }

@@ -14,6 +14,45 @@ House rules for an entry (see `CLAUDE.md` → *Leave a trail*):
 
 ---
 
+## 2026-09-24 — Remake: the city in 3D (three.js), behind a 3D/2D toggle
+
+**What.** A 3D map of the city: every lot extruded into a building, lit windows, the overlay on the
+roofs, an amber beam on your block, and touch controls to pan, pinch, turn and tilt. It is turned on
+from the map's controls and remembered on the device. The flat map is still the default and the
+fallback.
+
+**Why.** The user said: "We can move away from just what we've been using coding wise. Look into
+other options. We can even go 3D for the map if we want to."
+
+**How.**
+- **Options weighed.** Recorded in `docs/REMAKE.md` §6: three.js vs MapLibre extrusions vs
+  deck.gl/Babylon vs PixiJS isometric, plus Capacitor for an App Store build. three.js was chosen
+  because it is the only one that gives the night-city look (emissive windows, fog, the beam) at a
+  phone-sized cost.
+- **Shared geometry.** `mapgeo.ts` now holds the lot, tree and seed code, shared by both maps. The
+  flat map's buildings are unchanged; a test holds the same seed to the same lots.
+- **Loading.** `CityMap3D.tsx` is lazy-loaded (three.js ~141 KB gzipped, its own chunk).
+- **Rendering.** Two merged building meshes and one slab mesh with a triangle→block table for
+  picking. Overlay changes rewrite colour buffers only, and it renders on demand. District labels
+  are HTML.
+- **Tapping.** A tap picks on `click`, not `pointerup`: headless testing showed the synthetic click
+  after a touch landed on the new sheet's scrim and closed it.
+- **State.** `store.map3d` / `setMap3d`.
+
+**Watch out.**
+- It is a prototype to judge on a phone. It has not been profiled on real iPhone hardware. It was
+  checked in software WebGL at 390×844.
+- Business markers are shown only for yours and your rivals' places; the flat map shows all of them.
+- The installed three.js pruned a Playwright copy that was never in `package.json`.
+  `npm run tutorial:ui` now says to run `npm i --no-save playwright` first.
+- In headless Chromium, localhost must bypass the agent proxy: pass
+  `--proxy-server=https=<proxy>`, not Playwright's `proxy` option.
+- No save bump. The honest baseline is unchanged. 2129 tests pass.
+
+**Files.** `remake/ui/components/{CityMap3D.tsx,mapgeo.ts}` (new), `CityMap.tsx`, `App.tsx`,
+`store.ts`, `remake.css`, `remake/tests/ui.test.tsx`, `remake/scripts/ui-tutorial.mjs`,
+`package.json` (three, @types/three), `docs/REMAKE.md` §6.
+
 ## 2026-09-24 — Remake: "night shift", a grown-up iOS redesign, and the tutorial played through the screen
 
 **What.** Every screen of the Remake is redesigned. The look is now a dark, restrained, native iOS app,

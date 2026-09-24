@@ -5,6 +5,8 @@
  * reading the odds the way a person would — ending the day when the strip asks for something that
  * cannot be done yet. It prints the day each step came up, and any script error on the page.
  *
+ * Playwright is not a dependency (the deploy never needs it): `npm i --no-save playwright` first.
+ *
  * `scripts/tutorial.ts` is the same player inside the sim, run by the test suite; this one catches
  * what only the screen can get wrong — a tap that goes nowhere, a button that is never live. It
  * found two: a job's crew list opened empty (so "Take it on" was grey), and the protect step

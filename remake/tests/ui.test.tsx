@@ -66,3 +66,19 @@ describe('the region renders', () => {
     renderToString(<BlockSheet id={w.player.blockId} />);
   }, 60000);
 });
+
+describe('the 3D map', () => {
+  it('renders its frame without WebGL (the scene is built in an effect, on the device)', async () => {
+    const { default: CityMap3D } = await import('@r/ui/components/CityMap3D');
+    const w = newWorld({ seed: 7, size: 'small', name: 'T', background: 'grifter' });
+    expect(renderToString(<CityMap3D w={w} />)).toContain(`3D map of ${w.city.name}`);
+  });
+  it('shares its lots with the flat map: nearly every block has buildings (a one-cell block can be all yard), and the same seed gives the same ones', async () => {
+    const { lotQuads } = await import('@r/ui/components/mapgeo');
+    const { select } = await import('@r/sim/index');
+    const w = newWorld({ seed: 7, size: 'small', name: 'T', background: 'grifter' });
+    const b = Object.values(w.blocks).filter(x => !select.isParkBlock(x));
+    expect(b.filter(x => lotQuads(w.city, x).length > 0).length / b.length).toBeGreaterThan(0.9);
+    expect(JSON.stringify(lotQuads(w.city, b[3]))).toBe(JSON.stringify(lotQuads(newWorld({ seed: 7, size: 'small', name: 'T', background: 'grifter' }).city, b[3])));
+  });
+});

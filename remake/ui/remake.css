@@ -219,6 +219,14 @@
 @keyframes r-pulse { 50% { fill-opacity: .03; stroke-opacity: .25; } }
 .r-biz { pointer-events: none; }
 
+/* the 3D map: a canvas the size of the screen, district names laid over it in HTML */
+.r-map3d { position: absolute; inset: 0; background: #07080a; overflow: hidden; }
+.r-map3d canvas { position: absolute; inset: 0; }
+.r-map3d-wait { display: grid; place-items: center; color: var(--text-3); font: 600 12px var(--body); letter-spacing: .12em; text-transform: uppercase; }
+.r-3d-labels { position: absolute; inset: 0; pointer-events: none; z-index: 1; }
+.r-3d-label { position: absolute; left: 0; top: 0; white-space: nowrap; font: 700 13px var(--display); letter-spacing: .16em; text-transform: uppercase; color: var(--text); text-shadow: 0 0 6px #000, 0 0 2px #000; transition: opacity .2s; will-change: transform; }
+.r-tool-3d { font: 800 16px/1 var(--display); letter-spacing: .04em; }
+
 /* what sits on the map, top: a stack under the ledger bar */
 .r-map-top { position: absolute; top: calc(var(--hud-h) + 8px); left: var(--gut); right: var(--gut-r); z-index: 4; display: flex; flex-direction: column; gap: 8px; max-width: 560px; margin: 0 auto; pointer-events: none; }
 .r-map-top > * { pointer-events: auto; }

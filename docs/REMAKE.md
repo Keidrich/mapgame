@@ -213,6 +213,30 @@ after day 10: the end.
     the whole frame, fields at 16px so iOS never zooms on focus, safe areas on all four edges. In
     Safari on an iPhone, the start screen says once how to add it to the home screen.
   Motion (sheets rising, figures changing, the pin's pulse) is off under reduced motion.
+- **The map in 3D** (`CityMap3D.tsx`, three.js; the **3D / 2D** button in the map's controls,
+  remembered per device in `rackets.remake.map3d.v1`). The flat map stays the default and the
+  fallback when a device has no WebGL. three.js is its own ~140 KB gzipped chunk, fetched only when
+  3D is turned on.
+  - **Geometry.** Every lot the flat map draws (`mapgeo.lotQuads`, shared, so the same seed gives
+    the same buildings) is extruded. The height comes from the district (downtown towers, low
+    docks and suburbs), the block's wealth and a seeded roll; landmarks run taller.
+  - **Look.** Walls carry a tiled texture of lit windows, so the city reads by its own light. Roofs
+    and the block slabs under them carry the overlay, so ownership reads from above. Your ground is
+    amber, and an amber beam stands on the block you are on.
+  - **Other features.** Water, bridges and park trees. District names are HTML over the canvas.
+    One finger pans, two pinch and turn, and a two-finger drag tilts.
+  - **Tapping.** A tap picks a block on the *click*, not on pointer-up. A touch is followed by a
+    synthetic click, and opening the sheet on pointer-up put the sheet's scrim under it, which
+    closed the sheet the instant it opened.
+  - **Performance.** Buildings are two merged meshes, slabs are one mesh with a triangle→block table
+    for picking, an overlay change rewrites two colour buffers, and it renders only when something
+    moved.
+  - **Options weighed.**
+    - MapLibre extrusions (already a dependency of the original): free gestures, but flat boxes, no
+      lit windows, and offline labels would need bundled glyphs.
+    - deck.gl or Babylon: heavy for a phone.
+    - PixiJS isometric: needs a sprite art pipeline.
+    - Capacitor, to put this in the App Store with haptics: a distribution choice, open.
 
 ## 7. Testing and the soak
 

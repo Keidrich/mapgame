@@ -9,58 +9,23 @@
  */
 import { memo, useEffect, useMemo, useRef, useState, type PointerEvent as RPE } from 'react';
 import { select, PLAYER, type World } from '@r/sim/index';
-import type { Block, City, Id, Vec } from '@r/sim/types';
+import type { Block, Id, Vec } from '@r/sim/types';
 import { Icon } from '@ui/icons';
 import type { Layer } from '../store';
 import { mute } from './tone';
+import { inside, lotsPath, treesFor } from './mapgeo';
 
 const GOLD = '#e9a23b';
 interface View { x: number; y: number; w: number; h: number }
 
-function mulberry(seed: number) { let t = seed >>> 0; return () => { t = (t + 0x6d2b79f5) | 0; let x = Math.imul(t ^ (t >>> 15), 1 | t); x = (x + Math.imul(x ^ (x >>> 7), 61 | x)) ^ x; return ((x ^ (x >>> 14)) >>> 0) / 4294967296; }; }
 const pts = (p: Vec[]) => p.map(q => `${q.x},${q.y}`).join(' ');
 const pathOf = (p: Vec[]) => `M${p.map(q => `${q.x} ${q.y}`).join('L')}Z`;
-const bil = (a: Vec, b: Vec, c: Vec, d: Vec, u: number, v: number): Vec => ({ x: (a.x * (1 - u) + b.x * u) * (1 - v) + (d.x * (1 - u) + c.x * u) * v, y: (a.y * (1 - u) + b.y * u) * (1 - v) + (d.y * (1 - u) + c.y * u) * v });
-
-/** Building footprints inside one block: each lattice cell is cut into a few lots, deterministically. */
-function lotsFor(city: City, b: Block): string {
-  const vt = (i: number, j: number) => city.verts[j * (city.cols + 1) + i];
-  const r = mulberry(blockNo(b) * 7919 + 17);
-  let d = '';
-  const [i0, j0, i1, j1] = b.cells;
-  for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) {
-    const A = vt(i, j), B = vt(i + 1, j), C = vt(i + 1, j + 1), D = vt(i, j + 1);
-    const nu = 2 + Math.floor(r() * 2), nv = 2 + Math.floor(r() * 2);
-    const cu = [0.09]; for (let k = 1; k < nu; k++) cu.push(0.09 + (0.82 * k) / nu + (r() - 0.5) * 0.08); cu.push(0.91);
-    const cv = [0.09]; for (let k = 1; k < nv; k++) cv.push(0.09 + (0.82 * k) / nv + (r() - 0.5) * 0.08); cv.push(0.91);
-    for (let a = 0; a < nu; a++) for (let c = 0; c < nv; c++) {
-      if (r() < 0.12) continue;   // a yard, a lot nobody built on
-      const g = 0.012;
-      const q = [bil(A, B, C, D, cu[a] + g, cv[c] + g), bil(A, B, C, D, cu[a + 1] - g, cv[c] + g), bil(A, B, C, D, cu[a + 1] - g, cv[c + 1] - g), bil(A, B, C, D, cu[a] + g, cv[c + 1] - g)];
-      d += `M${q.map(p => `${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join('L')}Z`;
-    }
-  }
-  return d;
-}
-function treesFor(b: Block): Vec[] {
-  const r = mulberry(blockNo(b) * 104729 + 3);
-  const xs = b.poly.map(p => p.x), ys = b.poly.map(p => p.y);
-  const out: Vec[] = [];
-  for (let k = 0; k < 40 && out.length < 26; k++) {
-    const p = { x: Math.min(...xs) + r() * (Math.max(...xs) - Math.min(...xs)), y: Math.min(...ys) + r() * (Math.max(...ys) - Math.min(...ys)) };
-    if (inside(p, b.poly)) out.push(p);
-  }
-  return out;
-}
-/** The number in a block's id, with any city prefix off it (`c2.b14` → 14): the lots and trees are seeded by it. */
-function blockNo(b: Block) { return parseInt(b.id.replace(/^.*b/, ''), 10) || 0; }
-function inside(p: Vec, poly: Vec[]) { let c = false; for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) { const a = poly[i], b = poly[j]; if ((a.y > p.y) !== (b.y > p.y) && p.x < ((b.x - a.x) * (p.y - a.y)) / (b.y - a.y) + a.x) c = !c; } return c; }
 
 /** The part of the map that never changes for a given city. */
 const StaticCity = memo(function StaticCity({ w, detail }: { w: World; detail: boolean }) {
   const { city } = w;
   const blocks = Object.values(w.blocks);
-  const lots = useMemo(() => blocks.filter(b => !select.isParkBlock(b)).map(b => lotsFor(city, b)).join(''), [city, blocks.length]);
+  const lots = useMemo(() => blocks.filter(b => !select.isParkBlock(b)).map(b => lotsPath(city, b)).join(''), [city, blocks.length]);
   const trees = useMemo(() => blocks.filter(select.isParkBlock).flatMap(treesFor), [city, blocks.length]);
   const avenues = city.streets.filter(s => s.rank === 0);
   return (

@@ -3,12 +3,12 @@
  * and loaded lazily, so neither game carries the other's code until it is wanted.
  */
 import './remake.css';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { APPROACH_INFO } from '@r/content/world';
 import { select, PLAYER } from '@r/sim/index';
 import { Icon } from '@ui/icons';
 import { setMode } from '@ui/mode';
-import { act, boot, closeRecap, closeSheets, dismissToast, focusBlock, leaveGame, openSheet, quitGame, setLayer, setTab, useUi, useWorld, viewCity, type Layer, type Tab } from './store';
+import { act, boot, closeRecap, closeSheets, dismissToast, focusBlock, leaveGame, openSheet, quitGame, setLayer, setMap3d, setTab, useUi, useWorld, viewCity, type Layer, type Tab } from './store';
 import { CityMap } from './components/CityMap';
 import { NpcFace } from './components/Faces';
 import { mute } from './components/tone';
@@ -168,11 +168,16 @@ function Figure({ kind, label, value }: { kind: string; label: string; value: nu
   );
 }
 
+// three.js is only fetched when somebody turns 3D on: the flat map carries none of it
+const CityMap3D = lazy(() => import('./components/CityMap3D'));
+const webgl = (() => { try { const c = document.createElement('canvas'); return !!(c.getContext('webgl2') || c.getContext('webgl')); } catch { return false; } })();
+
 const LAYERS: { id: Layer; label: string; short: string }[] = [{ id: 'control', label: 'Who holds it', short: 'Owners' }, { id: 'heat', label: 'Your heat', short: 'Heat' }, { id: 'wealth', label: 'Money', short: 'Money' }, { id: 'police', label: 'Police', short: 'Police' }];
 
 function MapScreen() {
   const w = useWorld();
   const layer = useUi(s => s.layer);
+  const map3d = useUi(s => s.map3d);
   const focus = useUi(s => s.focus);
   const [sel, setSel] = useState<string | undefined>();
   const here = w.blocks[w.player.blockId];
@@ -186,14 +191,17 @@ function MapScreen() {
   const lay = LAYERS.find(l => l.id === layer) ?? LAYERS[0];
   return (
     <div className="r-mapwrap">
-      <CityMap w={view} layer={layer} focus={focus} selected={sel} onBlock={id => { setSel(id); openSheet({ kind: 'block', id }); }} />
+      {map3d && webgl
+        ? <Suspense fallback={<div className="r-map3d r-map3d-wait">Building the city…</div>}><CityMap3D w={view} layer={layer} focus={focus} selected={sel} onBlock={id => { setSel(id); openSheet({ kind: 'block', id }); }} /></Suspense>
+        : <CityMap w={view} layer={layer} focus={focus} selected={sel} onBlock={id => { setSel(id); openSheet({ kind: 'block', id }); }} />}
       <div className="r-map-top">
         {shown !== cityId && <button type="button" className="r-viewing" onClick={() => viewCity(undefined, w.player.blockId)}><span>Looking at {select.cityName(w, shown)}</span><b>Back to {select.cityName(w, cityId)}</b></button>}
         {headline && shown === cityId && <div className="r-paper"><span>Courier</span><b>{headline.text}</b></div>}
         {shown === cityId && <LeadStrip />}
       </div>
       <div className="r-map-tools">
-        <button type="button" className="r-tool on" onClick={() => setLayer(LAYERS[(LAYERS.findIndex(l => l.id === layer) + 1) % LAYERS.length].id)} aria-label={`Map shows: ${lay.label}. Tap for the next.`}><Icon name="territory" size={20} strokeWidth={1.8} /><small>{lay.short}</small></button>
+        <button type="button" className="r-tool" onClick={() => setLayer(LAYERS[(LAYERS.findIndex(l => l.id === layer) + 1) % LAYERS.length].id)} aria-label={`Map shows: ${lay.label}. Tap for the next.`}><Icon name="territory" size={20} strokeWidth={1.8} /><small>{lay.short}</small></button>
+        {webgl && <button type="button" className={`r-tool${map3d ? ' on' : ''}`} onClick={() => setMap3d(!map3d)} aria-pressed={map3d} aria-label={map3d ? 'Flat map' : '3D map'}><b className="r-tool-3d">{map3d ? '2D' : '3D'}</b><small>View</small></button>}
         <button type="button" className="r-tool" onClick={() => focusBlock(w.player.blockId)} aria-label="Where am I"><Icon name="you" size={20} strokeWidth={1.8} /><small>Me</small></button>
         <button type="button" className="r-tool" onClick={() => openSheet({ kind: 'region' })} aria-label="The region"><Icon name="legwork" size={20} strokeWidth={1.8} /><small>Region</small></button>
       </div>
