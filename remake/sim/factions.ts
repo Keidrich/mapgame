@@ -116,7 +116,9 @@ function hostile(w: World, f: Faction, rng: Rng, k: number) {
   if (protectedBiz.length && rng.chance(0.05 * k)) {
     const b = rng.pick(protectedBiz);
     const guard = p.crewIds.some(id => w.npcs[id]?.crew?.assignment?.kind === 'guard' && (w.npcs[id].crew!.assignment as { blockId: Id }).blockId === b.blockId);
-    if (guard && rng.chance(0.6)) log(w, `The ${f.short} came to lean on ${b.name}. Your people were there first.`, 'good', { businessId: b.id });
+    // people dug in (`defend_racket`) turn them away every time; a guard, most of the time
+    if ((b.dugIn ?? 0) >= w.day) log(w, `The ${f.short} came for ${b.name}. Your people were dug in and waiting, and they left.`, 'good', { businessId: b.id });
+    else if (guard && rng.chance(0.6)) log(w, `The ${f.short} came to lean on ${b.name}. Your people were there first.`, 'good', { businessId: b.id });
     else { b.protection = { by: f.id, rate: 0.15, since: w.day }; addInfluence(w, b.blockId, PLAYER, -8); log(w, `The ${f.short} take ${b.name} off you. The owner pays them now.`, 'war', { businessId: b.id }); }
   }
   const crew = p.crewIds.map(id => w.npcs[id]).filter(n => n?.alive && n.crew?.status !== 'jailed' && n.crew?.status !== 'held');

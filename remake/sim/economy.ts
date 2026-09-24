@@ -117,7 +117,8 @@ export function labQuality(w: World, lab: Lab): number {
   const def = LABS[lab.kind];
   const worker = lab.workerId ? w.npcs[lab.workerId] : undefined;
   const skill = worker?.alive ? worker.skills[def.skill] : 2;
-  return Math.max(10, Math.min(98, 30 + skill * 5 + lab.level * 8));
+  // each stolen recipe (`steal_formula`) is worth a level's worth of quality, to three
+  return Math.max(10, Math.min(98, 30 + skill * 5 + lab.level * 8 + Math.min(3, w.player.recipes ?? 0) * 6));
 }
 export function stashTotal(w: World) { return Object.values(w.player.stash).reduce((t, l) => t + l.n, 0); }
 

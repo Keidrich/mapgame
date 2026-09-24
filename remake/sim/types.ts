@@ -192,6 +192,8 @@ export interface Npc {
   payroll?: number;
   alive: boolean;
   jailedDays?: number;
+  /** You have been inside their business (`rat`): the wire jobs against them are open. */
+  inside?: boolean;
 }
 
 // ------------------------------------------------------------------------------------- businesses
@@ -222,6 +224,8 @@ export interface Business {
   racketIds: Id[];
   /** Shut for this many days (a raid, a fire). */
   closed: number;
+  /** Your people are dug in here until this day: an outfit that comes for it is turned away. */
+  dugIn?: number;
 }
 
 export type RacketKind =
@@ -346,9 +350,11 @@ export interface Faction {
 }
 
 // ------------------------------------------------------------------------------------------- jobs
-export type JobKind =
+/** The Remake's first fourteen kinds and the set-piece, plus the rest of the original's jobs (`content/catalogue.ts`). */
+export type BaseJobKind =
   | 'burglary' | 'robbery' | 'heist' | 'hijack' | 'hit' | 'kidnap' | 'arson' | 'sabotage'
   | 'con' | 'fraud' | 'hack' | 'smuggle' | 'raid' | 'frame' | 'setpiece';
+export type JobKind = BaseJobKind | CatalogueKind;
 export type Approach = 'quiet' | 'loud' | 'clever';
 export type SpecialistKind = 'safecracker' | 'driver' | 'hacker' | 'face' | 'gunman';
 
@@ -373,6 +379,10 @@ export interface Job {
   targetBusinessId?: Id;
   targetNpcId?: Id;
   targetFaction?: Owner;
+  /** A file, for the jobs that go after one (`buy_case`). */
+  targetCaseId?: Id;
+  /** Paid when it is taken on, win or lose. */
+  cost?: number;
   /** Crew you must send, and the skills the job leans on in this order. */
   crewMin: number;
   crewMax: number;
@@ -472,6 +482,7 @@ export type Effect =
   | { k: 'log'; text: string; tone: Tone };
 
 import type { ItemId, Slot } from '@r/content/kit';
+import type { CatalogueKind } from '@r/content/catalogue';
 export type { ItemId, Slot };
 
 export type Tone = 'info' | 'good' | 'bad' | 'money' | 'warn' | 'war' | 'law';
@@ -483,6 +494,10 @@ export interface Headline { day: number; text: string; weight: number }
 export type Background = 'bruiser' | 'grifter' | 'brain' | 'wheelman' | 'hacker' | 'drifter';
 
 export interface Player {
+  /** Jobs pulled off, by kind: some jobs are only offered to somebody who has done the one before. */
+  done?: Partial<Record<JobKind, number>>;
+  /** Recipes stolen (`steal_formula`): each lifts every lab's quality, to three. */
+  recipes?: number;
   name: string;
   nick?: string;
   background: Background;

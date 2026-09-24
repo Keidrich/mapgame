@@ -127,9 +127,10 @@ level up (a skill point a level), and leave below 15 loyalty. At level 2 and loy
 district as a lieutenant — and inherit the outfit.
 
 **Jobs** (`jobs.ts`): fourteen kinds — burglary, stick-up, heist, hijack, hit, snatch, torch,
-sabotage, con, fraud, wire job, run, raid, frame — each built from a real target: its security, its
+sabotage, con, fraud, wire job, run, raid, frame — plus the set-pieces (§9) and the rest of the
+original's seventy (§10), each built from a real target: its security, its
 till or vault, its owner's nerve, its outfit. The board fills daily from people who trust you, known
-grudges, wars and the fixer; you can also **case** any place or person. Each approach (quiet, loud,
+grudges, wars and the fixer; you can also **case** any place, person, street or file. Each approach (quiet, loud,
 clever) reorders the skills the job leans on and changes heat, take and injuries. Odds: team skill
 (the best of you plus a third of the rest, each counted with the kit they carry — §9) against `difficulty/10 + 1.5`, ±8 a point,
 plus planning days, extra hands, an insider who trusts you, heat and police attention. Tier 2+ jobs
@@ -293,7 +294,56 @@ comes home). `npm run sim2 -- 60 7 medium grifter all` plays one seed all five w
 across all five. What the sweep found and what changed because of it is in the changelog entry for
 this pass.
 
-## 10. Deliberately not carried over (yet)
+## 10. Every job the original had
+
+The user liked the variety of jobs and asked for all of them. `content/catalogue.ts` carries the
+original's other fifty-seven ops as data, in the Remake's shape; `sim/catalogue.ts` answers what
+differs between them. A test checks that every id in the original's `OP_DEFS` is a Remake job kind,
+or (heist_bank, smuggle_run, long_con, raid_rival, arson_hire, hijack_load) the Remake kind that
+already was that job, or (records_room, manifest_swap, dome_job) the landmark set-piece that carries
+it.
+
+- **What each is pointed at.** A target kind rather than a target: somebody else's place of the right
+  types, a place you own, a place an enemy runs something out of, a place of yours an enemy has
+  marked, a civilian with money, anybody, an official, somebody whose business you have been
+  inside, one of yours in a cell, an enemy lieutenant, enemy ground, a rich street, a derelict block
+  (the Remake has no abandoned blocks, so: wealth under 35 and nobody holding it), a corner with a
+  street crew, a district, the water, a landmark, a file, or nothing at all (set up from where you
+  stand). Where the original named a landmark a Remake city never generates, the job points at the
+  nearest thing it does: its casino count at a casino, its manifest at the ferry pier or the fish
+  market, its observatory at the clock tower or the lighthouse.
+- **What it needs** (`needsMet`, the one place): a weapon carried by somebody on your side, a crew
+  size, a safehouse tier, a racket of the right kind, a job before it that came off (the chains: get
+  inside → wire fraud, take their number, lean on the board; shell company → bust-out, boiler room,
+  build a person; run → dockside pickup → convoy; spring somebody → supply the wing; fund a friend →
+  buy the ward; jewel heist → the collection; nobody saw anybody → no loose ends), or a reputation.
+  Every refusal says which.
+- **What it pays**, from the original's range, scaled by the wealth of what it is pointed at. Hot
+  goods come at the street's $80 a lot, to 80 lots; the rest of a big take goes to a fence on the
+  night at 60%. Some cost money up front (a print run, a convoy, a campaign, a file), charged when
+  the job is taken.
+- **What it does** — one named consequence each: an owner frightened, a place shut, soldiers lost, a
+  place dug in for two weeks against a takeover, a lieutenant dead, somebody's secrets and wants
+  known, a corner cleared, a recipe that lifts every lab's quality, a district walked and four people
+  met, a derelict block claimed, somebody out of a cell, heat bought down, a file closed, product at
+  cost, a district a little poorer, a councillor on the payroll for nothing, a ward bought, money
+  washed at 85¢.
+- **Where you find them.** A third of the daily board comes from the catalogue, sized to your
+  reputation (a nobody hears about muggings, not count rooms). Every sheet has a *Case it* list:
+  places, people (including officials and your own people in cells), streets (their own jobs and
+  their district's), and each file in the Law view. Jobs that need no door are under *Set something
+  up* on the Jobs tab. Kinds you are not ready for fold away with their reasons.
+- **Complications** come from the first-fourteen kind each most resembles (`likeOf`): wire jobs get
+  somebody watching the wire, heists get the time lock. The background perks follow the same map.
+
+**The catalogue scenario** (`npm run sim2 -- 60 7 medium grifter catalogue`). Natural play reaches
+40–50 of the 72 kinds in sixty days; the rest want an empire the bots rarely build that fast. The
+scenario starts one on day one (money, eight crew with two in a cell, two tier-2 back rooms, three
+places of your own running the rackets the paper jobs need, a gun, a war, a file) and a *collector*
+who cases the least-tried kind it can find anywhere and takes everything it can staff. Seeds 7, 1
+and 3 between them run every kind to a result, and a test holds that. It is not an economy curve.
+
+## 11. Deliberately not carried over (yet)
 
 Not in the Remake: an admin panel and scenario sweep for the bot (the temperament sweep covers what
 the scenarios were for), and set-pieces that change the landmark afterwards (a looted cathedral stays a

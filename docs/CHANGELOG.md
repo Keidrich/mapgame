@@ -14,6 +14,61 @@ House rules for an entry (see `CLAUDE.md` → *Leave a trail*):
 
 ---
 
+## 2026-09-24 — Remake: every job the original had
+
+**What.** The Remake had fifteen job kinds; the original had seventy ops. All of them are in the
+Remake now — 57 new kinds (jewel heists, armoured cars, payroll snatches, count rooms, muggings,
+doorstep runs, bike rings, copper stripping, squatting, taking a corner, war strikes and ambushes,
+getting inside somebody's business and the wire jobs that follow, insurance fraud, shell companies,
+bust-outs, boiler rooms, match fixing, dumping contracts, dockside pickups and convoys, springing
+somebody and supplying the wing, killing a file, buying down heat, rigging bids, funding a friend,
+buying a ward…) plus two new landmark set-pieces for the original's port manifest and observatory.
+
+**Why.** The user liked the variety of jobs and asked for all of them.
+
+**How.** `remake/content/catalogue.ts` is the list as data, numbers from the original's `OP_DEFS`:
+a target *kind*, skills, hands, tier, difficulty, pay and range, heat, prerequisites, one named
+consequence, a title and a pitch. `remake/sim/catalogue.ts` answers what differs by kind — `fits`
+(can this kind be pointed at this target), `needsMet` (the only prerequisite check; every refusal
+says why), `buildCatalogue` (difficulty and take read off the target, scaled by its wealth),
+`catalogueEffect` (the consequence) and `likeOf` (which of the first fourteen it resembles, for
+complications and background perks). `jobs.ts` delegates to it; `JOBS` is built from both lists.
+The `case` action takes a place, person, block or file; a third of the daily board comes from the
+catalogue, sized to your reputation. UI: a *Case it* list on every place, person, street and file,
+*Set something up* on the Jobs tab, locked kinds folded away with their reasons. New state (all
+optional, no migration): `Npc.inside`, `Business.dugIn`, `Player.done`, `Player.recipes`,
+`Job.targetCaseId`, `Job.cost`. Waterfront blocks can now be cased for a run or a hijack.
+
+**Coverage.** Natural play reaches 40–50 of the 72 kinds in sixty days; the rest want an empire the
+bots rarely build that fast. `npm run sim2 -- 60 7 medium grifter catalogue` starts one on day one
+and plays a *collector* who cases the least-tried kind it can find anywhere and takes everything it
+can staff; seeds 7 (70/72), 1 (69/72) and 3 (71/72) together run every kind to a result, and
+`remake/tests/catalogue.test.ts` holds that — along with a check that every id in the original's
+`OP_DEFS` is a Remake job (by name, by the Remake kind that already was it, or by the set-piece that
+carries it). Getting there found real gaps rather than bot tuning only: seed 7's city has no bank,
+jeweller or armoured depot and almost no landmarks, so the heists now accept the places every city
+has (pawnshops, boutiques, casinos, nightclubs) and the dockside job points at any waterfront block.
+
+**Numbers** (`npm run sim2 -- 60 <seed> medium grifter all`, worth · control): seed 7 — timid $9k
+0.0%, steady $104k 25.7%, schemer $26k 1.2%, ruthless $53k 21.0% (convicted d53), maniac $65k
+14.4%; seed 1 — steady $78k 17.2%, ruthless $89k 27.2%; seed 2 — steady $35k 19.4%, ruthless $33k
+19.9%. Every system reached on all three seeds.
+
+**Watch out.**
+- The schemer now ends at 0.5–2.4% control on every seed: it runs the most jobs (40+) and holds
+  almost no ground. Toning its curiosity down did not change that and cost seed 7 its only
+  specialist hire, so it stays; it is a finding about that temperament, not a bug.
+- Steady's worth swings more by seed than before ($35k–$104k) because a third of the board is now
+  catalogue jobs, many small. Nothing on the board is forced on a player.
+- The bot's first safehouse upgrade comes at $12k, not $30k (the tier-2 room gates the heists).
+- Seed 7 cannot carry the base *heist* (no vault institution); it runs in the scenario on seeds 1/3.
+
+**Files.** `remake/content/catalogue.ts`, `remake/sim/catalogue.ts`, `remake/content/{world,jobtext,setpieces}.ts`,
+`remake/sim/{jobs,reducer,actions,types,factions,economy,select}.ts`, `remake/ui/components/{JobFaction,PlaceSheets,PersonSheet,Tabs}.tsx`,
+`remake/scripts/{bot,headless}.ts`, `remake/tests/{catalogue,play}.test.ts`, `docs/REMAKE.md` §10.
+
+---
+
 ## 2026-09-24 — Remake, third pass: kit, hostages, the Commission, landmark set-pieces, and a bot sweep at five ferocities
 
 **What.** The four things `docs/REMAKE.md` still listed as missing, and a soak bot that plays five

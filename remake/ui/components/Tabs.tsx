@@ -6,6 +6,7 @@ import type { Product } from '@r/sim/types';
 import { ArmourySection } from './Armoury';
 import { HostageList } from './Hostages';
 import { CommissionSection } from './Commission';
+import { CaseSection } from './JobFaction';
 import { Icon } from '@ui/icons';
 import { openSheet, useWorld, focusBlock } from '../store';
 import { Emblem, NpcFace } from './Faces';
@@ -75,7 +76,8 @@ export function JobsTab() {
     <div className="r-tab">
       <h2 className="r-tab-title">Jobs</h2>
       {live.length > 0 && <Section title="Under way">{live.map(row)}</Section>}
-      <Section title="On the board">{offers.length ? offers.map(row) : <Empty>Nothing on offer. People who trust you bring you work; you can also case any place from its sheet.</Empty>}</Section>
+      <Section title="On the board">{offers.length ? offers.map(row) : <Empty>Nothing on offer. People who trust you bring you work; you can also case any place, person or street from its sheet.</Empty>}</Section>
+      <CaseSection target={{ blockId: w.player.blockId }} only={k => select.jobTarget(k) === 'none'} title="Set something up" note="Jobs that need no particular door: a print run, a boiler room, a book on everybody's phone." />
       {past.length > 0 && <Section title="Lately">{past.map(row)}</Section>}
     </div>
   );
@@ -137,6 +139,7 @@ export function EmpireTab() {
           {cases.length ? cases.map(c => <div key={c.id} className="r-case">
             <b>{c.summary}</b>
             <Meter value={c.evidence} tone="blue" label={c.suspectId === PLAYER ? 'Against you' : `Against ${w.npcs[c.suspectId]?.first ?? 'one of yours'}`} right={`${Math.round(c.evidence)} (+${select.evidenceRate(w, c)}/day)`} />
+            {(c.suspectId === PLAYER || p.crewIds.includes(c.suspectId)) && <CaseSection target={{ caseId: c.id }} title="Make it go away" note="Not the witnesses — the file itself." />}
             {c.status === 'charged' && <p className="r-why">Charged. Trial on day {c.trialDay}: {Math.round(select.convictionOdds(w, c) * 100)}% chance of a conviction as things stand.</p>}
             {c.witnessIds.map(id => { const n = w.npcs[id]; return n ? <Row key={id} onClick={() => openSheet({ kind: 'person', id })} left={<NpcFace n={n} size={28} />} title={`Witness: ${select.fullName(n)}`} sub={n.alive ? (n.rel.fear >= 45 ? 'Too frightened to talk' : 'Talking') : 'Dead'} /> : null; })}
           </div>) : <Empty>No open files. Keep it that way.</Empty>}

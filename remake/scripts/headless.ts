@@ -2,10 +2,13 @@
  * `npm run sim2 -- <days> <seed> [size] [background] [style|all]` — play the remake headless and
  * print the curve. With `all`, the same seed is played by every temperament from timid to maniac
  * and the runs are compared side by side, with coverage taken across all of them: a system only
- * the maniac reaches is still reached, and one none of them reaches is named.
+ * the maniac reaches is still reached, and one none of them reaches is named. With `catalogue`, a
+ * mid-game empire on day one plays every job in the catalogue once (not an economy curve).
  */
 import { run, missing, SYSTEMS, STYLES, STYLE_IDS, type RunResult, type StyleId } from './bot';
 import { select } from '@r/sim/index';
+import { JOBS } from '@r/content/world';
+import type { JobKind } from '@r/sim/types';
 import type { Background } from '@r/sim/types';
 
 const [daysArg, seedArg, sizeArg, bgArg, styleArg] = process.argv.slice(2);
@@ -13,9 +16,10 @@ const days = Number(daysArg ?? 60), seed = Number(seedArg ?? 7);
 const size = (sizeArg as 'small' | 'medium' | 'large') ?? 'medium';
 const background = (bgArg as Background) ?? 'grifter';
 
-function one(style: StyleId): RunResult {
+function one(style: StyleId, scenario?: 'catalogue'): RunResult {
   const t0 = performance.now();
-  const r = run({ days, seed, size, background, style });
+  const r = run({ days, seed, size, background, style, scenario });
+  if (scenario) console.log('scenario catalogue (a mid-game empire on day one — this is not an economy curve)');
   const w = r.w; const p = w.player;
   console.log(`${w.city.name} (seed ${seed}, ${STYLES[style].label.toLowerCase()}) — ${w.day - 1} days in ${((performance.now() - t0) / 1000).toFixed(1)}s, ${r.actions} actions, ${r.refused} refused`);
   for (const h of w.history.filter(x => x.day % 5 === 0 || x.day === 1)) console.log(`  day ${String(h.day).padStart(3)}  clean ${String(h.clean).padStart(6)}  dirty ${String(h.dirty).padStart(6)}  spent ${String(h.spent).padStart(5)}  heat ${String(h.heat).padStart(3)}  control ${String(h.control).padStart(5)}%  worth ${h.worth}`);
@@ -27,6 +31,12 @@ function one(style: StyleId): RunResult {
   return r;
 }
 
+/** Every job kind, and which of them no run reached a result on. */
+function catalogue(kinds: RunResult['kinds']) {
+  const all = Object.keys(JOBS) as JobKind[];
+  const never = all.filter(k => !kinds[k]);
+  console.log(`job kinds run: ${all.length - never.length}/${all.length}${never.length ? ` — never: ${never.join(', ')}` : ''}`);
+}
 function coverage(counts: RunResult['counts']) {
   console.log('coverage:');
   for (const s of SYSTEMS) console.log(`  ${s.needs.some(n => (counts[n] ?? 0) > 0) ? '✓' : '✗'} ${s.label.padEnd(28)} ${s.needs.map(n => counts[n] ?? 0).join('/')}`);
@@ -46,8 +56,18 @@ if (styleArg === 'all') {
   for (const { r } of runs) for (const [k, v] of Object.entries(r.counts)) union[k as keyof typeof union] = (union[k as keyof typeof union] ?? 0) + (v ?? 0);
   console.log('\nacross every style:');
   coverage(union);
+  const kinds: RunResult['kinds'] = {};
+  for (const { r } of runs) for (const [k, v] of Object.entries(r.kinds)) kinds[k as JobKind] = (kinds[k as JobKind] ?? 0) + (v ?? 0);
+  catalogue(kinds);
+} else if (styleArg === 'catalogue') {
+  const r = one('collector', 'catalogue');
+  coverage(r.counts);
+  catalogue(r.kinds);
+  const all = Object.keys(JOBS) as JobKind[];
+  for (const k of all.filter(x => !r.kinds[x])) console.log(`  ${k.padEnd(20)} offered ${r.offered[k] ?? 0}, taken ${r.taken[k] ?? 0}`);
 } else {
   const r = one((styleArg as StyleId) ?? 'steady');
   coverage(r.counts);
+  catalogue(r.kinds);
   console.log('news:', r.w.news.slice(-6).map(n => n.text).join(' | '));
 }

@@ -46,6 +46,9 @@ function everyAction(w: World): Action[] {
   out.push({ type: 'hostage', id: 'nobody', choice: 'ransom' }, { type: 'commission_vote', vote: 'yes' });
   for (const f of Object.values(w.factions)) out.push({ type: 'lobby', factionId: f.id, side: 'yes' }, { type: 'lobby', factionId: f.id, side: 'no' });
   for (const b of Object.values(w.blocks)) out.push({ type: 'case', kind: 'setpiece', blockId: b.id });
+  // every kind on a sample of streets, and on every file: the catalogue's block and case targets
+  for (const b of Object.values(w.blocks).slice(0, 30)) for (const k of Object.keys(JOBS) as JobKind[]) out.push({ type: 'case', kind: k, blockId: b.id });
+  for (const c of Object.values(w.cases)) for (const k of Object.keys(JOBS) as JobKind[]) out.push({ type: 'case', kind: k, caseId: c.id });
   for (const j of Object.values(w.jobs)) for (const id of w.player.crewIds) out.push({ type: 'join_job', jobId: j.id, npcId: id });
   for (const s of Object.values(w.safehouses)) { out.push({ type: 'upgrade_safehouse', safehouseId: s.id }); for (const k of Object.keys(LABS)) out.push({ type: 'build_lab', safehouseId: s.id, kind: k as never }); }
   for (const p of ['booze', 'green', 'pills', 'goods'] as const) out.push({ type: 'sell_street', product: p, n: 5 });

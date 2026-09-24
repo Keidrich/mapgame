@@ -3,13 +3,39 @@ import { APPROACH_INFO, JOBS, SPECIALISTS, STYLES } from '@r/content/world';
 import { select, type Id } from '@r/sim/index';
 import type { Approach, Job, SpecialistKind } from '@r/sim/types';
 import { Face } from './Faces';
-import { Icon } from '@ui/icons';
+import { ALL_ICONS, Icon } from '@ui/icons';
+import type { Action } from '@r/sim/index';
+import { can } from '@r/sim/index';
 import { openSheet, useWorld } from '../store';
 import { Emblem, NpcFace } from './Faces';
 import { Chip, Dial, Do, Empty, Row, Section, Sheet, fmt } from './kit';
 
 const JOB_ICON: Record<string, string> = { burglary: 'lockpicks', robbery: 'robbery', heist: 'heist_bank', hijack: 'hijack_load', hit: 'hit', kidnap: 'kidnap', arson: 'arson_hire', sabotage: 'war_strike', con: 'long_con', fraud: 'check_kiting', hack: 'hack', smuggle: 'smuggle_run', raid: 'raid_rival', frame: 'frame', setpiece: 'crown' };
-export const jobIcon = (j: Job) => JOB_ICON[j.kind] ?? 'ops';
+/** The catalogue's kinds share the original's op ids, and so its icons. */
+export const kindIcon = (k: string) => JOB_ICON[k] ?? (ALL_ICONS[k] ? k : 'ops');
+export const jobIcon = (j: Job) => kindIcon(j.kind);
+
+/**
+ * Every job a target could carry, as buttons: the ones you can case now first, then — folded away —
+ * the ones you are not ready for, each with the reason. Used on places, people, streets and files.
+ */
+export function CaseSection({ target, title = 'Case it', note, only }: { target: { businessId?: Id; npcId?: Id; blockId?: Id; caseId?: Id }; title?: string; note?: string; only?: (k: string) => boolean }) {
+  const w = useWorld();
+  const [more, setMore] = useState(false);
+  const kinds = select.caseKinds(w, target).filter(k => k !== 'setpiece' && (!only || only(k)));
+  if (!kinds.length) return null;
+  const act = (k: typeof kinds[number]): Action => ({ type: 'case', kind: k, ...target });
+  const ready = kinds.filter(k => can(w, act(k)).ok || /action points|Deal with|waiting on/.test(can(w, act(k)).why ?? '')).sort((a, b) => JOBS[a].tier - JOBS[b].tier);
+  const locked = kinds.filter(k => !ready.includes(k));
+  return (
+    <Section title={title} right={<span className="r-note">{ready.length} of {kinds.length}</span>}>
+      <p className="r-note">{note ?? 'Spend an hour on it, and put a job on your board.'}</p>
+      <div className="r-inline-actions">{ready.map(k => <Do key={k} action={act(k)} label={JOBS[k].label} icon={kindIcon(k)} small />)}</div>
+      {locked.length > 0 && <button type="button" className="r-link" onClick={() => setMore(m => !m)}>{more ? 'Hide' : `${locked.length} more you are not ready for`}</button>}
+      {more && <ul className="r-factors">{locked.map(k => <li key={k}><span>{JOBS[k].label}</span><b className="neg">{can(w, act(k)).why}</b></li>)}</ul>}
+    </Section>
+  );
+}
 
 export function payoutLine(j: Job, approach?: Approach): string {
   const p = select.payoutFor(j, approach);

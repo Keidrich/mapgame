@@ -39,7 +39,7 @@ export type Action =
   | { type: 'drop_job'; jobId: Id }
   | { type: 'hire_specialist'; jobId: Id; kind: SpecialistKind }
   | { type: 'audit'; npcId: Id }
-  | { type: 'case'; kind: JobKind; businessId?: Id; npcId?: Id; blockId?: Id }
+  | { type: 'case'; kind: JobKind; businessId?: Id; npcId?: Id; blockId?: Id; caseId?: Id }
   | { type: 'tribute'; factionId: Owner; amount: number }
   | { type: 'sit_down'; factionId: Owner; offer: SitDownOffer }
   | { type: 'declare_war'; factionId: Owner }

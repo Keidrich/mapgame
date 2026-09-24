@@ -16,6 +16,7 @@ import { SETPIECE_RANK, setpieceFor } from '@r/content/setpieces';
 import { equip, returnKit, shopItems, unequip } from './kit';
 import { hostageChoices, isHeld, resolveHostage } from './hostages';
 import { LOBBY_PULL, lobbyCost } from './commission';
+import { isCatalogue, needsMet } from './catalogue';
 import { freeFromAssignment, practise } from './people';
 import { playScene, quote } from './scenes';
 import { travelCost } from './select-core';
@@ -162,7 +163,11 @@ function canInner(w: World, a: Action): Affordance {
       if (a.crewIds.length < j.crewMin) return no(`Needs at least ${j.crewMin} of your people with you.`);
       if (a.crewIds.length > j.crewMax) return no(`No more than ${j.crewMax}.`);
       for (const id of a.crewIds) { const n = w.npcs[id]; if (!n?.crew || !n.alive) return no('Not one of yours.'); if (n.crew.status !== 'ready') return no(`${fullName(n)} is ${n.crew.status}.`); if (n.crew.assignment?.kind === 'job') return no(`${fullName(n)} is on another job.`); }
+      if (isCatalogue(j.kind)) { const why = needsMet(w, j.kind); if (why) return no(why); }
+      if (j.targetCaseId && a.crewIds.includes(w.cases[j.targetCaseId]?.suspectId as string)) return no('Not somebody the file is about.');
+      if (j.kind === 'spring_crew' || j.kind === 'prison_supply') { if (a.crewIds.includes(j.targetNpcId!)) return no('They are the one inside.'); }
       if (busy) return no(busy);
+      if (j.cost) { const e = cost(w, j.cost); if (e) return no(e); return yes({ cash: j.cost }); }
       return yes();
     }
     case 'join_job': {
@@ -209,11 +214,14 @@ function canInner(w: World, a: Action): Affordance {
         const r = ap(1); return r ? no(r) : yes({ ap: 1 });
       }
       if (a.npcId && isHeld(w, a.npcId)) return no('They are in somebody\'s back room.');
-      const kinds = caseKinds(w, { businessId: a.businessId, npcId: a.npcId });
-      if (!kinds.includes(a.kind)) return no('Not a job that fits.');
-      if (a.businessId && w.businesses[a.businessId]?.ownedBy === PLAYER) return no('It is yours.');
-      if (a.npcId && w.npcs[a.npcId]?.crew) return no('One of your own?');
-      if (Object.values(w.jobs).some(j => ['offer', 'planning', 'ready'].includes(j.status) && j.kind === a.kind && (j.targetBusinessId === a.businessId && a.businessId || j.targetNpcId === a.npcId && a.npcId))) return no('Already on your board.');
+      // one target at a time: a place, a person, a file, or a block (which also stands for its
+      // district and for the jobs you set up from wherever you are)
+      const target = a.businessId ? { businessId: a.businessId } : a.npcId ? { npcId: a.npcId } : a.caseId ? { caseId: a.caseId } : a.blockId ? { blockId: a.blockId } : undefined;
+      if (!target) return no('Nothing to case.');
+      const kinds = caseKinds(w, target);
+      if (!kinds.includes(a.kind)) return no(a.businessId && w.businesses[a.businessId]?.ownedBy === PLAYER ? 'It is yours.' : 'Not a job that fits.');
+      if (isCatalogue(a.kind)) { const why = needsMet(w, a.kind); if (why) return no(why); }
+      if (Object.values(w.jobs).some(j => ['offer', 'planning', 'ready'].includes(j.status) && j.kind === a.kind && (j.targetBusinessId === a.businessId && a.businessId || j.targetNpcId === a.npcId && a.npcId || j.targetCaseId === a.caseId && a.caseId || (a.blockId && !a.businessId && !a.npcId && !a.caseId && j.blockId === a.blockId)))) return no('Already on your board.');
       if (busy) return no(busy);
       const r = ap(1); return r ? no(r) : yes({ ap: 1 });
     }
@@ -324,7 +332,7 @@ export function dispatch(world: World, a: Action): World {
     }
     case 'commission_vote': w.commission.vote = a.vote; log(w, `You will vote ${a.vote} at the table.`, 'info'); break;
     case 'fixer_wash': { const clean = Math.round(a.amount * fixerRate(w)); p.dirty -= a.amount; p.cash += clean; p.washedToday += a.amount; log(w, `The fixer turns ${money(a.amount)} dirty into ${money(clean)} clean.`, 'money'); break; }
-    case 'take_job': takeJob(w, w.jobs[a.jobId], a.crewIds); break;
+    case 'take_job': { const j = w.jobs[a.jobId]; if (j.cost) spend(w, j.cost); takeJob(w, j, a.crewIds); break; }
     case 'join_job': { const j = w.jobs[a.jobId]; const n = w.npcs[a.npcId]; freeFromAssignment(w, n); j.crewIds.push(n.id); n.crew!.assignment = { kind: 'job', jobId: j.id }; log(w, `${fullName(n)} joins ${j.title.toLowerCase()}.`, 'info', { npcId: n.id }); break; }
     case 'launch_job': launchJob(w, w.jobs[a.jobId], a.approach, rng); break;
     case 'answer': answerComplication(w, w.jobs[a.jobId], a.optionId, rng); break;
@@ -351,8 +359,11 @@ export function dispatch(world: World, a: Action): World {
         break;
       }
       const b = a.businessId ? w.businesses[a.businessId] : undefined; const n = a.npcId ? w.npcs[a.npcId] : undefined;
-      const j = buildJob(w, rng, { kind: a.kind, blockId: b?.blockId ?? n!.homeBlockId, businessId: a.businessId, npcId: a.npcId, faction: b?.protection?.by ?? n?.faction });
-      if (j) { j.expires = w.day + 7; j.intel = 1; practise(w, 'brains', 3); log(w, `You case ${b?.name ?? fullName(n!)}. ${j.title} is on your board.`, 'info'); }
+      const blockId = b?.blockId ?? n?.homeBlockId ?? a.blockId ?? p.blockId;
+      const holder = controller(w.blocks[blockId]);
+      const faction = b ? (b.protection?.by !== PLAYER ? b.protection?.by : undefined) : n ? (n.faction !== PLAYER ? n.faction : undefined) : holder && holder !== PLAYER && w.factions[holder] && w.factions[holder].standing <= -40 ? holder : undefined;
+      const j = buildJob(w, rng, { kind: a.kind, blockId, businessId: a.businessId, npcId: a.npcId, caseId: a.caseId, faction });
+      if (j) { j.expires = w.day + 7; j.intel = 1; practise(w, 'brains', 3); log(w, `You look into it: ${j.title} is on your board.`, 'info'); }
       break;
     }
     case 'tribute': { const f = w.factions[a.factionId]; spend(w, a.amount); const s = tributeEffect(f, a.amount); f.standing = clamp(f.standing + s, -100, 100); f.cash += a.amount; log(w, `You send the ${f.short} ${money(a.amount)}. Standing +${s}.`, 'info'); break; }

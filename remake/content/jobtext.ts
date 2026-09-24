@@ -3,9 +3,9 @@
  * writer can add a line without touching a formula. `{T}` is the target, `{B}` the block, `{S}`
  * whoever brought it to you.
  */
-import type { JobKind, Skill } from '@r/sim/types';
+import type { BaseJobKind, JobKind, Skill } from '@r/sim/types';
 
-export const PITCH: Record<JobKind, string[]> = {
+export const PITCH: Record<BaseJobKind, string[]> = {
   burglary: ['{S} says {T} keeps the week\'s takings in a back-office safe, and the alarm has been broken since spring.', 'The back door at {T} sticks. Everybody on {B} knows it except the owner.', '{S} swept the floors at {T} for a month. The safe is behind the calendar.'],
   robbery: ['{T} does its banking on Fridays. Until then the cash sits in the till.', '{S} says {T} has one clerk after ten and no camera that works.', 'Masks, a bag, ninety seconds. {T} will not even call it in until morning.'],
   heist: ['{T}. The vault, not the counter. {S} has a floor plan and a guard who drinks.', 'Everybody says you cannot do {T}. {S} says everybody has not looked properly.', 'Once a month {T} holds more cash than it should. {S} knows which night.'],
@@ -23,7 +23,7 @@ export const PITCH: Record<JobKind, string[]> = {
   frame: ['{T} is a problem the police could solve for you, with a little help.', 'Plant it, tip it, watch {T} explain it to a detective.', '{S} has something of {T}\'s that would look very bad in the wrong drawer.'],
 };
 
-export const TITLE: Record<JobKind, string[]> = {
+export const TITLE: Record<BaseJobKind, string[]> = {
   burglary: ['Night work at {T}', 'The safe at {T}', 'In through the back of {T}'],
   robbery: ['Take the till at {T}', 'Stick-up at {T}', 'Ninety seconds at {T}'],
   heist: ['The {T} job', 'Empty the vault at {T}', 'The big one: {T}'],

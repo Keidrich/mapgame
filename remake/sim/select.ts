@@ -19,6 +19,10 @@ export { stashCapacity, STRAIGHT, WIN_SHARE } from './tick';
 export { restockCost, auditOdds } from './reducer';
 export { crewOn, crewOf, crewWage, crewCost, CREW } from './streetcrews';
 export { specialistFee } from './jobs';
+export { needsMet, isDerelict } from './catalogue';
+import { CATALOGUE, isCatalogue } from '@r/content/catalogue';
+/** What a job kind is pointed at, for the catalogue's kinds; undefined for the first fourteen. */
+export const jobTarget = (k: string) => (isCatalogue(k) ? CATALOGUE[k].target : undefined);
 export { kitOf, kitBonus, armourOf, skillOf, shopItems, isShop } from './kit';
 export { holdingRoom, heldBy, isHeld, hostageChoices, HOSTAGE } from './hostages';
 export { leanOf, lobbyCost, describeProposal, tally, COMMISSION, LOBBY_PULL } from './commission';

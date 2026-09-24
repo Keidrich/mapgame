@@ -1,12 +1,13 @@
-import { BUSINESSES, JOBS, LABS, RACKETS, SAFEHOUSE_TIERS } from '@r/content/world';
+import { BUSINESSES, LABS, RACKETS, SAFEHOUSE_TIERS } from '@r/content/world';
 import { select, PLAYER } from '@r/sim/index';
-import type { JobKind, LabKind, RacketKind } from '@r/sim/types';
+import type { LabKind, RacketKind } from '@r/sim/types';
 import { Icon } from '@ui/icons';
 import { openSheet, useWorld } from '../store';
 import { Emblem, NpcFace } from './Faces';
 import { Chip, Do, Empty, Meter, Row, Section, Sheet, fmt } from './kit';
 import { SETPIECE_RANK, setpieceFor } from '@r/content/setpieces';
 import { ShopSection } from './Armoury';
+import { CaseSection } from './JobFaction';
 import { HostageList } from './Hostages';
 
 export function BlockSheet({ id }: { id: string }) {
@@ -54,6 +55,7 @@ export function BlockSheet({ id }: { id: string }) {
           <Do action={{ type: 'case', kind: 'setpiece', blockId: id }} label={`Case ${b.landmark}`} icon="crown" block sub="A day around the place. The job goes on your board with a head start on the planning." />
         </Section>
       ); })()}
+      <CaseSection target={{ blockId: id }} only={k => select.jobTarget(k) !== 'none'} title="Work these streets" note={`Jobs on ${b.name} itself, and across ${d.name}.`} />
       <Section title="Places">
         {biz.length ? biz.map(x => <BizRow key={x.id} id={x.id} />) : <Empty>No businesses on this block.</Empty>}
       </Section>
@@ -81,7 +83,6 @@ export function BusinessSheet({ id }: { id: string }) {
   const mine = b.ownedBy === PLAYER, protectedByMe = b.protection?.by === PLAYER;
   const fac = b.protection && b.protection.by !== PLAYER ? w.factions[b.protection.by] : undefined;
   const rackets = b.racketIds.map(r => w.rackets[r]).filter(Boolean);
-  const cases = select.caseKinds(w, { businessId: id });
   return (
     <Sheet title={b.name} kicker={`${def.label} · ${b.tier === 3 ? 'Institution' : b.tier === 2 ? 'Established' : 'Street'} · ${w.blocks[b.blockId].name}`} art={<span className={`r-bizicon big tier${b.tier}${mine || protectedByMe ? ' mine' : ''}`}><Icon of="business" id={b.type} size={30} /></span>}>
       <div className="r-stats">
@@ -111,12 +112,7 @@ export function BusinessSheet({ id }: { id: string }) {
         {!mine && !protectedByMe && !rackets.length && <Empty>{def.rackets.length ? 'Protect or own it to run something out of the back.' : 'Nothing runs out of a place like this. It is a job, not a racket.'}</Empty>}
       </Section>
       {b.closed <= 0 && <ShopSection at={id} title={w.player.blockId === b.blockId ? 'For sale here' : `For sale here — go to ${w.blocks[b.blockId].name}`} />}
-      {cases.length > 0 && !mine && (
-        <Section title="Case it">
-          <p className="r-note">Spend an hour watching the place, and put a job on your board.</p>
-          <div className="r-inline-actions">{cases.map(k => <Do key={k} action={{ type: 'case', kind: k as JobKind, businessId: id }} label={JOBS[k].label} icon={k === 'heist' ? 'heist_bank' : k === 'hack' ? 'hack' : k === 'burglary' ? 'lockpicks' : k === 'robbery' ? 'robbery' : k === 'arson' ? 'arson_hire' : k === 'fraud' ? 'check_kiting' : 'ops'} small />)}</div>
-        </Section>
-      )}
+      <CaseSection target={{ businessId: id }} title={mine ? 'Work it' : 'Case it'} note={mine ? 'Jobs you can only run through a place you own.' : undefined} />
       {b.patronIds.length > 0 && <Section title="Regulars">{b.patronIds.map(pid => { const n = w.npcs[pid]; return n ? <Row key={pid} onClick={() => openSheet({ kind: 'person', id: pid })} left={<NpcFace n={n} size={32} />} title={select.fullName(n)} sub={n.crew ? 'Yours' : n.rel.met ? `trust ${n.rel.trust}` : n.alive ? 'A stranger' : 'Dead'} /> : null; })}</Section>}
     </Sheet>
   );

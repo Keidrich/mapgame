@@ -8,6 +8,7 @@ import { NpcFace } from './Faces';
 import { Chip, Dial, Do, Empty, Meter, Row, Section, Sheet, fmt } from './kit';
 import { KitList, ShopSection } from './Armoury';
 import { HostageCard } from './Hostages';
+import { CaseSection } from './JobFaction';
 
 export function roleLine(w: World, n: Npc): string {
   const work = n.workId ? w.businesses[n.workId] : undefined;
@@ -62,6 +63,7 @@ export function PersonSheet({ id }: { id: string }) {
       )}
 
       {select.heldBy(w, n.id) && <HostageCard h={select.heldBy(w, n.id)!} />}
+      {n.alive && !select.heldBy(w, n.id) && <CaseSection target={{ npcId: n.id }} title={n.crew ? 'Get them out' : 'Make them a job'} note={n.crew ? 'They are inside. Something can be done about that.' : n.official ? 'Somebody in the building. What they can do for you is worth more than what they carry.' : undefined} />}
       {n.id === w.fixerId && n.alive && (n.rel.met ? <ShopSection at="fixer" title="What the fixer can get you" /> : <p className="r-note">Introduce yourself and the fixer will sell you what no shop will.</p>)}
       {n.known && (
         <Section title="Skills">

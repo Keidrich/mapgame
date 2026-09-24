@@ -3,7 +3,7 @@
  *
  * The original shipped seventy hand-written ops, and a sweep found that a dozen of them never
  * ran in sixty days and that the result card under-reported heat on a whole lane. The remake
- * has fourteen *kinds* of job and builds every actual job from the world: a real target with a
+ * has fourteen *kinds* of job (and, since, the rest of the original's list — `catalogue.ts`) and builds every actual job from the world: a real target with a
  * real till and real security, a real person who brought it to you, the skills it leans on, and
  * a payout scaled from what is actually there. The same fourteen kinds produce a different board
  * every day in every city.
@@ -21,6 +21,7 @@ import { openCase } from './law';
 import { armourOf, kitOf, skillOf } from './kit';
 import { holdHostage, holdingRoom } from './hostages';
 import { SETPIECES, SETPIECE_RANK, setpieceFor } from '@r/content/setpieces';
+import { buildCatalogue, catalogueEffect, catalogueKindsFor, catalogueText, isCatalogue, likeOf, pickCatalogueTarget } from './catalogue';
 import { gainXp, injure, jail, kill, practise, spreadWord } from './people';
 import { Rng } from './rng';
 import type { Approach, Id, Job, JobKind, JobPayout, Npc, Owner, Skill, SpecialistKind, World } from './types';
@@ -74,8 +75,9 @@ export function jobOdds(w: World, job: Job, crewIds: Id[], approach: Approach): 
   const block = w.blocks[job.blockId];
   const police = -Math.round((w.districts[block.districtId].attention - 40) / 8); if (police) factors.push({ label: 'Police on these streets', n: police });
   if (w.player.background === 'wheelman' && job.leans.includes('wheels')) factors.push({ label: 'You drive', n: 6 });
-  if (w.player.background === 'hacker' && (job.kind === 'hack' || job.kind === 'fraud')) factors.push({ label: 'You wrote half of this code', n: 8 });
-  if (w.player.background === 'grifter' && job.kind === 'con') factors.push({ label: 'The long game is your game', n: 8 });
+  const like = likeOf(job.kind);
+  if (w.player.background === 'hacker' && (like === 'hack' || like === 'fraud')) factors.push({ label: 'You wrote half of this code', n: 8 });
+  if (w.player.background === 'grifter' && like === 'con') factors.push({ label: 'The long game is your game', n: 8 });
   const jitter = junkieDrag(w, crewIds); if (jitter) factors.push({ label: 'Somebody on the team is using', n: jitter });
   const chance = clamp(50 + factors.reduce((t, f) => t + f.n, 0), 5, 95);
   return { chance, factors, required: Math.round(required * 10) / 10, team: Math.round(team * 10) / 10 };
@@ -96,7 +98,7 @@ export function payoutFor(job: Job, approach: Approach | undefined): JobPayout {
 }
 
 // ---------------------------------------------------------------------------------- generation
-interface Target { kind: JobKind; blockId: Id; businessId?: Id; npcId?: Id; faction?: Owner; source?: Npc }
+interface Target { kind: JobKind; blockId: Id; businessId?: Id; npcId?: Id; caseId?: Id; faction?: Owner; source?: Npc }
 export type { Target };
 
 /** Build a job on a target. Everything about it — size, difficulty, take — is read off the target. */
@@ -133,9 +135,14 @@ export function buildJob(w: World, rng: Rng, t: Target): Job | undefined {
       break;
     }
   }
+  // the rest of the original's jobs: everything about them is read off the target the same way
+  const cat = isCatalogue(t.kind) ? buildCatalogue(w, rng, t.kind, t) : undefined;
+  if (isCatalogue(t.kind) && !cat) return;
+  if (cat) { ({ difficulty, dirty, clean, goods, respect, fear, tier, tname } = cat); }
+  const fill = (s: string) => s.replace(/\{T\}/g, tname).replace(/\{B\}/g, block.name).replace(/\{S\}/g, t.source ? shortName(t.source) : 'Word on the street');
   const sp = t.kind === 'setpiece' ? setpieceFor(block.landmark) : undefined;
-  const title = sp ? sp.title.replace('{L}', tname) : rng.pick(TITLE[t.kind]).replace('{T}', tname).replace('{B}', block.name);
-  const pitch = sp ? sp.pitch.replace(/\{L\}/g, tname) : rng.pick(PITCH[t.kind]).replace(/\{T\}/g, tname).replace(/\{B\}/g, block.name).replace(/\{S\}/g, t.source ? shortName(t.source) : 'Word on the street');
+  const title = cat ? fill(catalogueText(t.kind as never).title) : sp ? sp.title.replace('{L}', tname) : rng.pick(TITLE[t.kind as keyof typeof TITLE]).replace('{T}', tname).replace('{B}', block.name);
+  const pitch = cat ? fill(catalogueText(t.kind as never).pitch) : sp ? sp.pitch.replace(/\{L\}/g, tname) : rng.pick(PITCH[t.kind as keyof typeof PITCH]).replace(/\{T\}/g, tname).replace(/\{B\}/g, block.name).replace(/\{S\}/g, t.source ? shortName(t.source) : 'Word on the street');
   const job: Job = {
     id: nid(w, 'job'), kind: t.kind, title, pitch, sourceId: t.source?.id, tier: tier as Job['tier'], blockId: t.blockId,
     targetBusinessId: t.businessId, targetNpcId: t.npcId, targetFaction: t.faction ?? npc?.faction ?? (biz?.protection?.by !== PLAYER ? biz?.protection?.by : undefined),
@@ -143,6 +150,7 @@ export function buildJob(w: World, rng: Rng, t: Target): Job | undefined {
     planDays: def.planDays, expires: w.day + rng.int(3, 6), payout: { dirty, clean, goods, respect, fear }, heat: def.heat, exposure: def.exposure,
     status: 'offer', crewIds: [], daysLeft: def.planDays, intel: 0,
   };
+  if (cat) { job.targetCaseId = t.caseId; job.cost = cat.cost; }
   if (sp) { job.leans = sp.leans; job.heat = sp.heat; job.setpiece = { id: sp.id, landmark: block.landmark!, stages: sp.stages, stage: 0, mult: 1, heat: 0, messy: false }; }
   // a target that belongs to an outfit is a declaration, and the board says so
   if (job.targetFaction === PLAYER) job.targetFaction = undefined;
@@ -169,6 +177,8 @@ function pickTarget(w: World, rng: Rng): Target | undefined {
   const contacts = Object.values(w.npcs).filter(n => n.alive && n.rel.met && n.rel.trust >= 10 && !n.crew);
   const source = contacts.length ? rng.pick(contacts.sort((a, b) => (b.traits.includes('connected') ? 1 : 0) - (a.traits.includes('connected') ? 1 : 0)).slice(0, 8)) : undefined;
   const bizNear = [...near].flatMap(id => w.blocks[id].businessIds).map(id => w.businesses[id]).filter(b => b.ownedBy !== PLAYER && b.protection?.by !== PLAYER && b.closed === 0);
+  // a third of the board comes from the rest of the catalogue, sized to who you are
+  if (rng.chance(0.35)) { const c = pickCatalogueTarget(w, rng); if (c) return { ...c, source: c.kind === 'buy_case' || c.kind === 'spring_crew' ? (w.fixerId ? w.npcs[w.fixerId] : source) : source }; }
   const r = rng.float();
   // a known grudge is the best kind of job: somebody wants it done and will owe you
   const grudge = Object.values(w.npcs).find(n => n.alive && n.agenda?.known && (n.agenda.kind === 'revenge' || n.agenda.kind === 'rival') && n.agenda.targetId && w.npcs[n.agenda.targetId]?.alive && !Object.values(w.jobs).some(j => j.sourceId === n.id && j.status === 'offer'));
@@ -218,9 +228,15 @@ function pickTarget(w: World, rng: Rng): Target | undefined {
 }
 
 /** What casing a place turns up: the best job on it for someone of your standing. */
-export function caseKinds(w: World, target: { businessId?: Id; npcId?: Id }): JobKind[] {
+export function caseKinds(w: World, target: { businessId?: Id; npcId?: Id; blockId?: Id; caseId?: Id }): JobKind[] {
+  return [...baseCaseKinds(w, target), ...catalogueKindsFor(w, target)];
+}
+function baseCaseKinds(w: World, target: { businessId?: Id; npcId?: Id; blockId?: Id; caseId?: Id }): JobKind[] {
+  // the water: a load to run in, or somebody else's to take — before, only the board offered these
+  if (target.blockId && !target.businessId && !target.npcId && !target.caseId) return w.blocks[target.blockId]?.waterfront ? ['smuggle', 'hijack'] : [];
   if (target.businessId) {
     const b = w.businesses[target.businessId];
+    if (!b || b.ownedBy === PLAYER) return [];
     const kinds: JobKind[] = b.tier === 3 && BUSINESSES[b.type].vault ? ['heist', 'hack', 'fraud'] : ['burglary', 'robbery', 'arson'];
     if (b.tier >= 2 && b.tier < 3) kinds.push('fraud', 'hack');
     if (b.racketIds.some(id => w.rackets[id]?.owner !== PLAYER)) kinds.push('sabotage');
@@ -228,6 +244,7 @@ export function caseKinds(w: World, target: { businessId?: Id; npcId?: Id }): Jo
   }
   if (target.npcId) {
     const n = w.npcs[target.npcId];
+    if (!n?.alive || n.crew) return [];
     const kinds: JobKind[] = ['hit', 'frame'];
     if (n.wealth >= 50 && !n.faction) kinds.push('kidnap', 'con');
     return kinds;
@@ -269,7 +286,8 @@ export function launchJob(w: World, job: Job, approach: Approach, rng: Rng) {
   const odds = jobOdds(w, job, job.crewIds, approach);
   job.rolled = rng.float() * 100 < odds.chance;
   if (job.setpiece) { job.setpiece.stage = 1; job.setpiece.mult = 1; job.setpiece.heat = 0; job.setpiece.messy = false; nextStage(w, job, rng); return; }
-  const pool = COMPLICATIONS.filter(c => !c.kinds || c.kinds.includes(job.kind));
+  const like = likeOf(job.kind);
+  const pool = COMPLICATIONS.filter(c => !c.kinds || c.kinds.includes(like));
   if (pool.length && rng.chance(COMPLICATION_CHANCE[job.tier])) {
     const c = rng.pick(pool);
     job.complication = { id: c.id, title: c.title, text: c.text, options: c.options.map(o => ({ ...o })) };
@@ -331,7 +349,7 @@ function finishJob(w: World, job: Job, rng: Rng, mult: number, extraHeat: number
   let heldAt: Id | undefined;
   if (success && job.kind === 'kidnap' && job.targetNpcId) { heldAt = holdingRoom(w); if (heldAt) { holdHostage(w, job.targetNpcId, dirty, heldAt); dirty = 0; } else dirty = Math.round(dirty * 0.5); }
   const heatBefore = p.heat;
-  const bgHeat = p.background === 'hacker' && (job.kind === 'hack' || job.kind === 'fraud') ? 0.6 : 1;
+  const bgHeat = p.background === 'hacker' && ['hack', 'fraud'].includes(likeOf(job.kind)) ? 0.6 : 1;
   addHeat(w, (job.heat * ap.heat * (success ? 1 : 1.4) + extraHeat) * bgHeat, job.blockId);
   p.dirty += dirty; p.cash += clean;
   if (goods) { const lot = p.stash.goods; lot.q = lot.n + goods > 0 ? Math.round((lot.q * lot.n + 55 * goods) / (lot.n + goods)) : 0; lot.n += goods; }
@@ -380,6 +398,8 @@ function finishJob(w: World, job: Job, rng: Rng, mult: number, extraHeat: number
     ? `${job.title}: done.${dirty ? ` ${money(dirty)} dirty.` : ''}${clean ? ` ${money(clean)} clean.` : ''}${goods ? ` ${goods} lots of hot goods.` : ''}${effect ? ` ${effect}` : ''}`
     : `${job.title}: it went wrong.${jailed.length ? ` ${jailed.length} picked up.` : ''}${killed.length ? ` ${killed.length} did not come home.` : ''}`;
   job.result = { success, text, dirty, clean, goods, heat, injured, jailed, killed };
+  // what you have pulled off, by kind: the catalogue's later jobs are offered on the strength of it
+  if (success) { p.done ??= {}; p.done[job.kind] = (p.done[job.kind] ?? 0) + 1; }
   job.status = success ? 'done' : 'failed';
   job.expires = w.day;
   for (const id of job.crewIds) { const n = w.npcs[id]; if (n?.crew?.assignment?.kind === 'job') n.crew.assignment = undefined; }
@@ -408,7 +428,7 @@ function applyTargetEffect(w: World, job: Job, rng: Rng): string {
       return `${fullName(npc)} is going away for a while, and some of the paper on you went with them.`;
     } return '';
     case 'smuggle': { const n = rng.int(10, 25); const prod = rng.pick(['booze', 'green', 'pills'] as const); const lot = w.player.stash[prod]; lot.q = Math.round((lot.q * lot.n + 60 * n) / (lot.n + n)); lot.n += n; return `${n} lots of ${prod} in the stash.`; }
-    default: return '';
+    default: return catalogueEffect(w, job, rng);
   }
 }
 

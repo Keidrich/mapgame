@@ -2,7 +2,8 @@
  * The remake's tables. Balance lives here and in the formulas in `remake/sim/economy.ts`, never
  * scattered through the reducer — the same house rule as the original.
  */
-import type { Background, BusinessType, DistrictKind, FactionStyle, JobKind, LabKind, OfficialKind, Product, RacketKind, Skill, Skills, Temperament, Tier, Trait } from '@r/sim/types';
+import type { Background, BaseJobKind, BusinessType, DistrictKind, FactionStyle, JobKind, LabKind, OfficialKind, Product, RacketKind, Skill, Skills, Temperament, Tier, Trait } from '@r/sim/types';
+import { CATALOGUE, type CatalogueDef } from './catalogue';
 
 // ------------------------------------------------------------------------------------ districts
 export interface DistrictDef {
@@ -218,7 +219,7 @@ export interface JobDef {
   /** Which approaches make sense for it. */
   approaches: ('quiet' | 'loud' | 'clever')[];
 }
-export const JOBS: Record<JobKind, JobDef> = {
+const BASE_JOBS: Record<BaseJobKind, JobDef> = {
   burglary: { label: 'Burglary', verb: 'Break into', blurb: 'In after closing, out before anybody wakes.', leans: ['brains', 'tech', 'wheels'], crew: [1, 2], tier: 1, planDays: 1, heat: 4, exposure: 0.15, crime: 'robbery', approaches: ['quiet', 'clever'] },
   robbery: { label: 'Stick-up', verb: 'Stick up', blurb: 'Through the front door, masks on, till open.', leans: ['muscle', 'wheels'], crew: [1, 3], tier: 1, planDays: 0, heat: 8, exposure: 0.3, crime: 'robbery', approaches: ['loud', 'quiet'] },
   heist: { label: 'Heist', verb: 'Take the vault at', blurb: 'The big one. Plan it properly or do not do it.', leans: ['brains', 'tech', 'muscle', 'wheels'], crew: [3, 5], tier: 3, planDays: 4, heat: 18, exposure: 0.45, crime: 'robbery', approaches: ['quiet', 'loud', 'clever'] },
@@ -235,6 +236,23 @@ export const JOBS: Record<JobKind, JobDef> = {
   setpiece: { label: 'Set-piece', verb: 'Take', blurb: 'The job a city has only one of. Stages, a specialist, and a story people tell for years.', leans: ['brains', 'tech', 'wheels', 'muscle'], crew: [3, 5], tier: 4, planDays: 5, heat: 24, exposure: 0.5, crime: 'robbery', approaches: ['quiet', 'loud', 'clever'] },
   frame: { label: 'Frame', verb: 'Frame', blurb: 'The police find exactly what you left for them.', leans: ['brains', 'charm', 'tech'], crew: [1, 2], tier: 2, planDays: 3, heat: -5, exposure: 0.1, crime: 'fraud', approaches: ['clever'] },
 };
+
+/**
+ * The catalogue's jobs in the same shape as the first fourteen. Crew is the original's hands plus
+ * you; planning grows with tier; the approaches follow the skills (muscle is loud, charm is clever,
+ * the rest quiet); exposure follows heat, and a job done alone has nobody to describe.
+ */
+function fromCatalogue(d: CatalogueDef): JobDef {
+  const ap = new Set<'quiet' | 'loud' | 'clever'>();
+  for (const s of d.leans) ap.add(s === 'muscle' ? 'loud' : s === 'charm' ? 'clever' : 'quiet');
+  if (ap.size < 2) ap.add(ap.has('quiet') ? 'clever' : 'quiet');
+  return {
+    label: d.label, verb: d.verb, blurb: d.blurb, leans: d.leans, crew: [d.hands[0] + 1, d.hands[1]], tier: d.tier,
+    planDays: d.alone ? 2 : [0, 1, 2, 3, 4][d.tier], heat: d.heat, exposure: d.alone ? 0 : Math.min(0.45, Math.max(0.05, d.heat / 50)),
+    crime: d.crime, approaches: [...ap],
+  };
+}
+export const JOBS: Record<JobKind, JobDef> = { ...BASE_JOBS, ...Object.fromEntries(Object.entries(CATALOGUE).map(([k, d]) => [k, fromCatalogue(d)])) } as Record<JobKind, JobDef>;
 
 export const APPROACH_INFO: Record<'quiet' | 'loud' | 'clever', { label: string; blurb: string; heat: number; payout: number; injury: number }> = {
   quiet: { label: 'Quiet', blurb: 'Slow and careful. Less heat, fewer people hurt.', heat: 0.6, payout: 0.9, injury: 0.5 },

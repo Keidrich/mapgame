@@ -8,13 +8,14 @@
  * corner crew off, to one who declares war on everybody by day ten and kills every hostage. The
  * same seed under each is the ferocity sweep: `npm run sim2 -- 60 7 medium grifter all`.
  */
-import { BUSINESSES, LABS, RACKETS } from '@r/content/world';
+import { BUSINESSES, JOBS, LABS, RACKETS } from '@r/content/world';
 import { ITEMS, SLOTS_ORDER, type ItemId, type Slot } from '@r/content/kit';
 import { SETPIECES, SETPIECE_RANK, setpieceFor } from '@r/content/setpieces';
+import { CATALOGUE, CATALOGUE_KINDS } from '@r/content/catalogue';
 import { can, dispatch, newWorld, select, PLAYER, type Action, type Background, type Id, type Job, type World } from '@r/sim/index';
 import { Rng } from '@r/sim/rng';
 import type { CitySize } from '@r/sim/city';
-import type { Approach, RacketKind } from '@r/sim/types';
+import type { Approach, JobKind, RacketKind } from '@r/sim/types';
 
 export type Counter =
   | 'days' | 'chats' | 'threats' | 'protected' | 'squeezed' | 'recruited' | 'bribed' | 'settled' | 'leaned' | 'bought' | 'favours'
@@ -93,21 +94,42 @@ export interface Style {
   lobby: 'never' | 'defend' | 'always'; peace: boolean;
   /** Goes after the landmark set-pieces. */
   setpieces: boolean;
+  /**
+   * Appetite for the rest of the catalogue: the daily chance of casing the least-tried job in
+   * reach, and how much a never-run kind jumps the queue on the board (in dollars of value).
+   */
+  curiosity: number; novelty: number;
 }
-export type StyleId = 'timid' | 'steady' | 'schemer' | 'ruthless' | 'maniac';
+export type StyleId = 'timid' | 'steady' | 'schemer' | 'ruthless' | 'maniac' | 'collector';
 export const STYLES: Record<StyleId, Style> = {
-  timid: { label: 'Timid', blurb: 'Only sure things, pays everybody off, lays low early.', takeAt: 75, launchAt: 60, maxJobs: 1, loudCost: 20, cleverBonus: 0, heatCare: 2.5, threaten: 0.4, squeeze: 0.03, corner: 'crew_pay', layLow: 55, bribeAt: 25, truceAt: -30, tribute: true, war: 'never', kitMult: 6, kitSlots: ['armour', 'car', 'look'], hostage: 'ransom', holdDays: 0, payFor: 1.2, kidnaps: false, lobby: 'defend', peace: true, setpieces: false },
-  steady: { label: 'Steady', blurb: 'The bot as it always played: good odds, fair dealing, a war only if it comes.', takeAt: 55, launchAt: 35, maxJobs: 2, loudCost: 6, cleverBonus: 0, heatCare: 1, threaten: 0.8, squeeze: 0.25, corner: 'crew_take', layLow: 85, bribeAt: 35, truceAt: -50, tribute: true, war: 'never', kitMult: 4, kitSlots: ['weapon', 'tool', 'car', 'armour', 'tech', 'look'], hostage: 'ransom', holdDays: 3, payFor: 2, kidnaps: false, lobby: 'defend', peace: true, setpieces: true },
-  schemer: { label: 'Schemer', blurb: 'Clever over loud, officials early, works every vote at the table.', takeAt: 55, launchAt: 40, maxJobs: 2, loudCost: 14, cleverBonus: 6, heatCare: 1.2, threaten: 0.5, squeeze: 0.1, corner: 'crew_take', layLow: 80, bribeAt: 15, truceAt: -45, tribute: true, war: 'never', kitMult: 4, kitSlots: ['look', 'tech', 'tool', 'car', 'armour'], hostage: 'trade', holdDays: 2, payFor: 1.5, kidnaps: true, lobby: 'always', peace: true, setpieces: true },
-  ruthless: { label: 'Ruthless', blurb: 'Takes long odds, runs crews off, picks a war with the weakest outfit.', takeAt: 45, launchAt: 30, maxJobs: 2, loudCost: 0, cleverBonus: 0, heatCare: 0.5, threaten: 1.4, squeeze: 0.5, corner: 'crew_run', layLow: 92, bribeAt: 50, truceAt: -85, tribute: false, war: 'weakest', kitMult: 2.5, kitSlots: ['weapon', 'armour', 'car', 'tool'], hostage: 'ransom', holdDays: 5, payFor: 3, kidnaps: true, lobby: 'defend', peace: false, setpieces: true },
-  maniac: { label: 'Maniac', blurb: 'Anything over 30%, always loud, war on everybody, no hostage comes home.', takeAt: 30, launchAt: 20, maxJobs: 3, loudCost: -10, cleverBonus: 0, heatCare: 0, threaten: 2, squeeze: 0.8, corner: 'crew_run', bribeAt: Infinity, tribute: false, war: 'everyone', kitMult: 1.5, kitSlots: ['weapon', 'armour'], hostage: 'kill', holdDays: 1, kidnaps: true, lobby: 'never', peace: false, setpieces: true },
+  timid: { label: 'Timid', blurb: 'Only sure things, pays everybody off, lays low early.', takeAt: 75, launchAt: 60, maxJobs: 1, loudCost: 20, cleverBonus: 0, heatCare: 2.5, threaten: 0.4, squeeze: 0.03, corner: 'crew_pay', layLow: 55, bribeAt: 25, truceAt: -30, tribute: true, war: 'never', kitMult: 6, kitSlots: ['armour', 'car', 'look'], hostage: 'ransom', holdDays: 0, payFor: 1.2, kidnaps: false, lobby: 'defend', peace: true, setpieces: false, curiosity: 0.1, novelty: 0 },
+  steady: { label: 'Steady', blurb: 'The bot as it always played: good odds, fair dealing, a war only if it comes.', takeAt: 55, launchAt: 35, maxJobs: 2, loudCost: 6, cleverBonus: 0, heatCare: 1, threaten: 0.8, squeeze: 0.25, corner: 'crew_take', layLow: 85, bribeAt: 35, truceAt: -50, tribute: true, war: 'never', kitMult: 4, kitSlots: ['weapon', 'tool', 'car', 'armour', 'tech', 'look'], hostage: 'ransom', holdDays: 3, payFor: 2, kidnaps: false, lobby: 'defend', peace: true, setpieces: true, curiosity: 0.2, novelty: 1500 },
+  schemer: { label: 'Schemer', blurb: 'Clever over loud, officials early, works every vote at the table.', takeAt: 55, launchAt: 40, maxJobs: 2, loudCost: 14, cleverBonus: 6, heatCare: 1.2, threaten: 0.5, squeeze: 0.1, corner: 'crew_take', layLow: 80, bribeAt: 15, truceAt: -45, tribute: true, war: 'never', kitMult: 4, kitSlots: ['look', 'tech', 'tool', 'car', 'armour'], hostage: 'trade', holdDays: 2, payFor: 1.5, kidnaps: true, lobby: 'always', peace: true, setpieces: true, curiosity: 0.5, novelty: 5000 },
+  ruthless: { label: 'Ruthless', blurb: 'Takes long odds, runs crews off, picks a war with the weakest outfit.', takeAt: 45, launchAt: 30, maxJobs: 2, loudCost: 0, cleverBonus: 0, heatCare: 0.5, threaten: 1.4, squeeze: 0.5, corner: 'crew_run', layLow: 92, bribeAt: 50, truceAt: -85, tribute: false, war: 'weakest', kitMult: 2.5, kitSlots: ['weapon', 'armour', 'car', 'tool'], hostage: 'ransom', holdDays: 5, payFor: 3, kidnaps: true, lobby: 'defend', peace: false, setpieces: true, curiosity: 0.3, novelty: 3000 },
+  maniac: { label: 'Maniac', blurb: 'Anything over 30%, always loud, war on everybody, no hostage comes home.', takeAt: 30, launchAt: 20, maxJobs: 3, loudCost: -10, cleverBonus: 0, heatCare: 0, threaten: 2, squeeze: 0.8, corner: 'crew_run', bribeAt: Infinity, tribute: false, war: 'everyone', kitMult: 1.5, kitSlots: ['weapon', 'armour'], hostage: 'kill', holdDays: 1, kidnaps: true, lobby: 'never', peace: false, setpieces: true, curiosity: 0.3, novelty: 5000 },
+  // not a temperament: the catalogue scenario's player, who wants to have done everything once
+  collector: { label: 'Collector', blurb: 'Plays the catalogue scenario: every job once, whatever it pays.', takeAt: 20, launchAt: 10, maxJobs: 8, loudCost: 0, cleverBonus: 0, heatCare: 0.5, threaten: 1, squeeze: 0.3, corner: 'crew_take', layLow: 90, bribeAt: 30, tribute: false, war: 'never', kitMult: 3, kitSlots: ['weapon', 'armour', 'tool', 'tech'], hostage: 'ransom', holdDays: 2, payFor: 1.5, kidnaps: true, lobby: 'always', peace: false, setpieces: false, curiosity: 1, novelty: 1e6 },
 };
-export const STYLE_IDS = Object.keys(STYLES) as StyleId[];
+/** The five temperaments the sweep compares, mildest first. The collector is a scenario, not a temperament. */
+export const STYLE_IDS: StyleId[] = ['timid', 'steady', 'schemer', 'ruthless', 'maniac'];
 
-export interface RunResult { w: World; counts: Partial<Record<Counter, number>>; actions: number; refused: number }
-interface Ctx { w: World; rng: Rng; s: Style; counts: Partial<Record<Counter, number>>; actions: number; refused: number; seen: Set<Id> }
+/** `kinds`: every job kind that reached a result (done or failed), and how often — the catalogue's coverage. */
+export interface RunResult { w: World; counts: Partial<Record<Counter, number>>; kinds: Partial<Record<JobKind, number>>; offered: Partial<Record<JobKind, number>>; taken: Partial<Record<JobKind, number>>; actions: number; refused: number }
+interface Ctx { w: World; rng: Rng; s: Style; counts: Partial<Record<Counter, number>>; kinds: Partial<Record<JobKind, number>>; offered: Partial<Record<JobKind, number>>; taken: Partial<Record<JobKind, number>>; actions: number; refused: number; seen: Set<Id> }
 
 const bump = (c: Ctx, k: Counter, n = 1) => { c.counts[k] = (c.counts[k] ?? 0) + n; };
+/**
+ * How many times the bot has tried a kind — except that the first link of a chain it never pulled
+ * off counts as untried while a later link waits on it. A failed smuggle run once meant the
+ * dockside pickup and the convoy behind it never came up again.
+ */
+function tried(c: Ctx, k: JobKind): number {
+  const n = c.kinds[k] ?? 0;
+  if (!n || c.w.player.done?.[k]) return n;
+  const waiting = CATALOGUE_KINDS.some(x => !c.kinds[x] && CATALOGUE[x].needs?.after?.includes(k));
+  const inside = k === 'rat' && !Object.values(c.w.npcs).some(x => x.alive && x.inside) && CATALOGUE_KINDS.some(x => !c.kinds[x] && CATALOGUE[x].target === 'inside');
+  return waiting || inside ? 0 : n;
+}
 function act(c: Ctx, a: Action): boolean {
   const ok = can(c.w, a);
   if (!ok.ok) { c.refused++; return false; }
@@ -115,15 +137,17 @@ function act(c: Ctx, a: Action): boolean {
   return true;
 }
 
-export function run(opts: { days: number; seed: number; size?: CitySize; background?: Background; style?: StyleId }): RunResult {
-  const c: Ctx = { w: newWorld({ seed: opts.seed, size: opts.size ?? 'medium', name: 'Bot', background: opts.background ?? 'grifter' }), rng: new Rng(opts.seed * 31 + 7), s: STYLES[opts.style ?? 'steady'], counts: {}, actions: 0, refused: 0, seen: new Set() };
+export function run(opts: { days: number; seed: number; size?: CitySize; background?: Background; style?: StyleId; scenario?: 'catalogue' }): RunResult {
+  const w0 = newWorld({ seed: opts.seed, size: opts.size ?? 'medium', name: 'Bot', background: opts.background ?? 'grifter' });
+  if (opts.scenario === 'catalogue') boost(w0);
+  const c: Ctx = { w: w0, rng: new Rng(opts.seed * 31 + 7), s: STYLES[opts.scenario === 'catalogue' ? 'collector' : opts.style ?? 'steady'], counts: {}, kinds: {}, offered: {}, taken: {}, actions: 0, refused: 0, seen: new Set() };
   while (c.w.day <= opts.days && !c.w.over) {
     day(c);
     check(c);
     watch(c);
     bump(c, 'days');
   }
-  return { w: c.w, counts: c.counts, actions: c.actions, refused: c.refused };
+  return { w: c.w, counts: c.counts, kinds: c.kinds, offered: c.offered, taken: c.taken, actions: c.actions, refused: c.refused };
 }
 
 function day(c: Ctx) {
@@ -255,13 +279,25 @@ function runJobs(c: Ctx) {
   // take the best offer we can staff
   const offers = Object.values(w().jobs).filter(j => j.status === 'offer');
   const free = select.crew(w()).filter(n => n.crew!.status === 'ready' && (!n.crew!.assignment || n.crew!.assignment.kind === 'guard'));
-  for (const j of offers.sort((a, b) => value(b) - value(a))) {
+  // a kind the bot has never run jumps the queue, so a sixty-day soak tests the catalogue and not
+  // just the three most lucrative jobs in it
+  const novel = (j: Job) => value(j) + (c.kinds[j.kind] ? 0 : c.s.novelty);
+  // a file about to become a trial ends the collector's run, and with it the coverage: killing the
+  // worst one on you comes before anything else on the board
+  const danger = (j: Job) => c.s.curiosity >= 1 && j.kind === 'buy_case' && (w().cases[j.targetCaseId!]?.suspectId === PLAYER) ? -1e6 : 0;
+  // the collector wants breadth, not money: least-tried kind first, the big crews before the small
+  // ones eat the hands, then whatever expires soonest
+  const order = c.s.curiosity >= 1
+    ? (a: Job, b: Job) => danger(a) - danger(b) || tried(c, a.kind) - tried(c, b.kind) || b.crewMin - a.crewMin || a.expires - b.expires
+    : (a: Job, b: Job) => novel(b) - novel(a);
+  for (const j of offers.sort(order)) {
     if (Object.values(w().jobs).filter(x => x.status === 'planning' || x.status === 'ready').length >= c.s.maxJobs) break;
     // a set-piece takes every hand it can hold; anything else, two
     // and a set-piece is worth pulling runners off their rackets for, which the bot would never
     // otherwise do — without this the bot cased the courthouse three times with nobody free to send
-    const hands = j.kind === 'setpiece' ? j.crewMax : 2;
-    const pool = j.kind === 'setpiece' ? select.crew(w()).filter(n => n.crew!.status === 'ready' && n.crew!.assignment?.kind !== 'job') : free;
+    // the collector sends the fewest it can, so eight people cover as many jobs at once as they can
+    const hands = j.kind === 'setpiece' ? j.crewMax : c.s.curiosity >= 1 ? j.crewMin : 2;
+    const pool = j.kind === 'setpiece' || c.s.curiosity >= 1 ? select.crew(w()).filter(n => n.crew!.status === 'ready' && n.crew!.assignment?.kind !== 'job') : free;
     const team = pool.sort((a, b) => j.leans.reduce((t, s) => t + b.skills[s] - a.skills[s], 0)).slice(0, Math.max(j.crewMin, Math.min(j.crewMax, hands)));
     if (team.length < j.crewMin) continue;
     if (j.kind === 'kidnap' && !c.s.kidnaps) continue;
@@ -270,7 +306,8 @@ function runJobs(c: Ctx) {
     // long enough for the bot to count on them
     if (ap.chance + (j.kind === 'setpiece' ? 8 : 0) < c.s.takeAt) continue;
     for (const n of team) if (n.crew!.assignment) act(c, { type: 'assign', npcId: n.id, assignment: null });
-    if (act(c, { type: 'take_job', jobId: j.id, crewIds: team.map(n => n.id) })) { bump(c, 'jobs_taken'); break; }
+    // one a day, except for the collector, who takes everything it can staff
+    if (act(c, { type: 'take_job', jobId: j.id, crewIds: team.map(n => n.id) })) { bump(c, 'jobs_taken'); if (c.s.curiosity < 1) break; }
   }
   // case something now and then, so the board is not only what the city offers
   if (c.rng.chance(0.25) && w().player.ap >= 3) {
@@ -278,6 +315,11 @@ function runJobs(c: Ctx) {
     const t = here[0];
     if (t) { const kinds = select.caseKinds(w(), { businessId: t.id }); if (kinds.length && act(c, { type: 'case', kind: kinds[0], businessId: t.id })) bump(c, 'cased'); }
   }
+  // and now and then something off the rest of the catalogue: the kind the bot has run least that
+  // any target in reach will carry. Without this the board's own mix decides what gets tested, and
+  // a job that needs a file, a cell or a derelict block would be offered too rarely to ever run.
+  if (c.rng.chance(c.s.curiosity) && p().ap >= 3) curious(c);
+  if (c.s.curiosity >= 1 && p().ap >= 3) curious(c);   // the collector cases twice a day
   // somebody worth taking, when there is a back room to keep them in
   if (c.s.kidnaps && select.holdingRoom(w()) && p().ap >= 2 && c.rng.chance(0.3) && !Object.values(w().jobs).some(j => j.kind === 'kidnap' && j.status !== 'done' && j.status !== 'failed' && j.status !== 'expired')) {
     const rich = select.peopleOn(w(), p().blockId).concat(w().blocks[p().blockId].neighborIds.flatMap(id => select.peopleOn(w(), id)))
@@ -415,7 +457,8 @@ function build(c: Ctx) {
     const kind = s.labs.length === 0 ? 'still' : s.labs.length === 1 && purse() > 8000 ? 'grow' : undefined;
     if (kind && purse() > LABS[kind].setup * 1.8 && act(c, { type: 'build_lab', safehouseId: sid, kind })) bump(c, 'labs');
     for (const l of w().safehouses[sid].labs) if (l.supplies < 2 && act(c, { type: 'restock_lab', safehouseId: sid, labId: l.id, days: 5 })) bump(c, 'restocks');
-    if (s.tier < 3 && purse() > 30000 && act(c, { type: 'upgrade_safehouse', safehouseId: sid })) { /* ok */ }
+    // the second tier opens the heists and the long runs, so it comes early; the third is a luxury
+    if (s.tier < 3 && purse() > (s.tier === 1 ? 12000 : 30000) && act(c, { type: 'upgrade_safehouse', safehouseId: sid })) { /* ok */ }
   }
 }
 function pref(k: RacketKind, laundry: boolean, dirty: number) {
@@ -466,6 +509,74 @@ function politics(c: Ctx) {
     const f = live.find(x => x.standing > -56);
     if (f && act(c, { type: 'declare_war', factionId: f.id })) bump(c, 'declared');
   }
+}
+
+/**
+ * Case the least-tried job kind that anything in the city will carry: kind first, then the first
+ * target that fits it and that `can()` allows — nearest ground first. Sampling targets and then
+ * picking a kind (the first cut) almost never landed on a jeweller or a file, so the rare kinds
+ * never ran.
+ */
+function curious(c: Ctx) {
+  const w = c.w; const p = w.player;
+  const worst = select.openCases(w).filter(x => x.suspectId === PLAYER && x.evidence >= 55).sort((a, b) => b.evidence - a.evidence)[0];
+  if (c.s.curiosity >= 1 && worst && can(w, { type: 'case', kind: 'buy_case', caseId: worst.id }).ok) { if (act(c, { type: 'case', kind: 'buy_case', caseId: worst.id })) bump(c, 'cased'); return; }
+  const here = w.blocks[p.blockId];
+  const near = new Set([here.id, ...here.neighborIds]);
+  const first = <T,>(xs: T[], at: (x: T) => Id) => [...xs.filter(x => near.has(at(x))), ...xs.filter(x => !near.has(at(x)))];
+  const pools: { businessId?: Id; npcId?: Id; blockId?: Id; caseId?: Id }[][] = [
+    first(Object.values(w.businesses), b => b.blockId).map(b => ({ businessId: b.id })),
+    first(Object.values(w.npcs).filter(n => n.alive), n => n.homeBlockId).map(n => ({ npcId: n.id })),
+    first(Object.values(w.blocks), b => b.id).map(b => ({ blockId: b.id })),
+    Object.values(w.cases).map(x => ({ caseId: x.id })),
+  ];
+  const kinds = (Object.keys(JOBS) as JobKind[]).filter(k => k !== 'setpiece')
+    .map(k => ({ k, n: tried(c, k) + c.rng.float() * 0.5 })).sort((a, b) => a.n - b.n).slice(0, 12);
+  for (const { k } of kinds) {
+    if (Object.values(w.jobs).some(j => j.kind === k && ['offer', 'planning', 'ready', 'paused'].includes(j.status))) continue;
+    for (const pool of pools) {
+      const t = pool.find(x => select.caseKinds(w, x).includes(k) && can(w, { type: 'case', kind: k, ...x }).ok);
+      if (t) { if (act(c, { type: 'case', kind: k, ...t })) bump(c, 'cased'); return; }
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------------- scenario
+/**
+ * The catalogue scenario: a mid-game empire on day one, so every job in the catalogue has what it
+ * needs — money, crew, a tier-2 back room, places you own running the rackets the paper jobs lean
+ * on, a gun, a war, two of yours in a cell and a file open on you. The Remake's stand-in for the
+ * original's admin panel. **Not an economy curve**: it proves every job runs end to end, nothing
+ * about what the game pays.
+ */
+export function boost(w: World) {
+  const p = w.player;
+  p.cash = 150000; p.dirty = 60000; p.fear = 50; p.respect = 50; p.lawyer = true;
+  p.kit = { weapon: 'pistol', armour: 'kevlar', tool: 'drill', tech: 'jammer' };
+  const here = w.blocks[p.blockId];
+  // two tier-2 back rooms: one here, one next door
+  for (const bid of [here.id, here.neighborIds.find(id => !w.blocks[id].safehouseId)!].filter(Boolean)) {
+    const id = `s${w.nextId++}`;
+    w.safehouses[id] = { id, blockId: bid, name: `Scenario rooms on ${w.blocks[bid].name}`, tier: 2, labs: [] };
+    w.blocks[bid].safehouseId = id; p.safehouseIds.push(id);
+  }
+  // eight crew: the best-skilled civilians in the city
+  const civ = Object.values(w.npcs).filter(n => n.alive && !n.crew && !n.faction && !n.official && n.id !== w.fixerId && !Object.values(w.crews ?? {}).some(c => c.bossId === n.id))
+    .sort((a, b) => Math.max(...Object.values(b.skills)) - Math.max(...Object.values(a.skills))).slice(0, 8);
+  for (const n of civ) { n.crew = { loyalty: 70, cut: 120, joined: 0, status: 'ready', statusDays: 0, xp: 0, level: 2, kit: { weapon: 'bat' } }; n.faction = PLAYER; n.role = 'crew'; p.crewIds.push(n.id); }
+  // two of them inside, for springing and supplying
+  for (const n of civ.slice(6)) { n.crew!.status = 'jailed'; n.crew!.statusDays = 50; }
+  // three places of your own, with the rackets the paper and wire jobs need
+  const mine = [here.id, ...here.neighborIds].flatMap(id => w.blocks[id].businessIds).map(id => w.businesses[id]).filter(b => b.tier < 3 && b.closed <= 0).slice(0, 3);
+  const kinds: RacketKind[] = ['laundering', 'bookmaking', 'union_dues', 'smuggling', 'fencing', 'dealing'];
+  mine.forEach((b, i) => {
+    b.ownedBy = PLAYER; b.protection = undefined; p.businessIds.push(b.id);
+    for (const k of kinds.slice(i * 2, i * 2 + 2)) { const id = `r${w.nextId++}`; w.rackets[id] = { id, kind: k, businessId: b.id, owner: PLAYER, level: 1, started: 0, lastIncome: 0, down: 0 }; b.racketIds.push(id); p.racketIds.push(id); }
+  });
+  // one outfit at war with you, and a file open on you
+  const f = Object.values(w.factions).find(x => x.alive)!; f.standing = -70; f.truceUntil = undefined;
+  w.cases[`c${w.nextId++}`] = { id: `c${w.nextId - 1}`, crime: 'fraud', opened: 0, evidence: 45, suspectId: PLAYER, witnessIds: [], status: 'open', summary: 'Paper nobody could explain.' };
+  w.events = [];
 }
 
 // --------------------------------------------------------------------------------------- kit
@@ -561,6 +672,14 @@ function commission(c: Ctx) {
 
 /** Things that happen to the bot rather than things it does, counted as they appear. */
 function watch(c: Ctx) {
+  for (const j of Object.values(c.w.jobs)) {
+    // offered, taken and finished, per kind: "never run" alone cannot say whether a job was never
+    // on the board, never worth taking, or taken and dropped
+    if (!c.seen.has(`o${j.id}`)) { c.seen.add(`o${j.id}`); c.offered[j.kind] = (c.offered[j.kind] ?? 0) + 1; }
+    if (j.status !== 'offer' && j.status !== 'expired' && !c.seen.has(`t${j.id}`)) { c.seen.add(`t${j.id}`); c.taken[j.kind] = (c.taken[j.kind] ?? 0) + 1; }
+    if (!j.result || c.seen.has(j.id)) continue;
+    c.seen.add(j.id); c.kinds[j.kind] = (c.kinds[j.kind] ?? 0) + 1;
+  }
   for (const h of Object.values(c.w.hostages)) {
     if (c.seen.has(h.id)) continue;
     c.seen.add(h.id);
