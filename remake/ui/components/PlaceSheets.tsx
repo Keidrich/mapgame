@@ -10,6 +10,7 @@ import { ShopSection } from './Armoury';
 import { CaseSection } from './JobFaction';
 import { HostageList } from './Hostages';
 import { BackroomSection } from './Backroom';
+import { ParkedSection } from './Cars';
 
 export function BlockSheet({ id }: { id: string }) {
   const w = useWorld();
@@ -58,6 +59,7 @@ export function BlockSheet({ id }: { id: string }) {
         </Section>
       ); })()}
       <TakeItToThem blockId={id} />
+      <ParkedSection blockId={id} />
       <CaseSection target={{ blockId: id }} only={k => select.jobTarget(k) !== 'none'} title="Work these streets" note={`Jobs on ${b.name} itself, and across ${d.name}.`} />
       <Section title="Places">
         {biz.length ? biz.map(x => <BizRow key={x.id} id={x.id} />) : <Empty>No businesses on this block.</Empty>}

@@ -604,7 +604,13 @@ export interface Player {
   /** The back rooms (`backroom.ts`): dice games tonight, and numbers slips waiting on tonight's draw. */
   dice?: { day: number; n: number };
   slips?: { day: number; pick: number; amount: number }[];
+  /** Cars you have taken and not yet got rid of (`cars.ts`), and the blocks you took from tonight. */
+  garage?: Car[];
+  lifted?: { day: number; blockIds: Id[] };
 }
+
+/** A stolen car in your garage. Hot while somebody is still looking for it. */
+export interface Car { id: Id; model: import('@r/content/cars').CarModel; hot: number; plates: boolean; day: number }
 
 /** A seat at a card table, or the last roll of the dice (`backroom.ts`). Cards are 0..51. */
 export interface Table {

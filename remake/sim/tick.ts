@@ -10,6 +10,7 @@ import { drawEvents } from './events';
 import { tickFamily } from './family';
 import { tickSupply } from './supply';
 import { drawNumbers } from './backroom';
+import { tickCars } from './cars';
 import { hurtHours } from './fights';
 import { habitMorning } from './character';
 import { splitHours } from '@r/content/clock';
@@ -163,6 +164,7 @@ export function endDay(w: World, rng: Rng) {
 
   // ---- the numbers: tonight's draw, against today's slips
   drawNumbers(w, day);
+  tickCars(w);
 
   // ---- the drivers: after the labs, so tonight's batch can go out tonight
   sum.dirty += tickSupply(w, rng);

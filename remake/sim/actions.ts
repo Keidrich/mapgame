@@ -65,6 +65,8 @@ export type Action =
   | { type: 'table_leave' }
   | { type: 'dice'; businessId: Id; stake: number }
   | { type: 'numbers'; pick: number; amount: number }
+  | { type: 'steal_car'; blockId: Id }
+  | { type: 'car'; carId: Id; what: 'chop' | 'respray' | 'keep' | 'sell' }
   | { type: 'attack'; factionId: Owner; blockId: Id; crewIds: Id[] }
   | { type: 'buy_bullets'; n: number; at: Id | 'fixer' }
   | { type: 'patch_up' }

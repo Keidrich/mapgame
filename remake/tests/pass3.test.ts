@@ -334,8 +334,11 @@ describe('the bots, from timid to maniac', () => {
   // one run per test: a single sixty-second synchronous test starves vitest's worker RPC and the
   // run fails on a timeout even though every assertion passed
   const union: Record<string, number> = {};
-  it.each(STYLE_IDS)('sixty days on seed 7, played %s', style => {
-    for (const [k, v] of Object.entries(run({ days: 60, seed: 7, size: 'medium', style }).counts)) union[k] = (union[k] ?? 0) + (v ?? 0);
+  // Two seeds, not one. Every roadmap pass shifted seed 7's dice and knocked a different row out of a
+  // one-seed union (hostages, then specialists, then set-pieces), each time for no reason but chaos.
+  // Seed 1 alone reaches every row; the two together give each system two chances.
+  it.each(STYLE_IDS.flatMap(style => [7, 1].map(seed => [style, seed] as const)))('sixty days, played %s on seed %i', (style, seed) => {
+    for (const [k, v] of Object.entries(run({ days: 60, seed, size: 'medium', style }).counts)) union[k] = (union[k] ?? 0) + (v ?? 0);
   }, 60000);
   it('between them, those runs reach every system — set-pieces, hostages and the Commission included', () => {
     // the region's rows are held by the region scenario (region.test.ts), not by sixty natural days

@@ -14,6 +14,63 @@ House rules for an entry (see `CLAUDE.md` → *Leave a trail*):
 
 ---
 
+## 2026-09-24 — Remake: cars — stealing, the garage, chop and respray, getaways (roadmap 6 of 8)
+
+**What.**
+- After dark every block has a car worth taking, a better one where the money lives. Take it, keep
+  it in your garage while it cools, then chop it for parts, or respray it and keep it as kit or
+  sell it clean.
+- A car in the crew is now a getaway: fewer arrests when a job fails, and fewer delivery loads
+  taken on the road.
+
+**Why.** Roadmap pillar 6 (`docs/REMAKE.md` §15, now §21): the car theft and garages of the old
+mafia games. Until now a car was only something you bought and hung on somebody.
+
+**How.**
+- **Data and sim.**
+  - `content/cars.ts`: `MODELS`, `STEAL`, `GARAGE`, `CHOP`, `RESPRAY`, `SELL`, `GETAWAY` and
+    `FAST_DRIVER`.
+  - `sim/cars.ts`: `parkedOn` (a hash of seed, block and day, so looking changes nothing),
+    `stealOdds`, `stealCar`, `garageRoom`, `chopper`, `sprayShop`, `chop`, `respray`, `keep`,
+    `sell`, `tickCars`, and `getawayBonus` / `getawayMult`.
+- **Hooks.**
+  - `jobs.ts`: a failed job's arrest roll is multiplied by `getawayMult`.
+  - `supply.ts`: `hijackChance(w, armed, fast)`.
+  - `endDay`: `tickCars`.
+- **New state and actions.** `Player.garage`, `Player.lifted` and the `Car` type, all optional (no
+  migration, no save bump). Actions `steal_car` and `car {carId, what}`.
+- **Screen.** `ui/components/Cars.tsx`: "Parked tonight" on the block sheet, "The garage" on Empire →
+  Holdings. A line in How to play.
+- **Bots.** `cars()`: the fighters steal, and everybody works the garage. Coverage rows "stealing
+  cars" and "the garage".
+- **Tests.** `remake/tests/cars.test.ts`, 7 of them.
+- **Coverage test, two seeds.** The five-temperament union in `pass3.test.ts` now runs seeds 7 and 1.
+  Each roadmap pass shifted seed 7's dice and knocked a different row out of a one-seed union:
+  hostages, then specialists, now set-pieces (the ruthless bot's heist crew was jailed out from
+  under it). Seed 1 alone reaches every row, and the pair gives each system two chances.
+
+**Numbers** (five seeds, 60 days):
+- Steady: 24.8%, identical to before.
+- Ruthless: 25.1%, 3 cars a run; convicted in 1 of 5, on day 59.
+- Maniac: 13.9%; convicted in 3 of 5 (was 2).
+- The honest baseline in the original game is unchanged.
+
+**Watch out.**
+- Car theft is heat. The ruthless bot ends at heat 82, where it was 69 without cars. The first
+  consequences (5 heat and a 30% file on a miss, 0.5 a day per hot car) were cut to 4, 15% and 0.3
+  after they convicted the fighters more often.
+- The bot's stealing is limited to the fighters, after day 20, at 50% odds or better. Stealing for
+  the steady bot cost it three points of the city.
+- The bots almost never respray or keep a car: they need a garage they control, and chopping is
+  always available. The `cars.test.ts` tests cover respray, keep and sell.
+
+**Files.**
+- New: `remake/content/cars.ts`, `remake/sim/cars.ts`, `remake/tests/cars.test.ts`,
+  `remake/ui/components/Cars.tsx`.
+- Changed: `remake/sim/{types,actions,reducer,tick,jobs,supply,select}.ts`,
+  `remake/scripts/bot.ts`, `remake/ui/App.tsx`, `remake/ui/components/{PlaceSheets,Tabs}.tsx`, and
+  `docs/REMAKE.md` §21.
+
 ## 2026-09-24 — Remake: the back rooms — five-card draw, street dice, the numbers (roadmap 5 of 8)
 
 **What.** Three games you actually play:

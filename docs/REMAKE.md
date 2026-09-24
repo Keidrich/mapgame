@@ -841,6 +841,53 @@ All the dealing happens inside `dispatch` from the world's seeded rng, and the t
 | Maniac | 15.7% | 4 dice games | convicted in 2 of 5 |
 | Timid | — | 20 numbers slips | — |
 
+## 21. Cars
+
+Cars on the street, a garage, and cars on the job (`sim/cars.ts`; the numbers are data in
+`content/cars.ts`).
+
+- **What is parked.** Every block has one car worth taking each night, chosen by a hash of the
+  seed, the block and the day, not by the world's rng. The sheet can show it before you try, and
+  looking changes nothing. Models run from a hatchback ($1,400, only on blocks of wealth 55 or
+  less) to a sports car ($12,000, 75 or more).
+- **Taking it** (`steal_car`): after dark, on the block, an hour.
+  - The odds: 50, +5 per point of wheels, +3 per point of tech (kit counts), less the model's lock
+    (0 to 28), less a quarter of the district's police attention. Between 5 and 95.
+  - Success: the car is in your garage, hot for 5 days, and puts 2 heat on the block.
+  - Failure: 4 heat, and a 15% chance of a robbery file (evidence 10).
+  - One car per block per night.
+- **The garage.** Room for one on the street and two per safehouse tier. Each hot car costs 0.3
+  heat a day while it cools.
+- **What to do with it** (`car {carId, what}`):
+  - chop it for dirty money: 55% of the value at your own chop shop in the city, 30% through a
+    scrapyard;
+  - respray it at a garage you own or protect ($400, an hour): it cools at once and gets new
+    plates;
+  - then keep it: it becomes kit (hatch or pickup → beater, sedan, taxi or luxury → sedan, coupe →
+    motorbike, sports → muscle car);
+  - or sell it by day for 45% of the value, clean.
+- **The getaway.** On a failed job, each crew member's arrest chance is multiplied by
+  (1 − 0.12 × the best car bonus in the crew, yours included if you went), never under 0.4. A
+  muscle car cuts it by about a third.
+- **Deliveries.** A driver with car bonus 2 or more has loads taken 25% less often (`supply.ts`).
+- **Screen.** "Parked tonight" on the block sheet, with value, odds and garage room. "The garage" on
+  Empire → Holdings, with hot days and the four actions. A line in How to play.
+- **Bots.** The ruthless and the maniac steal every other night after day 20, when the odds are 50%
+  or better and an hour is left. Anybody with cars works the garage: resprays and keeps one if they
+  have no car, sells what has new plates, and chops the rest.
+  - Stealing for the steady bot too cost it three points of the city and 14 heat for one car a run.
+  - The first theft consequences (5 heat and a 30% file on a miss) convicted the fighters more often.
+
+**Balance (five seeds, 60 days):**
+
+| Bot | Control | Cars stolen | Outcome |
+|---|---|---|---|
+| Steady | 24.8% | — | never convicted; identical |
+| Ruthless | 25.1% | 3 | convicted in 1 of 5 (day 59); heat 82 |
+| Maniac | 13.9% | 1 | convicted in 3 of 5 (was 2) |
+
+Car theft is heat, and the fighters live on the edge of the law.
+
 ## 15. The road: the whole game
 
 The Remake is heading toward the full game its inspirations add up to: City of Gangsters (a

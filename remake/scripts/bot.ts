@@ -30,7 +30,8 @@ export type Counter =
   | 'fights' | 'fights_won' | 'ambushes' | 'bullets_bought'
   | 'outlets_set' | 'drivers' | 'deliveries' | 'hijacked' | 'delivered_self'
   | 'trained' | 'boosts' | 'dried_out'
-  | 'poker_hands' | 'poker_won' | 'cheated' | 'dice_rolls' | 'numbers_played';
+  | 'poker_hands' | 'poker_won' | 'cheated' | 'dice_rolls' | 'numbers_played'
+  | 'cars_stolen' | 'cars_chopped' | 'cars_resprayed' | 'cars_kept' | 'cars_sold';
 
 export const SYSTEMS: { label: string; needs: Counter[] }[] = [
   { label: 'talking to people', needs: ['chats'] },
@@ -63,6 +64,8 @@ export const SYSTEMS: { label: string; needs: Counter[] }[] = [
   { label: 'the card table', needs: ['poker_hands'] },
   { label: 'dice', needs: ['dice_rolls'] },
   { label: 'the numbers', needs: ['numbers_played'] },
+  { label: 'stealing cars', needs: ['cars_stolen'] },
+  { label: 'the garage', needs: ['cars_chopped', 'cars_resprayed'] },
   { label: 'night encounters', needs: ['night_events'] },
   { label: 'diplomacy', needs: ['tributes', 'sitdowns'] },
   { label: 'lieutenants', needs: ['lieutenants'] },
@@ -218,6 +221,7 @@ function shift(c: Ctx) {
   region(c);   // before money: the stash is what a route ships, and money() sells it on the corner
   money(c);
   kit(c);
+  cars(c);
   backroom(c);
   character(c);   // before the street work, which spends every hour it can find; rationed inside
   street(c);
@@ -328,6 +332,35 @@ function character(c: Ctx) {
     .sort((x, y) => select.trainFee(w(), x.id) - select.trainFee(w(), y.id) || y.tier - x.tier)[0];
   if (!b || purse() < select.trainFee(w(), b.id) * 4 || !goTo(c, b.blockId)) return;
   if (act(c, { type: 'train', skill, at: b.id })) bump(c, 'trained');
+}
+
+// ------------------------------------------------------------------------------------------ cars
+/**
+ * After day 20, the fighters take what is parked on their block or next door, every other night,
+ * when the odds suit them. Then the garage: keep
+ * one resprayed car for yourself if you have none, sell resprayed cars for clean money if you are
+ * the schemer, chop the rest.
+ */
+function cars(c: Ctx) {
+  const w = () => c.w; const p = () => w().player;
+  const style = Object.entries(STYLES).find(([, s]) => s === c.s)?.[0] ?? 'steady';
+  if (w().day < 20) return;
+  // the garage is worked by anybody who has cars in it; the stealing is the fighters' trade. Stealing
+  // for the steady bot too cost it three points of the city and 14 heat for one car a run
+  const thief = style === 'ruthless' || style === 'maniac';
+  for (const car of (p().garage ?? []).slice()) {
+    if (!p().kit?.car && !car.plates && select.sprayShop(w()) && act(c, { type: 'car', carId: car.id, what: 'respray' })) { bump(c, 'cars_resprayed'); continue; }
+    if (!p().kit?.car && car.plates) { if (act(c, { type: 'car', carId: car.id, what: 'keep' })) { bump(c, 'cars_kept'); act(c, { type: 'equip', to: PLAYER, item: select.MODELS[car.model].keep }); } continue; }
+    if (car.plates && act(c, { type: 'car', carId: car.id, what: 'sell' })) { bump(c, 'cars_sold'); continue; }
+    if (style === 'schemer' && select.sprayShop(w()) && !car.plates && act(c, { type: 'car', carId: car.id, what: 'respray' })) { bump(c, 'cars_resprayed'); continue; }
+    if (act(c, { type: 'car', carId: car.id, what: 'chop' })) bump(c, 'cars_chopped');
+  }
+  // an hour on this block, or two with the walk next door: the night's other work comes first
+  if (!thief || !select.isNight(w()) || p().ap < 1 || w().day % 2) return;
+  const need = Math.max(50, c.s.takeAt);   // the maniac's takeAt is a coin toss, and every miss is heat
+  const here = w().blocks[p().blockId];
+  const bid = [here.id, ...(p().ap >= 2 ? here.neighborIds : [])].filter(id => select.parkedOn(w(), id) && select.stealOdds(w(), id) >= need).sort((a, b) => select.MODELS[select.parkedOn(w(), b)!].value - select.MODELS[select.parkedOn(w(), a)!].value)[0];
+  if (bid && goTo(c, bid) && act(c, { type: 'steal_car', blockId: bid }) && (p().garage ?? []).some(x => x.day === w().day)) bump(c, 'cars_stolen');
 }
 
 // ------------------------------------------------------------------------------------ back rooms

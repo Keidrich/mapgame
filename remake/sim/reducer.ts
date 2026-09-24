@@ -33,6 +33,8 @@ import { boostBlock, dryOut, takeBoost, train, trainBlock, trainFee } from './ch
 import { BOOSTS, HABIT, TRAIN } from '@r/content/character';
 import { bet, diceBlock, draw, leave, nextBlock, nextHand, numbersBlock, playNumbers, rollDice, sitDown as sitAtTable, tableBlock } from './backroom';
 import { POKER } from '@r/content/backroom';
+import { carBlock, chop, keep, respray, sell, stealBlock, stealCar } from './cars';
+import { RESPRAY, STEAL } from '@r/content/cars';
 import { OUTLETS, SUPPLY } from '@r/content/supply';
 import { endDay, STRAIGHT } from './tick';
 import type { Action, Affordance } from './actions';
@@ -353,6 +355,12 @@ function canInner(w: World, a: Action): Affordance {
     case 'table_leave': return w.table && w.table.stage !== 'left' ? (w.table.stage === 'done' || w.table.stage === 'draw' ? yes() : no('Finish the hand: fold if you want out.')) : no('You are not at a table.');
     case 'dice': { const why = diceBlock(w, a.businessId, a.stake); return why ? no(why) : yes({ cash: a.stake }); }
     case 'numbers': { const why = numbersBlock(w, a.pick, a.amount); return why ? no(why) : yes({ cash: a.amount }); }
+    case 'steal_car': { const why = stealBlock(w, a.blockId); if (why) return no(why); if (busy) return no(busy); const e = ap(STEAL.ap); return e ? no(e) : yes({ ap: STEAL.ap }); }
+    case 'car': {
+      const why = carBlock(w, a.carId, a.what); if (why) return no(why);
+      if (a.what === 'respray') { const e = ap(RESPRAY.ap) ?? cost(w, RESPRAY.cost); return e ? no(e) : yes({ ap: RESPRAY.ap, cash: RESPRAY.cost }); }
+      return yes();
+    }
     case 'run_delivery': {
       const o = ordersIn(w, cityOfBlock(w, p.blockId));
       if (!o.lots) return no('No orders here that the stash can fill: set a place to take your product, and have some.');
@@ -560,6 +568,13 @@ export function dispatch(world: World, a: Action): World {
       break;
     }
     case 'run_delivery': runDelivery(w, rng); break;
+    case 'steal_car': stealCar(w, rng, a.blockId); break;
+    case 'car':
+      if (a.what === 'chop') chop(w, a.carId);
+      else if (a.what === 'respray') { spend(w, RESPRAY.cost); respray(w, a.carId); }
+      else if (a.what === 'keep') keep(w, a.carId);
+      else sell(w, a.carId);
+      break;
     case 'table_sit': sitAtTable(w, rng, a.businessId, a.stake); break;
     case 'poker_draw': draw(w, rng, a.hold, !!a.cheat); break;
     case 'poker_bet': bet(w, rng, a.move); break;

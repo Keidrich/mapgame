@@ -10,6 +10,7 @@
 import { ITEMS } from '@r/content/kit';
 import { PRODUCTS } from '@r/content/world';
 import { OUTLETS, SUPPLY } from '@r/content/supply';
+import { FAST_DRIVER } from '@r/content/cars';
 import { streetPrice } from './economy';
 import { stanceOf } from './factions';
 import { GUNS } from '@r/content/fights';
@@ -47,10 +48,11 @@ export function outlets(w: World, city?: string): Business[] {
   return Object.values(w.businesses).filter(b => b.outlet?.length && canBeOutlet(b) && b.closed <= 0 && (!city || cityOf(w, b.blockId) === city));
 }
 /** How likely a load is to be stopped tonight. */
-export function hijackChance(w: World, armed: boolean): number {
+export function hijackChance(w: World, armed: boolean, fast = false): number {
   const war = Object.values(w.factions).some(f => f.alive && ['war', 'beef'].includes(stanceOf(f, w.day)));
   const c = SUPPLY.hijack.base + (war ? SUPPLY.hijack.war : 0) + w.player.heat * SUPPLY.hijack.perHeat;
-  return Math.min(0.5, c * (armed ? SUPPLY.hijack.armed : 1));
+  // a fast car (`content/cars.ts`) outruns some of what is waiting on the road
+  return Math.min(0.5, c * (armed ? SUPPLY.hijack.armed : 1) * (fast ? FAST_DRIVER : 1));
 }
 
 export interface SupplyNight { day: number; delivered: number; earned: number; lost: number; short: number }
@@ -75,7 +77,7 @@ export function ordersIn(w: World, city: string): { lots: number; worth: number 
  * every order is filled. Shared by the crew drivers at the end of the day and by you, driving it
  * yourself after dark — so the numbers on the button are the numbers the night uses.
  */
-export function round(w: World, rng: Rng, r: SupplyNight, carry: number, city: string, armed: boolean, driver: string, hurt: () => void) {
+export function round(w: World, rng: Rng, r: SupplyNight, carry: number, city: string, armed: boolean, driver: string, hurt: () => void, fast = false) {
   const p = w.player;
   let room = carry;
   for (const b of outlets(w, city)) {
@@ -85,7 +87,7 @@ export function round(w: World, rng: Rng, r: SupplyNight, carry: number, city: s
       const n = Math.min(want, lot.n, room); if (n <= 0) continue;
       lot.n -= n; if (!lot.n) lot.q = 0; room -= n;
       b.supplied = { day: w.day, n: (b.supplied?.day === w.day ? b.supplied.n : 0) + n };
-      if (rng.chance(hijackChance(w, armed))) {
+      if (rng.chance(hijackChance(w, armed, fast))) {
         r.lost += n;
         addHeat(w, 2, b.blockId);
         if (rng.chance(0.3)) hurt();
@@ -104,7 +106,8 @@ export function round(w: World, rng: Rng, r: SupplyNight, carry: number, city: s
 export function runDelivery(w: World, rng: Rng) {
   const r: SupplyNight = { day: w.day, delivered: 0, earned: 0, lost: 0, short: 0 };
   const armed = GUNS.includes(w.player.kit?.weapon as never);
-  round(w, rng, r, yourCarry(w), cityOf(w, w.player.blockId), armed, 'Your', () => { w.player.hurtDays = Math.max(w.player.hurtDays ?? 0, 2); });
+  const fast = (w.player.kit?.car ? ITEMS[w.player.kit.car]?.bonus ?? 0 : 0) >= 2;
+  round(w, rng, r, yourCarry(w), cityOf(w, w.player.blockId), armed, 'Your', () => { w.player.hurtDays = Math.max(w.player.hurtDays ?? 0, 2); }, fast);
   w.player.dirty += r.earned;
   log(w, r.delivered ? `You drove the round yourself: ${r.delivered} lots at the back doors, ${Math.round(r.earned)} dirty.` : 'You drove the round, and came home with nothing to show for it.', r.delivered ? 'money' : 'bad');
   if (w.player.skills.wheels < 10 && rng.chance(0.15)) w.player.skills.wheels++;
@@ -116,7 +119,8 @@ export function tickSupply(w: World, rng: Rng): number {
   const report: SupplyNight = { day: w.day, delivered: 0, earned: 0, lost: 0, short: 0 };
   for (const d of drivers(w)) {
     const armed = GUNS.includes(d.n.crew?.kit?.weapon as never);
-    round(w, rng, report, d.carry, d.city, armed, `${fullName(d.n)}'s`, () => injure(w, d.n.id, rng.int(2, 4), 'a load taken on the road'));
+    const fast = (d.n.crew?.kit?.car ? ITEMS[d.n.crew.kit.car]?.bonus ?? 0 : 0) >= 2;
+    round(w, rng, report, d.carry, d.city, armed, `${fullName(d.n)}'s`, () => injure(w, d.n.id, rng.int(2, 4), 'a load taken on the road'), fast);
   }
   // what the outlets wanted and did not get, so the screen can say why
   for (const b of outlets(w)) for (const prod of b.outlet ?? []) report.short += Math.max(0, outletDemand(w, b, prod) - (b.supplied?.day === w.day ? b.supplied.n : 0));

@@ -27,6 +27,7 @@ import { gainXp, injure, jail, kill, practise, spreadWord } from './people';
 import { Rng } from './rng';
 import type { Approach, Id, Job, JobKind, JobPayout, Npc, Owner, Skill, SpecialistKind, World } from './types';
 import { PLAYER } from './types';
+import { getawayMult } from './cars';
 import { addHeat, addInfluence, clamp, fullName, log, money, nid, remember, shortName } from './util';
 
 const LEAN_W = [1, 0.7, 0.5, 0.35];
@@ -391,7 +392,8 @@ function finishJob(w: World, job: Job, rng: Rng, mult: number, extraHeat: number
   const hurtChance = (success ? 0.08 : 0.3) * ap.injury * (messy ? 1.5 : 1);
   for (const id of job.crewIds) {
     const n = w.npcs[id]; if (!n?.alive) continue;
-    if (!success && rng.chance(0.18 * (job.approach === 'loud' ? 1.3 : 0.8))) { jail(w, id, rng.int(5, 15), `caught on ${job.title.toLowerCase()}`); jailed.push(id); continue; }
+    // a car waiting outside (`cars.ts`): the best one in the crew keeps people out of the cells
+    if (!success && rng.chance(0.18 * (job.approach === 'loud' ? 1.3 : 0.8) * getawayMult(w, job, present(w, job)))) { jail(w, id, rng.int(5, 15), `caught on ${job.title.toLowerCase()}`); jailed.push(id); continue; }
     // armour turns aside a share of what a bad night does, and the shot that would have killed
     const armour = armourOf(kitOf(w, id));
     if (rng.chance(hurtChance * (1 - armour))) { if (!success && job.approach === 'loud' && rng.chance(0.15 * (1 - armour))) { kill(w, id, `shot on ${job.title.toLowerCase()}`); killed.push(id); } else { injure(w, id, rng.int(2, 6), `on ${job.title.toLowerCase()}`); injured.push(id); } }

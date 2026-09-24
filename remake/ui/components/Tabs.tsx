@@ -6,6 +6,7 @@ import type { Product } from '@r/sim/types';
 import { ArmourySection } from './Armoury';
 import { HostageList } from './Hostages';
 import { NumbersSection } from './Backroom';
+import { GarageSection } from './Cars';
 import { CommissionSection } from './Commission';
 import { CaseSection } from './JobFaction';
 import { Icon } from '@ui/icons';
@@ -175,6 +176,7 @@ export function EmpireTab() {
       </>}
       {view === 'kit' && <ArmourySection />}
       {view === 'holdings' && <>
+        <GarageSection />
         {Object.values(w.hostages).some(h => h.holder === PLAYER) && <Section title="In the back room"><HostageList filter={h => h.holder === PLAYER} /></Section>}
         <Section title={`Rackets (${p.racketIds.length})`}>{p.racketIds.length ? p.racketIds.map(id => w.rackets[id] ? <div key={id}><p className="r-over">{w.businesses[w.rackets[id].businessId].name}</p><RacketRow id={id} /></div> : null) : <Empty>No rackets yet. Protect or buy a place, then start one from its sheet.</Empty>}</Section>
         <Section title={`Places you own (${owned.length})`}>{owned.length ? owned.map(b => <BizRow key={b.id} id={b.id} />) : <Empty>Buy a place with clean money from its owner.</Empty>}</Section>
