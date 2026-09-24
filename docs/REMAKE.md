@@ -782,8 +782,64 @@ Skills used to grow only by doing (`practise`): every threat was muscle, every j
 |---|---|---|
 | Steady | 24.4% | never convicted |
 | Ruthless | 24.1% | never convicted; habit 41 at the end |
-| Maniac | 13.2% | convicted in 2 of 5, killed in 1 |
+| Maniac | 13.2% | convicted in 2 of 5, killed in 1 (measured before a late fix; really 8.5% and 5 of 5 lost, corrected in §20) |
 | Timid / schemer | — | study about 10 times |
+
+## 20. The back rooms
+
+Casino games as real minigames (`sim/backroom.ts`; the numbers are data in `content/backroom.ts`).
+All the dealing happens inside `dispatch` from the world's seeded rng, and the table is state
+(`World.table`) that the screen reads and answers one action at a time.
+
+- **Where.** After dark at a bar, nightclub, restaurant or casino, or at any place with a gambling
+  den behind it, whoever runs it. Place sheet → "The back room".
+- **Five-card draw** (`table_sit`, `poker_draw`, `poker_bet`, `table_next`, `table_leave`):
+  - Stakes are $100, $300 or $1,000 a hand; you need four antes to sit. Sitting costs an hour, and
+    the hands after it are free, up to 8 a sitting or until dawn.
+  - Two regulars sit with you (strangers if the place has none).
+  - Everybody antes. You hold what you like and draw; the others hold pairs, four to a flush, or a
+    high card.
+  - Then you fold, call (a showdown for the pot) or raise twice the ante. On a raise:
+    - each other player calls with two pair or better;
+    - with a pair, they call if it is jacks or better, or on nerve;
+    - with nothing, rarely.
+  - If everybody folds, the pot is yours. The house takes 5% of a pot unless the house is yours.
+  - **Reads.** After the draw each player may give themselves away: 20%, +5% per point of brains,
+    +3% per point of charm, up to 80%. The read is true ("sitting on something big", "has
+    nothing").
+  - **Dealing from the bottom.** Your draw comes out of the bottom dozen, the best of them for what
+    you kept. You are caught 35% of the time, −3% per point of tech and −2% per point of brains, never
+    under 5%. Caught: the pot is gone, you are out, heat +2, respect −2, and the players at the
+    table lose 15 trust and gain 5 fear.
+  - A sitting played straight gives each regular +4 trust.
+- **The night encounter.** "Cards at …" now offers "Take the chair and play it out" (a `table`
+  effect seats you, with that regular in the first chair). The old one-hand option stays for a boss
+  in a hurry.
+- **Street dice** (`dice`): $50, $200 or $500, craps rules. 7 or 11 wins, 2, 3 or 12 loses, anything
+  else is the point, rolled for until the point or a seven. Even money, 10 games a night.
+- **The numbers** (`numbers`): three digits, by day, up to 3 slips of $10, $50 or $100. Drawn
+  overnight at 600 to 1. You can play anywhere, except against your own book, where you run a
+  numbers racket in that city. The draw comes from its own stream (seed and day), not the world's
+  rng. Drawn from the world's rng, one number a night shifted every later roll, and the ruthless
+  bot, which never plays, went from 0 convictions in five cities to 2.
+- **Screen.** The table is a modal: bone-white cards, tap to hold, the players with their reads,
+  the pot, and the hand's lines. Dice show the faces roll by roll. The numbers are on Empire → Money.
+- **Bots.**
+  - The schemer takes the chair when the night encounter offers it, and cheats when the chance of
+    being seen is 20% or less. Only the schemer: taking the chair instead of the one-hand option
+    cost the steady bot four points of the city.
+  - The steady bot sits at $100 every fourth night after day 20.
+  - The maniac rolls dice; the timid boss plays a slip a day.
+
+**Balance (five seeds, 60 days):**
+
+| Bot | Control | Back room | Outcome |
+|---|---|---|---|
+| Steady | 24.8% | — | never convicted; identical to before |
+| Ruthless | 25.6% | — | never convicted |
+| Schemer | — | 7.4 hands, 4 won | killed in 1 of 5 (day 38) |
+| Maniac | 15.7% | 4 dice games | convicted in 2 of 5 |
+| Timid | — | 20 numbers slips | — |
 
 ## 15. The road: the whole game
 

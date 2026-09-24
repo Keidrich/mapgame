@@ -9,6 +9,7 @@ import { select, PLAYER } from '@r/sim/index';
 import { Icon } from '@ui/icons';
 import { setMode } from '@ui/mode';
 import { act, boot, closeRecap, closeSheets, dismissToast, focusBlock, leaveGame, openSheet, quitGame, setLayer, setMap3d, setTab, useUi, useWorld, viewCity, type Layer, type Tab } from './store';
+import { TableCard } from './components/Backroom';
 import { CityMap } from './components/CityMap';
 import { NpcFace } from './components/Faces';
 import { mute } from './components/tone';
@@ -108,7 +109,8 @@ function Game() {
       {recap && <RecapCard />}
       {!recap && paused?.complication && <ComplicationCard />}
       {!recap && !dusk && w.fight && !w.fight.seen && <FightCard />}
-      {!recap && !paused && !dusk && !(w.fight && !w.fight.seen) && w.events.length > 0 && <EventCard />}
+      {!recap && !dusk && !(w.fight && !w.fight.seen) && w.table && w.table.stage !== 'left' && <TableCard />}
+      {!recap && !paused && !dusk && !(w.fight && !w.fight.seen) && !(w.table && w.table.stage !== 'left') && w.events.length > 0 && <EventCard />}
       {w.won && !w.wonSeen && !recap && <WinCard />}
       {w.over && <OverCard />}
       <Toasts />
@@ -432,6 +434,7 @@ function HelpSheet() {
         <li><b>Rackets</b> run out of places you protect or own, and earn every night. Put crew on them as runners — a racket nobody minds earns 60%.</li>
         <li><b>Supply.</b> Bars, clubs, restaurants and casinos you protect or own will take your booze, green and pills by the case — at better than the street pays, with a third of the heat. Tell a place to take it from its sheet; then give one of your crew the deliveries, or drive the round yourself after dark. Loads get taken on the road, more often in a war.</li>
         <li><b>Yourself.</b> Train at a gym or work the room at a bar after dark, drive a shift at a garage or tinker at an electronics shop by day, or study with the books: two hours, once a skill a day, more for every day in a row. Bennies and a bump buy hours or an edge today and leave a habit that takes hours back. Fear and respect add up to a name — feared, respected, or both — that tilts the odds.</li>
+        <li><b>The back room.</b> After dark, bars, clubs, restaurants and casinos have a game: five-card draw against the regulars (tap to hold, then fold, call or raise; brains and charm give you a read on them, and a steady hand can deal from the bottom), and dice in the alley. By day you can play the numbers: three digits, drawn overnight, 600 to 1.</li>
         <li><b>Dirty and clean.</b> Most money is dirty. Buying businesses, officials and a lawyer need clean. The fixer washes by hand; a laundering racket washes every night while it is switched on.</li>
         <li><b>Crew</b> come from the regulars. Build trust, then recruit. Beds come from safehouses. Crew level up; a good one can run a whole district.</li>
         <li><b>Jobs</b> arrive from people who trust you, from grudges you know about, and from wars. You can case any place yourself. Every job shows its odds per approach; big ones stop halfway and ask.</li>

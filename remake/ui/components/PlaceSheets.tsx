@@ -9,6 +9,7 @@ import { SETPIECE_RANK, setpieceFor } from '@r/content/setpieces';
 import { ShopSection } from './Armoury';
 import { CaseSection } from './JobFaction';
 import { HostageList } from './Hostages';
+import { BackroomSection } from './Backroom';
 
 export function BlockSheet({ id }: { id: string }) {
   const w = useWorld();
@@ -115,6 +116,7 @@ export function BusinessSheet({ id }: { id: string }) {
       </Section>
       <SupplySection id={id} />
       <TrainSection id={id} />
+      <BackroomSection id={id} />
       {b.closed <= 0 && <ShopSection at={id} title={w.player.blockId === b.blockId ? 'For sale here' : `For sale here — go to ${w.blocks[b.blockId].name}`} />}
       <CaseSection target={{ businessId: id }} title={mine ? 'Work it' : 'Case it'} note={mine ? 'Jobs you can only run through a place you own.' : undefined} />
       {b.patronIds.length > 0 && <Section title="Regulars">{b.patronIds.map(pid => { const n = w.npcs[pid]; return n ? <Row key={pid} onClick={() => openSheet({ kind: 'person', id: pid })} left={<NpcFace n={n} size={32} />} title={select.fullName(n)} sub={n.crew ? 'Yours' : n.rel.met ? `trust ${n.rel.trust}` : n.alive ? 'A stranger' : 'Dead'} /> : null; })}</Section>}

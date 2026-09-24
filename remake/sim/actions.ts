@@ -58,6 +58,13 @@ export type Action =
   | { type: 'train'; skill: Skill; at: Id | 'books' }
   | { type: 'take_boost'; kind: 'pep' | 'nerve'; at: Id | 'fixer' }
   | { type: 'dry_out' }
+  | { type: 'table_sit'; businessId: Id; stake: number }
+  | { type: 'poker_draw'; hold: number[]; cheat?: boolean }
+  | { type: 'poker_bet'; move: 'fold' | 'call' | 'raise' }
+  | { type: 'table_next' }
+  | { type: 'table_leave' }
+  | { type: 'dice'; businessId: Id; stake: number }
+  | { type: 'numbers'; pick: number; amount: number }
   | { type: 'attack'; factionId: Owner; blockId: Id; crewIds: Id[] }
   | { type: 'buy_bullets'; n: number; at: Id | 'fixer' }
   | { type: 'patch_up' }

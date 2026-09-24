@@ -29,7 +29,8 @@ export type Counter =
   | 'made' | 'appointed' | 'rats_found' | 'coups'
   | 'fights' | 'fights_won' | 'ambushes' | 'bullets_bought'
   | 'outlets_set' | 'drivers' | 'deliveries' | 'hijacked' | 'delivered_self'
-  | 'trained' | 'boosts' | 'dried_out';
+  | 'trained' | 'boosts' | 'dried_out'
+  | 'poker_hands' | 'poker_won' | 'cheated' | 'dice_rolls' | 'numbers_played';
 
 export const SYSTEMS: { label: string; needs: Counter[] }[] = [
   { label: 'talking to people', needs: ['chats'] },
@@ -59,6 +60,9 @@ export const SYSTEMS: { label: string; needs: Counter[] }[] = [
   { label: 'supply chains', needs: ['deliveries', 'delivered_self'] },
   { label: 'training', needs: ['trained'] },
   { label: 'boosts and habit', needs: ['boosts'] },
+  { label: 'the card table', needs: ['poker_hands'] },
+  { label: 'dice', needs: ['dice_rolls'] },
+  { label: 'the numbers', needs: ['numbers_played'] },
   { label: 'night encounters', needs: ['night_events'] },
   { label: 'diplomacy', needs: ['tributes', 'sitdowns'] },
   { label: 'lieutenants', needs: ['lieutenants'] },
@@ -214,6 +218,7 @@ function shift(c: Ctx) {
   region(c);   // before money: the stash is what a route ships, and money() sells it on the corner
   money(c);
   kit(c);
+  backroom(c);
   character(c);   // before the street work, which spends every hour it can find; rationed inside
   street(c);
   politics(c);
@@ -301,8 +306,9 @@ function character(c: Ctx) {
   // night 4 of seed 7 (two of three night hours, not recruiting) left the steady bot at 11% of the
   // city on day 60 instead of 25%, and the maniac on bennies was convicted by day 18-21
   if (w().day < 20) return;
-  // every other day, so the habit and the bad mornings between show up in the soak
-  if (style === 'maniac' && w().day % 2 === 0 && purse() > 2000 && act(c, { type: 'take_boost', kind: 'pep', at: 'fixer' })) bump(c, 'boosts');
+  // every day: on alternate days the habit shook its hands on the very quotes it reads to lean on
+  // witnesses, it stopped leaning, and it was convicted in five cities of five
+  if (style === 'maniac' && purse() > 2000 && act(c, { type: 'take_boost', kind: 'pep', at: 'fixer' })) bump(c, 'boosts');
   if (style === 'ruthless' && night && purse() > 4000 && Object.values(w().factions).some(f => f.alive && select.stanceOf(f, w().day) === 'war') && act(c, { type: 'take_boost', kind: 'nerve', at: 'fixer' })) bump(c, 'boosts');
   if ((p().habit ?? 0) >= 60 && purse() > 6000 && act(c, { type: 'dry_out' })) bump(c, 'dried_out');
   // training: only with hours left over after a session, so the street is not starved of them
@@ -322,6 +328,47 @@ function character(c: Ctx) {
     .sort((x, y) => select.trainFee(w(), x.id) - select.trainFee(w(), y.id) || y.tier - x.tier)[0];
   if (!b || purse() < select.trainFee(w(), b.id) * 4 || !goTo(c, b.blockId)) return;
   if (act(c, { type: 'train', skill, at: b.id })) bump(c, 'trained');
+}
+
+// ------------------------------------------------------------------------------------ back rooms
+/**
+ * Cards for the steady and the schemer (small stakes, a few hands, the schemer cheating when the
+ * odds of being seen are kind); dice for the maniac; a slip on the numbers for the timid boss. All
+ * after day 20, with money that will not be missed.
+ */
+function backroom(c: Ctx) {
+  const w = () => c.w; const p = () => w().player;
+  const purse = () => p().cash + p().dirty;
+  const style = Object.entries(STYLES).find(([, s]) => s === c.s)?.[0] ?? 'steady';
+  if (w().day < 20) return;
+  if (style === 'timid' && !select.isNight(w()) && purse() > 3000 && act(c, { type: 'numbers', pick: (w().day * 173) % 1000, amount: 10 })) bump(c, 'numbers_played');
+  if (!select.isNight(w())) return;
+  const here = w().blocks[p().blockId];
+  const spot = [here.id, ...here.neighborIds].flatMap(bid => w().blocks[bid].businessIds.map(id => w().businesses[id])).find(b => select.hasTable(w(), b));
+  if (!spot) return;
+  if (style === 'maniac' && purse() > 5000 && w().day % 3 === 0 && goTo(c, spot.blockId)) {
+    for (let i = 0; i < 2; i++) if (act(c, { type: 'dice', businessId: spot.id, stake: 200 })) bump(c, 'dice_rolls');
+    act(c, { type: 'table_leave' });
+  }
+  if ((style === 'steady' || style === 'schemer') && purse() > 8000 && w().day % 4 === 1 && p().ap >= 1 && goTo(c, spot.blockId) && act(c, { type: 'table_sit', businessId: spot.id, stake: 100 })) playTable(c, 3);
+}
+/** Play the table out: hold what the table would, bet on the hand and the reads, then get up. */
+function playTable(c: Ctx, hands: number) {
+  const w = () => c.w;
+  const cheat = c.s.cleverBonus > 0 && select.cheatChance(w()) <= 0.2;
+  for (let guard = 0; guard < 20 && w().table && w().table!.stage !== 'left'; guard++) {
+    const t = w().table!;
+    if (t.game === 'dice' || t.stage === 'done') {
+      if (t.game === 'poker' && t.hands < hands && act(c, { type: 'table_next' })) continue;
+      act(c, { type: 'table_leave' }); break;
+    }
+    if (t.stage === 'draw') { if (act(c, { type: 'poker_draw', hold: select.autoHold(t.hand), cheat })) { bump(c, 'poker_hands'); if (cheat) bump(c, 'cheated'); } else break; continue; }
+    const s = select.handScore(t.hand); const cat = Math.floor(s / 13 ** 5);
+    const scared = (t.reads ?? []).some(r => /big/.test(r));
+    const move = cat >= 2 && !scared ? 'raise' : cat === 0 && scared ? 'fold' : 'call';
+    if (!act(c, { type: 'poker_bet', move })) act(c, { type: 'poker_bet', move: 'fold' });
+    if (w().table?.youWon) bump(c, 'poker_won');
+  }
 }
 
 // ------------------------------------------------------------------------------------ the law
@@ -364,6 +411,8 @@ function family(c: Ctx) {
 // ------------------------------------------------------------------------------------ events
 function answerEverything(c: Ctx) {
   let guard = 0;
+  // a seat the night encounter gave you is played out before anything else
+  if (c.w.table && c.w.table.stage !== 'left') playTable(c, 2);
   while (guard++ < 10) {
     const j = select.pendingJob(c.w);
     if (j?.complication) {
@@ -397,6 +446,9 @@ function scoreEffects(c: Ctx, effects: World['events'][number]['options'][number
     if (e.k === 'goods' || e.k === 'product') v += e.n * 0.05;
     // a fight is worth its odds: a sure one is a win, a coin toss is somebody in hospital
     if (e.k === 'fight') v += (e.odds - 55) / 8;
+    // only the schemer takes the chair: the one-hand option's trust is what the steady bot builds on,
+    // and taking the chair instead cost it four points of the city over five seeds
+    if (e.k === 'table') v += c.s.cleverBonus > 0 ? 1 : -1;
   }
   return v;
 }
@@ -449,8 +501,12 @@ function runJobs(c: Ctx) {
   }
   for (const j of Object.values(w().jobs).filter(x => x.status === 'ready')) {
     // the big ones get a specialist when the money is there
-    if (j.tier >= 2 && !j.specialist && w().player.cash + w().player.dirty > 15000) {
-      const kind = (['safecracker', 'hacker', 'driver', 'gunman', 'face'] as const).find(k => can(w(), { type: 'hire_specialist', jobId: j.id, kind: k }).ok && j.leans.includes(({ safecracker: 'brains', hacker: 'tech', driver: 'wheels', gunman: 'muscle', face: 'charm' } as const)[k]));
+    // The schemer hires at five times the fee; everybody else waits for $15k. At $15k for all, the five
+    // temperaments on seed 7 hired nobody in sixty days once the back rooms shifted the money curve;
+    // at five times the fee for all, the steady bot hired ten and held 20% of the city instead of 25%
+    if (j.tier >= 2 && !j.specialist) {
+      const floor = (fee: number) => (c.s.cleverBonus > 0 ? fee * 5 : 15000);
+      const kind = (['safecracker', 'hacker', 'driver', 'gunman', 'face'] as const).find(k => { const q = can(w(), { type: 'hire_specialist', jobId: j.id, kind: k }); return q.ok && w().player.cash + w().player.dirty > floor(q.cash ?? 0) && j.leans.includes(({ safecracker: 'brains', hacker: 'tech', driver: 'wheels', gunman: 'muscle', face: 'charm' } as const)[k]); });
       if (kind && act(c, { type: 'hire_specialist', jobId: j.id, kind })) bump(c, 'specialists');
     }
     // a job waits for its own hour — the dark for a break-in, office hours for a con — unless it

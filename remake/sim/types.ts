@@ -497,6 +497,7 @@ export interface GameEvent {
 
 /** Everything an event can do, as data — so an option can describe itself before you press it. */
 export type Effect =
+  | { k: 'table'; businessId: Id; npcId: Id; stake: number }
   | { k: 'cash'; n: number }
   | { k: 'dirty'; n: number }
   | { k: 'heat'; n: number }
@@ -600,6 +601,30 @@ export interface Player {
   streak?: { last: number; n: number };
   boost?: { day: number; kinds: ('pep' | 'nerve')[] };
   habit?: number;
+  /** The back rooms (`backroom.ts`): dice games tonight, and numbers slips waiting on tonight's draw. */
+  dice?: { day: number; n: number };
+  slips?: { day: number; pick: number; amount: number }[];
+}
+
+/** A seat at a card table, or the last roll of the dice (`backroom.ts`). Cards are 0..51. */
+export interface Table {
+  game: 'poker' | 'dice';
+  businessId: Id;
+  stake: number;
+  hand: number[];
+  deck: number[];
+  seats: { npcId?: Id; name: string; hand: number[]; nerve: number; folded?: boolean }[];
+  pot: number;
+  stage: 'draw' | 'bet' | 'done' | 'left';
+  lines: string[];
+  hands: number;
+  /** You, this sitting. */
+  net: number;
+  /** Nobody has dealt from the bottom this sitting. */
+  straight: boolean;
+  reads?: string[];
+  youWon?: boolean;
+  caught?: boolean;
 }
 
 export interface DaySummary { day: number; clean: number; dirty: number; spent: number; heat: number; control: number; worth: number; washed?: number }
@@ -614,6 +639,10 @@ export interface World {
   seed: number;
   rng: number;
   day: number;
+  /** The card table you are sitting at, or the dice you just rolled (`backroom.ts`). */
+  table?: Table;
+  /** Last night's number. */
+  numbersDrawn?: { day: number; n: number };
   /** Last night's deliveries (`supply.ts`). */
   supply?: { day: number; delivered: number; earned: number; lost: number; short: number };
   /** The last fight, round by round, until you have read it (`fights.ts`). */

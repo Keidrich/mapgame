@@ -14,6 +14,63 @@ House rules for an entry (see `CLAUDE.md` → *Leave a trail*):
 
 ---
 
+## 2026-09-24 — Remake: the back rooms — five-card draw, street dice, the numbers (roadmap 5 of 8)
+
+**What.** Three games you actually play:
+- **Five-card draw** at a real table against the regulars. You hold and draw, then fold, call or
+  raise. You can read players with brains and charm, and deal from the bottom with tech.
+- **Street dice**, under craps rules.
+- **The numbers**: three digits by day, drawn overnight at 600 to 1.
+
+The night card-game encounter now seats you at that table.
+
+**Why.** Roadmap pillar 5 (`docs/REMAKE.md` §15, now §20): the casino and the card room of the old
+mafia games. Until now a card game was a one-line decision with a fixed outcome.
+
+**How.**
+- **Data and sim.** `content/backroom.ts` (`TABLES`, `POKER`, `DICE`, `NUMBERS`). `sim/backroom.ts`
+  has the hand evaluator (`score`, `categoryOf`, `autoHold`), the table (`sitDown`, `draw`, `bet`,
+  `nextHand`, `leave`), `rollDice`, and the numbers (`playNumbers`, `drawNumbers`, run in
+  `endDay`).
+- **New state.** `World.table`, `World.numbersDrawn`, `Player.dice`, `Player.slips`, all optional
+  (no migration, no save bump).
+- **New actions and effect.** Actions `table_sit`, `poker_draw`, `poker_bet`, `table_next`,
+  `table_leave`, `dice` and `numbers`. The effect `table` seats you from the night encounter.
+- **Screen.** `ui/components/Backroom.tsx`: the TableCard modal (cards, players, reads, pot, lines;
+  dice faces for dice), a "back room" section on the place's sheet, and the numbers on Empire →
+  Money. CSS for the cards, and a line in How to play.
+- **Bots.** `backroom()` and `playTable()`: the schemer takes the chair and cheats when the odds
+  allow, steady plays $100 hands, the maniac rolls dice, the timid boss plays the numbers. Coverage
+  rows "the card table", "dice" and "the numbers".
+- **Tests.** `remake/tests/backroom.test.ts`, 9 of them: every hand category in order, ties and the
+  wheel, a full hand, raises, cheating (both outcomes), the encounter, dice, and the numbers.
+- **Bot specialists.** The schemer now hires a specialist when it holds five times the fee; the rest
+  still wait for $15k. After this pass's money shift, the five temperaments on seed 7 hired nobody
+  at a flat $15k, and "specialists" dropped out of the `pass3.test.ts` coverage union. Five times
+  the fee for everyone had the steady bot hire ten and hold 20% instead of 25%.
+
+**Numbers** (five seeds, 60 days):
+- Steady: 24.8% control, identical to before. Ruthless: 25.6%, never convicted.
+- Maniac: 15.7%, convicted in 2 of 5.
+- The honest baseline in the original game is unchanged.
+
+**Watch out.**
+- **Correction to the character pass.** Its numbers were measured before a late fix that put
+  character lines on "Go to …" quotes, which the bots read to decide whether to lean on a witness.
+  As shipped, the maniac held 8.5% and all five runs ended early: on its off days its hands shook,
+  it stopped leaning on witnesses, and it was convicted. The maniac bot now takes bennies daily and
+  is back to 15.7%. The `REMAKE.md` §19 table is annotated.
+- The numbers draw uses its own rng stream (seed × 1000003 + day × 7919), deliberately not the
+  world's. A roll drawn from the shared rng every night changes every later roll in the game.
+- Opponents never raise and never bluff-raise. The only bluff at the table is yours.
+
+**Files.**
+- New: `remake/content/backroom.ts`, `remake/sim/backroom.ts`, `remake/tests/backroom.test.ts`,
+  `remake/ui/components/Backroom.tsx`.
+- Changed: `remake/sim/{types,actions,reducer,effects,events,tick,select}.ts`,
+  `remake/scripts/bot.ts`, `remake/ui/{App.tsx,remake.css}`,
+  `remake/ui/components/{PlaceSheets,Tabs}.tsx`, and `docs/REMAKE.md` §19–20.
+
 ## 2026-09-24 — Remake: your character — training, study, boosts and habit, reputation (roadmap 4 of 8)
 
 **What.** You build yourself, not only your outfit:

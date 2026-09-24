@@ -5,6 +5,7 @@ import { select, PLAYER } from '@r/sim/index';
 import type { Product } from '@r/sim/types';
 import { ArmourySection } from './Armoury';
 import { HostageList } from './Hostages';
+import { NumbersSection } from './Backroom';
 import { CommissionSection } from './Commission';
 import { CaseSection } from './JobFaction';
 import { Icon } from '@ui/icons';
@@ -167,6 +168,7 @@ export function EmpireTab() {
           {!select.drivers(w).length && <p className="r-why">Nobody is driving. Give one of your crew the deliveries from their sheet, or drive the round yourself after dark.</p>}
           <DriveRound />
         </Section>}
+        <NumbersSection />
         <Section title="The stash" right={<span className="r-note">{select.stashTotal(w)}/{select.stashCapacity(w)}</span>}>
           {(Object.keys(PRODUCTS) as Product[]).map(k => { const lot = p.stash[k]; return <Row key={k} left={<Icon name={k === 'goods' ? 'hot_goods' : k} />} title={`${PRODUCTS[k].label}: ${lot.n}`} sub={lot.n ? `quality ${lot.q} · ${k === 'goods' ? 'needs a fence' : `${fmt(select.streetPrice(w, k, p.blockId))} each on this corner`}` : 'none'} right={lot.n && k !== 'goods' ? <Do action={{ type: 'sell_street', product: k, n: lot.n }} label="Sell here" small /> : undefined} />; })}
         </Section>

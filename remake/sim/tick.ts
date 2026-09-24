@@ -9,6 +9,7 @@ import { FAIR_RATE, labOutput, labQuality, protectionTake, racketIncome, rankOf,
 import { drawEvents } from './events';
 import { tickFamily } from './family';
 import { tickSupply } from './supply';
+import { drawNumbers } from './backroom';
 import { hurtHours } from './fights';
 import { habitMorning } from './character';
 import { splitHours } from '@r/content/clock';
@@ -159,6 +160,9 @@ export function endDay(w: World, rng: Rng) {
     if (!pay(tier.rent)) addHeat(w, 0);
     gain(s.blockId, 1);
   }
+
+  // ---- the numbers: tonight's draw, against today's slips
+  drawNumbers(w, day);
 
   // ---- the drivers: after the labs, so tonight's batch can go out tonight
   sum.dirty += tickSupply(w, rng);

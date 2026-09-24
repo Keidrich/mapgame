@@ -31,6 +31,8 @@ import { attack } from './fights';
 import { canBeOutlet, ordersIn, runDelivery } from './supply';
 import { boostBlock, dryOut, takeBoost, train, trainBlock, trainFee } from './character';
 import { BOOSTS, HABIT, TRAIN } from '@r/content/character';
+import { bet, diceBlock, draw, leave, nextBlock, nextHand, numbersBlock, playNumbers, rollDice, sitDown as sitAtTable, tableBlock } from './backroom';
+import { POKER } from '@r/content/backroom';
 import { OUTLETS, SUPPLY } from '@r/content/supply';
 import { endDay, STRAIGHT } from './tick';
 import type { Action, Affordance } from './actions';
@@ -340,6 +342,17 @@ function canInner(w: World, a: Action): Affordance {
       if ((p.habit ?? 0) < 10) return no('You have nothing to dry out from.');
       const e = ap(HABIT.dryOut.ap) ?? cost(w, HABIT.dryOut.price); return e ? no(e) : yes({ ap: HABIT.dryOut.ap, cash: HABIT.dryOut.price });
     }
+    case 'table_sit': { const why = tableBlock(w, a.businessId, a.stake); if (why) return no(why); if (busy) return no(busy); const e = ap(POKER.ap); return e ? no(e) : yes({ ap: POKER.ap, cash: a.stake }); }
+    case 'poker_draw': return w.table?.game === 'poker' && w.table.stage === 'draw' ? (a.hold.every(i => Number.isInteger(i) && i >= 0 && i < 5) ? yes() : no('Hold what?')) : no('Nothing to draw to.');
+    case 'poker_bet': {
+      if (w.table?.game !== 'poker' || w.table.stage !== 'bet') return no('There is no bet to make.');
+      if (a.move === 'raise' && p.cash + p.dirty < w.table.stake * 2) return no('Not enough to raise.');
+      return yes({ cash: a.move === 'raise' ? w.table.stake * 2 : undefined });
+    }
+    case 'table_next': { const why = nextBlock(w); return why ? no(why) : yes({ cash: w.table!.stake }); }
+    case 'table_leave': return w.table && w.table.stage !== 'left' ? (w.table.stage === 'done' || w.table.stage === 'draw' ? yes() : no('Finish the hand: fold if you want out.')) : no('You are not at a table.');
+    case 'dice': { const why = diceBlock(w, a.businessId, a.stake); return why ? no(why) : yes({ cash: a.stake }); }
+    case 'numbers': { const why = numbersBlock(w, a.pick, a.amount); return why ? no(why) : yes({ cash: a.amount }); }
     case 'run_delivery': {
       const o = ordersIn(w, cityOfBlock(w, p.blockId));
       if (!o.lots) return no('No orders here that the stash can fill: set a place to take your product, and have some.');
@@ -547,6 +560,13 @@ export function dispatch(world: World, a: Action): World {
       break;
     }
     case 'run_delivery': runDelivery(w, rng); break;
+    case 'table_sit': sitAtTable(w, rng, a.businessId, a.stake); break;
+    case 'poker_draw': draw(w, rng, a.hold, !!a.cheat); break;
+    case 'poker_bet': bet(w, rng, a.move); break;
+    case 'table_next': nextHand(w, rng); break;
+    case 'table_leave': leave(w); break;
+    case 'dice': rollDice(w, rng, a.businessId, a.stake); break;
+    case 'numbers': playNumbers(w, a.pick, a.amount); break;
     case 'train': { const fee = trainFee(w, a.at); if (fee) spend(w, fee); train(w, a.skill, a.at); break; }
     case 'take_boost': spend(w, BOOSTS[a.kind].price); takeBoost(w, a.kind); break;
     case 'dry_out': spend(w, HABIT.dryOut.price); dryOut(w); break;

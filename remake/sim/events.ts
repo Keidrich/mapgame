@@ -390,7 +390,9 @@ export const NIGHT: Template[] = [
       const b = rng.pick(nightSpots(w).filter(x => regulars(w, x).length)); const n = rng.pick(regulars(w, b));
       const stake = rng.int(3, 8) * 100;
       return card(w, `Cards at ${b.name}`, `There is a game going in the back of ${b.name}, and ${fullName(n)} is losing at it, loudly. The stakes are ${money(stake)} a hand. ${cap(they(n))} ${vb(n, 'wave', 'waves')} you to the empty chair.`, [
-        { id: 'straight', label: 'Sit in and play it straight', effects: [...pay(w, Math.round(stake / 2)), { k: 'trust', npcId: n.id, n: 14 }, { k: 'respect', n: 1 }], disabled: afford(w, Math.round(stake / 2)) },
+        // the chair is a real seat now (`backroom.ts`): the old one-line hand stays for a boss in a hurry
+        { id: 'play', label: 'Take the chair and play it out', effects: [{ k: 'table', businessId: b.id, npcId: n.id, stake }], disabled: afford(w, stake * 4) },
+        { id: 'straight', label: 'Sit in for one hand and play it straight', effects: [...pay(w, Math.round(stake / 2)), { k: 'trust', npcId: n.id, n: 14 }, { k: 'respect', n: 1 }], disabled: afford(w, Math.round(stake / 2)) },
         { id: 'cheat', label: 'Deal from the bottom', effects: [{ k: 'dirty', n: stake }, { k: 'trust', npcId: n.id, n: -12 }, { k: 'npcFear', npcId: n.id, n: 6 }, { k: 'heat', n: 1 }] },
         { id: 'pass', label: 'Watch, and buy the table a round', effects: [...pay(w, 60), { k: 'trust', npcId: n.id, n: 5 }], disabled: afford(w, 60) },
       ], { npcId: n.id, businessId: b.id });

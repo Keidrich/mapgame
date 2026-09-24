@@ -28,6 +28,8 @@ export { canBeOutlet, outletDemand, outletPrice, driverCarry, drivers, outlets, 
 export { OUTLETS, SUPPLY } from '@r/content/supply';
 export { reputation, trainBlock, trainFee, trainXp, streakNow, boostBlock, boostedWith, boostedToday, shaking, pepHours } from './character';
 export { TRAINING, TRAIN, BOOSTS, HABIT, REPUTATION } from '@r/content/character';
+export { hasTable, tableBlock, diceBlock, numbersBlock, yourNumbers, nextBlock, readChance, cheatChance, cardName, describe as describeHand, score as handScore, autoHold, pad3, RANKS, SUITS } from './backroom';
+export { POKER, DICE, NUMBERS } from '@r/content/backroom';
 export { fightOdds, soldiersOn, sideOf, personPower, ambushOdds } from './fights';
 export { GUNS, BULLETS, HURT, ATTACK } from '@r/content/fights';
 export { MAKING, RANK_LABEL, RANK_BLURB, POSTS } from '@r/content/family';
