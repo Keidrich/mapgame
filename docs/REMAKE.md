@@ -234,7 +234,9 @@ stream.
 **Leads** (`select.leads`). Twelve steps from "introduce yourself" to "hold half the city", read off
 the world every render, each pointing at a real person, place or tab. The next one sits on the map
 under the headline; the whole list is a tap away. The original taught its opening in a sheet the
-player had to go and find.
+player had to go and find. A step can be **blocked** (`Lead.blocked`, the game's own refusal —
+"Costs $900. You have $571."); the strip shows `select.nextLead`, the first step not done that is not
+blocked, so waiting for money on one step never stalls the whole line. See §13 for how it is tested.
 
 **Three cities** can be kept at once; the start screen lists them with continue and delete. Slot 0 is
 the key the first release saved under, so a city started then is still there.
@@ -423,3 +425,36 @@ its job 10 harder every time after; one that fails hardens it by 5 and shuts not
 sheet says when it was hit and how much harder it is.
 
 Nothing listed as missing in earlier passes is still missing.
+
+## 13. The tutorial run
+
+The quest strip is the tutorial, and until it was played by something that does *only* what it
+says, nobody knew whether it could be followed. `remake/scripts/tutorial.ts` is that player: a
+rookie who reads `select.nextLead`, goes where the strip's tap goes (the person sheet's "Go to", the
+business sheet's rackets, the Jobs tab's pre-picked crew), presses the buttons that sheet shows and
+nothing else, takes the first answer on every card, and — while the strip waits on money or a
+long-game step — keeps doing what it has already been taught (protect and lean on the places
+around it, walking on when a block is spent). Every refusal it meets is logged in the game's words.
+
+`npm run sim2 -- 40 7 medium grifter tutorial` prints the day each quest came up and was done for
+a grifter, bruiser and brain rookie, then the day each soak temperament happened to finish each one.
+`remake/tests/tutorial.test.ts` holds the line: the opening (`OPENING`: talk through hold) is done by
+day 25 on seeds 7, 1 and 3, as a grifter and as a bruiser.
+
+What the first run found, all fixed:
+- **Step one never completed** if you introduced yourself on day one — the evening the strip tells
+  you to. It checked `rel.met > 1`, and `met` is a day. `Player.introduced` counts it now, and the
+  step points at somebody you have not met (it used to pick a neighbour you already knew, who can
+  never be introduced).
+- **The back-room step pointed at the block underfoot**, which seldom has the influence 10 a back
+  room needs. It points at your best ground now and says when it is waiting on money or a foothold.
+- **A bruiser starts with $250 and the cheapest racket is $400**, and the strip sat on "start a
+  racket" for a week in silence. Blocked steps now say why and the strip moves on.
+- **A greedy recruit asked for a raise every few nights**, 30% each time: a rookie who said yes had a
+  level-one recruit on $282 a day against a $190 take. Now: after a week with you, at most every 21
+  days, and never once they are paid half again what they are worth (`events.ts: wantsRaise`).
+- **Dealing was the cheapest racket and earns nothing without product.** The business sheet says
+  so on the button (`select.racketWarning`) until you have product or a lab making it.
+
+The lieutenant step stays blocked for a rookie through sixty days — nobody reaches level 2 and
+loyalty 55 by following the strip alone — and says so. That is the long game, not a break.

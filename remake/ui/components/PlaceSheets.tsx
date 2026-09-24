@@ -108,7 +108,7 @@ export function BusinessSheet({ id }: { id: string }) {
       <Section title="Rackets" right={<span className="r-note">{rackets.filter(r => r.owner === PLAYER).length}/{(b.tier === 3 ? 0 : b.tier) + (mine ? 1 : 0)} slots</span>}>
         {rackets.map(r => <RacketRow key={r.id} id={r.id} />)}
         {(mine || protectedByMe) && def.rackets.filter(k => !rackets.some(r => r.kind === k)).map(k => (
-          <Do key={k} action={{ type: 'start_racket', businessId: id, kind: k as RacketKind }} label={`Start ${RACKETS[k].label}`} icon={k} sub={`${RACKETS[k].blurb}${RACKETS[k].base ? ` About ${fmt(RACKETS[k].base * (0.55 + w.blocks[b.blockId].wealth / 100))} a day before a runner.` : ''}`} />
+          <Do key={k} action={{ type: 'start_racket', businessId: id, kind: k as RacketKind }} label={`Start ${RACKETS[k].label}`} icon={k} sub={select.racketWarning(w, k as RacketKind) ?? `${RACKETS[k].blurb}${RACKETS[k].base ? ` About ${fmt(RACKETS[k].base * (0.55 + w.blocks[b.blockId].wealth / 100))} a day before a runner.` : ''}`} />
         ))}
         {!mine && !protectedByMe && !rackets.length && <Empty>{def.rackets.length ? 'Protect or own it to run something out of the back.' : 'Nothing runs out of a place like this. It is a job, not a racket.'}</Empty>}
       </Section>

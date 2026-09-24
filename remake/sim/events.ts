@@ -16,6 +16,7 @@ import { PLAYER } from './types';
 import { cap, fullName, money, nid, shortName, they, their, them, theName, vb } from './util';
 import { agendaLine } from './scenes';
 import { bedsTotal } from './select-core';
+import { crewCut } from './economy';
 
 interface Ctx { npcId?: Id; businessId?: Id; factionId?: Id }
 interface Template { id: string; weight: (w: World) => number; build: (w: World, rng: Rng, ctx: Ctx) => Omit<GameEvent, 'id' | 'template'> | undefined }
@@ -33,10 +34,23 @@ const affordClean = (w: World, n: number) => (w.player.cash >= n ? undefined : `
 /** Spend from dirty first, like everything else on the street. */
 const pay = (w: World, n: number): Effect[] => { const d = Math.min(w.player.dirty, n); return [...(d ? [{ k: 'dirty', n: -d } as Effect] : []), ...(n - d ? [{ k: 'cash', n: -(n - d) } as Effect] : [])]; };
 
+/**
+ * Who asks for a raise: the greedy and the ambitious, once they have been with you a week, no more
+ * than every three weeks, and only while they are paid under half again what they are worth. With
+ * none of that, a greedy recruit asked every few nights and each yes compounded 30%: the tutorial run
+ * found a level-one recruit on $282 a day against a $190 take, and the outfit going broke paying them.
+ */
+function wantsRaise(w: World, n: Npc): boolean {
+  const c = n.crew; if (!c) return false;
+  if (!n.traits.includes('greedy') && !n.traits.includes('ambitious')) return false;
+  return w.day - c.joined >= 7 && w.day - (c.askedDay ?? -99) >= 21 && c.cut < crewCut(n) * 1.5;
+}
+
 export const TEMPLATES: Template[] = [
-  { id: 'crew_raise', weight: w => (crew(w).some(n => n.traits.includes('greedy') || n.traits.includes('ambitious')) ? 3 : 0),
+  { id: 'crew_raise', weight: w => (crew(w).some(n => wantsRaise(w, n)) ? 3 : 0),
     build: (w, rng) => {
-      const n = rng.pick(crew(w).filter(x => x.traits.includes('greedy') || x.traits.includes('ambitious')));
+      const n = rng.pick(crew(w).filter(x => wantsRaise(w, x)));
+      n.crew!.askedDay = w.day;
       const more = Math.round(n.crew!.cut * 0.3 + 10);
       return card(w, `${shortName(n)} wants more`, `${fullName(n)} catches you after the count. "I'm worth more than ${money(n.crew!.cut)} a day. You know it and I know it." ${cap(they(n))} ${vb(n, 'want', 'wants')} ${money(more)} more.`, [
         { id: 'pay', label: `Pay it (+${money(more)}/day)`, effects: [{ k: 'cut', npcId: n.id, n: more }, { k: 'loyalty', npcId: n.id, n: 15 }] },

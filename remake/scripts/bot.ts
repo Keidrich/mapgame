@@ -119,7 +119,7 @@ export const STYLES: Record<StyleId, Style> = {
   ruthless: { label: 'Ruthless', blurb: 'Takes long odds, runs crews off, picks a war with the weakest outfit.', takeAt: 45, launchAt: 30, maxJobs: 2, loudCost: 0, cleverBonus: 0, heatCare: 0.5, threaten: 1.4, squeeze: 0.5, corner: 'crew_run', layLow: 92, bribeAt: 50, truceAt: -85, tribute: false, war: 'weakest', kitMult: 2.5, kitSlots: ['weapon', 'armour', 'car', 'tool'], hostage: 'ransom', holdDays: 5, payFor: 3, kidnaps: true, lobby: 'defend', peace: false, setpieces: true, curiosity: 0.3, novelty: 3000, roams: true },
   maniac: { label: 'Maniac', blurb: 'Anything over 30%, always loud, war on everybody, no hostage comes home.', takeAt: 30, launchAt: 20, maxJobs: 3, loudCost: -10, cleverBonus: 0, heatCare: 0, threaten: 2, squeeze: 0.8, corner: 'crew_run', bribeAt: Infinity, tribute: false, war: 'everyone', kitMult: 1.5, kitSlots: ['weapon', 'armour'], hostage: 'kill', holdDays: 1, kidnaps: true, lobby: 'never', peace: false, setpieces: true, curiosity: 0.3, novelty: 5000, roams: true },
   // not a temperament: the catalogue scenario's player, who wants to have done everything once
-  collector: { label: 'Collector', blurb: 'Plays the catalogue scenario: every job once, whatever it pays.', takeAt: 20, launchAt: 10, maxJobs: 8, loudCost: 0, cleverBonus: 0, heatCare: 0.5, threaten: 1, squeeze: 0.3, corner: 'crew_take', layLow: 90, bribeAt: 30, tribute: false, war: 'never', kitMult: 3, kitSlots: ['weapon', 'armour', 'tool', 'tech'], hostage: 'ransom', holdDays: 2, payFor: 1.5, kidnaps: true, lobby: 'always', peace: false, setpieces: false, curiosity: 1, novelty: 1e6, roams: false },
+  collector: { label: 'Collector', blurb: 'Plays the catalogue scenario: every job once, whatever it pays.', takeAt: 20, launchAt: 10, maxJobs: 8, loudCost: 0, cleverBonus: 0, heatCare: 0.5, threaten: 1, squeeze: 0.3, corner: 'crew_take', layLow: 90, bribeAt: 30, tribute: false, war: 'never', kitMult: 3, kitSlots: ['weapon', 'armour', 'tool', 'tech'], hostage: 'ransom', holdDays: 2, payFor: 1.5, kidnaps: true, lobby: 'always', peace: false, setpieces: true, curiosity: 1, novelty: 1e6, roams: false },
 };
 /** The five temperaments the sweep compares, mildest first. The collector is a scenario, not a temperament. */
 export const STYLE_IDS: StyleId[] = ['timid', 'steady', 'schemer', 'ruthless', 'maniac'];
@@ -151,13 +151,14 @@ function act(c: Ctx, a: Action): boolean {
   return true;
 }
 
-export function run(opts: { days: number; seed: number; size?: CitySize; background?: Background; style?: StyleId; scenario?: 'catalogue' | 'region' }): RunResult {
+export function run(opts: { days: number; seed: number; size?: CitySize; background?: Background; style?: StyleId; scenario?: 'catalogue' | 'region'; onDay?: (w: World) => void }): RunResult {
   const w0 = newWorld({ seed: opts.seed, size: opts.size ?? 'medium', name: 'Bot', background: opts.background ?? 'grifter' });
   if (opts.scenario === 'catalogue') boost(w0);
   if (opts.scenario === 'region') boostRegion(w0);
   const c: Ctx = { w: w0, rng: new Rng(opts.seed * 31 + 7), s: STYLES[opts.scenario === 'catalogue' ? 'collector' : opts.style ?? 'steady'], counts: {}, kinds: {}, offered: {}, taken: {}, actions: 0, refused: 0, seen: new Set() };
   while (c.w.day <= opts.days && !c.w.over) {
     day(c);
+    opts.onDay?.(c.w);
     check(c);
     watch(c);
     bump(c, 'days');
@@ -293,7 +294,9 @@ function runJobs(c: Ctx) {
     }
   }
   // a set-piece, cased on purpose, once the street takes us seriously and there are hands for it
-  if (c.s.setpieces && p().fear + p().respect >= SETPIECE_RANK && select.crew(w()).length >= 2 && p().ap >= 2 && !Object.values(w().jobs).some(j => j.kind === 'setpiece' && ['offer', 'planning', 'ready'].includes(j.status))) {
+  // the collector cases one on purpose too, once: it used to leave the set-piece to the board, where
+  // it came up on one seed in three and a change to the event mix took even that one away
+  if (c.s.setpieces && !(c.s.curiosity >= 1 && tried(c, 'setpiece')) && p().fear + p().respect >= SETPIECE_RANK && select.crew(w()).length >= 2 && p().ap >= 2 && !Object.values(w().jobs).some(j => j.kind === 'setpiece' && ['offer', 'planning', 'ready'].includes(j.status))) {
     // the evidence locker first if there is paper worth burning, otherwise the richest
     const paper = select.openCases(w()).some(x => x.evidence > 40);
     const marks = Object.values(w().blocks).filter(b => select.setpieceOpen(w(), b.id)).map(b => ({ b, d: setpieceFor(b.landmark)! }))

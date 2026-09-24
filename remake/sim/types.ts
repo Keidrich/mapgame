@@ -151,6 +151,8 @@ export interface Crew {
   auditedDay?: number;
   /** Day they were last caught skimming: somebody just caught keeps their hands still for a while. */
   caughtDay?: number;
+  /** Day they last asked for a raise: the ask comes once in a while, not every few nights. */
+  askedDay?: number;
   /** Daily wage, paid dirty-first at end of day. */
   cut: number;
   joined: number;
@@ -532,6 +534,9 @@ export type Background = 'bruiser' | 'grifter' | 'brain' | 'wheelman' | 'hacker'
 export interface Player {
   /** Jobs pulled off, by kind: some jobs are only offered to somebody who has done the one before. */
   done?: Partial<Record<JobKind, number>>;
+  /** People you have introduced yourself to. The tutorial's first step reads it: `rel.met` is a day, and the two
+   *  neighbours who know you from day one share day 1 with anybody you meet that first evening. */
+  introduced?: number;
   /** Recipes stolen (`steal_formula`): each lifts every lab's quality, to three. */
   recipes?: number;
   name: string;

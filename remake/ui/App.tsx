@@ -218,7 +218,8 @@ function LeadStrip() {
   const [open, setOpen] = useState(false);
   const all = select.leads(w);
   const todo = all.filter(l => !l.done);
-  if (!todo.length) return null;
+  const next = select.nextLead(w);
+  if (!todo.length || !next) return null;
   const go = (l: select.Lead) => {
     setOpen(false);
     if (l.npcId) openSheet({ kind: 'person', id: l.npcId });
@@ -229,12 +230,13 @@ function LeadStrip() {
   return (
     <div className={`r-leads${open ? ' open' : ''}`}>
       <QuestRing done={all.length - todo.length} of={all.length} />
-      <button type="button" className="r-lead-top" onClick={() => go(todo[0])}>
+      <button type="button" className="r-lead-top" onClick={() => go(next)}>
         <span className="r-kicker">Quest</span>
-        <b>{todo[0].text}</b>
+        <b>{next.text}</b>
+        {next.blocked && <span className="r-why">{next.blocked}</span>}
       </button>
       <button type="button" className="r-lead-more" aria-expanded={open} aria-label="All quests" onClick={() => setOpen(o => !o)}><Icon name={open ? 'caret_up' : 'down'} size={20} strokeWidth={2.4} /></button>
-      {open && <ol className="r-lead-list">{all.map(l => <li key={l.id} className={l.done ? 'done' : ''}><button type="button" disabled={l.done} onClick={() => go(l)}><GStar size={22} dim={!l.done} /><b>{l.text}</b><span>{l.why}</span></button></li>)}</ol>}
+      {open && <ol className="r-lead-list">{all.map(l => <li key={l.id} className={l.done ? 'done' : ''}><button type="button" disabled={l.done} onClick={() => go(l)}><GStar size={22} dim={!l.done} /><b>{l.text}</b><span>{!l.done && l.blocked ? l.blocked : l.why}</span></button></li>)}</ol>}
     </div>
   );
 }

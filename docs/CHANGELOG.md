@@ -14,6 +14,53 @@ House rules for an entry (see `CLAUDE.md` → *Leave a trail*):
 
 ---
 
+## 2026-09-24 — Remake: the bots play the tutorial, and what they found
+
+**What.** A new bot, the rookie (`remake/scripts/tutorial.ts`), plays the quest line by doing only
+what the quest strip says. The tutorial was broken in five ways, and all five are fixed:
+- The first step never completed.
+- The back-room step pointed at a block where you usually can't rent a back room.
+- The strip stalled for a week with no explanation when you couldn't afford a step.
+- Raise demands could bankrupt a new player.
+- The cheapest racket earns nothing and didn't say so.
+
+**Why.** The user reported "It's a bit broke". The first rookie run confirmed it: on all 15 runs (5 seeds × grifter/bruiser/brain) the rookie
+talked to the person the strip named and stayed on step one for all forty days.
+
+**How.**
+- **Step one** (`select.leads`, `scenes.playScene`, `types.Player.introduced`): the check was
+  `rel.met > 1`, but `met` is the day you met. Anybody met on day one never counted. Introductions
+  are now counted on the player. The step now names somebody you have not met; it used to name a
+  neighbour who knows you from generation, who can never be introduced (seed 42).
+- **Blocked steps** (`Lead.blocked`, `select.nextLead`): the racket, back-room and lieutenant steps
+  carry the game's own refusal text. The strip shows the first step that is neither done nor
+  blocked, and the blocked one's reason is shown under it and in the list.
+- **The back room** points at your best ground, not the block underfoot.
+- **Raises** (`events.ts: wantsRaise`): a greedy or ambitious recruit now asks only after 7 days with
+  you, then at most every 21 days, and not once they are paid 1.5× what `crewCut` says they are worth. The new field is
+  `Crew.askedDay`. Before, weight 3 every night and +30% per yes: a rookie's recruit went
+  $110 → $282/day against a $190 take.
+- **Dealing** (`select.racketWarning`): the business sheet's button says it earns nothing without
+  product or a lab.
+- **Tools.** `npm run sim2 -- 40 7 medium grifter tutorial` prints the per-quest table for three rookies and
+  the five temperaments. `remake/tests/tutorial.test.ts` requires the opening done by day 25 on
+  seeds 7/1/3 for grifter and bruiser, plus unit tests for each fix. `run()` takes an `onDay` hook.
+
+**Numbers.** Rookie, seed 7: the opening is done by day 6 (grifter), day 9 (bruiser) and day 7 (brain). Before the fix it
+never got past step one. Across 15 runs the worst was day 20.
+
+**Watch out.**
+- Fewer raise events shift the rng stream, so Remake soak numbers moved. The honest baseline in the
+  original is unchanged ($384 dirty, heat 0).
+- The catalogue scenario lost its only set-piece: it had come up from a lucky board offer on seed 7. The collector
+  now cases one on purpose (`setpieces: true`, once), and all three seeds pull one.
+- The lieutenant step stays blocked for a rookie through day 60. This is deliberate: it is the long game.
+- No save bump.
+
+**Files.** `remake/scripts/tutorial.ts` (new), `remake/tests/tutorial.test.ts` (new),
+`remake/sim/{select,scenes,events,types}.ts`, `remake/scripts/{bot,headless}.ts`,
+`remake/ui/App.tsx`, `remake/ui/components/PlaceSheets.tsx`, `docs/REMAKE.md` §5 and §13.
+
 ## 2026-09-24 — Remake: the start screen's scrolling and padding on phones
 
 **What.** Four fixes to the Remake's start screen on an iPhone:

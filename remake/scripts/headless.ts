@@ -6,8 +6,11 @@
  * mid-game empire on day one plays every job in the catalogue once (not an economy curve). With
  * `scenarios`, all of the above at once — the temperaments, the catalogue and the region — with
  * coverage taken across every run: the Remake's answer to the original's `npm run sim -- 60 7 all`.
+ * With `tutorial`, a rookie who only follows the quest strip (`tutorial.ts`), and the day each
+ * temperament finished each quest.
  */
 import { run, missing, SYSTEMS, STYLES, STYLE_IDS, type RunResult, type StyleId } from './bot';
+import { tutorial, OPENING } from './tutorial';
 import { select } from '@r/sim/index';
 import { JOBS } from '@r/content/world';
 import type { JobKind } from '@r/sim/types';
@@ -84,6 +87,20 @@ if (styleArg === 'all') {
   console.log('\nacross every scenario:');
   coverage(union);
   catalogue(kinds);
+} else if (styleArg === 'tutorial') {
+  // the tutorial: a rookie who only follows the quest strip, on three backgrounds, then the day each
+  // temperament happened to finish each quest in its own play
+  console.log(`the tutorial, seed ${seed}, ${days} days: the day each quest came up / was done`);
+  const rookies = (['grifter', 'bruiser', 'brain'] as Background[]).map(bg => ({ bg, t: tutorial({ days, seed, size, background: bg }) }));
+  const ids = rookies[0].t.steps.map(s => s.id);
+  console.log(`  ${'quest'.padEnd(11)} ${rookies.map(r => `rookie ${r.bg}`.padStart(17)).join('')}`);
+  for (const id of ids) console.log(`  ${id.padEnd(11)} ${rookies.map(r => { const s = r.t.steps.find(x => x.id === id)!; return `${s.up ?? '-'} / ${s.done ?? '-'}`.padStart(17); }).join('')}`);
+  const stuck = rookies.flatMap(r => r.t.steps.filter(s => OPENING.includes(s.id) && s.done === undefined).map(s => `${r.bg} ${s.id}: ${s.stuck.slice(-2).join(' | ') || 'never came up'}`));
+  console.log(stuck.length ? `stuck in the opening:\n  ${stuck.join('\n  ')}` : 'every opening quest done by every rookie');
+  console.log('\nthe temperaments, day each quest was done:');
+  const cols = STYLE_IDS.map(id => { const done: Record<string, number> = {}; run({ days, seed, size, background, style: id, onDay: w => { for (const l of select.leads(w)) if (l.done && done[l.id] === undefined) done[l.id] = w.day - 1; } }); return { id, done }; });
+  console.log(`  ${'quest'.padEnd(11)} ${cols.map(c => STYLES[c.id].label.padStart(9)).join('')}`);
+  for (const id of ids) console.log(`  ${id.padEnd(11)} ${cols.map(c => String(c.done[id] ?? '-').padStart(9)).join('')}`);
 } else if (styleArg === 'region') {
   const r = one('steady', 'region');
   coverage(r.counts);

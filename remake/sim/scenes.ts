@@ -179,7 +179,7 @@ export function playScene(w: World, kind: SceneKind, npcId: Id, rng: Rng, opts: 
   const biz = opts.businessId ? w.businesses[opts.businessId] : n.workId ? w.businesses[n.workId] : undefined;
   const ok = rng.float() * 100 < qt.chance;
   const first = !n.rel.met;
-  if (first) { n.rel.met = w.day; remember(n, w.day, 'met', 'You introduced yourself.'); }
+  if (first) { n.rel.met = w.day; p.introduced = (p.introduced ?? 0) + 1; remember(n, w.day, 'met', 'You introduced yourself.'); }
   switch (kind) {
     case 'chat': {
       const gain = Math.round(4 + p.skills.charm * 0.9 + (n.traits.includes('connected') ? 2 : 0) + (p.background === 'grifter' ? 3 : 0));

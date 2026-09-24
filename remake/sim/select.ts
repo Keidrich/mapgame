@@ -2,7 +2,9 @@
  * Read-only questions for the UI. Components never compute an outcome; they ask here, and every
  * answer comes from the same function the simulation itself uses.
  */
-import { RACKETS } from '@r/content/world';
+import { BUSINESSES, LABS, RACKETS } from '@r/content/world';
+import { can } from './reducer';
+import type { RacketKind } from './types';
 import { protectionTake, racketIncome, washCap, washRate } from './economy';
 import { PLAYER } from './types';
 import type { Block, Business, Id, Npc, World } from './types';
@@ -90,7 +92,13 @@ export const rankIndex = (w: World) => RANKS_.findIndex(r => r.label === rankOf_
 export const pendingJob = (w: World) => Object.values(w.jobs).find(j => j.status === 'paused');
 
 // ------------------------------------------------------------------------------------ leads
-export interface Lead { id: string; text: string; why: string; done: boolean; npcId?: string; businessId?: string; blockId?: string; tab?: 'people' | 'crew' | 'jobs' | 'empire' | 'rivals' }
+export interface Lead {
+  id: string; text: string; why: string; done: boolean;
+  /** Why it cannot be done yet, in the game's own words. The strip skips a blocked step for the next
+   *  one that can be done, and says what the blocked one is waiting on. */
+  blocked?: string;
+  npcId?: string; businessId?: string; blockId?: string; tab?: 'people' | 'crew' | 'jobs' | 'empire' | 'rivals';
+}
 
 /**
  * What to do next, read off the world — never stored, so it cannot drift from what is true. The
@@ -103,6 +111,11 @@ export function leads(w: World): Lead[] {
   const nearby = [here.id, ...here.neighborIds];
   const owners = nearby.flatMap(id => businessesIn(w, id)).filter(b => b.tier < 3 && b.ownedBy !== PLAYER).map(b => w.npcs[b.ownerId]).filter(n => n?.alive);
   const soft = owners.slice().sort((a, b) => a.nerve - b.nerve)[0];
+  // the first step introduces you to somebody new: an owner you already know from the neighbourhood
+  // does not count as an introduction, and pointing at one left seed 42 talking to Rufus Tillman forever
+  const stranger = owners.filter(n => !n.rel.met).sort((a, b) => a.nerve - b.nerve)[0] ?? nearby.flatMap(id => businessesIn(w, id)).flatMap(b => [b.ownerId, ...b.patronIds]).map(id => w.npcs[id]).find(n => n?.alive && !n.rel.met && !n.faction);
+  // `met > 1` alone missed everybody met on day one, the evening a new player is told to do it, and the
+  // strip sat on step one for good; `introduced` counts it, and `met > 1` still reads saves from before it
   const met = Object.values(w.npcs).filter(n => n.rel.met && n.rel.met > 1).length;
   const leaned = Object.values(w.npcs).some(n => !n.crew && (n.rel.fear >= 30 || n.rel.trust >= 30) && n.workId && w.businesses[n.workId]?.ownerId === n.id);
   const prot = protectedBy(w).length + p.businessIds.length;
@@ -111,20 +124,51 @@ export function leads(w: World): Lead[] {
   const patron = nearby.flatMap(id => businessesIn(w, id)).flatMap(b => b.patronIds).map(id => w.npcs[id]).filter(n => n?.alive && !n.crew && !n.faction).sort((a, b) => Math.max(...Object.values(b.skills)) - Math.max(...Object.values(a.skills)))[0];
   const firstBiz = protectedBy(w)[0] ?? w.businesses[p.businessIds[0]];
   const offer = Object.values(w.jobs).find(j => j.status === 'offer');
+  // the racket step: the cheapest racket the place allows, and whether it can be paid for. A bruiser
+  // starts with $250 and the cheapest racket is $400; the strip used to sit on this for a week, silent
+  const racketKinds = firstBiz ? (BUSINESSES[firstBiz.type].rackets as RacketKind[]).slice().sort((a, b) => RACKETS[a].setup - RACKETS[b].setup) : [];
+  const racketOk = firstBiz ? racketKinds.map(k => can(w, { type: 'start_racket', businessId: firstBiz.id, kind: k })) : [];
+  const racketBlocked = firstBiz && racketOk.length && !racketOk.some(r => r.ok) && !/action points/i.test(racketOk[0].why ?? '') ? racketOk[0].why : undefined;
+  // the back-room step points at your best ground, not wherever you are standing: it needs influence 10
+  // on the block, and the first cut pointed at the block underfoot, where a new player seldom has it
+  const ground = playerBlocks(w)[0] ?? Object.values(w.blocks).filter(b => (b.influence[PLAYER] ?? 0) > 0).sort((a, b) => (b.influence[PLAYER] ?? 0) - (a.influence[PLAYER] ?? 0))[0];
+  const room = ground ? can(w, { type: 'rent_safehouse', blockId: ground.id }) : undefined;
   const list: Lead[] = [
-    { id: 'talk', text: soft ? `Introduce yourself to ${fullName(soft)}` : 'Introduce yourself to somebody', why: 'Talking builds trust and shows you what somebody is like.', done: met >= 1, npcId: soft?.id },
+    { id: 'talk', text: stranger ? `Introduce yourself to ${fullName(stranger)}` : 'Introduce yourself to somebody', why: 'Talking builds trust and shows you what somebody is like.', done: (p.introduced ?? 0) > 0 || met >= 1, npcId: stranger?.id },
     { id: 'lean', text: soft ? `Get ${fullName(soft)} to trust or fear you` : 'Get an owner to trust or fear you', why: 'Thirty of either and protection becomes a real ask. Cowards and low nerve fold fastest.', done: leaned || prot > 0, npcId: soft?.id },
     { id: 'protect', text: 'Put a business under your protection', why: 'Your first daily money, and your first foothold on a block.', done: prot > 0, npcId: soft?.id },
-    { id: 'racket', text: firstBiz ? `Start a racket at ${firstBiz.name}` : 'Start a racket in a place you protect', why: 'Rackets earn every night. The cheap ones pay for themselves in a week.', done: p.racketIds.length > 0, businessId: firstBiz?.id },
+    { id: 'racket', text: firstBiz ? `Start a racket at ${firstBiz.name}` : 'Start a racket in a place you protect', why: 'Rackets earn every night. The cheap ones pay for themselves in a week.', done: p.racketIds.length > 0, businessId: firstBiz?.id, blocked: racketBlocked && `${racketBlocked} Protection pays every night.` },
     { id: 'crew', text: patron ? `Win over ${fullName(patron)} and recruit them` : 'Recruit somebody', why: 'Crew run rackets properly, go on jobs and one day run districts.', done: p.crewIds.length > 0, npcId: patron?.id },
     { id: 'job', text: offer ? `Pull a job: ${offer.title}` : 'Pull a job', why: 'Jobs are the fast money, and the loud way to make a name.', done: Object.values(w.jobs).some(j => j.status === 'done' || j.status === 'failed'), tab: 'jobs' },
     { id: 'wash', text: fx && !fx.rel.met ? `Find the fixer, ${fullName(fx)}, and wash some money` : 'Wash some dirty money', why: 'Buying places, lawyers and officials takes clean money.', done: washed, npcId: fx && !fx.rel.met ? fx.id : undefined, tab: fx?.rel.met ? 'empire' : undefined },
-    { id: 'safehouse', text: 'Take a back room on your ground', why: 'Beds for more crew, room for stock, space for a lab.', done: p.safehouseIds.length > 0, blockId: here.id },
+    { id: 'safehouse', text: ground ? `Take a back room on ${ground.name}` : 'Take a back room on your ground', why: 'Beds for more crew, room for stock, space for a lab. It needs influence 10 on the block.', done: p.safehouseIds.length > 0, blockId: ground?.id ?? here.id, blocked: !ground ? 'You need a foothold on a block first: protect a place.' : room && !room.ok && !/action points/i.test(room.why ?? '') ? room.why : undefined },
     { id: 'hold', text: 'Hold a block', why: 'Thirty influence and the most of anybody. Stack things on one block and it comes fast.', done: playerBlocks(w).length > 0, blockId: here.id },
     { id: 'payroll', text: 'Put an official on your payroll', why: 'A captain cools the precinct; a DA slows the files; a judge shortens sentences.', done: Object.values(w.npcs).some(n => n.payroll), tab: 'people' },
-    { id: 'lieutenant', text: 'Put a lieutenant over a district', why: 'Level 2 and loyalty 55. Rackets there run themselves — and they could inherit it all.', done: crew(w).some(n => n.crew?.assignment?.kind === 'district'), tab: 'crew' },
+    { id: 'lieutenant', text: 'Put a lieutenant over a district', why: 'Level 2 and loyalty 55. Rackets there run themselves — and they could inherit it all.', done: crew(w).some(n => n.crew?.assignment?.kind === 'district'), tab: 'crew', blocked: crew(w).some(n => n.crew!.level >= 2 && n.crew!.loyalty >= 55) ? undefined : 'Nobody is ready yet: a lieutenant needs level 2 and loyalty 55. Crew learn on jobs and posts, and pay keeps them loyal.' },
     { id: 'road', text: `Hold a quarter of ${w.city.name}`, why: 'The road opens: start up in the next city, with everything you carry. See the region map.', done: !!w.region?.cities.some(c => c.open || (c.founded && c.id !== 'c0')), tab: 'rivals' },
     { id: 'half', text: `Hold half of ${w.city.name}`, why: 'That is winning. The game goes on after.', done: !!w.won, tab: 'rivals' },
   ];
   return list;
+}
+
+/**
+ * Why a racket would earn nothing yet, if it would. Dealing sells your own product, and is cheap
+ * enough that a new player picks it first — then watches it take in $0 a night, because nothing
+ * makes product until a still is running in a back room. Shown on the button, not buried.
+ */
+export function racketWarning(w: World, kind: RacketKind): string | undefined {
+  const sells = RACKETS[kind].sells; if (!sells?.length) return undefined;
+  const have = sells.some(pr => w.player.stash[pr].n > 0);
+  const making = w.player.safehouseIds.some(id => w.safehouses[id]?.labs.some(l => sells.includes(LABS[l.kind].product)));
+  return have || making ? undefined : 'Sells your own product, and you have none: it earns nothing until a still or grow room is running in a back room.';
+}
+
+/**
+ * The step the strip shows: the first one not done that can be done now, else the first not done
+ * (with what it is waiting on). A blocked step never stalls the whole line — while the racket waits
+ * for money the strip moves on to recruiting, and comes back.
+ */
+export function nextLead(w: World): Lead | undefined {
+  const todo = leads(w).filter(l => !l.done);
+  return todo.find(l => !l.blocked) ?? todo[0];
 }
