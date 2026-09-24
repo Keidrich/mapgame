@@ -20,6 +20,7 @@ import { bedsTotal } from './select-core';
 import { crewCost, crewOf, crewWage } from './streetcrews';
 import { isNight, whereIs } from './clock';
 import { characterFactors } from './character';
+import { bribeMult } from './seasons';
 
 export type SceneKind = 'chat' | 'intimidate' | 'protect' | 'squeeze' | 'recruit' | 'bribe' | 'settle' | 'lean' | 'buy' | 'favour' | 'crew_pay' | 'crew_take' | 'crew_run';
 
@@ -133,7 +134,8 @@ export function quote(w: World, kind: SceneKind, npcId: Id, opts: { businessId?:
       if (!n.official) return q({ label: 'Bribe', disabled: 'Not an official.' });
       if (n.payroll) return q({ label: 'Bribe', disabled: 'Already on your payroll.' });
       const def = OFFICIALS[n.official];
-      const weekly = Math.round(def.weekly * (n.traits.includes('greedy') ? 0.75 : 1));
+      // the machine in City Hall (`seasons.ts`): officials come cheaper for a while after it wins
+      const weekly = Math.round(def.weekly * (n.traits.includes('greedy') ? 0.75 : 1) * bribeMult(w));
       if (n.traits.includes('honest') && !n.secret?.known) return q({ label: 'Bribe', disabled: 'Honest. Money will not do it — something they are hiding might.' });
       const f: SceneQuote['factors'] = [{ label: 'Your respect', n: Math.round(p.respect / 3) }, { label: 'Your charm', n: p.skills.charm * 3 }, { label: 'Their trust', n: Math.round(n.rel.trust / 3) }];
       if (n.traits.includes('greedy')) f.push({ label: TRAITS.greedy.label, n: 20 });

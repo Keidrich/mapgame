@@ -2,6 +2,7 @@
 import { Rng } from './rng';
 import type { Block, Id, LogEntry, Npc, Owner, Tone, World } from './types';
 import { PLAYER } from './types';
+import { SEASONS } from '@r/content/seasons';
 
 export const clamp = (n: number, lo = 0, hi = 100) => Math.max(lo, Math.min(hi, n));
 export const round = (n: number) => Math.round(n);
@@ -51,6 +52,9 @@ export function controller(b: Block): Owner | undefined {
 
 export function addHeat(w: World, n: number, blockId?: Id) {
   const p = w.player;
+  // a season (`seasons.ts`) makes heat stick harder, or softer; read here from the data, not the sim
+  // module, because everything imports util
+  const s = w.season; if (n > 0 && s && w.day >= s.from && w.day < s.to) n *= SEASONS[s.kind].heat;
   p.heat = clamp(p.heat + n);
   if (blockId && w.blocks[blockId]) {
     const b = w.blocks[blockId];

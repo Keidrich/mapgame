@@ -37,6 +37,8 @@ import { carBlock, chop, keep, respray, sell, stealBlock, stealCar } from './car
 import { RESPRAY, STEAL } from '@r/content/cars';
 import { detAp, detBlock, detMove, heirBlock, heirMove } from './stories';
 import { HEIR } from '@r/content/stories';
+import { back, backBlock, suppliesMult } from './seasons';
+import { ELECTION } from '@r/content/seasons';
 import { OUTLETS, SUPPLY } from '@r/content/supply';
 import { endDay, STRAIGHT } from './tick';
 import type { Action, Affordance } from './actions';
@@ -365,6 +367,7 @@ function canInner(w: World, a: Action): Affordance {
     }
     case 'detective': { const why = detBlock(w, a.move); if (why) return no(why); if (busy) return no(busy); const e = ap(detAp(a.move)); return e ? no(e) : yes({ ap: detAp(a.move) }); }
     case 'heir': { const why = heirBlock(w, a.move); if (why) return no(why); if (busy) return no(busy); const h = a.move === 'meet' ? HEIR.meet.ap : 0; const e = h ? ap(h) : undefined; return e ? no(e) : yes({ ap: h || undefined, cash: a.move === 'gift' ? HEIR.gift.cost : undefined }); }
+    case 'back_candidate': { const why = backBlock(w, a.side); return why ? no(why) : yes({ cash: ELECTION.back }); }
     case 'run_delivery': {
       const o = ordersIn(w, cityOfBlock(w, p.blockId));
       if (!o.lots) return no('No orders here that the stash can fill: set a place to take your product, and have some.');
@@ -406,7 +409,7 @@ function canInner(w: World, a: Action): Affordance {
 
 export function restockCost(w: World, kind: keyof typeof LABS, days: number) {
   const smuggling = w.player.racketIds.some(id => w.rackets[id]?.kind === 'smuggling' && w.rackets[id].down === 0);
-  return Math.round(LABS[kind].supplyCost * days * (smuggling ? 0.6 : 1));
+  return Math.round(LABS[kind].supplyCost * days * (smuggling ? 0.6 : 1) * suppliesMult(w));
 }
 
 /** Apply an action to a copy of the world. Refused actions return the world unchanged. */
@@ -572,6 +575,7 @@ export function dispatch(world: World, a: Action): World {
       break;
     }
     case 'run_delivery': runDelivery(w, rng); break;
+    case 'back_candidate': spend(w, ELECTION.back); back(w, a.side, ELECTION.back); break;
     case 'detective': detMove(w, rng, a.move); break;
     case 'heir': heirMove(w, rng, a.move); break;
     case 'steal_car': stealCar(w, rng, a.blockId); break;

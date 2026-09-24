@@ -944,6 +944,58 @@ against without:
 The five-seed drop was chaos: a new person in the city and cards in the morning slots shift every
 later roll.
 
+## 23. Seasons
+
+A week at a time when the whole city is different (`sim/seasons.ts`; the numbers are data in
+`content/seasons.ts`).
+
+- **The calendar.** The first season comes on day 10, and each next one 8 ± 2 days after the last
+  ends, so sixty days see about four.
+  - The order is a per-seed shuffle of the four kinds, cycled, so every sixty-day game sees each
+    kind once.
+  - The spacing and the election's result come from hashes of the seed and the day, never from the
+    world's rng.
+  - The papers carry it three days ahead: a headline in the news and a line in the log.
+  - The season opens with a card, drawn the night before so it waits in the morning.
+- **The four seasons:**
+
+  | Season | Days | While it lasts | Opening card |
+  |---|---|---|---|
+  | Election | 8 | — | back the machine or the reformers ($3,000), or stay out |
+  | Crackdown | 7 | heat ×1.3; every precinct's attention +25 | buy the captain's patience ($4,000, halves the attention), or ride it out |
+  | Festival | 5 | heat ×0.9; takings ×1.3 (rackets and protection); street prices ×1.2 | sponsor the fireworks ($1,500, respect +4), work the crowds ($1,200 dirty, heat +3), or enjoy it |
+  | Dock strike | 6 | street prices ×1.4; lab supplies ×1.5 | let it run, pay the union ($3,000, ends it, respect +3), or cross the picket line (ends it, heat +8, fear +3) |
+
+- **The election.**
+  - The machine's chance is 50%, ±5 points per $1,000 of backing either way, +8 points per
+    councillor on your payroll, between 10% and 90%.
+  - You can keep backing a side by day, $3,000 at a time (`back_candidate`, Rivals → "This week in
+    the city").
+  - What the winner leaves for 20 days (`World.aftermath`): if the machine wins, officials cost 30%
+    less; if reform wins, every precinct's attention is +15.
+- **Hooks.**
+  - Heat: `addHeat`, read straight from the data, because everything imports `util`.
+  - Attention: `law.ts`, through `attentionAdd`.
+  - Takings: `racketIncome`, and protection in `endDay`.
+  - Prices: `streetPrice`. Supplies: `restockCost`. Bribes: the `bribe` quote, through `bribeMult`.
+- **Screen.** A season chip in the ledger bar ("Festival 3d"), a "This week in the city" panel on
+  Rivals (the season, the papers' warning, the election's odds and buttons, the aftermath), and a
+  line in How to play.
+- **Bots.**
+  - They answer the opening cards by scoring: a softened crackdown is worth more the hotter they
+    are, and the machine is worth about its $3,000.
+  - The schemer keeps backing the machine while its odds are under 80%.
+
+**Balance.** Ten fresh seeds (100–109), with seasons against without:
+
+| Bot | Control | Runs lost |
+|---|---|---|
+| Steady | 22.5% (23.9%) | 1 (0) |
+| Ruthless | 26.4% (20.9%) | 1 (4) |
+| Maniac | 20.3% (20%) | 5 (5) |
+
+In short, seasons move the dice but not the outcomes.
+
 ## 15. The road: the whole game
 
 The Remake is heading toward the full game its inspirations add up to: City of Gangsters (a
@@ -957,7 +1009,7 @@ kit; seventy-two kinds of job with complications and set-piece heists; heat, cas
 and officials; rival outfits with diplomacy, war and a Commission; hostages; a region of cities
 with trains and trade routes; day and night.
 
-What is next, in the order recommended:
+All eight pillars below are built (§16–§23). They were done in the order recommended:
 1. **The family.** Crew become a family with ranks — soldier, capo, consigliere, underboss —
    each with duties (a capo runs a crew of soldiers; the consigliere improves sit-downs; the
    underboss keeps things running when you are jailed), a making ceremony, and betrayal: rats,

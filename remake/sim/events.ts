@@ -20,6 +20,8 @@ import { crewCut } from './economy';
 import { ambushOdds } from './fights';
 import { bribePrice, detective, duelOdds, heir } from './stories';
 import { DETECTIVE, HEIR } from '@r/content/stories';
+import { ELECTION, RESPONSES, SEASONS } from '@r/content/seasons';
+import { machineOdds } from './seasons';
 
 interface Ctx { npcId?: Id; businessId?: Id; factionId?: Id }
 interface Template {
@@ -56,6 +58,30 @@ function wantsRaise(w: World, n: Npc): boolean {
 }
 
 export const TEMPLATES: Template[] = [
+  // ---- seasons (`seasons.ts`): the card that opens each one, sent by `tickSeasons`
+  { id: 'season_election', weight: () => 0,
+    build: w => card(w, SEASONS.election.label, `${SEASONS.election.blurb} The machine's chances as things stand: ${Math.round(machineOdds(w) * 100)}%. Both campaigns would take your money.`, [
+      { id: 'machine', label: `Back the machine: ${money(ELECTION.back)}`, effects: [...pay(w, ELECTION.back), { k: 'season', act: 'back', side: 'machine', amount: ELECTION.back }], disabled: afford(w, ELECTION.back) },
+      { id: 'reform', label: `Back the reformers: ${money(ELECTION.back)}`, effects: [...pay(w, ELECTION.back), { k: 'season', act: 'back', side: 'reform', amount: ELECTION.back }], disabled: afford(w, ELECTION.back) },
+      { id: 'out', label: 'Stay out of it', effects: [] },
+    ]) },
+  { id: 'season_crackdown', weight: () => 0,
+    build: w => card(w, SEASONS.crackdown.label, `${SEASONS.crackdown.blurb} A captain lets it be known that some precincts could work a little less overtime than others.`, [
+      { id: 'buy', label: `Buy the captain's patience: ${money(RESPONSES.crackdown.buy)}`, effects: [...pay(w, RESPONSES.crackdown.buy), { k: 'season', act: 'soften' }], disabled: afford(w, RESPONSES.crackdown.buy) },
+      { id: 'ride', label: 'Keep your head down and ride it out', effects: [] },
+    ]) },
+  { id: 'season_festival', weight: () => 0,
+    build: w => card(w, SEASONS.festival.label, `${SEASONS.festival.blurb} The organisers are short of a sponsor for the fireworks.`, [
+      { id: 'sponsor', label: `Pay for the fireworks: ${money(RESPONSES.festival.sponsor)}`, effects: [...pay(w, RESPONSES.festival.sponsor), { k: 'respect', n: RESPONSES.festival.sponsorRespect }], disabled: afford(w, RESPONSES.festival.sponsor) },
+      { id: 'crowds', label: 'Work the crowds', effects: [{ k: 'dirty', n: RESPONSES.festival.crowd }, { k: 'heat', n: RESPONSES.festival.crowdHeat }] },
+      { id: 'enjoy', label: 'Enjoy it', effects: [] },
+    ]) },
+  { id: 'season_strike', weight: () => 0,
+    build: w => card(w, SEASONS.strike.label, `${SEASONS.strike.blurb} The union would take a donation to go back sooner; the shipping lines would pay for men who cross the line.`, [
+      { id: 'wait', label: 'Let it run: dear product sells dear', effects: [] },
+      { id: 'pay', label: `Pay the union to go back: ${money(RESPONSES.strike.pay)}`, effects: [...pay(w, RESPONSES.strike.pay), { k: 'season', act: 'end' }, { k: 'respect', n: 3 }], disabled: afford(w, RESPONSES.strike.pay) },
+      { id: 'scabs', label: 'Put your people across the picket line', effects: [{ k: 'season', act: 'end' }, { k: 'heat', n: RESPONSES.strike.scabsHeat }, { k: 'fear', n: 3 }] },
+    ]) },
   // ---- stories (`stories.ts`): schedule-only, sent by `tickStories` at the arcs' turning points
   { id: 'det_intro', weight: () => 0,
     build: (w, _rng, ctx) => {

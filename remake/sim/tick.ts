@@ -12,6 +12,7 @@ import { tickSupply } from './supply';
 import { drawNumbers } from './backroom';
 import { tickCars } from './cars';
 import { tickStories } from './stories';
+import { incomeMult, tickSeasons } from './seasons';
 import { hurtHours } from './fights';
 import { habitMorning } from './character';
 import { splitHours } from '@r/content/clock';
@@ -77,7 +78,7 @@ export function endDay(w: World, rng: Rng) {
     if (b.protection?.by === PLAYER) {
       // a street crew nobody has dealt with helps itself to a quarter of it
       const crew = crewOn(w, b.blockId);
-      const take = Math.round(protectionTake(b) * (crew && crew.terms === 'none' ? 1 - CREW.skim : 1));
+      const take = Math.round(protectionTake(b) * (crew && crew.terms === 'none' ? 1 - CREW.skim : 1) * incomeMult(w));
       p.dirty += take; sum.dirty += take; gain(b.blockId, 1.5);
       const o = w.npcs[b.ownerId];
       if (o) {
@@ -204,7 +205,8 @@ export function endDay(w: World, rng: Rng) {
     if (pool.length) { const n = rng.pick(pool); const k = rng.pick(['debt', 'sick', 'escape', 'kid'] as AgendaKind[]); n.agenda = { kind: k, known: false, since: day, cost: rng.int(8, 40) * 100 }; }
   }
 
-  // ---- overnight
+  // ---- overnight: tomorrow's season first, so its opening card is among tonight's draw
+  tickSeasons(w, day);
   drawEvents(w, rng);
   w.rng = rng.state;
   generateJobs(w, 3 + Math.floor(rankOf(w).ap / 4));

@@ -15,8 +15,11 @@ import { clamp, fullName, log } from './util';
 
 export function heirOf(w: World): Npc | undefined {
   // the underboss first, whatever their level: that is what the post is for (`family.ts`)
-  const ub = underboss(w); if (ub) return ub;
-  return w.player.crewIds.map(id => w.npcs[id]).filter(n => n?.alive && n.crew && n.crew.status !== 'jailed' && n.crew.level >= 2 && n.crew.loyalty >= 55)
+  // nobody in a cell or in somebody's back room can take the chair: a held heir retired as a person
+  // and left the hostage record holding a ghost (found by the soak's invariant, seed 102, maniac)
+  const free = (n: Npc) => n.crew?.status !== 'jailed' && n.crew?.status !== 'held';
+  const ub = underboss(w); if (ub && free(ub)) return ub;
+  return w.player.crewIds.map(id => w.npcs[id]).filter(n => n?.alive && n.crew && free(n) && n.crew.level >= 2 && n.crew.loyalty >= 55)
     .sort((a, b) => (b.crew!.level * 10 + b.crew!.loyalty) - (a.crew!.level * 10 + a.crew!.loyalty))[0];
 }
 
@@ -30,6 +33,7 @@ export function succeed(w: World, ending: Ending, text: string) {
   p.crewIds = p.crewIds.filter(x => x !== heir.id);
   heir.crew = undefined; heir.role = 'crew';
   heir.alive = false; // they become you: the person record retires, the player record carries on
+  for (const h of Object.values(w.hostages ?? {})) if (h.npcId === heir.id) delete w.hostages[h.id];
   p.name = `${heir.first} ${heir.last}`; p.nick = heir.nick; p.face = heir.face;
   p.skills = { ...heir.skills }; p.xp = { muscle: 0, brains: 0, charm: 0, wheels: 0, tech: 0 };
   p.generation++;

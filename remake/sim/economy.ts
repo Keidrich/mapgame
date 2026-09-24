@@ -4,6 +4,7 @@
  * op-payout audit taught the hard way.
  */
 import { unmindedFloor } from './family';
+import { incomeMult, priceMult } from './seasons';
 import { BUSINESSES, LABS, PRODUCTS, RACKETS, RACKET_LEVEL, RANKS, SATURATION, SYNERGY } from '@r/content/world';
 import type { Business, Lab, Npc, Product, Racket, Skill, World } from './types';
 import { PLAYER } from './types';
@@ -84,7 +85,7 @@ export function racketIncome(w: World, r: Racket): number {
   if (!b || r.down > 0 || b.closed > 0 || def.base === 0) return 0;
   const block = w.blocks[b.blockId];
   const bg = r.owner === PLAYER && w.player.background === 'brain' ? 1.12 : 1;
-  return Math.round(def.base * levelMult(r) * (0.55 + block.wealth / 100) * runnerFactor(w, r) * saturationMult(w, r) * (1 + (synergyOf(w, r)?.bonus ?? 0)) * bg);
+  return Math.round(def.base * levelMult(r) * (0.55 + block.wealth / 100) * runnerFactor(w, r) * saturationMult(w, r) * (1 + (synergyOf(w, r)?.bonus ?? 0)) * bg * incomeMult(w));
 }
 
 export function upgradeCost(r: Racket): number { return Math.round(RACKETS[r.kind].setup * ((RACKET_LEVEL.upgrade as readonly number[])[r.level] ?? 0)); }
@@ -107,7 +108,7 @@ export function streetPrice(w: World, product: Product, blockId: string): number
   // each city of the region pays its own price for each thing (`region.ts`); the home city pays the street's
   const city = b ? w.districts[b.districtId]?.cityId || 'c0' : 'c0';
   const demand = w.region?.cities.find(c => c.id === city)?.demand[product] ?? 1;
-  return Math.round(PRODUCTS[product].price * qualityMult(lot.q || 50) * (0.7 + (b?.wealth ?? 50) / 100 * 0.6) * demand);
+  return Math.round(PRODUCTS[product].price * qualityMult(lot.q || 50) * (0.7 + (b?.wealth ?? 50) / 100 * 0.6) * demand * priceMult(w));
 }
 /** Units a selling racket can move in a day. */
 export function sellCapacity(r: Racket) { return [0, 8, 14, 22][r.level]; }

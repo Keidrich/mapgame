@@ -8,6 +8,7 @@ import { HostageList } from './Hostages';
 import { NumbersSection } from './Backroom';
 import { GarageSection } from './Cars';
 import { DetectivePanel, HeirPanel } from './Stories';
+import { SeasonPanel } from './Seasons';
 import { CommissionSection } from './Commission';
 import { CaseSection } from './JobFaction';
 import { Icon } from '@ui/icons';
@@ -241,6 +242,7 @@ export function RivalsTab() {
   return (
     <div className="r-tab">
       <h2 className="r-tab-title">Rivals</h2>
+      <SeasonPanel />
       <HeirPanel />
       <CommissionSection />
       <div className="r-rivals">{fs.map(f => {

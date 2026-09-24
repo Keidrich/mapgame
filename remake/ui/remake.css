@@ -585,3 +585,5 @@ button.r-pcard:focus-visible { outline: 2px solid var(--amber); outline-offset: 
 .r-numbers input { width: 4.2em; padding: 6px 8px; background: var(--ink-2); color: var(--text); border: 0; border-radius: 8px; box-shadow: 0 0 0 .5px var(--sep-2) inset; font: 700 22px/1 var(--display); letter-spacing: .12em; text-align: center; font-variant-numeric: tabular-nums; }
 .r-numbers input:focus-visible { outline: 2px solid var(--amber); outline-offset: 1px; }
 @media (prefers-reduced-motion: reduce) { .r-pcard { transition: none; } }
+/* the season chip in the ledger bar: amber, like everything the whole city is talking about */
+.r-season { font-style: normal; color: var(--amber); font-weight: 600; margin-right: 4px; }

@@ -14,6 +14,67 @@ House rules for an entry (see `CLAUDE.md` → *Leave a trail*):
 
 ---
 
+## 2026-09-24 — Remake: seasons — elections, crackdowns, festivals, dock strikes (roadmap 8 of 8)
+
+**What.** About every two weeks the whole city changes for a week. Each season is announced in the
+papers three days ahead and opens with a choice:
+- **An election:** back the machine or the reformers; the winner changes what officials cost, or how
+  hard the precincts look, for 20 days.
+- **A police crackdown:** heat sticks and every precinct looks harder, unless you buy the captain's
+  patience.
+- **A festival:** takings and street prices are up.
+- **A dock strike:** product is dear and lab supplies dearer; pay the union, break the strike, or
+  let it run.
+
+**Why.** Roadmap pillar 8, the last (`docs/REMAKE.md` §15, now §23). The city had weather in its
+headlines and nothing else that happened to everybody at once.
+
+**How.**
+- **Data and sim.** `content/seasons.ts` (`SEASONS`, `SEASON`, `ELECTION`, `RESPONSES`).
+  `sim/seasons.ts` has `tickSeasons` (the calendar, the papers, the start and the end, the
+  election's result), `seasonNow`, the multipliers, `machineOdds`, `back`/`backBlock`, and
+  `bribeMult`/`attentionAdd` for the election's aftermath.
+  - The order and spacing come from hashes of the seed and the day, not the world's rng.
+  - `tickSeasons` runs just before the night's cards are drawn, so a season's opening card is waiting
+    on its first morning.
+- **Hooks.** `addHeat`, `law.ts` attention, `racketIncome`, protection in `endDay`, `streetPrice`,
+  `restockCost`, and the bribe quote.
+- **New state and actions.** `World.season`, `World.nextSeason`, `World.aftermath` and
+  `World.seasonCount`, all optional (no migration, no save bump). Four schedule-only cards, a
+  `season` effect, and the action `back_candidate`.
+- **Screen.** `ui/components/Seasons.tsx`: a "This week in the city" panel on Rivals, a chip in the
+  ledger bar, and a line in How to play.
+- **Bots.** Card scoring, and the schemer's extra backing. Coverage rows "seasons" and "the
+  election".
+- **Tests.** `remake/tests/seasons.test.ts`, 6 of them.
+- **Coverage fixes.**
+  - The maniac rolls dice every night it has $3,000; every third night left "dice" out of the
+    two-seed union.
+  - The collector steals and chops one car, so the scenario sweep always covers cars.
+- **A bug the soak found (older than this pass).** When the boss is taken off the board, a crew
+  member takes over and their person record retires. If that crew member was being held hostage by
+  a rival, the hostage record lived on, holding a ghost (maniac, seed 102, via the bot's invariant
+  check). `heirOf` now skips anybody held or jailed, and the takeover clears any hostage record.
+
+**Numbers.** Ten fresh seeds (100–109), with seasons against without:
+- Steady: 22.5% (23.9%). Ruthless: 26.4% (20.9%), 1 run lost (4). Maniac: 20.3% (20%), 5 lost (5).
+- The honest baseline in the original game is unchanged.
+
+**Watch out.**
+- Heat is scaled inside `addHeat`, which reads `SEASONS` from `content/`. `util` cannot import
+  `sim/seasons.ts` without a cycle through everything.
+- The first gap (14 days after a season ends) made a cycle of about 20 days, so sixty days saw only
+  three of the four kinds. It is 8 ± 2 now.
+- The roadmap in `docs/REMAKE.md` §15 is done. Multiplayer and an App Store build are still open
+  decisions.
+
+**Files.**
+- New: `remake/content/seasons.ts`, `remake/sim/seasons.ts`, `remake/tests/seasons.test.ts`,
+  `remake/ui/components/Seasons.tsx`.
+- Changed: `remake/sim/{types,actions,reducer,effects,events,tick,util,economy,law,scenes,select,legacy}.ts`,
+  `remake/scripts/bot.ts`, `remake/ui/{App.tsx,remake.css}`, `remake/ui/components/Tabs.tsx`, and
+  `docs/REMAKE.md` §15 and §23.
+
 ## 2026-09-24 — Remake: stories — the detective and the heir (roadmap 7 of 8)
 
 **What.** Two arcs that run for weeks instead of one card:

@@ -32,7 +32,8 @@ export type Counter =
   | 'trained' | 'boosts' | 'dried_out'
   | 'poker_hands' | 'poker_won' | 'cheated' | 'dice_rolls' | 'numbers_played'
   | 'cars_stolen' | 'cars_chopped' | 'cars_resprayed' | 'cars_kept' | 'cars_sold'
-  | 'det_cards' | 'det_moves' | 'heir_cards' | 'heir_moves';
+  | 'det_cards' | 'det_moves' | 'heir_cards' | 'heir_moves'
+  | 'season_cards' | 'backed';
 
 export const SYSTEMS: { label: string; needs: Counter[] }[] = [
   { label: 'talking to people', needs: ['chats'] },
@@ -69,6 +70,8 @@ export const SYSTEMS: { label: string; needs: Counter[] }[] = [
   { label: 'the garage', needs: ['cars_chopped', 'cars_resprayed'] },
   { label: 'the detective', needs: ['det_cards', 'det_moves'] },
   { label: 'the heir', needs: ['heir_cards', 'heir_moves'] },
+  { label: 'seasons', needs: ['season_cards'] },
+  { label: 'the election', needs: ['backed'] },
   { label: 'night encounters', needs: ['night_events'] },
   { label: 'diplomacy', needs: ['tributes', 'sitdowns'] },
   { label: 'lieutenants', needs: ['lieutenants'] },
@@ -348,6 +351,8 @@ function character(c: Ctx) {
 function stories(c: Ctx) {
   const w = () => c.w; const p = () => w().player;
   const purse = () => p().cash + p().dirty;
+  // an election on: the schemer puts more money behind the machine while it is not a sure thing
+  if (select.seasonNow(w())?.kind === 'election' && c.s.cleverBonus > 0 && purse() > 15000 && select.machineOdds(w()) < 0.8 && act(c, { type: 'back_candidate', side: 'machine' })) bump(c, 'backed');
   const d = select.detective(w());
   if (d?.status === 'active' && d.file >= 45) {
     const move = d.dirt ? 'blackmail'
@@ -379,7 +384,8 @@ function cars(c: Ctx) {
   if (w().day < 20) return;
   // the garage is worked by anybody who has cars in it; the stealing is the fighters' trade. Stealing
   // for the steady bot too cost it three points of the city and 14 heat for one car a run
-  const thief = style === 'ruthless' || style === 'maniac';
+  // the collector takes one car, for the catalogue scenario's coverage (as it rolls dice once)
+  const thief = style === 'ruthless' || style === 'maniac' || (style === 'collector' && !c.seen.has('car-once'));
   for (const car of (p().garage ?? []).slice()) {
     if (!p().kit?.car && !car.plates && select.sprayShop(w()) && act(c, { type: 'car', carId: car.id, what: 'respray' })) { bump(c, 'cars_resprayed'); continue; }
     if (!p().kit?.car && car.plates) { if (act(c, { type: 'car', carId: car.id, what: 'keep' })) { bump(c, 'cars_kept'); act(c, { type: 'equip', to: PLAYER, item: select.MODELS[car.model].keep }); } continue; }
@@ -392,7 +398,7 @@ function cars(c: Ctx) {
   const need = Math.max(50, c.s.takeAt);   // the maniac's takeAt is a coin toss, and every miss is heat
   const here = w().blocks[p().blockId];
   const bid = [here.id, ...(p().ap >= 2 ? here.neighborIds : [])].filter(id => select.parkedOn(w(), id) && select.stealOdds(w(), id) >= need).sort((a, b) => select.MODELS[select.parkedOn(w(), b)!].value - select.MODELS[select.parkedOn(w(), a)!].value)[0];
-  if (bid && goTo(c, bid) && act(c, { type: 'steal_car', blockId: bid }) && (p().garage ?? []).some(x => x.day === w().day)) bump(c, 'cars_stolen');
+  if (bid && goTo(c, bid) && act(c, { type: 'steal_car', blockId: bid }) && (p().garage ?? []).some(x => x.day === w().day)) { bump(c, 'cars_stolen'); c.seen.add('car-once'); }
 }
 
 // ------------------------------------------------------------------------------------ back rooms
@@ -413,8 +419,10 @@ function backroom(c: Ctx) {
   if (!spot) return;
   // the collector rolls once, for the catalogue scenario's coverage: nobody else in the sweep is sure to
   if (style === 'collector' && !c.seen.has('dice-once') && goTo(c, spot.blockId) && act(c, { type: 'dice', businessId: spot.id, stake: 50 })) { c.seen.add('dice-once'); bump(c, 'dice_rolls'); act(c, { type: 'table_leave' }); }
-  if (style === 'maniac' && purse() > 5000 && w().day % 3 === 0 && goTo(c, spot.blockId)) {
-    for (let i = 0; i < 2; i++) if (act(c, { type: 'dice', businessId: spot.id, stake: 200 })) bump(c, 'dice_rolls');
+  // every night it has the money: dice cost no hours, and every third night left "dice" to the luck of
+  // whether the maniac was near a table on those nights
+  if (style === 'maniac' && purse() > 3000 && goTo(c, spot.blockId)) {
+    for (let i = 0; i < 1; i++) if (act(c, { type: 'dice', businessId: spot.id, stake: 200 })) bump(c, 'dice_rolls');
     act(c, { type: 'table_leave' });
   }
   if ((style === 'steady' || style === 'schemer') && purse() > 8000 && w().day % 4 === 1 && p().ap >= 1 && goTo(c, spot.blockId) && act(c, { type: 'table_sit', businessId: spot.id, stake: 100 })) playTable(c, 3);
@@ -493,7 +501,7 @@ function answerEverything(c: Ctx) {
     const e = c.w.events[0]; if (!e) break;
     const scored = e.options.filter(o => !o.disabled).map(o => ({ o, v: scoreEffects(c, o.effects) }));
     const pick = scored.sort((a, b) => b.v - a.v)[0]?.o ?? e.options[e.options.length - 1];
-    if (act(c, { type: 'resolve_event', eventId: e.id, optionId: pick.id })) { bump(c, 'events'); if (e.template.startsWith('night_')) bump(c, 'night_events'); if (e.template === 'rat_found') bump(c, 'rats_found'); if (e.template === 'coup') bump(c, 'coups'); if (e.template.startsWith('det_')) bump(c, 'det_cards'); if (e.template.startsWith('heir_')) bump(c, 'heir_cards'); if (e.template === 'night_ambush') { bump(c, 'ambushes'); if (pick.id === 'fight') { bump(c, 'fights'); if (c.w.fight?.won) bump(c, 'fights_won'); } } }
+    if (act(c, { type: 'resolve_event', eventId: e.id, optionId: pick.id })) { bump(c, 'events'); if (e.template.startsWith('night_')) bump(c, 'night_events'); if (e.template === 'rat_found') bump(c, 'rats_found'); if (e.template === 'coup') bump(c, 'coups'); if (e.template.startsWith('det_')) bump(c, 'det_cards'); if (e.template.startsWith('heir_')) bump(c, 'heir_cards'); if (e.template.startsWith('season_')) bump(c, 'season_cards'); if (pick.effects.some(x => x.k === 'season' && x.act === 'back')) bump(c, 'backed'); if (e.template === 'night_ambush') { bump(c, 'ambushes'); if (pick.id === 'fight') { bump(c, 'fights'); if (c.w.fight?.won) bump(c, 'fights_won'); } } }
     else break;
   }
 }
@@ -517,6 +525,9 @@ function scoreEffects(c: Ctx, effects: World['events'][number]['options'][number
     // and taking the chair instead cost it four points of the city over five seeds
     if (e.k === 'table') v += c.s.cleverBonus > 0 ? 1 : -1;
     // stories: his file and their grudge are debts that come due; the showdown by temperament
+    // seasons: a softer crackdown is worth more the hotter you are; the machine is the side that
+    // makes officials cheap
+    if (e.k === 'season') v += e.act === 'soften' ? (hot > 35 ? 3 : 1) : e.act === 'end' ? 0.5 : e.side === 'machine' ? 8 : -1;   // 8: about the $3k it costs, repaid by 20 days of cheaper officials
     if (e.k === 'detFile') v -= e.n / 5;
     if (e.k === 'detKeep') v += 3;
     if (e.k === 'detFree') v -= 3;

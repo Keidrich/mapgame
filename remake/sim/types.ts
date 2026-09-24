@@ -499,6 +499,8 @@ export interface GameEvent {
 
 /** Everything an event can do, as data — so an option can describe itself before you press it. */
 export type Effect =
+  /** Seasons (`seasons.ts`): buy the crackdown's patience, end the strike, back a side at the polls. */
+  | { k: 'season'; act: 'soften' | 'end' | 'back'; side?: 'machine' | 'reform'; amount?: number }
   /** Stories (`stories.ts`): the detective's file, his raid and his price; the heir's grudge and its end. */
   | { k: 'detFile'; n: number }
   | { k: 'detRaid' }
@@ -654,6 +656,11 @@ export interface World {
   seed: number;
   rng: number;
   day: number;
+  /** The season on the city, the next one coming, and what the last election left (`seasons.ts`). */
+  season?: import('./seasons').Season;
+  nextSeason?: { kind: import('@r/content/seasons').SeasonKind; day: number };
+  aftermath?: import('./seasons').Aftermath;
+  seasonCount?: number;
   /** The detective and the heir (`stories.ts`). */
   stories?: { detective?: import('./stories').Detective; heir?: import('./stories').Heir };
   /** The card table you are sitting at, or the dice you just rolled (`backroom.ts`). */

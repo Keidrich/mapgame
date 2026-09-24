@@ -14,6 +14,7 @@ import { RAT } from '@r/content/family';
 import { ambush } from './fights';
 import { sitDown } from './backroom';
 import { detective, detectiveRaid, endHeir, heir } from './stories';
+import { back } from './seasons';
 import { PLAYER } from './types';
 
 export function apply(w: World, effects: Effect[], rng: Rng) {
@@ -61,6 +62,12 @@ export function apply(w: World, effects: Effect[], rng: Rng) {
       case 'detFree': { const d = detective(w); if (d) { d.status = 'active'; d.boughtUntil = undefined; d.file = clamp(d.file + 10); } break; }
       case 'heirGrudge': { const h = heir(w); if (h) h.grudge = clamp(h.grudge + e.n); break; }
       case 'heirEnd': endHeir(w, rng, e.how); break;
+      case 'season':
+        if (!w.season) break;
+        if (e.act === 'soften') w.season.soft = true;
+        else if (e.act === 'end') w.season.to = w.day + 1;
+        else if (e.side) back(w, e.side, e.amount ?? 0);
+        break;
       case 'showdown': {
         const n = w.npcs[e.npcId]; if (!n?.crew) break;
         if (rng.float() * 100 < e.chance) { n.crew.loyalty = clamp(n.crew.loyalty + 20); p.fear = clamp(p.fear + 5, 0, 100); log(w, `${fullName(n)} looks at you a long time, and backs down.`, 'good', { npcId: n.id }); }
@@ -130,6 +137,7 @@ export function describe(w: World, effects: Effect[]): string {
       case 'detKeep': out.push(`bought for ${e.days} more days`); break;
       case 'detFree': out.push('he is back on you, and angrier'); break;
       case 'heirGrudge': out.push(`their grudge ${sign(e.n)}`); break;
+      case 'season': out.push(e.act === 'soften' ? 'the police look half as hard' : e.act === 'end' ? 'it ends tomorrow' : `the ${e.side === 'machine' ? 'machine' : 'reformers'} get your money`); break;
       case 'heirEnd': out.push(e.how === 'partner' ? 'partners, and a truce' : e.how === 'duel' ? 'a fight in the street, settled tonight' : 'a killing, and a war'); break;
       case 'defect': out.push(`${name(w, e.npcId)} walks, and their district goes dark`); break;
       case 'showdown': out.push(`${e.chance}% they back down; otherwise they walk with their district`); break;

@@ -68,6 +68,7 @@ export type Action =
   | { type: 'steal_car'; blockId: Id }
   | { type: 'detective'; move: 'dig' | 'blackmail' | 'bribe' | 'lean' | 'transfer' | 'disappear' }
   | { type: 'heir'; move: 'gift' | 'meet' }
+  | { type: 'back_candidate'; side: 'machine' | 'reform' }
   | { type: 'car'; carId: Id; what: 'chop' | 'respray' | 'keep' | 'sell' }
   | { type: 'attack'; factionId: Owner; blockId: Id; crewIds: Id[] }
   | { type: 'buy_bullets'; n: number; at: Id | 'fixer' }

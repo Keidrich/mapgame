@@ -14,6 +14,7 @@ import { addHeat, clamp, fullName, log, money, nid } from './util';
 import { injure, jail } from './people';
 import { RACKETS } from '@r/content/world';
 import { succeed } from './legacy';
+import { attentionAdd } from './seasons';
 
 export function openCase(w: World, crime: CaseCrime, suspect: Id | 'player', witnessId: Id | undefined, summary: string, evidence = 15): Case {
   // the same suspect and crime in the last fortnight thickens one file rather than opening two
@@ -77,7 +78,7 @@ export function tickLaw(w: World, rng: Rng) {
   p.heat = clamp(p.heat - decay);
   for (const b of Object.values(w.blocks)) if (b.heat > 0) b.heat = clamp(b.heat - 2.5);
   for (const d of Object.values(w.districts)) {
-    const toward = d.police + (captainHelps(d.id) ? -12 : 0);
+    const toward = d.police + (captainHelps(d.id) ? -12 : 0) + attentionAdd(w);
     d.attention = clamp(d.attention + (toward - d.attention) * (captainHelps(d.id) ? 0.25 : 0.12));
   }
   // released

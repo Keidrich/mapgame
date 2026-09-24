@@ -10,6 +10,7 @@ import { Icon } from '@ui/icons';
 import { setMode } from '@ui/mode';
 import { act, boot, closeRecap, closeSheets, dismissToast, focusBlock, leaveGame, openSheet, quitGame, setLayer, setMap3d, setTab, useUi, useWorld, viewCity, type Layer, type Tab } from './store';
 import { TableCard } from './components/Backroom';
+import { seasonChip } from './components/Seasons';
 import { CityMap } from './components/CityMap';
 import { NpcFace } from './components/Faces';
 import { mute } from './components/tone';
@@ -140,7 +141,7 @@ function Hud() {
         <button type="button" className="r-dayno" onClick={() => openSheet({ kind: 'menu' })} aria-label={`${night ? 'Night' : 'Day'} ${w.day}. Menu`}><span>{night ? 'Night' : 'Day'}</span><b>{w.day}</b></button>
         <button type="button" className="r-who" onClick={() => setTab('empire')} aria-label="Your empire">
           <b>{p.nick ? `"${p.nick}"` : p.name} · {select.cityName(w, select.currentCity(w))}</b>
-          <span>{p.hurtDays ? <em className="r-hurt">Hurt {p.hurtDays}d</em> : null}{select.shaking(w) ? <em className="r-hurt">Shaking</em> : select.boostedToday(w) ? <em className="r-hurt">Wired</em> : null}{rank.label}{next ? <><i title={`${next.at - n} more fear and respect to ${next.label}`}><u style={{ width: `${pct}%` }} /></i>{next.label}</> : null}</span>
+          <span>{p.hurtDays ? <em className="r-hurt">Hurt {p.hurtDays}d</em> : null}{select.shaking(w) ? <em className="r-hurt">Shaking</em> : select.boostedToday(w) ? <em className="r-hurt">Wired</em> : null}{seasonChip(w) ? <em className="r-season">{seasonChip(w)}</em> : null}{rank.label}{next ? <><i title={`${next.at - n} more fear and respect to ${next.label}`}><u style={{ width: `${pct}%` }} /></i>{next.label}</> : null}</span>
         </button>
         <button type="button" className="r-iconbtn" onClick={() => openSheet({ kind: 'menu' })} aria-label="Menu"><svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><circle cx="3.5" cy="9" r="1.6" fill="currentColor" /><circle cx="9" cy="9" r="1.6" fill="currentColor" /><circle cx="14.5" cy="9" r="1.6" fill="currentColor" /></svg></button>
       </div>
@@ -437,6 +438,7 @@ function HelpSheet() {
         <li><b>The back room.</b> After dark, bars, clubs, restaurants and casinos have a game: five-card draw against the regulars (tap to hold, then fold, call or raise; brains and charm give you a read on them, and a steady hand can deal from the bottom), and dice in the alley. By day you can play the numbers: three digits, drawn overnight, 600 to 1.</li>
         <li><b>Cars.</b> After dark, every block has something parked worth taking — better where the money lives. Keep it in your garage (one on the street, more with safehouses) while it cools, then chop it for parts, or respray it at a garage you control and keep it as kit or sell it clean. A car in the crew is a getaway: fewer arrests when a job goes wrong, fewer loads taken on the road.</li>
         <li><b>People with your name in their mouth.</b> Once you are worth noticing, a detective starts a file on you: it grows every day, and at each stage he does something about it. Dig into him, buy him, lean on him, have him moved or make him disappear (Empire → the law). An outfit that comes to hate you raises an heir with a grudge that ends in a showdown (Rivals).</li>
+        <li><b>Seasons.</b> Every couple of weeks the whole city changes for a few days — an election, a police crackdown, a festival, a strike at the docks — and the papers have it three days ahead. Each opens with a choice; the election's winner changes what officials cost, or how hard the police look, for weeks after (Rivals).</li>
         <li><b>Dirty and clean.</b> Most money is dirty. Buying businesses, officials and a lawyer need clean. The fixer washes by hand; a laundering racket washes every night while it is switched on.</li>
         <li><b>Crew</b> come from the regulars. Build trust, then recruit. Beds come from safehouses. Crew level up; a good one can run a whole district.</li>
         <li><b>Jobs</b> arrive from people who trust you, from grudges you know about, and from wars. You can case any place yourself. Every job shows its odds per approach; big ones stop halfway and ask.</li>
