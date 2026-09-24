@@ -47,6 +47,7 @@ export const ACTION_HOURS: Partial<Record<string, { half: Half; why: string }>> 
   sell_street: { half: 'night', why: 'The corners do their business after dark.' },
   sit_down: { half: 'night', why: 'A sit-down is a dinner in a back room, and dinner is at night.' },
   attack: { half: 'night', why: 'Nobody starts a war at noon. Take it to them after dark.' },
+  run_delivery: { half: 'night', why: 'The bars take their cases after closing, at the back door.' },
   make_member: { half: 'night', why: 'Nobody is made in daylight. The ceremony is after dark, in a back room.' },
 };
 

@@ -430,6 +430,7 @@ function HelpSheet() {
         <li><b>Meet people.</b> Tap a place, then its owner. <i>Talk</i> builds trust and sizes them up; <i>Lean on them</i> builds fear. Every button shows its odds, and “why these odds” shows the arithmetic.</li>
         <li><b>Protection</b> is the first money. A frightened or friendly owner pays you a daily cut. Keep it fair (15% or less) or they resent it.</li>
         <li><b>Rackets</b> run out of places you protect or own, and earn every night. Put crew on them as runners — a racket nobody minds earns 60%.</li>
+        <li><b>Supply.</b> Bars, clubs, restaurants and casinos you protect or own will take your booze, green and pills by the case — at better than the street pays, with a third of the heat. Tell a place to take it from its sheet; then give one of your crew the deliveries, or drive the round yourself after dark. Loads get taken on the road, more often in a war.</li>
         <li><b>Dirty and clean.</b> Most money is dirty. Buying businesses, officials and a lawyer need clean. The fixer washes by hand; a laundering racket washes every night while it is switched on.</li>
         <li><b>Crew</b> come from the regulars. Build trust, then recruit. Beds come from safehouses. Crew level up; a good one can run a whole district.</li>
         <li><b>Jobs</b> arrive from people who trust you, from grudges you know about, and from wars. You can case any place yourself. Every job shows its odds per approach; big ones stop halfway and ask.</li>

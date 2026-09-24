@@ -1,6 +1,6 @@
 import { BUSINESSES, LABS, RACKETS, SAFEHOUSE_TIERS } from '@r/content/world';
 import { select, PLAYER } from '@r/sim/index';
-import type { LabKind, RacketKind } from '@r/sim/types';
+import type { LabKind, Product, RacketKind } from '@r/sim/types';
 import { Icon } from '@ui/icons';
 import { openSheet, useWorld } from '../store';
 import { Emblem, NpcFace } from './Faces';
@@ -113,11 +113,49 @@ export function BusinessSheet({ id }: { id: string }) {
         ))}
         {!mine && !protectedByMe && !rackets.length && <Empty>{def.rackets.length ? 'Protect or own it to run something out of the back.' : 'Nothing runs out of a place like this. It is a job, not a racket.'}</Empty>}
       </Section>
+      <SupplySection id={id} />
       {b.closed <= 0 && <ShopSection at={id} title={w.player.blockId === b.blockId ? 'For sale here' : `For sale here — go to ${w.blocks[b.blockId].name}`} />}
       <CaseSection target={{ businessId: id }} title={mine ? 'Work it' : 'Case it'} note={mine ? 'Jobs you can only run through a place you own.' : undefined} />
       {b.patronIds.length > 0 && <Section title="Regulars">{b.patronIds.map(pid => { const n = w.npcs[pid]; return n ? <Row key={pid} onClick={() => openSheet({ kind: 'person', id: pid })} left={<NpcFace n={n} size={32} />} title={select.fullName(n)} sub={n.crew ? 'Yours' : n.rel.met ? `trust ${n.rel.trust}` : n.alive ? 'A stranger' : 'Dead'} /> : null; })}</Section>}
     </Sheet>
   );
+}
+
+/**
+ * The back door: which of your products this place takes by the case, how much a night, at what
+ * price, and whether a driver is bringing it. Only for the kinds of place that sell what you make.
+ */
+function SupplySection({ id }: { id: string }) {
+  const w = useWorld();
+  const b = w.businesses[id];
+  const wants = select.OUTLETS[b.type]; if (!wants) return null;
+  const prods = Object.keys(wants) as Product[];
+  const on = b.outlet ?? [];
+  if (!select.canBeOutlet(b)) return <Section title="Supply"><Empty>A {BUSINESSES[b.type].label.toLowerCase()} takes {prods.join(' and ')} by the case. Protect it or own it and it will take yours.</Empty></Section>;
+  const city = select.blockCity(w, b.blockId);
+  const driving = select.drivers(w).filter(d => d.city === city);
+  const got = b.supplied?.day === w.day - 1 || b.supplied?.day === w.day ? b.supplied.n : 0;
+  return (
+    <Section title="Supply" right={on.length ? <span className="r-note">{got ? `${got} lots last night` : 'nothing last night'}</span> : undefined}>
+      {prods.map(k => {
+        const has = on.includes(k);
+        const next = has ? on.filter(x => x !== k) : [...on, k];
+        return <Row key={k} left={<Icon name={k} />} title={`${k[0].toUpperCase()}${k.slice(1)}: ${select.outletDemand(w, b, k)} a night`} sub={`${fmt(select.outletPrice(w, b, k))} a lot against ${fmt(select.streetPrice(w, k, b.blockId))} on the street · you hold ${w.player.stash[k].n}`}
+          right={<Do action={{ type: 'set_outlet', businessId: id, products: next }} label={has ? 'Stop' : 'Supply'} small kind={has ? 'ghost' : 'primary'} />} />;
+      })}
+      {on.length > 0 && !driving.length && <p className="r-why">Nobody drives here. Give one of your crew in this city the deliveries from their sheet, or drive the round yourself after dark.</p>}
+      {on.length > 0 && <DriveRound />}
+      {on.length > 0 && driving.length > 0 && <p className="r-note">{driving.map(d => select.fullName(d.n)).join(', ')} {driving.length > 1 ? 'drive' : 'drives'} here: {driving.reduce((t, d) => t + d.carry, 0)} lots a night between every place in the city. {Math.round(select.hijackChance(w, false) * 100)}% a load is taken on the road; half that with a gun in the car.</p>}
+    </Section>
+  );
+}
+
+/** Driving tonight's round yourself: what the orders in this city come to, and the button. */
+export function DriveRound() {
+  const w = useWorld();
+  const o = select.ordersIn(w, select.currentCity(w));
+  return <Do action={{ type: 'run_delivery' }} label={`Drive the round yourself${o.lots ? ` · ${Math.min(o.lots, select.yourCarry(w))} lots` : ''}`} icon="van" block
+    sub={o.lots ? `Orders worth ${fmt(o.worth)} if the van held them all; yours holds ${select.yourCarry(w)}. Two hours after dark, and the road is the road.` : 'No orders here the stash can fill.'} />;
 }
 
 export function RacketRow({ id }: { id: string }) {

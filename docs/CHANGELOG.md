@@ -14,6 +14,67 @@ House rules for an entry (see `CLAUDE.md` → *Leave a trail*):
 
 ---
 
+## 2026-09-24 — Remake: supply chains — outlets, drivers, deliveries, hijacks (roadmap 3 of 8)
+
+**What.** Your product has a steadier way out than the corner:
+- bars, clubs, restaurants, diners and casinos you protect or own take it by the case every night,
+  at 1.4× the street price (1.7× if you own the place), with a third of the heat;
+- a crew member can be given the deliveries, or you can drive the round yourself after dark;
+- loads can be taken on the road, more often in a war or when you are hot, half as often with a
+  gun in the car.
+
+**Why.** Roadmap pillar 3 (`docs/REMAKE.md` §15, now §18). The user: "Do the whole roadmap please."
+Product until now only went out through dealing rackets and street sales; City of Gangsters' supply
+chains (make it, move it, sell it through your own places) were the missing middle.
+
+**How.**
+- **Data and sim.** `content/supply.ts` (`OUTLETS`, `SUPPLY`); `sim/supply.ts` has `canBeOutlet`,
+  `outletDemand`, `outletPrice`, `driverCarry`, `drivers`, `outlets`, `hijackChance`, `ordersIn`,
+  `round` (one van's round, shared by crew drivers and by you), `runDelivery` and `tickSupply`.
+  `tickSupply` runs in `endDay` right after the labs, so the night's batch goes out that night.
+- **New state.** `Business.outlet`, `Business.supplied`, `World.supply`, and an assignment kind
+  `driver`. All optional: no migration and no save bump.
+- **New actions.** `set_outlet` (free, any hour) and `run_delivery` (night only, 2 hours).
+- **Screen.**
+  - A "Supply" section on the business sheet: per-product toggles, demand, and price against the
+    street.
+  - "Drive the round yourself" there and on Empire → Money → "Supply chain", which also shows last
+    night's delivered, earned, taken and short.
+  - "Drive deliveries" on a crew member's sheet.
+  - A line in How to play.
+- **Bots.** `supply()` sets outlets, drives the round after dark when the orders are worth $400, and
+  places drivers, taking the runner off the weakest racket if the orders are worth twice what it
+  earns. New counters `outlets_set`, `drivers`, `deliveries`, `delivered_self`, `hijacked`, and a
+  coverage row "supply chains".
+- **Tests.** `remake/tests/supply.test.ts`, 6 of them.
+- **Bot ransom rule.** From the third day a snatched crewman is held, any bot that pays ransoms at
+  all pays once it can cover the price. The ransom rises $500 a day and he is killed on the fifth.
+  The ruthless bot's 3× margin had left its man dead on seed 7, and the rng shift from this pass
+  dropped "hostages" from the five-temperament coverage test (`pass3.test.ts`).
+
+**Numbers** (five seeds, 60 days, with supply vs without):
+- Steady: control 24.6% (24.3%), worth $88k ($69k).
+- Ruthless: control 23.3% (26.5%), worth $75k ($89k). Never convicted.
+- Maniac: convicted in 3 of 5.
+- The honest baseline in the original game is unchanged.
+
+**Watch out.**
+- The first prices (1.15/1.3) made supply a trap. It took product the dealing rackets would have
+  sold the next day, for 15% more, at the cost of night hours. Over seeds 100–109 the ruthless bot
+  was convicted 2 in 10 against 0 without supply. At 1.4/1.7 that is 1 in 10.
+- Crew are bed-limited and nearly always all busy. That is why `run_delivery` exists: without it the
+  bots never got a single driver in 60 days.
+- A hijacked load is simply lost. There is no chase or fight on the road yet; the cars pillar
+  (roadmap 6) is the place for getaways.
+- `remake/scripts/_bal.ts`, the scratch balance script, had been committed by accident in an
+  earlier pass. It is untracked again; it lives in the session scratchpad.
+
+**Files.**
+- New: `remake/content/supply.ts`, `remake/sim/supply.ts`, `remake/tests/supply.test.ts`.
+- Changed: `remake/sim/{types,actions,reducer,tick,select}.ts`, `remake/content/clock.ts`,
+  `remake/scripts/bot.ts`, `remake/ui/App.tsx`,
+  `remake/ui/components/{PlaceSheets,PersonSheet,Tabs}.tsx`, and `docs/REMAKE.md` §18.
+
 ## 2026-09-24 — Remake: fights — rounds, bullets, taking it to them, ambushes, the hospital (roadmap 2 of 8)
 
 **What.** Fights you can start, and fights that come to you, all resolved one way:

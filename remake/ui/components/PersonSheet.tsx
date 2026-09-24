@@ -135,7 +135,7 @@ function CrewPanel({ n }: { n: Npc }) {
   const c = n.crew!;
   const a = c.assignment;
   const where = !a ? 'Free' : a.kind === 'racket' ? `Running the ${w.rackets[a.racketId]?.kind.replace(/_/g, ' ')} at ${w.businesses[w.rackets[a.racketId]?.businessId]?.name}`
-    : a.kind === 'lab' ? 'Working a lab' : a.kind === 'guard' ? `Guarding ${w.blocks[a.blockId]?.name}` : a.kind === 'district' ? `Lieutenant over ${w.districts[a.districtId]?.name}` : `On a job: ${w.jobs[a.jobId]?.title}`;
+    : a.kind === 'lab' ? 'Working a lab' : a.kind === 'guard' ? `Guarding ${w.blocks[a.blockId]?.name}` : a.kind === 'district' ? `Lieutenant over ${w.districts[a.districtId]?.name}` : a.kind === 'driver' ? 'Driving deliveries' : `On a job: ${w.jobs[a.jobId]?.title}`;
   const unminded = w.player.racketIds.map(id => w.rackets[id]).filter(r => r && !r.runnerId);
   const districts = [...new Set(select.playerBlocks(w).map(b => b.districtId))];
   return (
@@ -151,6 +151,7 @@ function CrewPanel({ n }: { n: Npc }) {
         <Do action={{ type: 'assign', npcId: n.id, assignment: { kind: 'guard', blockId: w.player.blockId } }} label={`Guard ${w.blocks[w.player.blockId].name}`} icon="guard" small />
         {unminded.slice(0, 4).map(r => <Do key={r.id} action={{ type: 'assign', npcId: n.id, assignment: { kind: 'racket', racketId: r.id } }} label={`Run ${r.kind.replace(/_/g, ' ')} at ${w.businesses[r.businessId].name}`} icon={r.kind} small />)}
         {w.player.safehouseIds.flatMap(sid => w.safehouses[sid].labs.filter(l => !l.workerId).map(l => <Do key={l.id} action={{ type: 'assign', npcId: n.id, assignment: { kind: 'lab', labId: l.id } }} label={`Work the ${l.kind} at ${w.safehouses[sid].name}`} icon="production" small />))}
+        {a?.kind !== 'driver' && select.outlets(w, n.crew!.cityId || 'c0').length > 0 && <Do action={{ type: 'assign', npcId: n.id, assignment: { kind: 'driver' } }} label={`Drive deliveries (${select.driverCarry(n)} lots a night)`} icon="van" small />}
         {districts.map(d => <Do key={d} action={{ type: 'assign', npcId: n.id, assignment: { kind: 'district', districtId: d } }} label={`Lieutenant over ${w.districts[d].name}`} icon="lieutenant" small />)}
       </div>
       {a?.kind === 'district' && <Do action={{ type: 'audit', npcId: n.id }} label={`Go through the books (${select.auditOdds(w, n)}% to catch a skim)`} icon="note" block sub="A lieutenant with a hand in the till makes the whole district arrive light. Checking costs them a little loyalty either way." />}

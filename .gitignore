@@ -10,3 +10,6 @@ dist/
 
 # the screenshot harness scratch: only the curated before/after under docs/shots is kept
 shots/
+
+# scratch balance scripts (session-local): never committed
+remake/scripts/_*.ts

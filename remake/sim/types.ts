@@ -141,7 +141,8 @@ export type Assignment =
   | { kind: 'lab'; labId: Id }
   | { kind: 'guard'; blockId: Id }
   | { kind: 'district'; districtId: Id }
-  | { kind: 'job'; jobId: Id };
+  | { kind: 'job'; jobId: Id }
+  | { kind: 'driver' };
 
 export interface Crew {
   loyalty: number;
@@ -240,6 +241,9 @@ export interface Business {
   closed: number;
   /** Your people are dug in here until this day: an outfit that comes for it is turned away. */
   dugIn?: number;
+  /** The products this place takes from your drivers (`supply.ts`), and what it got tonight. */
+  outlet?: Product[];
+  supplied?: { day: number; n: number };
 }
 
 export type RacketKind =
@@ -604,6 +608,8 @@ export interface World {
   seed: number;
   rng: number;
   day: number;
+  /** Last night's deliveries (`supply.ts`). */
+  supply?: { day: number; delivered: number; earned: number; lost: number; short: number };
   /** The last fight, round by round, until you have read it (`fights.ts`). */
   fight?: FightReport;
   /** Which half of the day it is (`sim/clock.ts`). Absent in saves from before day and night: day. */

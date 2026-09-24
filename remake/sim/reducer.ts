@@ -28,6 +28,8 @@ import { appoint, auditBonus, makeBlock, makeMember } from './family';
 import { MAKING } from '@r/content/family';
 import { ATTACK, BULLETS, GUNS, HURT } from '@r/content/fights';
 import { attack } from './fights';
+import { canBeOutlet, ordersIn, runDelivery } from './supply';
+import { OUTLETS, SUPPLY } from '@r/content/supply';
 import { endDay, STRAIGHT } from './tick';
 import type { Action, Affordance } from './actions';
 import { no, yes } from './actions';
@@ -312,6 +314,20 @@ function canInner(w: World, a: Action): Affordance {
       if (busy) return no(busy);
       const e = ap(ATTACK.ap); return e ? no(e) : yes({ ap: ATTACK.ap });
     }
+    case 'set_outlet': {
+      // a word with the owner or the manager, whenever: it costs nothing but the arrangement
+      const b = w.businesses[a.businessId]; if (!b) return no('Nowhere.');
+      if (!OUTLETS[b.type]) return no(`A ${b.type} does not sell what you make.`);
+      if (!canBeOutlet(b)) return no('Protect it or own it first.');
+      const bad = a.products.find(x => !OUTLETS[b.type]![x]);
+      return bad ? no(`They have no call for ${bad}.`) : yes();
+    }
+    case 'run_delivery': {
+      const o = ordersIn(w, cityOfBlock(w, p.blockId));
+      if (!o.lots) return no('No orders here that the stash can fill: set a place to take your product, and have some.');
+      if (busy) return no(busy);
+      const e = ap(SUPPLY.selfAp); return e ? no(e) : yes({ ap: SUPPLY.selfAp });
+    }
     case 'buy_bullets': {
       if (!BULLETS.packs.includes(a.n)) return no('They come in boxes.');
       if (a.at === 'fixer') { const fx = w.fixerId ? w.npcs[w.fixerId] : undefined; if (!fx?.alive || !fx.rel.met) return no('Find the fixer first.'); }
@@ -506,6 +522,13 @@ export function dispatch(world: World, a: Action): World {
     }
     case 'retire': { w.retired = true; w.over = { ending: 'straight', day: w.day, text: `You walk away with ${money(p.cash)} clean and nobody looking for you. In ${w.city.name} they still tell stories.` }; break; }
     case 'attack': attack(w, rng, a.factionId, a.blockId, a.crewIds); break;
+    case 'set_outlet': {
+      const b = w.businesses[a.businessId];
+      b.outlet = a.products.length ? [...new Set(a.products)] : undefined;
+      log(w, b.outlet ? `${b.name} takes your ${b.outlet.join(' and ')} now. A driver has to bring it.` : `${b.name} takes nothing from you now.`, 'info', { businessId: b.id });
+      break;
+    }
+    case 'run_delivery': runDelivery(w, rng); break;
     case 'buy_bullets': spend(w, a.n * BULLETS.price); p.bullets += a.n; log(w, `A box of ${a.n} rounds.`, 'info'); break;
     case 'patch_up': spend(w, HURT.doctor); p.hurtDays = Math.floor((p.hurtDays ?? 0) / 2); log(w, 'A doctor who does not write anything down sets it, stitches it, and takes cash.', 'good'); break;
     case 'seen_fight': if (w.fight) w.fight.seen = true; break;

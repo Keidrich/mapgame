@@ -24,6 +24,8 @@ export { specialistFee, present, setpieceOpen, SETPIECE_REST, SETPIECE_HARDEN } 
 export { needsMet, isDerelict } from './catalogue';
 export { CHEATS } from './cheats';
 export { consigliere, underboss, familyRank, makeBlock } from './family';
+export { canBeOutlet, outletDemand, outletPrice, driverCarry, drivers, outlets, hijackChance, ordersIn, yourCarry } from './supply';
+export { OUTLETS, SUPPLY } from '@r/content/supply';
 export { fightOdds, soldiersOn, sideOf, personPower, ambushOdds } from './fights';
 export { GUNS, BULLETS, HURT, ATTACK } from '@r/content/fights';
 export { MAKING, RANK_LABEL, RANK_BLURB, POSTS } from '@r/content/family';

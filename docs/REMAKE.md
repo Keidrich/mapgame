@@ -691,6 +691,47 @@ One resolver for every fight (`sim/fights.ts`; the numbers are data in `content/
 | Maniac | 20 | 14% | — | convicted in 2 of 5, killed in 1 |
 | Steady | — | 24.3% | — | never convicted |
 
+## 18. Supply chains
+
+Product has a second way out besides the corner (`sim/supply.ts`; the numbers are data in
+`content/supply.ts`).
+
+- **Outlets.** A bar, nightclub, restaurant, diner or casino that you protect or own can be told to
+  take your product (`set_outlet`, free, any hour; business sheet → "Supply"). Each kind takes some
+  products and not others (`OUTLETS`), in lots a night scaled by the block: ×(0.5 + wealth/100).
+- **The price.** A protected place pays 1.4× the street price; one you own 1.7× (you keep the bar's
+  margin too). At 1.15/1.3 it paid barely better than a dealing racket selling the same lots the
+  next day, and the bots came out poorer for the night hours it cost them.
+- **Heat.** A delivery through a back door puts a third of the heat that selling the same lots on
+  the corner does.
+- **Drivers.** A crew assignment, `{ kind: 'driver' }`. A driver carries 12 lots a night, +3 per
+  point of wheels, +8 per point of the car's bonus, around the outlets in their own city.
+  The rounds run at the end of the day after the labs, so tonight's batch goes out tonight
+  (`tickSupply`, reported in `World.supply` and on Empire → Money → "Supply chain").
+- **Driving it yourself** (`run_delivery`): two hours after dark, the same van, your wheels and your
+  car, in the city you are in. Crew are bed-limited and usually all busy, so this is how most
+  players (and the bots) first use it.
+- **The road.** Every load can be taken: 2%, +6% with any outfit at war or beef with you, +0.06%
+  per point of heat, halved if the driver carries a gun. A taken load is lost, puts 2 heat on the
+  block, and 30% of the time the driver is hurt.
+- **Trust.** The owner of a protected outlet gains +0.5 trust every night it is supplied.
+- **Bots.** `supply()` sets every protected or owned outlet to take what the labs make or the stash
+  holds; drives the round itself after dark when the orders are worth $400; and puts a driver in
+  each city with outlets. The driver is a free hand, or the runner of the weakest racket when a
+  night's orders are worth twice what that racket earns.
+
+**Balance (five seeds, 60 days, with supply against without):**
+
+| Bot | Control | Worth | Outcome |
+|---|---|---|---|
+| Steady | 24.6% (24.3%) | $88k ($69k) | never convicted |
+| Ruthless | 23.3% (26.5%) | $75k ($89k) | never convicted |
+| Maniac | 17.9% (14.4%) | $62k ($53k) | convicted in 3 of 5 (2, and 1 dead) |
+
+The seeds diverge as soon as a hijack roll is made, so single runs move a lot; over ten further
+seeds (100–109) the first price cut convicted the ruthless bot 2 times in 10 against 0 without
+supply, and the price above brought it to 1.
+
 ## 15. The road: the whole game
 
 The Remake is heading toward the full game its inspirations add up to: City of Gangsters (a

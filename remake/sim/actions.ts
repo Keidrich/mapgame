@@ -53,6 +53,8 @@ export type Action =
   | { type: 'lay_low'; days: number }
   | { type: 'resolve_event'; eventId: Id; optionId: string }
   | { type: 'retire' }
+  | { type: 'set_outlet'; businessId: Id; products: Product[] }
+  | { type: 'run_delivery' }
   | { type: 'attack'; factionId: Owner; blockId: Id; crewIds: Id[] }
   | { type: 'buy_bullets'; n: number; at: Id | 'fixer' }
   | { type: 'patch_up' }

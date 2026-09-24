@@ -12,7 +12,7 @@ import { openSheet, useWorld, focusBlock } from '../store';
 import { Emblem, NpcFace } from './Faces';
 import { mute } from './tone';
 import { jobIcon, payoutLine } from './JobFaction';
-import { BizRow, RacketRow, SafehousePanel } from './PlaceSheets';
+import { BizRow, DriveRound, RacketRow, SafehousePanel } from './PlaceSheets';
 import { roleLine } from './PersonSheet';
 import { Chip, Dial, Do, Empty, Meter, Row, Section, fmt } from './kit';
 
@@ -69,7 +69,7 @@ export function CrewTab() {
   );
   function crewRow(n: (typeof crew)[number]) {
         const a = n.crew!.assignment;
-        const where = !a ? 'Free' : a.kind === 'racket' ? `Runs ${w.rackets[a.racketId]?.kind.replace(/_/g, ' ')}` : a.kind === 'lab' ? 'In a lab' : a.kind === 'guard' ? `Guards ${w.blocks[a.blockId]?.name}` : a.kind === 'district' ? `Lieutenant, ${w.districts[a.districtId]?.name}` : `On ${w.jobs[a.jobId]?.title}`;
+        const where = !a ? 'Free' : a.kind === 'racket' ? `Runs ${w.rackets[a.racketId]?.kind.replace(/_/g, ' ')}` : a.kind === 'lab' ? 'In a lab' : a.kind === 'guard' ? `Guards ${w.blocks[a.blockId]?.name}` : a.kind === 'district' ? `Lieutenant, ${w.districts[a.districtId]?.name}` : a.kind === 'driver' ? 'Drives deliveries' : `On ${w.jobs[a.jobId]?.title}`;
         const best = (Object.entries(n.skills) as [string, number][]).sort((x, y) => y[1] - x[1]).slice(0, 2).map(([s, v]) => `${s} ${v}`).join(' · ');
         const kit = select.kitOf(w, n.id); const carries = SLOTS_ORDER.filter(s => kit[s]).map(s => ITEMS[kit[s]!].label.toLowerCase());
         return <Row key={n.id} onClick={() => openSheet({ kind: 'person', id: n.id })} left={<NpcFace n={n} size={42} />} title={select.fullName(n)} sub={`L${n.crew!.level} · ${best} · loyalty ${Math.round(n.crew!.loyalty)} · ${fmt(n.crew!.cut)}/day${carries.length ? ` · ${carries.join(', ')}` : ''}`} right={<Chip tone={n.crew!.status === 'ready' ? (a ? 'muted' : 'green') : n.crew!.status === 'travel' ? 'blue' : 'red'}>{n.crew!.status === 'ready' ? where : n.crew!.status === 'travel' ? 'on the train' : n.crew!.status}</Chip>} />;
@@ -156,6 +156,17 @@ export function EmpireTab() {
           {(() => { const fx = w.fixerId ? w.npcs[w.fixerId] : undefined; return fx && !fx.rel.met ? <Row onClick={() => openSheet({ kind: 'person', id: fx.id })} left={<NpcFace n={fx} size={32} />} title={`Find the fixer: ${select.fullName(fx)}`} sub={`${w.blocks[fx.homeBlockId].name}, ${w.districts[w.blocks[fx.homeBlockId].districtId].name}. Introduce yourself and the door opens.`} /> : null; })()}
           <div className="r-inline-actions">{[1000, 5000, Math.min(p.dirty, select.fixerCap(w) - p.washedToday)].filter((a, i, arr) => a > 0 && arr.indexOf(a) === i).map(a => <Do key={a} action={{ type: 'fixer_wash', amount: a }} label={`Fixer: wash ${fmt(a)}`} small />)}</div>
         </Section>
+        {(select.outlets(w).length > 0 || select.drivers(w).length > 0) && <Section title="Supply chain" right={<span className="r-note">{select.outlets(w).length} places · {select.drivers(w).length} drivers</span>}>
+          {w.supply && <div className="r-stats">
+            <div><span>Last night</span><b>{w.supply.delivered} lots</b></div>
+            <div><span>Came in</span><b className="dirty">{fmt(w.supply.earned)}</b></div>
+            <div><span>Taken</span><b>{w.supply.lost}</b></div>
+            <div><span>Went short</span><b>{w.supply.short}</b></div>
+          </div>}
+          {select.outlets(w).map(b => <BizRow key={b.id} id={b.id} />)}
+          {!select.drivers(w).length && <p className="r-why">Nobody is driving. Give one of your crew the deliveries from their sheet, or drive the round yourself after dark.</p>}
+          <DriveRound />
+        </Section>}
         <Section title="The stash" right={<span className="r-note">{select.stashTotal(w)}/{select.stashCapacity(w)}</span>}>
           {(Object.keys(PRODUCTS) as Product[]).map(k => { const lot = p.stash[k]; return <Row key={k} left={<Icon name={k === 'goods' ? 'hot_goods' : k} />} title={`${PRODUCTS[k].label}: ${lot.n}`} sub={lot.n ? `quality ${lot.q} · ${k === 'goods' ? 'needs a fence' : `${fmt(select.streetPrice(w, k, p.blockId))} each on this corner`}` : 'none'} right={lot.n && k !== 'goods' ? <Do action={{ type: 'sell_street', product: k, n: lot.n }} label="Sell here" small /> : undefined} />; })}
         </Section>

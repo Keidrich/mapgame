@@ -8,6 +8,7 @@ import { BUSINESSES, LABS, OFFICIALS, PRODUCTS, RACKETS, SAFEHOUSE_TIERS } from 
 import { FAIR_RATE, labOutput, labQuality, protectionTake, racketIncome, rankOf, sellCapacity, stashTotal, streetPrice, washCap, washRate, netWorth } from './economy';
 import { drawEvents } from './events';
 import { tickFamily } from './family';
+import { tickSupply } from './supply';
 import { hurtHours } from './fights';
 import { splitHours } from '@r/content/clock';
 import { tickFactions } from './factions';
@@ -157,6 +158,9 @@ export function endDay(w: World, rng: Rng) {
     if (!pay(tier.rent)) addHeat(w, 0);
     gain(s.blockId, 1);
   }
+
+  // ---- the drivers: after the labs, so tonight's batch can go out tonight
+  sum.dirty += tickSupply(w, rng);
 
   // ---- the payroll and the lawyer
   if (day % 7 === 0) for (const n of Object.values(w.npcs)) if (n.payroll && n.payroll > 1 && n.alive) {

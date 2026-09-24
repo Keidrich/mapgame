@@ -15,7 +15,7 @@ import { CATALOGUE, CATALOGUE_KINDS } from '@r/content/catalogue';
 import { can, dispatch, newWorld, select, PLAYER, type Action, type Background, type Id, type Job, type World } from '@r/sim/index';
 import { Rng } from '@r/sim/rng';
 import type { CitySize } from '@r/sim/city';
-import type { Approach, JobKind, RacketKind } from '@r/sim/types';
+import type { Approach, JobKind, Product, RacketKind } from '@r/sim/types';
 
 export type Counter =
   | 'days' | 'chats' | 'threats' | 'protected' | 'squeezed' | 'recruited' | 'bribed' | 'settled' | 'leaned' | 'bought' | 'favours'
@@ -27,7 +27,8 @@ export type Counter =
   | 'meetings' | 'lobbied' | 'voted' | 'setpieces_cased' | 'setpiece_stages' | 'setpieces_done' | 'declared'
   | 'cities' | 'routes' | 'route_sales' | 'remote_jobs' | 'crew_moved' | 'nights' | 'night_events'
   | 'made' | 'appointed' | 'rats_found' | 'coups'
-  | 'fights' | 'fights_won' | 'ambushes' | 'bullets_bought';
+  | 'fights' | 'fights_won' | 'ambushes' | 'bullets_bought'
+  | 'outlets_set' | 'drivers' | 'deliveries' | 'hijacked' | 'delivered_self';
 
 export const SYSTEMS: { label: string; needs: Counter[] }[] = [
   { label: 'talking to people', needs: ['chats'] },
@@ -54,6 +55,7 @@ export const SYSTEMS: { label: string; needs: Counter[] }[] = [
   { label: 'rats and coups', needs: ['rats_found', 'coups'] },
   { label: 'street fights', needs: ['fights', 'ambushes'] },
   { label: 'buying rounds', needs: ['bullets_bought'] },
+  { label: 'supply chains', needs: ['deliveries', 'delivered_self'] },
   { label: 'night encounters', needs: ['night_events'] },
   { label: 'diplomacy', needs: ['tributes', 'sitdowns'] },
   { label: 'lieutenants', needs: ['lieutenants'] },
@@ -189,7 +191,9 @@ function day(c: Ctx) {
   shift(c);
   if (act(c, { type: 'nightfall' })) { bump(c, 'nights'); answerEverything(c); shift(c); }
   answerEverything(c);
-  if (act(c, { type: 'end_day' })) { /* counted in run */ }
+  if (act(c, { type: 'end_day' })) {
+    const s = c.w.supply; if (s?.day === c.w.day - 1) { bump(c, 'deliveries', s.delivered); bump(c, 'hijacked', s.lost ? 1 : 0); }
+  }
   answerEverything(c);
 }
 function shift(c: Ctx) {
@@ -203,6 +207,7 @@ function shift(c: Ctx) {
   build(c);
   corners(c);
   runJobs(c);
+  supply(c);   // after the crew is placed, so a driver is whoever is left over
   region(c);   // before money: the stash is what a route ships, and money() sells it on the corner
   money(c);
   kit(c);
@@ -235,6 +240,43 @@ function fights(c: Ctx) {
     if (!goTo(c, bid)) continue;
     if (act(c, { type: 'attack', factionId: f.id, blockId: bid, crewIds: crew.map(n => n.id) })) { bump(c, 'fights'); if (w().fight?.won) bump(c, 'fights_won'); }
     break;
+  }
+}
+
+// ------------------------------------------------------------------------------------ supply
+/**
+ * Every protected or owned place that takes what the bot makes (its labs, or what it already holds)
+ * is told to take it; each city with such places gets one driver, the best at the wheel of whoever
+ * is left free once the rackets and labs are staffed.
+ */
+function supply(c: Ctx) {
+  const w = () => c.w; const p = () => w().player;
+  const making = new Set<Product>(p().safehouseIds.flatMap(sid => w().safehouses[sid]?.labs.map(l => LABS[l.kind].product) ?? []));
+  for (const k of ['booze', 'green', 'pills'] as const) if (p().stash[k].n > 0) making.add(k);
+  if (!making.size) return;
+  for (const b of Object.values(w().businesses)) {
+    if (!select.canBeOutlet(b)) continue;
+    const want = (Object.keys(select.OUTLETS[b.type]!) as Product[]).filter(k => making.has(k));
+    if (!want.length || (b.outlet?.length === want.length && want.every(k => b.outlet!.includes(k)))) continue;
+    if (act(c, { type: 'set_outlet', businessId: b.id, products: want })) bump(c, 'outlets_set');
+  }
+  // no driver here yet, or orders left over: drive it yourself after dark when it pays for the hours
+  const here = select.currentCity(w());
+  if (select.isNight(w()) && p().ap >= select.SUPPLY.selfAp && select.ordersIn(w(), here).worth >= 400 && act(c, { type: 'run_delivery' })) bump(c, 'delivered_self');
+  const cities = new Set(select.outlets(w()).map(b => select.cityOfBlock(w(), b.blockId)));
+  for (const city of cities) {
+    if (select.drivers(w()).some(d => d.city === city) || select.crew(w()).some(n => inCity(city)(n) && n.crew!.assignment?.kind === 'driver')) continue;
+    const free = select.crew(w()).filter(inCity(city)).filter(n => !n.crew!.assignment && n.crew!.status === 'ready');
+    // rackets usually have every hand, and a runner lifts a small racket by less than a van of
+    // product sells for: take the runner off the weakest one when a night's orders are worth more
+    const orders = select.outlets(w(), city).reduce((t, b) => t + (b.outlet ?? []).reduce((u, k) => u + Math.min(select.outletDemand(w(), b, k), p().stash[k].n + 10) * select.outletPrice(w(), b, k), 0), 0);
+    const runners = select.crew(w()).filter(inCity(city)).filter(n => n.crew!.status === 'ready' && n.crew!.assignment?.kind === 'racket')
+      .map(n => ({ n, earns: select.racketIncome(w(), w().rackets[(n.crew!.assignment as { racketId: Id }).racketId]) })).sort((a, b) => a.earns - b.earns);
+    // a free hand is held back for jobs only when the orders are small; a full night's orders outearn most jobs
+    const d = free.length > (reserveForJobs(c) && orders < 600 ? 1 : 0) ? free.sort((a, b) => b.skills.wheels - a.skills.wheels)[0]
+      : runners[0] && orders > runners[0].earns * 2 ? runners[0].n : undefined;
+    if (!d) continue;
+    if (act(c, { type: 'assign', npcId: d.id, assignment: { kind: 'driver' } })) bump(c, 'drivers');
   }
 }
 
@@ -823,7 +865,11 @@ function hostages(c: Ctx) {
   const w = () => c.w; const p = () => w().player;
   for (const h of Object.values(w().hostages)) {
     if (h.holder !== PLAYER) {
-      if (c.s.payFor !== undefined && p().cash + p().dirty >= h.ransom * c.s.payFor && act(c, { type: 'hostage', id: h.id, choice: 'pay' })) { bump(c, 'ransom_paid'); bump(c, 'hostages_resolved'); }
+      // the price rises every day and they kill him on the fifth: from the third day any boss who pays
+      // ransoms at all pays once the money is there. A dead crewman costs every other one 8 loyalty,
+      // worth more than the margin payFor keeps; waiting for 3× left the ruthless bot's man dead
+      const late = w().day - h.since >= 3;
+      if (c.s.payFor !== undefined && p().cash + p().dirty >= h.ransom * (late ? 1 : c.s.payFor) && act(c, { type: 'hostage', id: h.id, choice: 'pay' })) { bump(c, 'ransom_paid'); bump(c, 'hostages_resolved'); }
       continue;
     }
     const days = w().day - h.since;
