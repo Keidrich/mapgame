@@ -177,10 +177,119 @@ describe('trade and work between cities', () => {
 
 describe('the region scenario', () => {
   it('goes to another city, runs a trade route and works from a distance', () => {
-    const r = run({ days: 40, seed: 7, size: 'medium', scenario: 'region' });
+    const r = run({ days: 60, seed: 7, size: 'medium', scenario: 'region' });
     const reached = SYSTEMS.filter(s => REGION_SYSTEMS.includes(s.label)).map(s => s.label).filter(l => !missing(r.counts).includes(l));
     expect(reached).toEqual(REGION_SYSTEMS);
     expect(r.w.region!.cities.filter(c => c.founded).length).toBeGreaterThanOrEqual(2);
     void foundCity;
   }, 120000);
+});
+
+describe('crew belong to a city', () => {
+  function withCrew(): { w: World; ids: string[] } {
+    const w = go(mk());
+    const ids: string[] = [];
+    for (const n of Object.values(w.npcs)) { if (ids.length >= 3) break; if (n.alive && !n.crew && !n.faction && !n.official && n.id !== w.fixerId && !w.districts[w.blocks[n.homeBlockId].districtId].cityId) { hire(w, n, 100); ids.push(n.id); } }
+    return { w, ids };
+  }
+  it('a recruit belongs to the city they live in', () => {
+    const w = go(mk());
+    const there = Object.values(w.npcs).find(n => n.alive && !n.crew && !n.faction && !n.official && w.districts[w.blocks[n.homeBlockId].districtId].cityId)!;
+    hire(w, there, 100);
+    expect(select.crewCity(w, there.id)).toBe(select.currentCity(w));
+  });
+  it('works only there: a post or a job in another city is refused with where they are', () => {
+    const { w, ids } = withCrew();
+    const b = w.player.blockId;
+    expect(can(w, { type: 'assign', npcId: ids[0], assignment: { kind: 'guard', blockId: b } }).why).toMatch(/Move them/);
+    const j = Object.values(w.jobs).find(x => select.cityOfBlock(w, x.blockId) === select.currentCity(w) && x.crewMax > 0 && x.status === 'offer');
+    if (j) expect(can(w, { type: 'take_job', jobId: j.id, crewIds: [ids[0]] }).ok).toBe(false);
+  });
+  it('sending somebody costs their fare, takes a day, and takes them off their post', () => {
+    let { w, ids } = withCrew();
+    const home = Object.values(w.blocks).find(b => !w.districts[b.districtId].cityId)!;
+    w.npcs[ids[0]].crew!.assignment = { kind: 'guard', blockId: home.id };
+    const to = select.currentCity(w);
+    const q = can(w, { type: 'move_crew', npcId: ids[0], to });
+    expect(q.cash).toBe(select.fareBetween(w, 'c0', to));
+    const cash = w.player.cash + w.player.dirty;
+    w = dispatch(w, { type: 'move_crew', npcId: ids[0], to });
+    expect(w.player.cash + w.player.dirty).toBe(cash - q.cash!);
+    expect(w.npcs[ids[0]].crew).toMatchObject({ cityId: to, status: 'travel' });
+    expect(w.npcs[ids[0]].crew!.assignment).toBeUndefined();
+    expect(can(w, { type: 'assign', npcId: ids[0], assignment: { kind: 'guard', blockId: w.player.blockId } }).why).toMatch(/road/);
+    w = endDay(w);
+    expect(w.npcs[ids[0]].crew!.status).toBe('ready');
+    expect(can(w, { type: 'assign', npcId: ids[0], assignment: { kind: 'guard', blockId: w.player.blockId } }).ok).toBe(true);
+  });
+  it('whoever you bring on the train comes with you, free; everybody else stays', () => {
+    const { w: w0, ids } = withCrew();
+    let w = w0; w.player.ap = 9;
+    w = dispatch(w, { type: 'travel_city', cityId: 'c0' });
+    expect(select.currentCity(w)).toBe('c0');
+    w.player.ap = 9;
+    const back = second(w).id;
+    w = dispatch(w, { type: 'travel_city', cityId: back, bring: [ids[0]] });
+    expect(select.crewCity(w, ids[0])).toBe(back);
+    expect(select.crewCity(w, ids[1])).toBe('c0');
+    expect(can(w, { type: 'travel_city', cityId: 'c0', bring: [ids[1]] }).why).toMatch(/not in this city/);
+  });
+  it('a save from before crews had a city puts each where their work is, else where you are', () => {
+    const { w, ids } = withCrew();
+    const home = Object.values(w.blocks).find(b => !w.districts[b.districtId].cityId)!;
+    w.npcs[ids[0]].crew!.assignment = { kind: 'guard', blockId: home.id };
+    for (const id of ids) delete w.npcs[id].crew!.cityId;
+    migrate(w);
+    expect(select.crewCity(w, ids[0])).toBe('c0');
+    expect(select.crewCity(w, ids[1])).toBe(select.currentCity(w));
+  });
+});
+
+describe('every city has its own Commission', () => {
+  it('a founded city gets its own table, of its own outfits, and lobbying there moves only that table', () => {
+    let w = go(mk());
+    const c = select.currentCity(w);
+    for (let d = 0; d < 14 && !select.commissionOf(w, c).proposal; d++) w = endDay(w);
+    const t = select.commissionOf(w, c);
+    expect(t).not.toBe(w.commission);
+    if (t.proposal) {
+      const votes = select.tally(w, t.proposal).votes;
+      for (const v of votes) expect(w.districts[w.factions[v.id].homeDistrictId].cityId).toBe(c);
+      const f = w.factions[votes[0].id]; w.player.cash = 100000; w.player.ap = 9; w.events = [];
+      w = dispatch(w, { type: 'lobby', factionId: f.id, side: 'yes' });
+      expect(select.commissionOf(w, c).pulls[f.id]).toBe(select.LOBBY_PULL);
+      expect(w.commission.pulls[f.id]).toBeUndefined();
+    }
+  });
+});
+
+describe('a landmark remembers being hit', () => {
+  it('shut for a month after a set-piece, then open again and harder', () => {
+    const w = mk();
+    const b = Object.values(w.blocks).find(x => select.setpieceOpen(w, x.id))!;
+    w.player.fear = 40; w.player.respect = 40; w.player.ap = 9;
+    b.hitDay = w.day; b.hardened = 10;
+    expect(select.setpieceOpen(w, b.id)).toBe(false);
+    expect(can(w, { type: 'case', kind: 'setpiece', blockId: b.id }).why).toMatch(/until day/);
+    w.day += select.SETPIECE_REST;
+    expect(select.setpieceOpen(w, b.id)).toBe(true);
+    const j = buildJob(w, new Rng(1), { kind: 'setpiece', blockId: b.id })!;
+    const fresh = buildJob(mk(), new Rng(1), { kind: 'setpiece', blockId: b.id })!;
+    expect(j.difficulty).toBe(Math.min(95, fresh.difficulty + 10));
+  });
+});
+
+describe('the testing tools', () => {
+  it('every tool runs through dispatch and marks the save as tested', () => {
+    for (const t of select.CHEATS) {
+      const w0 = mk();
+      expect(can(w0, { type: 'cheat', what: t.kind }).ok).toBe(true);
+      const w = dispatch(w0, { type: 'cheat', what: t.kind });
+      expect(w.cheated, t.kind).toBe(true);
+    }
+    const w = dispatch(mk(), { type: 'cheat', what: 'road' });
+    expect(w.region!.cities.every(c => c.founded || c.open)).toBe(true);
+    const x = dispatch(mk(), { type: 'cheat', what: 'crew' });
+    expect(x.player.crewIds.length).toBe(3);
+  });
 });

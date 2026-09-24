@@ -4,6 +4,13 @@ import type { Id, World } from './types';
 import { PLAYER } from './types';
 import { controller } from './util';
 
+/** Which city a block is in (absent `cityId` on its district: the home city). */
+export const blockCity = (w: World, blockId: Id): string => { const b = w.blocks[blockId]; return (b && w.districts[b.districtId]?.cityId) || 'c0'; };
+/** Which city one of your people is in. Crew work only where they are (`region.ts`). */
+export const crewCity = (w: World, npcId: Id): string => w.npcs[npcId]?.crew?.cityId || 'c0';
+/** Your people in one city. */
+export const crewIn = (w: World, city: string) => w.player.crewIds.map(id => w.npcs[id]).filter(n => n?.alive && n.crew && (n.crew.cityId || 'c0') === city);
+
 export function bedsTotal(w: World): number {
   return 3 + w.player.safehouseIds.reduce((t, id) => t + (SAFEHOUSE_TIERS[(w.safehouses[id]?.tier ?? 1) - 1]?.beds ?? 0), 0);
 }

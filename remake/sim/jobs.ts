@@ -30,6 +30,19 @@ import { addHeat, addInfluence, clamp, fullName, log, money, nid, remember, shor
 
 const LEAN_W = [1, 0.7, 0.5, 0.35];
 
+/**
+ * After a set-piece: the landmark is shut to you for a month, its district's police look harder,
+ * and it is harder every time after — a looted cathedral puts in cameras. A failed attempt hardens
+ * it too, by half as much, and closes nothing.
+ */
+export const SETPIECE_REST = 30;
+export const SETPIECE_HARDEN = 10;
+/** Whether a landmark has a set-piece you can go after today. */
+export function setpieceOpen(w: World, blockId: Id): boolean {
+  const b = w.blocks[blockId];
+  return !!b && !!setpieceFor(b.landmark) && (b.hitDay === undefined || w.day - b.hitDay >= SETPIECE_REST);
+}
+
 /** Which city of the region a block is in (see `region.ts`; inlined here to keep the import graph a tree). */
 const cityAt = (w: World, blockId: Id) => { const b = w.blocks[blockId]; return (b && w.districts[b.districtId]?.cityId) || 'c0'; };
 /** Whether you are in the city the job is in. If not, your people go without you. */
@@ -137,7 +150,7 @@ export function buildJob(w: World, rng: Rng, t: Target): Job | undefined {
     case 'setpiece': {
       const sp = setpieceFor(block.landmark); if (!sp) return;
       const r = (x: [number, number]) => Math.round((x[0] + rng.float() * (x[1] - x[0])) / 100) * 100;
-      difficulty = sp.difficulty; dirty = r(sp.payout.dirty); clean = r(sp.payout.clean); goods = Math.round(sp.payout.goods[0] + rng.float() * (sp.payout.goods[1] - sp.payout.goods[0]));
+      difficulty = sp.difficulty + (block.hardened ?? 0); dirty = r(sp.payout.dirty); clean = r(sp.payout.clean); goods = Math.round(sp.payout.goods[0] + rng.float() * (sp.payout.goods[1] - sp.payout.goods[0]));
       respect = sp.respect; fear = sp.fear; tier = 4;
       tname = block.landmark!;
       break;
@@ -213,7 +226,7 @@ function pickTarget(w: World, rng: Rng): Target | undefined {
   }
   // a set-piece, once in a while, for somebody the street takes seriously
   if (r < 0.62 && r >= 0.55 && w.player.fear + w.player.respect >= SETPIECE_RANK && !Object.values(w.jobs).some(j => j.kind === 'setpiece' && ['offer', 'planning', 'ready'].includes(j.status))) {
-    const marks = Object.values(w.blocks).filter(b => setpieceFor(b.landmark));
+    const marks = Object.values(w.blocks).filter(b => setpieceOpen(w, b.id));
     if (marks.length) { const b = rng.pick(marks); return { kind: 'setpiece', blockId: b.id, source: w.fixerId ? w.npcs[w.fixerId] : source }; }
   }
   // the fixer deals in paper
@@ -409,6 +422,8 @@ function finishJob(w: World, job: Job, rng: Rng, mult: number, extraHeat: number
     ? `${job.title}: done.${dirty ? ` ${money(dirty)} dirty.` : ''}${clean ? ` ${money(clean)} clean.` : ''}${goods ? ` ${goods} lots of hot goods.` : ''}${effect ? ` ${effect}` : ''}`
     : `${job.title}: it went wrong.${jailed.length ? ` ${jailed.length} picked up.` : ''}${killed.length ? ` ${killed.length} did not come home.` : ''}`;
   job.result = { success, text, dirty, clean, goods, heat, injured, jailed, killed };
+  // somebody tried and failed: the landmark tightens up, by half as much as a hit that came off
+  if (!success && job.kind === 'setpiece') { const b = w.blocks[job.blockId]; b.hardened = (b.hardened ?? 0) + SETPIECE_HARDEN / 2; }
   // what you have pulled off, by kind: the catalogue's later jobs are offered on the strength of it
   if (success) { p.done ??= {}; p.done[job.kind] = (p.done[job.kind] ?? 0) + 1; }
   job.status = success ? 'done' : 'failed';
@@ -427,7 +442,12 @@ function applyTargetEffect(w: World, job: Job, rng: Rng): string {
     case 'heist': if (biz) { biz.till = Math.round(biz.till * 0.1); biz.security = clamp(biz.security + 12); } return 'They will double the guard now.';
     case 'hit': if (npc) { kill(w, npc.id, 'a job of yours'); return ''; } return '';
     case 'kidnap': if (npc && !Object.values(w.hostages).some(h => h.npcId === npc.id)) { npc.rel.fear = clamp(npc.rel.fear + 50); remember(npc, w.day, 'hurt', 'Taken, and let go when the family paid what was in the house.'); npc.wealth = Math.max(5, npc.wealth - 30); return 'Nowhere to keep them, so you took what the family had in the house.'; } return npc ? `${fullName(npc)} is yours to bargain with.` : '';
-    case 'setpiece': return setpieceEffect(w, job);
+    case 'setpiece': {
+      const b = w.blocks[job.blockId];
+      b.hitDay = w.day; b.hardened = (b.hardened ?? 0) + SETPIECE_HARDEN;
+      w.districts[b.districtId].attention = clamp(w.districts[b.districtId].attention + 15);
+      return `${setpieceEffect(w, job)} ${b.landmark ? b.landmark[0].toUpperCase() + b.landmark.slice(1) : 'The place'} is shut to you for a month, and tighter every time after.`;
+    }
     case 'arson': if (biz) { biz.closed = rng.int(6, 14); for (const rid of biz.racketIds) if (w.rackets[rid]) w.rackets[rid].down = biz.closed; return `${biz.name} is shut for ${biz.closed} days.`; } return '';
     case 'sabotage': if (biz) { let n = 0; for (const rid of biz.racketIds) { const r = w.rackets[rid]; if (r && r.owner !== PLAYER) { r.down = rng.int(4, 9); n++; } } return n ? `Their operation at ${biz.name} is down.` : ''; } return '';
     case 'raid': if (fac) { const took = Math.min(fac.cash, job.payout.dirty); fac.cash -= took; fac.soldiers = Math.max(0, fac.soldiers - rng.int(1, 3)); addInfluence(w, job.blockId, fac.id, -12); return `The ${fac.short} are short money and men.`; } return '';

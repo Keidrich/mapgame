@@ -9,7 +9,7 @@ import type { Block, Business, Id, Npc, World } from './types';
 import { controller } from './util';
 
 export { businessPrice, crewCut, fixerCap, fixerRate, labOutput, labQuality, levelMult, netWorth, nextRank, notoriety, protectionTake, racketIncome, rankOf, runnerFactor, saturationMult, sellCapacity, stashTotal, streetPrice, synergyOf, upgradeCost, washCap, washRate, INSTITUTION_RESPECT, FAIR_RATE } from './economy';
-export { bedsTotal, controlShare, playerBlocks, travelCost } from './select-core';
+export { bedsTotal, blockCity, controlShare, crewCity, crewIn, playerBlocks, travelCost } from './select-core';
 export { quote, agendaLine, secretLine, type SceneKind, type SceneQuote } from './scenes';
 export { jobOdds, payoutFor, complicationOdds, caseKinds, insider, leansFor } from './jobs';
 export { stanceOf, sitDownOdds, tributeEffect, factionBlocks, STANCE_LABEL } from './factions';
@@ -18,11 +18,12 @@ export { depth, accrualMult, heldDays, T as TERRITORY } from './territory';
 export { stashCapacity, STRAIGHT, WIN_SHARE } from './tick';
 export { restockCost, auditOdds } from './reducer';
 export { crewOn, crewOf, crewWage, crewCost, CREW } from './streetcrews';
-export { specialistFee, present } from './jobs';
+export { specialistFee, present, setpieceOpen, SETPIECE_REST, SETPIECE_HARDEN } from './jobs';
 export { needsMet, isDerelict } from './catalogue';
+export { CHEATS } from './cheats';
 import { RANKS as RANKS_ } from '@r/content/world';
 import { rankOf as rankOf_ } from './economy';
-export { HOME, REGION, arrivalIn, cityBlocks, cityGeo, cityName_ as cityName, cityOfBlock, controlIn, currentCity, demandIn, fare, isOpen, regionCity, routePrice, safehouseIn } from './region';
+export { HOME, REGION, arrivalIn, cityBlocks, cityGeo, cityName_ as cityName, cityOfBlock, controlIn, currentCity, demandIn, fare, fareBetween, isOpen, regionCity, routePrice, safehouseIn } from './region';
 import { HOME as HOME_, cityGeo as cityGeo_ } from './region';
 /**
  * The world as the map draws it: one city's streets, blocks, places and corners. With only the home
@@ -46,7 +47,7 @@ import { CATALOGUE, isCatalogue } from '@r/content/catalogue';
 export const jobTarget = (k: string) => (isCatalogue(k) ? CATALOGUE[k].target : undefined);
 export { kitOf, kitBonus, armourOf, skillOf, shopItems, isShop } from './kit';
 export { holdingRoom, heldBy, isHeld, hostageChoices, HOSTAGE } from './hostages';
-export { leanOf, lobbyCost, describeProposal, tally, COMMISSION, LOBBY_PULL } from './commission';
+export { leanOf, lobbyCost, describeProposal, tally, commissionOf, COMMISSION, LOBBY_PULL } from './commission';
 export { controller, fullName, shortName, money } from './util';
 import { fullName } from './util';
 import { playerBlocks } from './select-core';

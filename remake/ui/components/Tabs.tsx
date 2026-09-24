@@ -53,16 +53,25 @@ export function CrewTab() {
     <div className="r-tab">
       <h2 className="r-tab-title">Crew <span className="r-note">{crew.length}/{beds} beds</span></h2>
       {Object.values(w.hostages).some(h => h.holder !== PLAYER) && <Section title="Taken"><HostageList filter={h => h.holder !== PLAYER} /></Section>}
-      {crew.length ? crew.map(n => {
+      {crew.length ? (() => {
+        // with more than one city, your people are listed where they are: they work only there
+        const cities = (w.region?.cities ?? []).filter(c => c.founded);
+        const groups = cities.length > 1 ? cities.map(c => ({ c, list: crew.filter(n => (n.crew!.cityId || 'c0') === c.id) })).filter(g => g.list.length) : [{ c: undefined, list: crew }];
+        return groups.map(g => {
+          const rows = g.list.map(n => crewRow(n));
+          return g.c ? <Section key={g.c.id} title={`${g.c.name}${g.c.id === select.currentCity(w) ? ' · you are here' : ''}`} right={<span className="r-note">{g.list.length}</span>}>{rows}</Section> : <div key="all">{rows}</div>;
+        });
+      })() : <Empty>Nobody works for you yet. Build trust with the regulars in a bar or a gym, then recruit them. You have beds for {beds}.</Empty>}
+      <p className="r-note">Crew earn more as they level up — running a racket, working a lab, guarding a block and going on jobs all teach them. At level 2 and loyalty 55 one of them can run a district for you.{(w.region?.cities.filter(c => c.founded).length ?? 0) > 1 ? ' Each works only in the city they are in; send somebody from their sheet, or bring them on your train.' : ''}</p>
+    </div>
+  );
+  function crewRow(n: (typeof crew)[number]) {
         const a = n.crew!.assignment;
         const where = !a ? 'Free' : a.kind === 'racket' ? `Runs ${w.rackets[a.racketId]?.kind.replace(/_/g, ' ')}` : a.kind === 'lab' ? 'In a lab' : a.kind === 'guard' ? `Guards ${w.blocks[a.blockId]?.name}` : a.kind === 'district' ? `Lieutenant, ${w.districts[a.districtId]?.name}` : `On ${w.jobs[a.jobId]?.title}`;
         const best = (Object.entries(n.skills) as [string, number][]).sort((x, y) => y[1] - x[1]).slice(0, 2).map(([s, v]) => `${s} ${v}`).join(' · ');
         const kit = select.kitOf(w, n.id); const carries = SLOTS_ORDER.filter(s => kit[s]).map(s => ITEMS[kit[s]!].label.toLowerCase());
-        return <Row key={n.id} onClick={() => openSheet({ kind: 'person', id: n.id })} left={<NpcFace n={n} size={42} />} title={select.fullName(n)} sub={`L${n.crew!.level} · ${best} · loyalty ${Math.round(n.crew!.loyalty)} · ${fmt(n.crew!.cut)}/day${carries.length ? ` · ${carries.join(', ')}` : ''}`} right={<Chip tone={n.crew!.status === 'ready' ? (a ? 'muted' : 'green') : 'red'}>{n.crew!.status === 'ready' ? where : n.crew!.status}</Chip>} />;
-      }) : <Empty>Nobody works for you yet. Build trust with the regulars in a bar or a gym, then recruit them. You have beds for {beds}.</Empty>}
-      <p className="r-note">Crew earn more as they level up — running a racket, working a lab, guarding a block and going on jobs all teach them. At level 2 and loyalty 55 one of them can run a district for you.</p>
-    </div>
-  );
+        return <Row key={n.id} onClick={() => openSheet({ kind: 'person', id: n.id })} left={<NpcFace n={n} size={42} />} title={select.fullName(n)} sub={`L${n.crew!.level} · ${best} · loyalty ${Math.round(n.crew!.loyalty)} · ${fmt(n.crew!.cut)}/day${carries.length ? ` · ${carries.join(', ')}` : ''}`} right={<Chip tone={n.crew!.status === 'ready' ? (a ? 'muted' : 'green') : n.crew!.status === 'travel' ? 'blue' : 'red'}>{n.crew!.status === 'ready' ? where : n.crew!.status === 'travel' ? 'on the train' : n.crew!.status}</Chip>} />;
+  }
 }
 
 export function JobsTab() {

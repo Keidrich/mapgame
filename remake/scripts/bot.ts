@@ -25,7 +25,7 @@ export type Counter =
   | 'crews_paid' | 'crews_taken' | 'crews_run' | 'audits' | 'specialists'
   | 'kit_bought' | 'kit_equipped' | 'hostages_taken' | 'hostages_resolved' | 'crew_snatched' | 'ransom_paid'
   | 'meetings' | 'lobbied' | 'voted' | 'setpieces_cased' | 'setpiece_stages' | 'setpieces_done' | 'declared'
-  | 'cities' | 'routes' | 'route_sales' | 'remote_jobs';
+  | 'cities' | 'routes' | 'route_sales' | 'remote_jobs' | 'crew_moved';
 
 export const SYSTEMS: { label: string; needs: Counter[] }[] = [
   { label: 'talking to people', needs: ['chats'] },
@@ -61,9 +61,10 @@ export const SYSTEMS: { label: string; needs: Counter[] }[] = [
   { label: 'another city', needs: ['cities'] },
   { label: 'trade routes', needs: ['route_sales'] },
   { label: 'remote work', needs: ['remote_jobs'] },
+  { label: 'moving crew', needs: ['crew_moved'] },
 ];
 /** The rows only the region reaches: excluded from the natural sweep's must-reach list, held by the region scenario instead. */
-export const REGION_SYSTEMS = ['another city', 'trade routes', 'remote work'];
+export const REGION_SYSTEMS = ['another city', 'trade routes', 'remote work', 'moving crew'];
 
 // ---------------------------------------------------------------------------------- temperaments
 /**
@@ -128,6 +129,9 @@ export interface RunResult { w: World; counts: Partial<Record<Counter, number>>;
 interface Ctx { w: World; rng: Rng; s: Style; counts: Partial<Record<Counter, number>>; kinds: Partial<Record<JobKind, number>>; offered: Partial<Record<JobKind, number>>; taken: Partial<Record<JobKind, number>>; actions: number; refused: number; seen: Set<Id> }
 
 const bump = (c: Ctx, k: Counter, n = 1) => { c.counts[k] = (c.counts[k] ?? 0) + n; };
+/** Crew work only in the city they are in (`region.ts`): every pick of people goes through this. */
+const inCity = (city: string) => (n: { crew?: { cityId?: string } }) => (n.crew?.cityId || 'c0') === city;
+const jobCity = (w: World, j: Job) => select.cityOfBlock(w, j.blockId);
 /**
  * How many times the bot has tried a kind — except that the first link of a chain it never pulled
  * off counts as untried while a later link waits on it. A failed smuggle run once meant the
@@ -229,29 +233,31 @@ function manageCrew(c: Ctx) {
   for (const rid of w().player.racketIds) {
     const r = w().rackets[rid]; if (!r || r.runnerId) continue;
     const skill = RACKETS[r.kind].skill;
-    const free = select.crew(w()).filter(n => !n.crew!.assignment && n.crew!.status === 'ready').sort((a, b) => b.skills[skill] - a.skills[skill])[0];
-    if (!free) break;
+    const rc = select.cityOfBlock(w(), w().businesses[r.businessId].blockId);
+    const free = select.crew(w()).filter(inCity(rc)).filter(n => !n.crew!.assignment && n.crew!.status === 'ready').sort((a, b) => b.skills[skill] - a.skills[skill])[0];
+    if (!free) continue;
     if (reserveForJobs(c) && select.crew(w()).filter(n => !n.crew!.assignment && n.crew!.status === 'ready').length <= 1) break;
     if (act(c, { type: 'assign', npcId: free.id, assignment: { kind: 'racket', racketId: rid } })) bump(c, 'runners');
   }
   // workers on labs
   for (const sid of w().player.safehouseIds) for (const l of w().safehouses[sid].labs) {
     if (l.workerId) continue;
-    const free = select.crew(w()).find(n => !n.crew!.assignment && n.crew!.status === 'ready');
+    const free = select.crew(w()).filter(inCity(select.cityOfBlock(w(), w().safehouses[sid].blockId))).find(n => !n.crew!.assignment && n.crew!.status === 'ready');
     if (free) act(c, { type: 'assign', npcId: free.id, assignment: { kind: 'lab', labId: l.id } });
   }
   // a lieutenant over the district you hold most of
   const lt = crew.find(n => n.crew!.level >= 2 && n.crew!.loyalty >= 55 && n.crew!.assignment?.kind !== 'district' && n.crew!.assignment?.kind !== 'job');
   if (lt) {
     const counts: Record<Id, number> = {};
-    for (const b of select.playerBlocks(w())) counts[b.districtId] = (counts[b.districtId] ?? 0) + 1;
+    for (const b of select.playerBlocks(w()).filter(b => select.cityOfBlock(w(), b.id) === (lt.crew!.cityId || 'c0'))) counts[b.districtId] = (counts[b.districtId] ?? 0) + 1;
     const d = Object.entries(counts).sort((a, b) => b[1] - a[1]).map(x => x[0]).find(did => !Object.values(w().npcs).some(n => n.crew?.assignment?.kind === 'district' && n.crew.assignment.districtId === did));
     if (d && act(c, { type: 'assign', npcId: lt.id, assignment: { kind: 'district', districtId: d } })) bump(c, 'lieutenants');
   }
   // a guard when somebody is at war with you
   const war = Object.values(w().factions).some(f => f.alive && f.standing < -40);
-  if ((war || select.crew(w()).length >= 5) && !select.crew(w()).some(n => n.crew?.assignment?.kind === 'guard')) {
-    const g = select.crew(w()).filter(n => !n.crew!.assignment && n.crew!.status === 'ready').sort((a, b) => b.skills.muscle - a.skills.muscle)[0];
+  const hereCrew = () => select.crew(w()).filter(inCity(select.currentCity(w())));
+  if ((war || hereCrew().length >= 5) && !hereCrew().some(n => n.crew?.assignment?.kind === 'guard')) {
+    const g = hereCrew().filter(n => !n.crew!.assignment && n.crew!.status === 'ready').sort((a, b) => b.skills.muscle - a.skills.muscle)[0];
     if (g && act(c, { type: 'assign', npcId: g.id, assignment: { kind: 'guard', blockId: w().player.blockId } })) bump(c, 'guards');
   }
 }
@@ -262,7 +268,7 @@ function runJobs(c: Ctx) {
   const w = () => c.w; const p = () => w().player;
   // top up a plan somebody dropped out of, before deciding whether it is still worth launching
   for (const j of Object.values(w().jobs).filter(x => (x.status === 'planning' || x.status === 'ready') && x.crewIds.length < Math.max(x.crewMin, x.kind === 'setpiece' ? x.crewMax : 0))) {
-    const spare = select.crew(w()).filter(n => n.crew!.status === 'ready' && n.crew!.assignment?.kind !== 'job' && (j.kind === 'setpiece' || !n.crew!.assignment || n.crew!.assignment.kind === 'guard')).sort((a, b) => j.leans.reduce((t, s) => t + b.skills[s] - a.skills[s], 0));
+    const spare = select.crew(w()).filter(inCity(jobCity(w(), j))).filter(n => n.crew!.status === 'ready' && n.crew!.assignment?.kind !== 'job' && (j.kind === 'setpiece' || !n.crew!.assignment || n.crew!.assignment.kind === 'guard')).sort((a, b) => j.leans.reduce((t, s) => t + b.skills[s] - a.skills[s], 0));
     for (const n of spare) { if (w().jobs[j.id].crewIds.length >= Math.max(j.crewMin, j.kind === 'setpiece' ? j.crewMax : 0)) break; act(c, { type: 'join_job', jobId: j.id, npcId: n.id }); }
   }
   for (const j of Object.values(w().jobs).filter(x => x.status === 'ready')) {
@@ -276,7 +282,7 @@ function runJobs(c: Ctx) {
     const away = !select.present(w(), j);
     // a job in another city needs somebody to go; with nobody on it, send somebody or let it go
     if (away && !j.crewIds.length) {
-      const spare = select.crew(w()).find(n => n.crew!.status === 'ready' && n.crew!.assignment?.kind !== 'job');
+      const spare = select.crew(w()).filter(inCity(jobCity(w(), j))).find(n => n.crew!.status === 'ready' && n.crew!.assignment?.kind !== 'job');
       if (!spare || !act(c, { type: 'join_job', jobId: j.id, npcId: spare.id })) { act(c, { type: 'drop_job', jobId: j.id }); continue; }
     }
     if (act(c, { type: 'launch_job', jobId: j.id, approach: approach.a })) {
@@ -290,7 +296,7 @@ function runJobs(c: Ctx) {
   if (c.s.setpieces && p().fear + p().respect >= SETPIECE_RANK && select.crew(w()).length >= 2 && p().ap >= 2 && !Object.values(w().jobs).some(j => j.kind === 'setpiece' && ['offer', 'planning', 'ready'].includes(j.status))) {
     // the evidence locker first if there is paper worth burning, otherwise the richest
     const paper = select.openCases(w()).some(x => x.evidence > 40);
-    const marks = Object.values(w().blocks).filter(b => setpieceFor(b.landmark)).map(b => ({ b, d: setpieceFor(b.landmark)! }))
+    const marks = Object.values(w().blocks).filter(b => select.setpieceOpen(w(), b.id)).map(b => ({ b, d: setpieceFor(b.landmark)! }))
       .sort((x, y) => (y.d.effect === 'evidence' && paper ? 1e6 : 0) + y.d.payout.dirty[1] + y.d.payout.clean[1] + y.d.payout.goods[1] * 50 - ((x.d.effect === 'evidence' && paper ? 1e6 : 0) + x.d.payout.dirty[1] + x.d.payout.clean[1] + x.d.payout.goods[1] * 50));
     const m = marks.find(x => x.d.effect !== 'sacrilege' || c.s.war !== 'never');
     if (m && act(c, { type: 'case', kind: 'setpiece', blockId: m.b.id })) bump(c, 'setpieces_cased');
@@ -316,7 +322,7 @@ function runJobs(c: Ctx) {
     // otherwise do — without this the bot cased the courthouse three times with nobody free to send
     // the collector sends the fewest it can, so eight people cover as many jobs at once as they can
     const hands = j.kind === 'setpiece' ? j.crewMax : c.s.curiosity >= 1 ? j.crewMin : 2;
-    const pool = j.kind === 'setpiece' || c.s.curiosity >= 1 ? select.crew(w()).filter(n => n.crew!.status === 'ready' && n.crew!.assignment?.kind !== 'job') : free;
+    const pool = (j.kind === 'setpiece' || c.s.curiosity >= 1 ? select.crew(w()).filter(n => n.crew!.status === 'ready' && n.crew!.assignment?.kind !== 'job') : free).filter(inCity(jobCity(w(), j)));
     const team = pool.sort((a, b) => j.leans.reduce((t, s) => t + b.skills[s] - a.skills[s], 0)).slice(0, Math.max(j.crewMin, Math.min(j.crewMax, hands)));
     if (team.length < j.crewMin) continue;
     if (j.kind === 'kidnap' && !c.s.kidnaps) continue;
@@ -575,9 +581,22 @@ function region(c: Ctx) {
   // one city at a time: it moves on only once the city it is in is a quarter its own
   const settled = here === select.HOME ? true : select.controlIn(w(), here) >= select.REGION.unlockAt;
   if (next && settled && p().crewIds.length >= 3 && purse() > select.fare(w(), next.id) + 8000 && p().ap >= select.REGION.trainAp) {
-    if (act(c, { type: 'travel_city', cityId: next.id })) { bump(c, 'cities'); return; }
+    // bring the free half of the people here; the posted ones stay and keep things running
+    const idle = select.crew(w()).filter(inCity(here)).filter(n => n.crew!.status === 'ready' && !n.crew!.assignment);
+    const bring = idle.slice(0, Math.max(1, Math.ceil(idle.length / 2))).map(n => n.id);
+    if (act(c, { type: 'travel_city', cityId: next.id, bring })) { bump(c, 'cities'); return; }
   }
   if (!select.safehouseIn(w(), here) && here !== select.HOME && purse() > 3000) act(c, { type: 'rent_safehouse', blockId: p().blockId });
+  // a city of yours with almost nobody in it gets somebody sent from where there are people to spare
+  const founded = w().region!.cities.filter(x => x.founded);
+  if (founded.length > 1) {
+    const thin = founded.filter(x => select.crewIn(w(), x.id).length < 2).sort((a, b) => select.crewIn(w(), a.id).length - select.crewIn(w(), b.id).length)[0];
+    const rich = founded.filter(x => x.id !== thin?.id).sort((a, b) => select.crewIn(w(), b.id).length - select.crewIn(w(), a.id).length)[0];
+    const spare = thin && rich ? select.crewIn(w(), rich.id).filter(n => n.crew!.status === 'ready' && !n.crew!.assignment) : [];
+    // an empty city gets the one spare person; a thin one only when the other can spare two
+    const need = thin && select.crewIn(w(), thin.id).length === 0 ? 1 : 2;
+    if (thin && spare.length >= need && purse() > select.fareBetween(w(), rich.id, thin.id) + 1000 && act(c, { type: 'move_crew', npcId: spare[0].id, to: thin.id })) bump(c, 'crew_moved');
+  }
   // a route to whichever of its cities pays best for what it holds a lot of, from any other with a door
   const mine = w().region!.cities.filter(x => x.founded && select.safehouseIn(w(), x.id));
   for (const prod of ['booze', 'green', 'pills', 'goods'] as const) {
@@ -657,7 +676,7 @@ function kit(c: Ctx) {
   const fixerMet = !!(w().fixerId && w().npcs[w().fixerId!]?.rel.met);
   for (const slot of c.s.kitSlots) {
     // who most needs one: the boss, or the crew member with the worst thing in this slot
-    const people = [PLAYER as Id, ...select.crew(w()).filter(n => n.crew!.status === 'ready' || n.crew!.status === 'busy').map(n => n.id)];
+    const people = [PLAYER as Id, ...select.crew(w()).filter(inCity(select.currentCity(w()))).filter(n => n.crew!.status === 'ready' || n.crew!.status === 'busy').map(n => n.id)];
     const need = people.map(id => score(worn(id, slot))).reduce((a, b) => Math.min(a, b), Infinity);
     const stocked = p().armoury.filter(i => ITEMS[i].slot === slot).map(score).reduce((a, b) => Math.max(a, b), 0);
     if (stocked > need) continue;   // something better is already sitting in the armoury
@@ -673,7 +692,7 @@ function kit(c: Ctx) {
   // hand out the armoury
   for (const item of [...p().armoury]) {
     const d = ITEMS[item];
-    const takers = [PLAYER as Id, ...select.crew(w()).filter(n => n.crew!.status !== 'jailed' && n.crew!.status !== 'held').sort((a, b) => (d.skill ? b.skills[d.skill] - a.skills[d.skill] : b.skills.muscle - a.skills.muscle)).map(n => n.id)];
+    const takers = [PLAYER as Id, ...select.crew(w()).filter(inCity(select.currentCity(w()))).filter(n => n.crew!.status !== 'jailed' && n.crew!.status !== 'held' && n.crew!.status !== 'travel').sort((a, b) => (d.skill ? b.skills[d.skill] - a.skills[d.skill] : b.skills.muscle - a.skills.muscle)).map(n => n.id)];
     const to = takers.find(id => score(worn(id, d.slot)) < score(item));
     if (to && act(c, { type: 'equip', item, to })) bump(c, 'kit_equipped');
   }
@@ -706,22 +725,24 @@ function wants(c: Ctx, prop: NonNullable<World['commission']['proposal']>): 'yes
   switch (prop.kind) {
     case 'sanction': return prop.target === PLAYER ? 'no' : c.s.lobby === 'always' ? 'yes' : undefined;
     case 'seat': return 'yes';
-    case 'tax': return prop.target === PLAYER ? 'yes' : w.commission.seated ? 'no' : undefined;
+    case 'tax': return prop.target === PLAYER ? 'yes' : select.commissionOf(w, prop.city ?? 'c0').seated ? 'no' : undefined;
     case 'peace': return c.s.peace ? 'yes' : 'no';
     case 'claim': return w.districts[prop.districtId!]?.blockIds.some(id => (w.blocks[id].influence[PLAYER] ?? 0) > 10) ? 'no' : undefined;
   }
 }
 function commission(c: Ctx) {
   const w = () => c.w; const p = () => w().player;
-  const prop = w().commission.proposal; if (!prop) return;
+  const table = () => select.commissionOf(w(), select.currentCity(w()));
+  const prop = table().proposal; if (!prop) return;
   const want = wants(c, prop); if (!want) return;
-  if (w().commission.seated && w().commission.vote !== want && act(c, { type: 'commission_vote', vote: want })) bump(c, 'voted');
+  if (table().seated && table().vote !== want && act(c, { type: 'commission_vote', vote: want })) bump(c, 'voted');
   if (c.s.lobby === 'never') return;
   if (c.s.lobby === 'defend' && !(prop.target === PLAYER || prop.kind === 'seat')) return;
   const t = select.tally(w(), prop);
   if ((t.passes ? 'yes' : 'no') === want) return;   // already going our way
   // the cheapest boss an envelope would actually turn
-  const turnable = Object.values(w().factions).filter(f => f.alive && !w().commission.pulls[f.id])
+  const here = select.currentCity(w());
+  const turnable = Object.values(w().factions).filter(f => f.alive && (w().districts[f.homeDistrictId]?.cityId || 'c0') === here && !table().pulls[f.id])
     .map(f => ({ f, lean: select.leanOf(w(), f, prop) }))
     .filter(x => (want === 'yes' ? x.lean <= 0 && x.lean + select.LOBBY_PULL > 0 : x.lean > 0 && x.lean - select.LOBBY_PULL <= 0))
     .sort((a, b) => select.lobbyCost(a.f) - select.lobbyCost(b.f));
@@ -749,7 +770,7 @@ function watch(c: Ctx) {
     c.seen.add(h.id);
     bump(c, h.holder === PLAYER ? 'hostages_taken' : 'crew_snatched');
   }
-  const meetings = c.w.commission.history.length;
+  const meetings = c.w.commission.history.length + Object.values(c.w.commissions ?? {}).reduce((t, x) => t + x.history.length, 0);
   if (meetings > (c.counts.meetings ?? 0)) c.counts.meetings = meetings;
 }
 

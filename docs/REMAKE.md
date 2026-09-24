@@ -197,7 +197,9 @@ identical replays, a job's result equal to the purse delta, event hints equal to
 laundering only while switched on (mutation-tested), the spill cap, bot soaks, and every sheet and
 tab rendered for every block, place, job and outfit.
 
-`npm run sim2 -- 60 7` plays sixty days and prints the curve and a coverage table. Baseline when the
+`npm run sim2 -- 60 7` plays sixty days and prints the curve and a coverage table;
+`npm run sim2 -- 60 7 medium grifter scenarios` plays every scenario and takes coverage across all
+of them (§12). Baseline when the
 first version shipped (seed 7, city, grifter): worth $5k → $20k (day 20) → $56k (day 30) → $101k (day 60), control
 17.4%, crew 8, 22 rackets, heat peaking in the 60s; 19 of 20 systems reached (squeezing a till is
 rare by the bot's own caution). After the second pass (street crews skimming, cooler rackets):
@@ -367,8 +369,20 @@ price; a resort pays ×1.45 for pills, a college town ×1.5 for green).
 - **Starting up.** The first time you arrive, the city is generated in full — streets, people,
   outfits, precincts, street crews — from its own seed, into the same world as the first, every id
   it makes prefixed with its own (`c2.b14`, `c2.f0`). You arrive with everything you carry and
-  everybody who works for you, a foothold of 12 on the street you get off on (enough to take a back
-  room there), and nobody knowing your name. Every system works per block and per district, so the
+  whoever you bring, a foothold of 12 on the street you get off on (enough to take a back room
+  there), and nobody knowing your name.
+- **Crew belong to a city.** Each of your people lives in one city (`Crew.cityId`; a recruit starts
+  where they live) and works only there: a racket, a lab, a guard post, a district or a job in
+  another city is refused with where they are. You move them two ways: **bring** them on your own
+  train (free, from the free people where you are — the region sheet picks them), or **send** one
+  from their sheet (their fare, a day on the road as `travel`, off whatever post they had). Outfits
+  reach your people only in their own city. A save from before is migrated: each goes to the city
+  their work is in, else where you are.
+- **Every city has its own Commission** (`commissionOf`): its own outfits at the table, its own
+  meetings (the first ten days after you found the city), its own seat for you, and lobbying that
+  moves only that table. The home city's is `w.commission`, where it always was.
+- **Looking without going.** The region sheet's "Look at the map" draws another founded city from
+  where you are, with a banner back to your own. Every system works per block and per district, so the
   second city's rackets, outfits, law and jobs run without knowing it is a second city.
 - **One city at a time on screen.** The map draws the city you are in (`select.cityView`); walking
   is within a city, the train is between them. Back rooms are capped at four *per city*.
@@ -377,10 +391,9 @@ price; a resort pays ×1.45 for pills, a college town ×1.5 for green).
   3% of nights a load is stopped (lots gone, heat where it was going). Routes are opened from the
   region sheet, from anywhere.
 - **Work.** One board offer in five comes from another city you have been to. A job in another city
-  can be run from where you are: your people go without you (your skills do not count, −6), and it
-  needs at least one of them.
-- **Control and winning.** `controlShare` is per city; winning is still half of the home city. The
-  Commission sits for the whole region — every outfit you have met is at the table.
+  can be run from where you are: your people there go without you (your skills do not count, −6),
+  and it needs at least one of them — in that city.
+- **Control and winning.** `controlShare` is per city; winning is still half of the home city.
 - **Saves.** The home city's generation is byte-identical to before (a check hashed eighteen
   seed/size worlds before and after the refactor into `populateCity`), so no `WORLD_VERSION` bump;
   a save from before gains a region with only its own city founded. A second city adds about 1 MB
@@ -391,8 +404,22 @@ empire holding a third of its home city, so the road is open on day one; the bot
 takes a back room, opens routes and works the home city from a distance. Natural play reaches the
 road late (steady opens it around day 60 on seed 7; ruthless reaches a second city on seed 1).
 
-## 12. Deliberately not carried over (yet)
+## 12. Testing tools and the scenario sweep
 
-Not in the Remake: an admin panel and scenario sweep for the bot (the temperament sweep covers what
-the scenarios were for), and set-pieces that change the landmark afterwards (a looted cathedral stays a
-cathedral). Neither is half-built in the code.
+**Testing tools** (menu → Testing tools; `sim/cheats.ts`): cash, dirty, full energy, cool off, fear
+and respect, three crew from this city, a back room here, guns and vests, a full stash, a war, every
+road open. Each is an ordinary `cheat` action through `dispatch`, and each stamps the save
+`cheated` so nothing built with them is mistaken for real play — the original's pattern.
+
+**The scenario sweep** (`npm run sim2 -- 60 7 medium grifter scenarios`): the five temperaments,
+the catalogue scenario and the region scenario on one seed, side by side, with coverage taken
+across all of them. It is the Remake's `npm run sim -- 60 7 all`: after building anything, run it
+and read the table. On seed 7 it reaches every system; the job kinds it misses there are held by
+the catalogue test across seeds 7, 1 and 3.
+
+**Landmarks remember** (`jobs.ts: SETPIECE_REST`, `SETPIECE_HARDEN`). A set-piece that comes off
+shuts its landmark to you for thirty days, puts 15 on its district's police attention, and makes
+its job 10 harder every time after; one that fails hardens it by 5 and shuts nothing. The block
+sheet says when it was hit and how much harder it is.
+
+Nothing listed as missing in earlier passes is still missing.

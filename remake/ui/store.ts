@@ -33,6 +33,8 @@ export interface UiState {
   layer: Layer;
   /** A request for the map to fly somewhere. Bumped, not stored: the map reads and clears it. */
   focus?: { blockId: Id; n: number };
+  /** A city you are looking at on the map without being there (the region sheet's "look at the map"). */
+  viewCity?: string;
   slots: (SlotInfo | null)[];
 }
 
@@ -190,7 +192,8 @@ export function newEntries(before: World, after: World): LogEntry[] {
 }
 export function toast(text: string, tone: LogEntry['tone'] = 'info') {
   const t = { id: toastSeq++, text, tone };
-  set({ toasts: [...state.toasts, t].slice(-3) });
+  // two at most: a third stacked over an open sheet covers its title and its close button
+  set({ toasts: [...state.toasts, t].slice(-2) });
   setTimeout(() => dismissToast(t.id), 3600);
 }
 export function dismissToast(id: number) { set({ toasts: state.toasts.filter(t => t.id !== id) }); }
@@ -205,4 +208,6 @@ export function closeSheet() { set({ sheets: state.sheets.slice(0, -1) }); }
 export function closeSheets() { set({ sheets: [] }); }
 export function closeRecap() { set({ recap: null }); }
 export function setLayer(layer: Layer) { set({ layer }); }
+/** Look at another city's map from where you are; undefined looks back at your own. */
+export function viewCity(id: string | undefined, focusOn?: Id) { set({ viewCity: id, tab: 'map', sheets: [], ...(focusOn ? { focus: { blockId: focusOn, n: Date.now() } } : {}) }); }
 export function focusBlock(blockId: Id) { set({ focus: { blockId, n: Date.now() }, tab: 'map', sheets: [] }); }

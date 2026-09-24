@@ -10,12 +10,14 @@ import { Chip, Do, Empty, Row, Section, fmt } from './kit';
 
 export function CommissionSection() {
   const w = useWorld();
-  const c = w.commission;
-  const live = Object.values(w.factions).filter(f => f.alive);
+  // the table of the city you are in: every city you have founded has its own
+  const city = select.currentCity(w);
+  const c = select.commissionOf(w, city);
+  const live = Object.values(w.factions).filter(f => f.alive && (w.districts[f.homeDistrictId]?.cityId || 'c0') === city);
   const p = c.proposal;
   const t = p ? select.tally(w, p) : undefined;
   return (
-    <Section title="The Commission" right={c.seated ? <Chip tone="gold">You have a seat</Chip> : undefined}>
+    <Section title={Object.keys(w.cities ?? {}).length ? `The Commission of ${select.cityName(w, city)}` : 'The Commission'} right={c.seated ? <Chip tone="gold">You have a seat</Chip> : undefined}>
       {live.length < select.COMMISSION.minOutfits ? <Empty>Fewer than {select.COMMISSION.minOutfits} outfits left standing. The table does not sit.</Empty> : !p ? (
         <p className="r-note">The bosses meet every {select.COMMISSION.every} days. Next meeting: day {c.nextDay}; the agenda goes round {select.COMMISSION.announceDays} days before.</p>
       ) : <>

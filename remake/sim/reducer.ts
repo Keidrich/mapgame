@@ -9,19 +9,20 @@ import { BUSINESSES, LABS, RACKETS, SAFEHOUSE_TIERS, SLOTS, SPECIALISTS } from '
 import { fixerCap, fixerRate, streetPrice, upgradeCost } from './economy';
 import { apply } from './effects';
 import { sitDown, sitDownOdds, tributeEffect } from './factions';
-import { answerComplication, buildJob, caseKinds, dropJob, hireSpecialist, launchJob, present, specialistFee, takeJob } from './jobs';
+import { answerComplication, buildJob, caseKinds, dropJob, hireSpecialist, launchJob, present, setpieceOpen, SETPIECE_REST, specialistFee, takeJob } from './jobs';
 import { openCases } from './law';
 import { ITEMS } from '@r/content/kit';
 import { SETPIECE_RANK, setpieceFor } from '@r/content/setpieces';
 import { equip, returnKit, shopItems, unequip } from './kit';
 import { hostageChoices, isHeld, resolveHostage } from './hostages';
-import { LOBBY_PULL, lobbyCost } from './commission';
+import { LOBBY_PULL, commissionOf, lobbyCost } from './commission';
 import { isCatalogue, needsMet } from './catalogue';
-import { REGION, arrivalIn, cityName_, cityOfBlock, currentCity, fare, foundCity, isOpen, openRoute, regionCity, safehouseIn } from './region';
+import { CHEATS, cheat } from './cheats';
+import { REGION, arrivalIn, fareBetween, cityName_, cityOfBlock, currentCity, fare, foundCity, isOpen, openRoute, regionCity, safehouseIn } from './region';
 import { PRODUCTS } from '@r/content/world';
 import { freeFromAssignment, practise } from './people';
 import { playScene, quote } from './scenes';
-import { travelCost } from './select-core';
+import { blockCity, crewCity, travelCost } from './select-core';
 import { endDay, STRAIGHT } from './tick';
 import type { Action, Affordance } from './actions';
 import { no, yes } from './actions';
@@ -55,7 +56,22 @@ function canInner(w: World, a: Action): Affordance {
       if (a.cityId === currentCity(w)) return no('You are here.');
       if (!isOpen(w, a.cityId)) return no(`Nobody in ${c.name} knows your name yet. Hold a quarter of a city on the road to it.`);
       if (busy) return no(busy);
+      for (const id of a.bring ?? []) {
+        const n = w.npcs[id];
+        if (!n?.crew || !n.alive) return no('Not one of yours.');
+        if (crewCity(w, id) !== currentCity(w)) return no(`${n.first} is not in this city.`);
+        if (n.crew.status !== 'ready') return no(`${n.first} is ${n.crew.status}.`);
+        if (n.crew.assignment?.kind === 'job') return no(`${n.first} is on a job here.`);
+      }
       const f = fare(w, a.cityId); const e = cost(w, f) ?? ap(REGION.trainAp); return e ? no(e) : yes({ ap: REGION.trainAp, cash: f });
+    }
+    case 'move_crew': {
+      const n = w.npcs[a.npcId]; if (!n?.crew || !n.alive) return no('Not one of yours.');
+      const to = regionCity(w, a.to); if (!to?.founded) return no('Somewhere you have been.');
+      if (crewCity(w, n.id) === a.to) return no(`${n.first} is already there.`);
+      if (n.crew.status !== 'ready') return no(`${n.first} is ${n.crew.status}.`);
+      if (n.crew.assignment?.kind === 'job') return no(`${n.first} is on a job.`);
+      const f = fareBetween(w, crewCity(w, n.id), a.to); const e = cost(w, f); return e ? no(e) : yes({ cash: f });
     }
     case 'open_route': {
       // between any two of your cities, wherever you are standing: the stash goes where you go
@@ -98,10 +114,16 @@ function canInner(w: World, a: Action): Affordance {
     case 'toggle_wash': { const r = w.rackets[a.racketId]; return r?.owner === PLAYER && RACKETS[r.kind].wash ? yes() : no('Only a laundry has a switch.'); }
     case 'assign': {
       const n = w.npcs[a.npcId]; if (!n?.crew || !n.alive) return no('Not one of yours.');
-      if (n.crew.status === 'jailed' || n.crew.status === 'injured') return no(`${fullName(n)} is ${n.crew.status}.`);
+      if (n.crew.status === 'jailed' || n.crew.status === 'injured' || n.crew.status === 'held') return no(`${fullName(n)} is ${n.crew.status}.`);
+      if (n.crew.status === 'travel') return no(`${fullName(n)} is on the road.`);
       if (n.crew.assignment?.kind === 'job') return no('On a job. Drop the job to free them.');
       const as = a.assignment;
       if (!as) return yes();
+      // people work in the city they are in: a racket, a lab, a street or a district somewhere else needs them moved first
+      const there = as.kind === 'racket' ? (w.rackets[as.racketId] ? blockCity(w, w.businesses[w.rackets[as.racketId].businessId]?.blockId) : undefined)
+        : as.kind === 'lab' ? (() => { const s = p.safehouseIds.map(id => w.safehouses[id]).find(x => x?.labs.some(l => l.id === as.labId)); return s ? blockCity(w, s.blockId) : undefined; })()
+        : as.kind === 'guard' ? blockCity(w, as.blockId) : as.kind === 'district' ? (w.districts[as.districtId]?.cityId || 'c0') : undefined;
+      if (there && there !== crewCity(w, n.id)) return no(`${n.first} is in ${cityName_(w, crewCity(w, n.id))}. Move them to ${cityName_(w, there)} first.`);
       if (as.kind === 'racket') { const r = w.rackets[as.racketId]; if (r?.owner !== PLAYER) return no('Not your racket.'); if (r.runnerId && r.runnerId !== n.id) return no('Somebody already runs it.'); }
       if (as.kind === 'district') { if (n.crew.level < 2 || n.crew.loyalty < 55) return no('A lieutenant needs level 2 and loyalty 55.'); if (Object.values(w.npcs).some(x => x.id !== n.id && x.crew?.assignment?.kind === 'district' && x.crew.assignment.districtId === as.districtId)) return no('That district already has a lieutenant.'); }
       if (as.kind === 'lab') { const found = p.safehouseIds.some(id => w.safehouses[id]?.labs.some(l => l.id === as.labId)); if (!found) return no('Not your lab.'); }
@@ -147,13 +169,14 @@ function canInner(w: World, a: Action): Affordance {
       if (a.to === PLAYER) return yes();
       const n = w.npcs[a.to];
       if (!n?.crew || !n.alive) return no('Not one of yours.');
-      if (n.crew.status === 'jailed' || n.crew.status === 'held') return no('They are not here to hand it to.');
+      if (n.crew.status === 'jailed' || n.crew.status === 'held' || n.crew.status === 'travel') return no('They are not here to hand it to.');
+      if (crewCity(w, n.id) !== currentCity(w)) return no(`${n.first} is in ${cityName_(w, crewCity(w, n.id))}; the armoury is with you.`);
       return yes();
     }
     case 'unequip': {
       const kit = a.from === PLAYER ? p.kit : w.npcs[a.from]?.crew?.kit;
       if (!kit?.[a.slot]) return no('Nothing there.');
-      if (a.from !== PLAYER && ['jailed', 'held'].includes(w.npcs[a.from].crew!.status)) return no('They are not here to hand it back.');
+      if (a.from !== PLAYER && (['jailed', 'held', 'travel'].includes(w.npcs[a.from].crew!.status) || crewCity(w, a.from) !== currentCity(w))) return no('They are not here to hand it back.');
       return yes();
     }
     case 'hostage': {
@@ -163,7 +186,7 @@ function canInner(w: World, a: Action): Affordance {
       return c.disabled ? no(c.disabled) : yes(h.holder !== PLAYER ? { cash: h.ransom } : {});
     }
     case 'lobby': {
-      const c = w.commission, f = w.factions[a.factionId];
+      const f = w.factions[a.factionId]; const c = f ? commissionOf(w, w.districts[f.homeDistrictId]?.cityId || 'c0') : w.commission;
       if (!c.proposal) return no('Nothing on the table yet.');
       if (!f?.alive) return no('Gone.');
       if (c.pulls[a.factionId]) return no('You have already had that conversation.');
@@ -171,7 +194,7 @@ function canInner(w: World, a: Action): Affordance {
       if ((boss?.rel.owes ?? 0) > 0) { const r = ap(1); return r ? no(r) : yes({ ap: 1 }); }
       const k = lobbyCost(f); const e = cost(w, k) ?? ap(1); return e ? no(e) : yes({ cash: k, ap: 1 });
     }
-    case 'commission_vote': return !w.commission.seated ? no('You have no seat at the table.') : !w.commission.proposal ? no('Nothing on the table.') : yes();
+    case 'commission_vote': { const c = commissionOf(w, a.cityId ?? currentCity(w)); return !c.seated ? no('You have no seat at that table.') : !c.proposal ? no('Nothing on the table.') : yes(); }
     case 'fixer_wash': {
       const f = w.fixerId ? w.npcs[w.fixerId] : undefined;
       if (!f?.alive) return no('There is no fixer any more.');
@@ -186,6 +209,7 @@ function canInner(w: World, a: Action): Affordance {
       if (a.crewIds.length < j.crewMin) return no(`Needs at least ${j.crewMin} of your people with you.`);
       if (a.crewIds.length > j.crewMax) return no(`No more than ${j.crewMax}.`);
       for (const id of a.crewIds) { const n = w.npcs[id]; if (!n?.crew || !n.alive) return no('Not one of yours.'); if (n.crew.status !== 'ready') return no(`${fullName(n)} is ${n.crew.status}.`); if (n.crew.assignment?.kind === 'job') return no(`${fullName(n)} is on another job.`); }
+      for (const id of a.crewIds) if (crewCity(w, id) !== blockCity(w, j.blockId)) return no(`${w.npcs[id].first} is in ${cityName_(w, crewCity(w, id))}, and the job is in ${cityName_(w, blockCity(w, j.blockId))}.`);
       if (isCatalogue(j.kind)) { const why = needsMet(w, j.kind); if (why) return no(why); }
       if (j.targetCaseId && a.crewIds.includes(w.cases[j.targetCaseId]?.suspectId as string)) return no('Not somebody the file is about.');
       if (j.kind === 'spring_crew' || j.kind === 'prison_supply') { if (a.crewIds.includes(j.targetNpcId!)) return no('They are the one inside.'); }
@@ -201,6 +225,7 @@ function canInner(w: World, a: Action): Affordance {
       if (j.crewIds.includes(n.id)) return no('Already on it.');
       if (n.crew.status !== 'ready') return no(`${fullName(n)} is ${n.crew.status}.`);
       if (n.crew.assignment?.kind === 'job') return no(`${fullName(n)} is on another job.`);
+      if (crewCity(w, n.id) !== blockCity(w, j.blockId)) return no(`${n.first} is in ${cityName_(w, crewCity(w, n.id))}.`);
       return busy ? no(busy) : yes();
     }
     case 'launch_job': {
@@ -232,6 +257,7 @@ function canInner(w: World, a: Action): Affordance {
       if (a.kind === 'setpiece') {
         const b = a.blockId ? w.blocks[a.blockId] : undefined;
         if (!b || !setpieceFor(b.landmark)) return no('Nothing there worth a set-piece.');
+        if (!setpieceOpen(w, b.id)) return no(`It was hit on day ${b.hitDay}. Nobody gets near it again until day ${(b.hitDay ?? 0) + SETPIECE_REST}.`);
         if (p.fear + p.respect < SETPIECE_RANK) return no(`Nobody brings a job like this to somebody the street does not know yet (fear + respect ${SETPIECE_RANK}).`);
         if (Object.values(w.jobs).some(j => j.kind === 'setpiece' && ['offer', 'planning', 'ready'].includes(j.status))) return no('One of these at a time.');
         if (busy) return no(busy);
@@ -270,6 +296,7 @@ function canInner(w: World, a: Action): Affordance {
     case 'retire': return p.straightDays >= STRAIGHT.days ? yes() : no(`Getting out needs ${money(STRAIGHT.clean)} clean, heat under ${STRAIGHT.heat} and no open files, held for ${STRAIGHT.days} days (${p.straightDays} so far).`);
     case 'end_day': return busy ? no(busy) : yes();
     case 'seen_win': return yes();
+    case 'cheat': return CHEATS.some(c => c.kind === a.what) ? yes() : no('No such tool.');
   }
 }
 
@@ -294,7 +321,16 @@ export function dispatch(world: World, a: Action): World {
       const first = !c.founded;
       const at = foundCity(w, a.cityId) ?? arrivalIn(w, a.cityId);
       p.blockId = at;
+      // whoever you brought comes with you, off whatever they were doing where they were
+      for (const id of a.bring ?? []) { const n = w.npcs[id]; freeFromAssignment(w, n); n.crew!.cityId = a.cityId; }
       log(w, first ? `You get off the train in ${c.name} with everything you own and everybody who works for you. Nobody here has heard of you yet. ${c.blurb}` : `Back in ${c.name}.`, 'info', { blockId: at });
+      break;
+    }
+    case 'move_crew': {
+      const n = w.npcs[a.npcId]; const from = crewCity(w, n.id);
+      spend(w, fareBetween(w, from, a.to)); freeFromAssignment(w, n);
+      n.crew!.cityId = a.to; n.crew!.status = 'travel'; n.crew!.statusDays = 1;
+      log(w, `${fullName(n)} takes the train from ${cityName_(w, from)} to ${cityName_(w, a.to)}. There tomorrow.`, 'info', { npcId: n.id });
       break;
     }
     case 'open_route': { spend(w, REGION.routeSetup); openRoute(w, a.from, a.to, a.product); break; }
@@ -362,10 +398,10 @@ export function dispatch(world: World, a: Action): World {
       const f = w.factions[a.factionId]; const boss = w.npcs[f.bossId];
       if ((boss?.rel.owes ?? 0) > 0) { boss.rel.owes--; log(w, `You call in what ${fullName(boss)} owes you: ${f.short} votes your way.`, 'info'); }
       else { spend(w, lobbyCost(f)); f.cash += lobbyCost(f); log(w, `An envelope to ${theName(f)} before the meeting.`, 'info'); }
-      w.commission.pulls[a.factionId] = a.side === 'yes' ? LOBBY_PULL : -LOBBY_PULL;
+      commissionOf(w, w.districts[f.homeDistrictId]?.cityId || 'c0').pulls[a.factionId] = a.side === 'yes' ? LOBBY_PULL : -LOBBY_PULL;
       break;
     }
-    case 'commission_vote': w.commission.vote = a.vote; log(w, `You will vote ${a.vote} at the table.`, 'info'); break;
+    case 'commission_vote': commissionOf(w, a.cityId ?? currentCity(w)).vote = a.vote; log(w, `You will vote ${a.vote} at the table.`, 'info'); break;
     case 'fixer_wash': { const clean = Math.round(a.amount * fixerRate(w)); p.dirty -= a.amount; p.cash += clean; p.washedToday += a.amount; log(w, `The fixer turns ${money(a.amount)} dirty into ${money(clean)} clean.`, 'money'); break; }
     case 'take_job': { const j = w.jobs[a.jobId]; if (j.cost) spend(w, j.cost); takeJob(w, j, a.crewIds); break; }
     case 'join_job': { const j = w.jobs[a.jobId]; const n = w.npcs[a.npcId]; freeFromAssignment(w, n); j.crewIds.push(n.id); n.crew!.assignment = { kind: 'job', jobId: j.id }; log(w, `${fullName(n)} joins ${j.title.toLowerCase()}.`, 'info', { npcId: n.id }); break; }
@@ -426,6 +462,7 @@ export function dispatch(world: World, a: Action): World {
     case 'retire': { w.retired = true; w.over = { ending: 'straight', day: w.day, text: `You walk away with ${money(p.cash)} clean and nobody looking for you. In ${w.city.name} they still tell stories.` }; break; }
     case 'end_day': endDay(w, rng); break;
     case 'seen_win': w.wonSeen = true; break;
+    case 'cheat': cheat(w, a.what, rng); break;
   }
   w.rng = rng.state;
   return w;

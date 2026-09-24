@@ -70,6 +70,10 @@ export interface District {
 }
 
 export interface Block {
+  /** A landmark set-piece came off here on this day: it is closed to you for a month (`SETPIECE_REST`). */
+  hitDay?: number;
+  /** How much harder its set-piece is now, from every time somebody went at it. */
+  hardened?: number;
   id: Id;
   name: string;
   districtId: Id;
@@ -131,7 +135,7 @@ export interface Agenda {
 export type SecretKind = 'affair' | 'skimming' | 'debts' | 'past' | 'informant' | 'habit';
 export interface Secret { kind: SecretKind; known: boolean }
 
-export type CrewStatus = 'ready' | 'busy' | 'injured' | 'jailed' | 'held';
+export type CrewStatus = 'ready' | 'busy' | 'injured' | 'jailed' | 'held' | 'travel';
 export type Assignment =
   | { kind: 'racket'; racketId: Id }
   | { kind: 'lab'; labId: Id }
@@ -157,6 +161,8 @@ export interface Crew {
   level: number;
   /** What they carry. Owned by the outfit; see `content/kit.ts`. */
   kit?: Kit;
+  /** The city they live and work in (absent: the home city). They work only there; move them to use them elsewhere. */
+  cityId?: CityId;
 }
 
 export type Kit = Partial<Record<Slot, ItemId>>;
@@ -290,7 +296,7 @@ export interface Hostage {
 
 // ------------------------------------------------------------------------------------ commission
 export type ProposalKind = 'peace' | 'tax' | 'sanction' | 'claim' | 'seat';
-export interface Proposal { kind: ProposalKind; target?: Owner; districtId?: Id; announced: number }
+export interface Proposal { kind: ProposalKind; target?: Owner; districtId?: Id; announced: number; /** The city whose table it is on (absent: the home city). */ city?: CityId }
 /** The bosses at one table, every ten days, once there are three of them worth the name. */
 export interface Commission {
   nextDay: number;
@@ -585,6 +591,8 @@ export interface World {
   crews: Record<Id, StreetCrew>;
   hostages: Record<Id, Hostage>;
   commission: Commission;
+  /** The Commission of every other city you have founded; the home city's stays in `commission`. */
+  commissions?: Record<CityId, Commission>;
   /** The cities down the road (`region.ts`). Absent on a save from before the region; `migrate` adds it. */
   region?: Region;
   /** The streets and water of every city but the first, which stays in `city`. */
@@ -602,6 +610,8 @@ export interface World {
   fixerId?: Id;
   won?: boolean;
   wonSeen?: boolean;
+  /** The testing tools were used on this save (`cheats.ts`): nothing in it is real play. */
+  cheated?: true;
   over?: { ending: Ending; day: number; text: string };
   /** Straight ending reached: the sandbox can go on, but the record says so. */
   retired?: boolean;

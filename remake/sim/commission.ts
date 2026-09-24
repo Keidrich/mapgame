@@ -10,6 +10,10 @@
  * The original's Commission (docs/DESIGN.md §6) had the same five proposals; this one reads every
  * vote off `leanOf`, which the UI shows before the meeting, so a vote you lost is one you could see
  * coming.
+ *
+ * Every city has its own table: its own outfits, its own meetings, its own seat for you. The home
+ * city's is `w.commission`, where it always was; the others are in `w.commissions`, made the first
+ * night a city is founded, and first meet ten days later.
  */
 import { factionBlocks } from './factions';
 import type { Rng } from './rng';
@@ -19,9 +23,16 @@ import { addInfluence, clamp, fullName, log, money, theName } from './util';
 
 export const COMMISSION = { startDay: 20, every: 10, minOutfits: 3, announceDays: 3 };
 
-export function newCommission(): Commission { return { nextDay: COMMISSION.startDay, seated: false, pulls: {}, history: [] }; }
+export function newCommission(first = COMMISSION.startDay): Commission { return { nextDay: first, seated: false, pulls: {}, history: [] }; }
 
-const alive = (w: World) => Object.values(w.factions).filter(f => f.alive);
+const cityOfF = (w: World, f: Faction) => w.districts[f.homeDistrictId]?.cityId || 'c0';
+const alive = (w: World, city = 'c0') => Object.values(w.factions).filter(f => f.alive && cityOfF(w, f) === city);
+/** One city's table. */
+export function commissionOf(w: World, city = 'c0'): Commission {
+  if (city === 'c0') return w.commission;
+  return ((w.commissions ??= {})[city] ??= newCommission(w.day + COMMISSION.every));
+}
+const blockCityOf = (w: World, id: string) => w.districts[w.blocks[id].districtId]?.cityId || 'c0';
 
 export function describeProposal(w: World, p: Proposal): string {
   const who = (o?: Owner) => (o === PLAYER ? 'you' : o && w.factions[o] ? theName(w.factions[o]) : 'somebody');
@@ -35,28 +46,29 @@ export function describeProposal(w: World, p: Proposal): string {
 }
 
 /** How big each owner is, by blocks held. */
-function biggest(w: World): { owner: Owner; blocks: number } {
-  const counts: Record<Owner, number> = { [PLAYER]: Object.values(w.blocks).filter(b => { let bv = 0, best = ''; for (const [k, v] of Object.entries(b.influence)) if (v > bv) { bv = v; best = k; } return best === PLAYER && bv >= 30; }).length };
-  for (const f of alive(w)) counts[f.id] = factionBlocks(w, f.id).length;
+function biggest(w: World, city: string): { owner: Owner; blocks: number } {
+  const counts: Record<Owner, number> = { [PLAYER]: Object.values(w.blocks).filter(b => blockCityOf(w, b.id) === city).filter(b => { let bv = 0, best = ''; for (const [k, v] of Object.entries(b.influence)) if (v > bv) { bv = v; best = k; } return best === PLAYER && bv >= 30; }).length };
+  for (const f of alive(w, city)) counts[f.id] = factionBlocks(w, f.id).length;
   const [owner, blocks] = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
   return { owner, blocks };
 }
 
-function choose(w: World, rng: Rng): Proposal {
-  const fs = alive(w);
+function choose(w: World, rng: Rng, city: string): Proposal {
+  const fs = alive(w, city);
   const wars = fs.reduce((t, f) => t + Object.entries(f.relations).filter(([o, r]) => r < -60 && w.factions[o]?.alive).length, 0) / 2 + fs.filter(f => f.standing < -55).length;
-  const big = biggest(w);
-  const total = Object.keys(w.blocks).length;
-  const c = w.commission;
-  if (wars >= 2) return { kind: 'peace', announced: w.day };
-  if (big.blocks / total > 0.2) return { kind: 'sanction', target: big.owner, announced: w.day };
-  if (!c.seated && w.player.respect >= 40) return { kind: 'seat', target: PLAYER, announced: w.day };
-  if (rng.chance(0.5)) return { kind: 'tax', target: big.owner, announced: w.day };
+  const big = biggest(w, city);
+  const total = Object.values(w.blocks).filter(b => blockCityOf(w, b.id) === city).length;
+  const c = commissionOf(w, city);
+  const at = city === 'c0' ? {} : { city };
+  if (wars >= 2) return { kind: 'peace', announced: w.day, ...at };
+  if (big.blocks / Math.max(1, total) > 0.2) return { kind: 'sanction', target: big.owner, announced: w.day, ...at };
+  if (!c.seated && w.player.respect >= 40) return { kind: 'seat', target: PLAYER, announced: w.day, ...at };
+  if (rng.chance(0.5)) return { kind: 'tax', target: big.owner, announced: w.day, ...at };
   // a claim: an outfit wants a district it half holds recognised as its own
   const f = rng.pick(fs);
   const districts = Object.values(w.districts).filter(d => d.id !== f.homeDistrictId && d.blockIds.some(id => (w.blocks[id].influence[f.id] ?? 0) > 10));
   const d = districts.length ? rng.pick(districts) : w.districts[f.homeDistrictId];
-  return { kind: 'claim', target: f.id, districtId: d.id, announced: w.day };
+  return { kind: 'claim', target: f.id, districtId: d.id, announced: w.day, ...at };
 }
 
 /**
@@ -74,7 +86,7 @@ export function leanOf(w: World, f: Faction, p: Proposal): number {
     case 'seat': n = f.standing / 1.5 + (f.temperament === 'cunning' ? 10 : f.temperament === 'aggressive' ? -12 : 0) + (w.player.fear > 50 ? 8 : 0) - 5; break;
   }
   if (boss?.rel.owes) n += 20 * (p.target === PLAYER || p.kind === 'seat' ? 1 : 0);
-  n += w.commission.pulls[f.id] ?? 0;
+  n += commissionOf(w, cityOfF(w, f)).pulls[f.id] ?? 0;
   return Math.round(n);
 }
 
@@ -83,18 +95,25 @@ export const lobbyCost = (f: Faction) => Math.round((1500 + Math.max(0, -f.stand
 export const LOBBY_PULL = 30;
 
 export function tally(w: World, p: Proposal): { yes: number; no: number; passes: boolean; votes: { id: Owner; yes: boolean }[] } {
-  const votes = alive(w).map(f => ({ id: f.id, yes: leanOf(w, f, p) > 0 }));
-  if (w.commission.seated && w.commission.vote) votes.push({ id: PLAYER, yes: w.commission.vote === 'yes' });
+  const city = p.city ?? 'c0'; const c = commissionOf(w, city);
+  const votes = alive(w, city).map(f => ({ id: f.id, yes: leanOf(w, f, p) > 0 }));
+  if (c.seated && c.vote) votes.push({ id: PLAYER, yes: c.vote === 'yes' });
   const yes = votes.filter(v => v.yes).length, no = votes.length - yes;
   return { yes, no, passes: yes > no, votes };
 }
 
 export function tickCommission(w: World, rng: Rng) {
-  const c = w.commission;
-  if (alive(w).length < COMMISSION.minOutfits) { if (w.day >= c.nextDay) c.nextDay = w.day + COMMISSION.every; c.proposal = undefined; return; }
+  // the home table first, as it always ran; then every other city you have founded, in region order
+  tickTable(w, rng, 'c0');
+  for (const rc of w.region?.cities ?? []) if (rc.id !== 'c0' && rc.founded) tickTable(w, rng, rc.id);
+}
+function tickTable(w: World, rng: Rng, city: string) {
+  const c = commissionOf(w, city);
+  const where = city === 'c0' ? '' : ` of ${w.region?.cities.find(x => x.id === city)?.name ?? city}`;
+  if (alive(w, city).length < COMMISSION.minOutfits) { if (w.day >= c.nextDay) c.nextDay = w.day + COMMISSION.every; c.proposal = undefined; return; }
   if (!c.proposal && w.day >= c.nextDay - COMMISSION.announceDays) {
-    c.proposal = choose(w, rng);
-    log(w, `The Commission meets on day ${c.nextDay}. On the table: ${describeProposal(w, c.proposal)}`, 'war');
+    c.proposal = choose(w, rng, city);
+    log(w, `The Commission${where} meets on day ${c.nextDay}. On the table: ${describeProposal(w, c.proposal)}`, 'war');
   }
   if (c.proposal && w.day >= c.nextDay) {
     resolve(w, c.proposal);
@@ -103,29 +122,31 @@ export function tickCommission(w: World, rng: Rng) {
 }
 
 function resolve(w: World, p: Proposal) {
-  const c = w.commission;
+  const city = p.city ?? 'c0';
+  const c = commissionOf(w, city);
   const t = tally(w, p);
   const pl = w.player;
-  let text = `The Commission votes ${t.yes}–${t.no} ${t.passes ? 'for' : 'against'} ${describeProposal(w, p).split(':')[0].toLowerCase()}.`;
+  const where = city === 'c0' ? '' : ` of ${w.region?.cities.find(x => x.id === city)?.name ?? city}`;
+  let text = `The Commission${where} votes ${t.yes}–${t.no} ${t.passes ? 'for' : 'against'} ${describeProposal(w, p).split(':')[0].toLowerCase()}.`;
   if (t.passes) switch (p.kind) {
     case 'peace':
-      for (const f of alive(w)) { f.truceUntil = w.day + 10; f.standing = Math.max(f.standing, -25); for (const o of Object.keys(f.relations)) f.relations[o] = clamp(f.relations[o] + 20, -100, 100); }
+      for (const f of alive(w, city)) { f.truceUntil = w.day + 10; f.standing = Math.max(f.standing, -25); for (const o of Object.keys(f.relations)) f.relations[o] = clamp(f.relations[o] + 20, -100, 100); }
       text += ' Ten quiet days, by agreement.';
       break;
     case 'tax': {
       let pot = 0;
-      for (const f of alive(w)) if (f.id !== p.target) { const cut = Math.round(Math.max(0, f.cash) * 0.1); f.cash -= cut; pot += cut; }
+      for (const f of alive(w, city)) if (f.id !== p.target) { const cut = Math.round(Math.max(0, f.cash) * 0.1); f.cash -= cut; pot += cut; }
       if (c.seated && p.target !== PLAYER) { const cut = Math.round((pl.dirty + pl.cash) * 0.05); const d = Math.min(pl.dirty, cut); pl.dirty -= d; pl.cash -= cut - d; pot += cut; }
       if (p.target === PLAYER) { pl.dirty += pot; text += ` ${money(pot)} comes to you.`; }
       else if (w.factions[p.target!]) { w.factions[p.target!].cash += pot; text += ` ${money(pot)} goes to ${theName(w.factions[p.target!])}.`; }
       break;
     }
     case 'sanction':
-      if (p.target === PLAYER) { for (const f of alive(w)) f.standing = clamp(f.standing - 15, -100, 100); text += ' Every outfit in the city is colder to you tonight.'; }
-      else { const tf = w.factions[p.target!]; if (tf) { for (const f of alive(w)) if (f.id !== tf.id) { f.relations[tf.id] = clamp((f.relations[tf.id] ?? 0) - 30, -100, 100); tf.relations[f.id] = clamp((tf.relations[f.id] ?? 0) - 20, -100, 100); } tf.soldiers = Math.max(0, tf.soldiers - 2); } }
+      if (p.target === PLAYER) { for (const f of alive(w, city)) f.standing = clamp(f.standing - 15, -100, 100); text += ' Every outfit in the city is colder to you tonight.'; }
+      else { const tf = w.factions[p.target!]; if (tf) { for (const f of alive(w, city)) if (f.id !== tf.id) { f.relations[tf.id] = clamp((f.relations[tf.id] ?? 0) - 30, -100, 100); tf.relations[f.id] = clamp((tf.relations[f.id] ?? 0) - 20, -100, 100); } tf.soldiers = Math.max(0, tf.soldiers - 2); } }
       break;
     case 'claim':
-      for (const id of w.districts[p.districtId!]?.blockIds ?? []) { addInfluence(w, id, p.target!, 12); for (const f of alive(w)) if (f.id !== p.target) addInfluence(w, id, f.id, -6); }
+      for (const id of w.districts[p.districtId!]?.blockIds ?? []) { addInfluence(w, id, p.target!, 12); for (const f of alive(w, city)) if (f.id !== p.target) addInfluence(w, id, f.id, -6); }
       break;
     case 'seat':
       c.seated = true; pl.respect = clamp(pl.respect + 10);

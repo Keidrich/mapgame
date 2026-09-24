@@ -102,7 +102,9 @@ export function spreadWord(w: World, npcId: Id | undefined, blockId: Id, fear: n
 }
 
 export function hire(w: World, n: Npc, cut: number) {
-  n.crew = { loyalty: clamp(40 + n.rel.trust / 3 + (n.traits.includes('loyal') ? 15 : 0)), cut, joined: w.day, status: 'ready', statusDays: 0, xp: 0, level: 1 };
+  // they start where they live: a recruit from a second city works in that city until you move them
+  const home = w.blocks[n.homeBlockId]; const city = home ? w.districts[home.districtId]?.cityId : undefined;
+  n.crew = { loyalty: clamp(40 + n.rel.trust / 3 + (n.traits.includes('loyal') ? 15 : 0)), cut, joined: w.day, status: 'ready', statusDays: 0, xp: 0, level: 1, ...(city ? { cityId: city } : {}) };
   n.faction = PLAYER; n.role = 'crew';
   if (!w.player.crewIds.includes(n.id)) w.player.crewIds.push(n.id);
   remember(n, w.day, 'hired', 'Came to work for you.');

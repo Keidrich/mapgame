@@ -149,6 +149,10 @@ function CrewPanel({ n }: { n: Npc }) {
       {a?.kind === 'district' && <Do action={{ type: 'audit', npcId: n.id }} label={`Go through the books (${select.auditOdds(w, n)}% to catch a skim)`} icon="note" block sub="A lieutenant with a hand in the till makes the whole district arrive light. Checking costs them a little loyalty either way." />}
       <p className="r-over">What they carry</p>
       <KitList who={n.id} />
+      {(w.region?.cities.filter(x => x.founded).length ?? 0) > 1 && <>
+        <p className="r-over">In {select.cityName(w, n.crew!.cityId || 'c0')}{c.status === 'travel' ? ' tomorrow' : ''}</p>
+        <div className="r-inline-actions">{w.region!.cities.filter(x => x.founded && x.id !== (n.crew!.cityId || 'c0')).map(x => <Do key={x.id} action={{ type: 'move_crew', npcId: n.id, to: x.id }} label={`Send to ${x.name}`} icon="legwork" small sub="A day on the train; they drop whatever they were doing here." />)}</div>
+      </>}
       <Do action={{ type: 'fire', npcId: n.id }} label="Let them go" kind="danger" small confirm="Tap again to let them go" />
     </Section>
   );

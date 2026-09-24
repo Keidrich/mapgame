@@ -347,6 +347,17 @@ export function migrate(w: World): World {
   ensureFixer(w);
   // a save from before the region is a region of one founded city; the rest are down the road
   if (!w.region) w.region = generateRegion(w);
+  // crew from before they belonged to a city: each goes where their work is, otherwise where you are
+  if (Object.keys(w.cities ?? {}).length) {
+    const cityOf = (blockId?: Id) => { const b = blockId ? w.blocks[blockId] : undefined; return b ? w.districts[b.districtId]?.cityId || 'c0' : undefined; };
+    const you = cityOf(w.player.blockId) ?? 'c0';
+    for (const id of w.player.crewIds) {
+      const c = w.npcs[id]?.crew; if (!c || c.cityId) continue;
+      const a = c.assignment;
+      const at = a?.kind === 'racket' ? cityOf(w.businesses[w.rackets[a.racketId]?.businessId]?.blockId) : a?.kind === 'guard' ? cityOf(a.blockId) : a?.kind === 'district' ? w.districts[a.districtId]?.cityId || 'c0' : a?.kind === 'job' ? cityOf(w.jobs[a.jobId]?.blockId) : undefined;
+      c.cityId = at ?? you;
+    }
+  }
   return w;
 }
 

@@ -14,6 +14,48 @@ House rules for an entry (see `CLAUDE.md` → *Leave a trail*):
 
 ---
 
+## 2026-09-24 — Remake: everything that was still missing — crews by city, a Commission per city, landmarks that remember, testing tools
+
+**What.** Every item earlier passes listed as not built, plus the rule the user asked for:
+- **Crew belong to a city.** Each of your people lives in one city and works only there. You move
+  them by bringing them on your own train (free) or sending one from their sheet (their fare, a
+  day on the road, off their post). Outfits reach your people only in their own city.
+- **Every city has its own Commission**: its own outfits, meetings, seat and lobbying.
+- **Look at another city's map** from where you are (region sheet → "Look at the map").
+- **Landmarks remember a set-piece**: shut to you for 30 days, +15 police attention in the
+  district, 10 harder every time after (5 for a failed attempt).
+- **Testing tools** in the menu (a `cheat` action, stamping the save `cheated`), and a **scenario
+  sweep**: `npm run sim2 -- 60 7 medium grifter scenarios`.
+
+**Why.** The user: "Build whatever's not done. For crews, they should be specific to city however
+you can move people from one city to another." The not-built list came from `docs/REMAKE.md` §12
+and the region entry's "Watch out".
+
+**How.** `Crew.cityId` and status `travel`; `select-core: crewCity/crewIn/blockCity`; `assign`,
+`take_job`, `join_job`, `equip` check the city; actions `move_crew` and `travel_city.bring`; the
+tick lands travellers; `factions.ts` filters its targets by city; `migrate` places old crew.
+`commission.ts` takes a city throughout (`commissionOf`, `Proposal.city`; the home table is still
+`w.commission` and runs first, so a one-city game's rng is untouched). `ui/store.viewCity` and a
+banner on the map. `Block.hitDay/hardened`, `setpieceOpen`. `sim/cheats.ts`. The bot staffs from
+the right city, brings half its free people on the train, and sends somebody to an empty city.
+
+**Numbers.** The scenario sweep on seed 7 reaches every system in one command, including the new
+"moving crew" row; the region scenario moves crew twice and runs three routes (1,086 lots). The
+natural temperaments are unchanged except timid ($9k → $18k) and maniac ($65k → $62k): the bot's
+runner loop used to stop at the first racket it could not staff, and now moves on to the next.
+
+**Watch out.**
+- A crew member in another city cannot take a job or a post where you are — bring them, or send
+  them. The old "your crew is wherever you need them" is gone.
+- The first time a second city's table meets is ten days after you found it.
+- Testing tools mark the save; nothing is hidden about a tested game.
+
+**Files.** `remake/sim/{cheats.ts (new),commission,reducer,actions,types,people,tick,factions,generate,jobs,region,select,select-core}.ts`,
+`remake/ui/{App.tsx,store.ts,remake.css}`, `remake/ui/components/{Tabs,PersonSheet,Region,PlaceSheets,Commission}.tsx`,
+`remake/scripts/{bot,headless}.ts`, `remake/tests/{region,play}.test.ts`, `docs/REMAKE.md` §11–12.
+
+---
+
 ## 2026-09-24 — Remake: the UI remake — "neon arcade"
 
 **What.** The Remake's screens rebuilt to look and feel like a modern mobile game: a deep-violet

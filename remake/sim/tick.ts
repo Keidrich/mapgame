@@ -43,7 +43,7 @@ export function endDay(w: World, rng: Rng) {
   // ---- the crew: mend, get paid, stay or go
   for (const id of p.crewIds.slice()) {
     const n = w.npcs[id]; const c = n?.crew; if (!n?.alive || !c) continue;
-    if (c.status === 'injured' || c.status === 'jailed') { c.statusDays--; if (c.statusDays <= 0) { c.status = 'ready'; c.statusDays = 0; log(w, `${fullName(n)} is back.`, 'good', { npcId: id }); } }
+    if (c.status === 'injured' || c.status === 'jailed' || c.status === 'travel') { c.statusDays--; if (c.statusDays <= 0) { const was = c.status; c.status = 'ready'; c.statusDays = 0; log(w, was === 'travel' ? `${fullName(n)} is in ${w.region?.cities.find(x => x.id === (c.cityId || 'c0'))?.name ?? 'town'} and ready to work.` : `${fullName(n)} is back.`, 'good', { npcId: id }); } }
     if (c.status === 'jailed') continue;
     if (pay(c.cut)) c.loyalty = clamp(c.loyalty + (c.cut >= 30 ? 0.4 : 0.1));
     else { c.loyalty = clamp(c.loyalty - 10); log(w, `You could not pay ${fullName(n)}.`, 'bad', { npcId: id }); }

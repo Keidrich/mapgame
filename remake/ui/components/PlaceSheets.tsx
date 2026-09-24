@@ -51,6 +51,7 @@ export function BlockSheet({ id }: { id: string }) {
       ); })()}
       {(() => { const sp = setpieceFor(b.landmark); if (!sp) return null; const ready = select.notoriety(w) >= SETPIECE_RANK; return (
         <Section title={`The job ${b.landmark} is for`}>
+          {b.hitDay !== undefined && <p className="r-callout dark">Hit on day {b.hitDay}. {w.day - b.hitDay < select.SETPIECE_REST ? `Shut to you until day ${b.hitDay + select.SETPIECE_REST}.` : 'Open again'} — {b.hardened ?? 0} points harder than it was.</p>}
           <p className="r-note">{sp.pitch.replace(/\{L\}/g, b.landmark!)} {sp.stages} stages, a decision at each. {ready ? '' : `Nobody brings a job like this to somebody the street does not know yet: fear and respect of ${SETPIECE_RANK} between them (you have ${select.notoriety(w)}).`}</p>
           <Do action={{ type: 'case', kind: 'setpiece', blockId: id }} label={`Case ${b.landmark}`} icon="crown" block sub="A day around the place. The job goes on your board with a head start on the planning." />
         </Section>

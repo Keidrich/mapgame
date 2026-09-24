@@ -8,7 +8,7 @@ import { APPROACH_INFO } from '@r/content/world';
 import { select, PLAYER } from '@r/sim/index';
 import { Icon } from '@ui/icons';
 import { setMode } from '@ui/mode';
-import { act, boot, closeRecap, closeSheets, dismissToast, focusBlock, leaveGame, openSheet, quitGame, setLayer, setTab, useUi, useWorld, type Layer, type Tab } from './store';
+import { act, boot, closeRecap, closeSheets, dismissToast, focusBlock, leaveGame, openSheet, quitGame, setLayer, setTab, useUi, useWorld, viewCity, type Layer, type Tab } from './store';
 import { CityMap } from './components/CityMap';
 import { Face, NpcFace } from './components/Faces';
 import { JobSheet, FactionSheet } from './components/JobFaction';
@@ -180,12 +180,15 @@ function MapScreen() {
   const headline = w.news[w.news.length - 1];
   const factions = Object.values(w.factions).filter(f => f.alive);
   const cityId = select.currentCity(w);
-  // the map draws the city you are in; the others are a train ride away (the region sheet)
-  const view = useMemo(() => select.cityView(w, cityId), [w, cityId]);
+  // the map draws the city you are in — or one you are only looking at, from the region sheet
+  const looking = useUi(s => s.viewCity);
+  const shown = looking && looking !== cityId && w.region?.cities.some(c => c.id === looking && c.founded) ? looking : cityId;
+  const view = useMemo(() => select.cityView(w, shown), [w, shown]);
   return (
     <div className="r-mapwrap">
       <CityMap w={view} layer={layer} focus={focus} selected={sel} onBlock={id => { setSel(id); openSheet({ kind: 'block', id }); }} />
-      {headline && <div className="r-paper"><span>{select.cityName(w, cityId).toUpperCase()} COURIER · DAY {headline.day}</span><b>{headline.text}</b></div>}
+      {shown !== cityId && <button type="button" className="g-viewing" onClick={() => viewCity(undefined, w.player.blockId)}><span>Looking at {select.cityName(w, shown)}</span><b>Back to {select.cityName(w, cityId)}</b></button>}
+      {headline && shown === cityId && <div className="r-paper"><span>{select.cityName(w, cityId).toUpperCase()} COURIER · DAY {headline.day}</span><b>{headline.text}</b></div>}
       <LeadStrip />
       {/* round tools down the right edge: the overlay cycles on a tap, like a game's view toggle */}
       <div className="r-map-tools">
@@ -193,11 +196,11 @@ function MapScreen() {
         <button type="button" className="g-fab" onClick={() => focusBlock(w.player.blockId)} aria-label="Where am I"><Icon name="you" size={24} strokeWidth={2} /><small>Me</small></button>
         <button type="button" className="g-fab gold" onClick={() => openSheet({ kind: 'region' })} aria-label="The region"><Icon name="map" size={24} strokeWidth={2.2} /><small>Region</small></button>
       </div>
-      <button type="button" className="r-here-card" onClick={() => openSheet({ kind: 'block', id: here.id })}>
+      {shown === cityId && <button type="button" className="r-here-card" onClick={() => openSheet({ kind: 'block', id: here.id })}>
         <span className="r-kicker">You are on{Object.keys(w.cities ?? {}).length ? ` · ${select.cityName(w, cityId)}` : ''}</span>
         <b>{here.name}</b>
         <span className="r-note">{w.districts[here.districtId].name} · {select.businessesIn(w, here.id).length} places · {select.holderName(w, here.id)}</span>
-      </button>
+      </button>}
       {layer === 'control' && <div className="r-legend">
         <span><i style={{ background: '#f0a841' }} />You</span>
         {factions.map(f => <span key={f.id}><i style={{ background: f.color }} />{f.short}</span>)}
@@ -370,6 +373,7 @@ function Toasts() {
 function MenuSheet() {
   const w = useWorld();
   const [sure, setSure] = useState(false);
+  const [tools, setTools] = useState(false);
   return (
     <Sheet title={w.city.name} kicker={`Seed ${w.seed} · day ${w.day}`}>
       <p className="r-note">“{w.city.motto}”</p>
@@ -380,6 +384,11 @@ function MenuSheet() {
       <button type="button" className="r-btn block" onClick={() => { closeSheets(); setMode('original'); }}><Icon name="map" size={16} /> Back to the original RACKETS</button>
       <button type="button" className="r-btn block" onClick={leaveGame}><Icon name="city_hall" size={16} /> Your cities — this one stays saved</button>
       <button type="button" className={`r-btn block ${sure ? 'danger' : 'ghost'}`} onClick={() => (sure ? quitGame() : setSure(true))}>{sure ? 'Tap again: this city is gone for good' : 'Delete this city'}</button>
+      <button type="button" className="r-btn ghost block" aria-expanded={tools} onClick={() => setTools(t => !t)}>{tools ? 'Hide the testing tools' : 'Testing tools'}{w.cheated ? ' · used on this save' : ''}</button>
+      {tools && <div className="r-section">
+        <p className="r-note">For trying a system without playing weeks to reach it. Each one marks this save as tested.</p>
+        <div className="r-inline-actions">{select.CHEATS.map(c => <Do key={c.kind} action={{ type: 'cheat', what: c.kind }} label={c.label} small kind="ghost" />)}</div>
+      </div>}
       <p className="r-note">The Remake saves on its own, separately from the original game. You can keep three cities. While the app is closed a day passes every six hours, up to three, and the careful choice is made for you.</p>
       {void PLAYER}
     </Sheet>

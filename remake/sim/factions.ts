@@ -121,7 +121,9 @@ function hostile(w: World, f: Faction, rng: Rng, k: number) {
     else if (guard && rng.chance(0.6)) log(w, `The ${f.short} came to lean on ${b.name}. Your people were there first.`, 'good', { businessId: b.id });
     else { b.protection = { by: f.id, rate: 0.15, since: w.day }; addInfluence(w, b.blockId, PLAYER, -8); log(w, `The ${f.short} take ${b.name} off you. The owner pays them now.`, 'war', { businessId: b.id }); }
   }
-  const crew = p.crewIds.map(id => w.npcs[id]).filter(n => n?.alive && n.crew?.status !== 'jailed' && n.crew?.status !== 'held');
+  // an outfit reaches your people only in its own city, and not on the train
+  const fcity = w.districts[f.homeDistrictId]?.cityId || 'c0';
+  const crew = p.crewIds.map(id => w.npcs[id]).filter(n => n?.alive && n.crew?.status !== 'jailed' && n.crew?.status !== 'held' && n.crew?.status !== 'travel' && (n.crew?.cityId || 'c0') === fcity);
   if (crew.length && rng.chance((f.standing < -55 ? 0.06 : 0.02) * k)) {
     const n = rng.pick(crew);
     // at war, one time in four they take somebody instead — one at a time, so there is a price to pay

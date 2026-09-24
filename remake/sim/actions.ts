@@ -6,11 +6,13 @@ import type { SitDownOffer } from './factions';
 import type { PLAYER } from './types';
 import type { SceneKind } from './scenes';
 import type { HostageChoice } from './hostages';
+import type { CheatKind } from './cheats';
 import type { Approach, Assignment, CityId, Id, ItemId, Slot, JobKind, LabKind, Owner, Product, RacketKind, SpecialistKind } from './types';
 
 export type Action =
   | { type: 'travel'; blockId: Id }
-  | { type: 'travel_city'; cityId: CityId }
+  | { type: 'travel_city'; cityId: CityId; bring?: Id[] }
+  | { type: 'move_crew'; npcId: Id; to: CityId }
   | { type: 'open_route'; from: CityId; to: CityId; product: Product }
   | { type: 'close_route'; id: Id }
   | { type: 'scene'; kind: SceneKind; npcId: Id; businessId?: Id; rate?: number }
@@ -33,7 +35,7 @@ export type Action =
   | { type: 'unequip'; from: typeof PLAYER | Id; slot: Slot }
   | { type: 'hostage'; id: Id; choice: HostageChoice }
   | { type: 'lobby'; factionId: Owner; side: 'yes' | 'no' }
-  | { type: 'commission_vote'; vote: 'yes' | 'no' }
+  | { type: 'commission_vote'; vote: 'yes' | 'no'; cityId?: CityId }
   | { type: 'fixer_wash'; amount: number }
   | { type: 'take_job'; jobId: Id; crewIds: Id[] }
   | { type: 'launch_job'; jobId: Id; approach: Approach }
@@ -52,7 +54,9 @@ export type Action =
   | { type: 'resolve_event'; eventId: Id; optionId: string }
   | { type: 'retire' }
   | { type: 'end_day' }
-  | { type: 'seen_win' };
+  | { type: 'seen_win' }
+  // --- testing: stamps the save as tested (`cheats.ts`)
+  | { type: 'cheat'; what: CheatKind };
 
 export interface Affordance { ok: boolean; why?: string; ap?: number; cash?: number }
 export const yes = (x: Omit<Affordance, 'ok'> = {}): Affordance => ({ ok: true, ...x });

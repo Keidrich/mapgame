@@ -50,6 +50,10 @@ function everyAction(w: World): Action[] {
   for (const b of Object.values(w.blocks).slice(0, 30)) for (const k of Object.keys(JOBS) as JobKind[]) out.push({ type: 'case', kind: k, blockId: b.id });
   for (const c of Object.values(w.cases)) for (const k of Object.keys(JOBS) as JobKind[]) out.push({ type: 'case', kind: k, caseId: c.id });
   for (const j of Object.values(w.jobs)) for (const id of w.player.crewIds) out.push({ type: 'join_job', jobId: j.id, npcId: id });
+  // the region, the crew's cities and the testing tools
+  for (const c of w.region?.cities ?? []) { out.push({ type: 'travel_city', cityId: c.id }, { type: 'commission_vote', vote: 'no', cityId: c.id }); for (const id of w.player.crewIds) out.push({ type: 'move_crew', npcId: id, to: c.id }, { type: 'travel_city', cityId: c.id, bring: [id] }); for (const p of ['booze', 'goods'] as const) out.push({ type: 'open_route', from: 'c0', to: c.id, product: p }); }
+  out.push({ type: 'close_route', id: 'x' });
+  for (const t of select.CHEATS) out.push({ type: 'cheat', what: t.kind });
   for (const s of Object.values(w.safehouses)) { out.push({ type: 'upgrade_safehouse', safehouseId: s.id }); for (const k of Object.keys(LABS)) out.push({ type: 'build_lab', safehouseId: s.id, kind: k as never }); }
   for (const p of ['booze', 'green', 'pills', 'goods'] as const) out.push({ type: 'sell_street', product: p, n: 5 });
   return out;

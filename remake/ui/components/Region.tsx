@@ -9,7 +9,7 @@ import { PRODUCTS } from '@r/content/world';
 import { select } from '@r/sim/index';
 import type { Product, RegionCity } from '@r/sim/types';
 import { Icon } from '@ui/icons';
-import { useWorld } from '../store';
+import { useWorld, viewCity } from '../store';
 import { Chip, Do, Empty, Meter, Row, Section, Sheet, fmt } from './kit';
 
 const R = { small: 16, medium: 22, large: 29 } as const;
@@ -20,6 +20,8 @@ export function RegionSheet() {
   const region = w.region;
   const here = select.currentCity(w);
   const [sel, setSel] = useState(here);
+  const [bring, setBring] = useState<string[]>(() => select.crewIn(w, here).filter(n => n.crew!.status === 'ready' && !n.crew!.assignment).map(n => n.id));
+  const isOpenCity = (x: RegionCity) => x.founded || !!x.open;
   if (!region) return <Sheet title="The region"><Empty>No region yet.</Empty></Sheet>;
   const cities = region.cities;
   const byId = Object.fromEntries(cities.map(c => [c.id, c])) as Record<string, RegionCity>;
@@ -49,9 +51,20 @@ export function RegionSheet() {
       <Section title={c.name} right={<Chip tone={c.founded ? 'gold' : c.open ? 'blue' : 'muted'}>{status(c) === 'here' ? 'You are here' : status(c) === 'yours' ? 'Been there' : status(c) === 'open' ? 'Road open' : 'Nobody knows you'}</Chip>}>
         <p className="r-note">{c.kind === 'home' ? 'Where you started.' : `A ${c.size === 'large' ? 'big' : c.size === 'small' ? 'small' : ''} ${c.kind}. ${c.blurb}`}</p>
         <div className="r-chips">{(Object.keys(PRODUCTS) as Product[]).map(p => { const d = c.demand[p]; return <Chip key={p} tone={d >= 1.15 ? 'green' : d <= 0.9 ? 'red' : 'muted'} title="What it pays against the street's ordinary price">{PRODUCTS[p].label} ×{d.toFixed(2)}</Chip>; })}</div>
-        {c.founded && c.id !== here && <p className="r-note">You hold {(select.controlIn(w, c.id) * 100).toFixed(1)}% of it.</p>}
-        {c.id !== here && <Do action={{ type: 'travel_city', cityId: c.id }} label={c.founded ? `Take the train to ${c.name}` : `Start up in ${c.name}`} icon="van" block
-          sub={c.founded ? 'Everybody who works for you comes along; your rackets and places here keep running.' : 'A new city, generated the day you arrive: its own streets, people and outfits. You arrive with everything you carry and everybody who works for you, and nobody knows your name.'} />}
+        {c.founded && c.id !== here && <p className="r-note">You hold {(select.controlIn(w, c.id) * 100).toFixed(1)}% of it. {select.crewIn(w, c.id).length} of your people are there.</p>}
+        {c.founded && c.id !== here && <button type="button" className="r-btn block" onClick={() => viewCity(c.id, select.arrivalIn(w, c.id))}><Icon name="map" size={18} /> Look at the map</button>}
+        {c.id !== here && isOpenCity(c) && (() => {
+          // who comes with you: everybody free here by default; the posted ones stay and keep things running
+          const here_ = select.crewIn(w, here).filter(n => n.crew!.status === 'ready' && n.crew!.assignment?.kind !== 'job');
+          return here_.length > 0 && <div className="r-racket">
+            <p className="r-over">Bring along ({bring.filter(id => here_.some(n => n.id === id)).length} of {here_.length})</p>
+            {here_.map(n => <button type="button" key={n.id} className={`r-pickrow${bring.includes(n.id) ? ' on' : ''}`} aria-pressed={bring.includes(n.id)} onClick={() => setBring(b => (b.includes(n.id) ? b.filter(x => x !== n.id) : [...b, n.id]))}>
+              <span className="grow"><b>{select.fullName(n)}</b><span className="r-row-sub">{n.crew!.assignment ? 'leaves their post here' : 'free'}</span></span><span className="r-check">{bring.includes(n.id) ? '✓' : ''}</span>
+            </button>)}
+          </div>;
+        })()}
+        {c.id !== here && <Do action={{ type: 'travel_city', cityId: c.id, bring: bring.filter(id => select.crewIn(w, here).some(n => n.id === id)) }} label={c.founded ? `Take the train to ${c.name}` : `Start up in ${c.name}`} icon="van" block
+          sub={c.founded ? 'Whoever you bring comes along; everybody else stays and keeps things running here.' : 'A new city, generated the day you arrive: its own streets, people and outfits. You arrive with everything you carry and whoever you bring, and nobody knows your name.'} />}
         {!c.founded && !c.open && <p className="r-why">Hold {Math.round(select.REGION.unlockAt * 100)}% of a city on the road to it ({c.links.map(id => byId[id].name).join(', ')}).</p>}
       </Section>
 
@@ -68,7 +81,7 @@ export function RegionSheet() {
           );
         })}
       </Section>
-      <p className="r-note">Jobs from the other cities you have been to come onto your board. You can run one from here: your people go without you, and your own skills do not count.</p>
+      <p className="r-note">Jobs from the other cities you have been to come onto your board. You can run one from here: your people in that city go without you, and your own skills do not count.</p>
     </Sheet>
   );
 }

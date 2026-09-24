@@ -3,7 +3,9 @@
  * print the curve. With `all`, the same seed is played by every temperament from timid to maniac
  * and the runs are compared side by side, with coverage taken across all of them: a system only
  * the maniac reaches is still reached, and one none of them reaches is named. With `catalogue`, a
- * mid-game empire on day one plays every job in the catalogue once (not an economy curve).
+ * mid-game empire on day one plays every job in the catalogue once (not an economy curve). With
+ * `scenarios`, all of the above at once — the temperaments, the catalogue and the region — with
+ * coverage taken across every run: the Remake's answer to the original's `npm run sim -- 60 7 all`.
  */
 import { run, missing, SYSTEMS, STYLES, STYLE_IDS, type RunResult, type StyleId } from './bot';
 import { select } from '@r/sim/index';
@@ -60,6 +62,27 @@ if (styleArg === 'all') {
   coverage(union);
   const kinds: RunResult['kinds'] = {};
   for (const { r } of runs) for (const [k, v] of Object.entries(r.kinds)) kinds[k as JobKind] = (kinds[k as JobKind] ?? 0) + (v ?? 0);
+  catalogue(kinds);
+} else if (styleArg === 'scenarios') {
+  // every way the bot can play, side by side, with coverage taken across all of them: the five
+  // temperaments on the natural city, the catalogue's mid-game empire, and the region
+  const runs: { name: string; r: RunResult }[] = [
+    ...STYLE_IDS.map(id => ({ name: STYLES[id].label, r: run({ days, seed, size, background, style: id }) })),
+    { name: 'catalogue', r: run({ days, seed, size, background, scenario: 'catalogue' }) },
+    { name: 'region', r: run({ days, seed, size, background, scenario: 'region' }) },
+  ];
+  console.log(`scenario sweep, seed ${seed}, ${days} days:`);
+  for (const { name, r } of runs) {
+    const w = r.w, last = w.history[w.history.length - 1];
+    console.log(`  ${name.padEnd(10)} worth ${String(last?.worth ?? 0).padStart(8)}  home ${(select.controlShare(w) * 100).toFixed(1).padStart(5)}%  cities ${w.region?.cities.filter(c => c.founded).length ?? 1}  kinds ${Object.keys(r.kinds).length}  ${w.over ? `${w.over.ending} d${w.over.day}` : 'alive'}`);
+  }
+  const union: RunResult['counts'] = {}; const kinds: RunResult['kinds'] = {};
+  for (const { r } of runs) {
+    for (const [k, v] of Object.entries(r.counts)) union[k as keyof typeof union] = (union[k as keyof typeof union] ?? 0) + (v ?? 0);
+    for (const [k, v] of Object.entries(r.kinds)) kinds[k as JobKind] = (kinds[k as JobKind] ?? 0) + (v ?? 0);
+  }
+  console.log('\nacross every scenario:');
+  coverage(union);
   catalogue(kinds);
 } else if (styleArg === 'region') {
   const r = one('steady', 'region');

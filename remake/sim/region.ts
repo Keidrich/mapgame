@@ -56,8 +56,9 @@ export function controlIn(w: World, id: CityId): number {
 }
 /** Whether you can go there: a city you have been to, or one the road to has opened. */
 export const isOpen = (w: World, id: CityId) => { const c = regionCity(w, id); return !!c && (c.founded || !!c.open); };
-export function fare(w: World, to: CityId): number {
-  const a = regionCity(w, currentCity(w)), b = regionCity(w, to);
+export function fare(w: World, to: CityId): number { return fareBetween(w, currentCity(w), to); }
+export function fareBetween(w: World, from: CityId, to: CityId): number {
+  const a = regionCity(w, from), b = regionCity(w, to);
   return a && b ? Math.round(dist(a, b) * REGION.farePerUnit / 10) * 10 : 0;
 }
 
