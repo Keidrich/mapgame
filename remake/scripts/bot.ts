@@ -15,7 +15,7 @@ import { CATALOGUE, CATALOGUE_KINDS } from '@r/content/catalogue';
 import { can, dispatch, newWorld, select, PLAYER, type Action, type Background, type Id, type Job, type World } from '@r/sim/index';
 import { Rng } from '@r/sim/rng';
 import type { CitySize } from '@r/sim/city';
-import type { Approach, JobKind, Product, RacketKind } from '@r/sim/types';
+import type { Approach, JobKind, Product, RacketKind, Skill } from '@r/sim/types';
 
 export type Counter =
   | 'days' | 'chats' | 'threats' | 'protected' | 'squeezed' | 'recruited' | 'bribed' | 'settled' | 'leaned' | 'bought' | 'favours'
@@ -28,7 +28,8 @@ export type Counter =
   | 'cities' | 'routes' | 'route_sales' | 'remote_jobs' | 'crew_moved' | 'nights' | 'night_events'
   | 'made' | 'appointed' | 'rats_found' | 'coups'
   | 'fights' | 'fights_won' | 'ambushes' | 'bullets_bought'
-  | 'outlets_set' | 'drivers' | 'deliveries' | 'hijacked' | 'delivered_self';
+  | 'outlets_set' | 'drivers' | 'deliveries' | 'hijacked' | 'delivered_self'
+  | 'trained' | 'boosts' | 'dried_out';
 
 export const SYSTEMS: { label: string; needs: Counter[] }[] = [
   { label: 'talking to people', needs: ['chats'] },
@@ -56,6 +57,8 @@ export const SYSTEMS: { label: string; needs: Counter[] }[] = [
   { label: 'street fights', needs: ['fights', 'ambushes'] },
   { label: 'buying rounds', needs: ['bullets_bought'] },
   { label: 'supply chains', needs: ['deliveries', 'delivered_self'] },
+  { label: 'training', needs: ['trained'] },
+  { label: 'boosts and habit', needs: ['boosts'] },
   { label: 'night encounters', needs: ['night_events'] },
   { label: 'diplomacy', needs: ['tributes', 'sitdowns'] },
   { label: 'lieutenants', needs: ['lieutenants'] },
@@ -211,6 +214,7 @@ function shift(c: Ctx) {
   region(c);   // before money: the stash is what a route ships, and money() sells it on the corner
   money(c);
   kit(c);
+  character(c);   // before the street work, which spends every hour it can find; rationed inside
   street(c);
   politics(c);
   commission(c);
@@ -278,6 +282,46 @@ function supply(c: Ctx) {
     if (!d) continue;
     if (act(c, { type: 'assign', npcId: d.id, assignment: { kind: 'driver' } })) bump(c, 'drivers');
   }
+}
+
+// ------------------------------------------------------------------------------------ character
+/** The skill each temperament works on: the fighters' muscle, the talkers' charm, the schemer's head. */
+const FOCUS: Record<string, Skill> = { timid: 'brains', steady: 'charm', schemer: 'brains', ruthless: 'muscle', maniac: 'muscle', collector: 'wheels' };
+/**
+ * One session a shift on the temperament's skill, when there are hours to spare, at the best place
+ * in the city for it. The maniac lives on bennies and dries out when the habit gets heavy; the
+ * ruthless take a bump on a night they are at war.
+ */
+function character(c: Ctx) {
+  const w = () => c.w; const p = () => w().player;
+  const purse = () => p().cash + p().dirty;
+  const style = Object.entries(STYLES).find(([, s]) => s === c.s)?.[0] ?? 'steady';
+  const night = select.isNight(w());
+  // nothing for yourself until the outfit stands up: the first weeks' hours compound. One session on
+  // night 4 of seed 7 (two of three night hours, not recruiting) left the steady bot at 11% of the
+  // city on day 60 instead of 25%, and the maniac on bennies was convicted by day 18-21
+  if (w().day < 20) return;
+  // every other day, so the habit and the bad mornings between show up in the soak
+  if (style === 'maniac' && w().day % 2 === 0 && purse() > 2000 && act(c, { type: 'take_boost', kind: 'pep', at: 'fixer' })) bump(c, 'boosts');
+  if (style === 'ruthless' && night && purse() > 4000 && Object.values(w().factions).some(f => f.alive && select.stanceOf(f, w().day) === 'war') && act(c, { type: 'take_boost', kind: 'nerve', at: 'fixer' })) bump(c, 'boosts');
+  if ((p().habit ?? 0) >= 60 && purse() > 6000 && act(c, { type: 'dry_out' })) bump(c, 'dried_out');
+  // training: only with hours left over after a session, so the street is not starved of them
+  const skill = FOCUS[style] ?? 'charm';
+  const t = select.TRAINING[skill];
+  // rationed: the fighters train every other day, everybody else every fourth. Every night, ahead of
+  // the street, it took two of the three night hours, recruiting starved, and the steady bot was
+  // convicted on day 42; after the street it never ran, because the street spends every hour
+  const every = style === 'ruthless' || style === 'maniac' ? 2 : 4;
+  if (w().day % every || p().ap < select.TRAIN.ap || (night ? 'night' : 'day') !== t.half || p().skills[skill] >= 10) return;
+  if (t.at === 'books') { if (act(c, { type: 'train', skill, at: 'books' })) bump(c, 'trained'); return; }
+  const places = t.at;
+  const city = select.currentCity(w());
+  const here = w().blocks[p().blockId];
+  const near = new Set([here.id, ...here.neighborIds]);
+  const b = Object.values(w().businesses).filter(x => places.includes(x.type) && x.closed <= 0 && select.cityOfBlock(w(), x.blockId) === city && near.has(x.blockId))
+    .sort((x, y) => select.trainFee(w(), x.id) - select.trainFee(w(), y.id) || y.tier - x.tier)[0];
+  if (!b || purse() < select.trainFee(w(), b.id) * 4 || !goTo(c, b.blockId)) return;
+  if (act(c, { type: 'train', skill, at: b.id })) bump(c, 'trained');
 }
 
 // ------------------------------------------------------------------------------------ the law

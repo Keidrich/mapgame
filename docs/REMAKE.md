@@ -732,6 +732,59 @@ The seeds diverge as soon as a hijack roll is made, so single runs move a lot; o
 seeds (100–109) the first price cut convicted the ruthless bot 2 times in 10 against 0 without
 supply, and the price above brought it to 1.
 
+## 19. Your character
+
+Skills used to grow only by doing (`practise`): every threat was muscle, every job its skills.
+`sim/character.ts` adds three things, with the numbers as data in `content/character.ts`.
+
+- **Training** (`train {skill, at}`):
+  - It costs 2 hours, once per skill per day. A session is worth 16 experience, +6 per tier of the
+    place above the first. Each consecutive day you train adds +2, up to +10; miss a day and the
+    streak starts over.
+  - Where and when:
+    - muscle: at a gym, after dark;
+    - charm: at a nightclub, bar or casino, after dark ("work the room");
+    - wheels: at a garage or cab company, by day;
+    - tech: at an electronics shop or pawnbroker, by day;
+    - brains: by day, with the books, anywhere.
+  - Somebody else's place charges $60 × tier; your own or a protected one is free. You train from
+    the place's sheet ("For yourself"), or from Empire → You, which points to the best place in the
+    city.
+- **Boosts** (`take_boost {kind, at}`). They are bought and taken on the spot: from the fixer at any
+  hour, a pharmacy by day, or a nightclub at night.
+  - Bennies ($120): two more hours now, or one once your habit is 50+. Habit +10.
+  - A bump ($250): muscle and charm +2 for the rest of the day, through `skillOf`, so fights and jobs
+    feel it. Every rolled conversation also gets +6. Habit +15.
+- **Habit** (0–100):
+  - It fades 4 on a day without a boost.
+  - Past 25, a day without one is a bad morning: −1 hour per 25 above the line, up to −3. Your hands
+    shake too (−5 on every conversation).
+  - Drying out (`dry_out`, the fixer's doctor, $900, 3 hours) takes 50 off.
+  - The ledger bar shows "Wired" or "Shaking".
+- **Reputation** (`reputation(w)`). Never stored; read from fear and respect.
+  - Feared: fear ≥ 50 and 15 more than respect. Threats +6, deals −2.
+  - Respected: the mirror of feared. Threats −2, deals +6.
+  - A man of honour: both at 50 or more. +4 on both.
+  - Every rolled scene quote carries the line: the wrapper in `quote` adds it, so the button and the
+    dice agree. "Threats" are intimidate, squeeze, lean and taking a corner crew; "deals" are
+    protect, recruit, bribe, settle, buy, favours and paying a crew.
+  - The penalties are small on purpose. At −6 on deals, the bots held 17% of the city at day 60
+    instead of 24.6%, because their fear runs ahead of their respect.
+- **Bots.** The timid and the schemer study brains; the steady bot works the room; the fighters
+  train muscle. The ruthless take a bump on a night at war; the maniac takes bennies every other day
+  and dries out at 60. The fighters train every other day and the rest every fourth, and **none of
+  it before day 20**. One session on night 4 took two of three night hours from recruiting, and left
+  the steady bot at 11% on day 60 instead of 25% (seed 7).
+
+**Balance (five seeds, 60 days):**
+
+| Bot | Control | Outcome |
+|---|---|---|
+| Steady | 24.4% | never convicted |
+| Ruthless | 24.1% | never convicted; habit 41 at the end |
+| Maniac | 13.2% | convicted in 2 of 5, killed in 1 |
+| Timid / schemer | — | study about 10 times |
+
 ## 15. The road: the whole game
 
 The Remake is heading toward the full game its inspirations add up to: City of Gangsters (a

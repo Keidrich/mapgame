@@ -202,9 +202,23 @@ export function EmpireTab() {
           <div><div className="r-kicker">Rank</div><h3>{rank.label}</h3><p className="r-note">{next ? `${next.at - select.notoriety(w)} more fear and respect to ${next.label}. Each rank gives more hours in the day.` : 'There is nothing above this.'}</p></div>
         </div>
         <div className="r-rel"><Meter value={p.fear} tone="red" label="Fear" /><Meter value={p.respect} tone="gold" label="Respect" /></div>
+        {(() => { const r = select.REPUTATION[select.reputation(w)]; return <p className="r-note"><b>{r.label}.</b> {r.blurb}{r.hard || r.soft ? ` Threats ${r.hard >= 0 ? '+' : ''}${r.hard}, deals ${r.soft >= 0 ? '+' : ''}${r.soft} on the odds.` : ''}</p>; })()}
         <Section title="Skills">
           {(Object.keys(p.skills) as (keyof typeof p.skills)[]).map(s => <Meter key={s} value={p.skills[s]} max={10} label={s} right={`${p.skills[s]} · ${p.xp[s]}/${40 + p.skills[s] * 18}`} />)}
-          <p className="r-note">You get better at what you do: every threat is muscle, every conversation charm, every job the skills it leans on.</p>
+          <p className="r-note">You get better at what you do: every threat is muscle, every conversation charm, every job the skills it leans on. Or train: once a skill a day, more for every day in a row{select.streakNow(w) > 1 ? ` (${select.streakNow(w)} running)` : ''}.</p>
+          {(Object.keys(select.TRAINING) as (keyof typeof p.skills)[]).map(s => { const t = select.TRAINING[s];
+            if (t.at === 'books') return <Do key={s} action={{ type: 'train', skill: s, at: 'books' }} label={`${t.verb}: ${s} +${select.trainXp(w, 'books')}`} icon="note" block small sub={`${t.blurb} ${select.TRAIN.ap} hours, by day, anywhere.`} />;
+            const places = t.at; const here = select.cityOfBlock(w, p.blockId);
+            const b = Object.values(w.businesses).filter(x => places.includes(x.type) && x.closed <= 0 && select.cityOfBlock(w, x.blockId) === here).sort((x, y) => Number(y.blockId === p.blockId) - Number(x.blockId === p.blockId) || Number(y.ownedBy === PLAYER || y.protection?.by === PLAYER) - Number(x.ownedBy === PLAYER || x.protection?.by === PLAYER) || y.tier - x.tier)[0];
+            return b ? <Row key={s} onClick={() => openSheet({ kind: 'business', id: b.id })} left={<Icon name="fist" />} title={`${t.verb}: ${s}`} sub={`${b.name}, ${w.blocks[b.blockId].name} · ${t.half === 'day' ? 'by day' : 'after dark'}`} right={<Icon name="caret" size={16} />} /> : null; })}
+        </Section>
+        <Section title="Habit" right={<span className="r-note">{Math.round(p.habit ?? 0)}/100</span>}>
+          <Meter value={p.habit ?? 0} tone="red" label={select.shaking(w) ? 'Shaking' : (p.habit ?? 0) >= select.HABIT.withdrawal ? 'Hooked' : 'In hand'} />
+          <p className="r-note">Bennies and a bump buy hours or an edge today. Each leaves habit, which fades by {select.HABIT.fade} a clean day; past {select.HABIT.withdrawal}, a day without one costs hours the next morning. The fixer sells both at any hour.</p>
+          <div className="r-inline-actions">
+            {(['pep', 'nerve'] as const).map(k => <Do key={k} action={{ type: 'take_boost', kind: k, at: 'fixer' }} label={`${select.BOOSTS[k].label} · ${fmt(select.BOOSTS[k].price)}`} small />)}
+            {(p.habit ?? 0) >= 10 && <Do action={{ type: 'dry_out' }} label={`Dry out · ${fmt(select.HABIT.dryOut.price)}`} small kind="ghost" />}
+          </div>
         </Section>
         <Section title="Getting out">
           <p className="r-note">Hold {fmt(select.STRAIGHT.clean)} clean, heat under {select.STRAIGHT.heat} and no open files for {select.STRAIGHT.days} days, and you can walk away. {p.straightDays ? `${p.straightDays} day${p.straightDays > 1 ? 's' : ''} so far.` : ''}</p>

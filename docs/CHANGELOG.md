@@ -14,6 +14,63 @@ House rules for an entry (see `CLAUDE.md` → *Leave a trail*):
 
 ---
 
+## 2026-09-24 — Remake: your character — training, study, boosts and habit, reputation (roadmap 4 of 8)
+
+**What.** You build yourself, not only your outfit:
+- **Train** a skill at the right kind of place in the right half: the gym at night, a garage by day,
+  the books anywhere by day. Once a skill a day, with a streak bonus for days in a row.
+- **Boosts.** Bennies buy hours; a bump buys an edge. Both leave a **habit** that costs hours on
+  mornings without one, until it fades or you dry out.
+- **Reputation.** Fear and respect add up to a name (feared, respected, a man of honour) that tilts
+  the odds on the conversations it suits.
+
+**Why.** Roadmap pillar 4 (`docs/REMAKE.md` §15, now §19): the Torn half of the inspiration, a
+character you build. Until now skills only grew by doing the thing, so a weak skill stayed weak.
+
+**How.**
+- **Data and sim.** `content/character.ts` (`TRAINING`, `TRAIN`, `BOOSTS`, `HABIT`, `REPUTATION`).
+  `sim/character.ts`:
+  - reputation: `reputation`, `characterFactors`;
+  - training: `trainBlock`, `trainFee`, `trainXp`, `streakNow`, `train`;
+  - boosts and habit: `boostBlock`, `takeBoost`, `nerveBonus`, `habitMorning`, `dryOut`.
+- **Hooks.**
+  - `skillOf` adds the bump for the player, so fights and jobs feel it.
+  - `quote` wraps every rolled quote with the character lines, including quotes that only say "Go
+    to …".
+  - `endDay` runs the new day's hours through `habitMorning` after `hurtHours`.
+- **New state and actions.** `Player.trained`, `streak`, `boost` and `habit`, all optional (no
+  migration, no save bump). Actions `train`, `take_boost` and `dry_out`.
+- **Screen.**
+  - A "For yourself" section on the sheet of a gym, bar, club, casino, garage, cab company,
+    electronics shop, pawnbroker or pharmacy.
+  - Empire → You: the reputation line, a training row per skill that points to the best place, and
+    a Habit section with the fixer's boosts and drying out.
+  - "Wired" or "Shaking" in the ledger bar, and a line in How to play.
+- **Bots.** `character()` trains the temperament's skill (fighters every other day, the rest every
+  fourth). The ruthless take a bump at war; the maniac takes bennies every other day and dries out
+  at 60. None of it before day 20. New counters `trained`, `boosts` and `dried_out`; coverage rows
+  "training" and "boosts and habit".
+- **Tests.** `remake/tests/character.test.ts`, 6 of them.
+
+**Numbers** (five seeds, 60 days):
+- Steady: 24.4% control (24.6% before). Ruthless: 24.1%. Both never convicted.
+- Maniac: 13.2%; convicted in 2 of 5, killed in 1 (it was 3 of 5 convicted).
+- The honest baseline in the original game is unchanged.
+
+**Watch out.**
+- Reputation touches every rolled scene. The first cut (feared −6 on deals) took the steady bot from
+  24.6% to 17% of the city, because bots run on fear. It is now −2.
+- Hours in the first weeks compound. A single training session on night 4 of seed 7 cost the steady
+  bot half its ground by day 60, so the bot does nothing for itself before day 20. A human player
+  who trains early is choosing a slower start, and the Help line doesn't say so.
+- There is no crew training yet. Crew still grow by level-ups and jobs.
+
+**Files.**
+- New: `remake/content/character.ts`, `remake/sim/character.ts`, `remake/tests/character.test.ts`.
+- Changed: `remake/sim/{types,actions,reducer,tick,kit,scenes,select}.ts`,
+  `remake/scripts/bot.ts`, `remake/ui/App.tsx`, `remake/ui/components/{PlaceSheets,Tabs}.tsx`,
+  and `docs/REMAKE.md` §19.
+
 ## 2026-09-24 — Remake: supply chains — outlets, drivers, deliveries, hijacks (roadmap 3 of 8)
 
 **What.** Your product has a steadier way out than the corner:

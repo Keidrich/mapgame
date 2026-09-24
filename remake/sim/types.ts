@@ -594,6 +594,12 @@ export interface Player {
   hurtDays?: number;
   /** The posts at the top of the family (`family.ts`). */
   family?: { consigliere?: Id; underboss?: Id };
+  /** Your character (`character.ts`): what you trained today, the days in a row you have trained,
+   *  what you took today, and the habit it has left you with (0..100). */
+  trained?: { day: number; skills: Skill[] };
+  streak?: { last: number; n: number };
+  boost?: { day: number; kinds: ('pep' | 'nerve')[] };
+  habit?: number;
 }
 
 export interface DaySummary { day: number; clean: number; dirty: number; spent: number; heat: number; control: number; worth: number; washed?: number }

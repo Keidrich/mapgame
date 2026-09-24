@@ -6,6 +6,7 @@
 import { GEAR_TO_ITEM, ITEMS, type ItemId, type Slot } from '@r/content/kit';
 import type { Id, Kit, Skill, World } from './types';
 import { PLAYER } from './types';
+import { nerveBonus } from './character';
 
 export type Carrier = typeof PLAYER | Id;
 
@@ -26,7 +27,7 @@ export function armourOf(kit: Kit): number {
 }
 export function skillOf(w: World, who: Carrier, skill: Skill): number {
   const base = who === PLAYER ? w.player.skills[skill] : w.npcs[who]?.skills[skill] ?? 0;
-  return base + kitBonus(kitOf(w, who), skill);
+  return base + kitBonus(kitOf(w, who), skill) + (who === PLAYER ? nerveBonus(w, skill) : 0);
 }
 
 /** What a place sells. Nothing, for most places; the fixer sells what nobody else will. */

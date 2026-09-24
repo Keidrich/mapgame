@@ -1,6 +1,6 @@
 import { BUSINESSES, LABS, RACKETS, SAFEHOUSE_TIERS } from '@r/content/world';
 import { select, PLAYER } from '@r/sim/index';
-import type { LabKind, Product, RacketKind } from '@r/sim/types';
+import type { LabKind, Product, RacketKind, Skill } from '@r/sim/types';
 import { Icon } from '@ui/icons';
 import { openSheet, useWorld } from '../store';
 import { Emblem, NpcFace } from './Faces';
@@ -114,6 +114,7 @@ export function BusinessSheet({ id }: { id: string }) {
         {!mine && !protectedByMe && !rackets.length && <Empty>{def.rackets.length ? 'Protect or own it to run something out of the back.' : 'Nothing runs out of a place like this. It is a job, not a racket.'}</Empty>}
       </Section>
       <SupplySection id={id} />
+      <TrainSection id={id} />
       {b.closed <= 0 && <ShopSection at={id} title={w.player.blockId === b.blockId ? 'For sale here' : `For sale here — go to ${w.blocks[b.blockId].name}`} />}
       <CaseSection target={{ businessId: id }} title={mine ? 'Work it' : 'Case it'} note={mine ? 'Jobs you can only run through a place you own.' : undefined} />
       {b.patronIds.length > 0 && <Section title="Regulars">{b.patronIds.map(pid => { const n = w.npcs[pid]; return n ? <Row key={pid} onClick={() => openSheet({ kind: 'person', id: pid })} left={<NpcFace n={n} size={32} />} title={select.fullName(n)} sub={n.crew ? 'Yours' : n.rel.met ? `trust ${n.rel.trust}` : n.alive ? 'A stranger' : 'Dead'} /> : null; })}</Section>}
@@ -146,6 +147,25 @@ function SupplySection({ id }: { id: string }) {
       {on.length > 0 && !driving.length && <p className="r-why">Nobody drives here. Give one of your crew in this city the deliveries from their sheet, or drive the round yourself after dark.</p>}
       {on.length > 0 && <DriveRound />}
       {on.length > 0 && driving.length > 0 && <p className="r-note">{driving.map(d => select.fullName(d.n)).join(', ')} {driving.length > 1 ? 'drive' : 'drives'} here: {driving.reduce((t, d) => t + d.carry, 0)} lots a night between every place in the city. {Math.round(select.hijackChance(w, false) * 100)}% a load is taken on the road; half that with a gun in the car.</p>}
+    </Section>
+  );
+}
+
+/**
+ * What you can do for yourself here: train the skill this kind of place teaches, and buy what it
+ * sells to get you through the day.
+ */
+function TrainSection({ id }: { id: string }) {
+  const w = useWorld();
+  const b = w.businesses[id];
+  const skills = (Object.keys(select.TRAINING) as Skill[]).filter(s => { const at = select.TRAINING[s].at; return at !== 'books' && at.includes(b.type); });
+  const boosts = (Object.keys(select.BOOSTS) as ('pep' | 'nerve')[]).filter(k => select.BOOSTS[k].at.includes(b.type));
+  if (!skills.length && !boosts.length) return null;
+  const fee = select.trainFee(w, id);
+  return (
+    <Section title="For yourself">
+      {skills.map(s => { const t = select.TRAINING[s]; return <Do key={s} action={{ type: 'train', skill: s, at: id }} label={`${t.verb}: ${s} +${select.trainXp(w, id)}`} icon="fist" block sub={`${t.blurb} ${select.TRAIN.ap} hours${fee ? `, ${fmt(fee)}` : ', free at your place'}; ${t.half === 'day' ? 'by day' : 'after dark'}, once a day.${select.streakNow(w) > 1 ? ` ${select.streakNow(w)} days running.` : ''}`} />; })}
+      {boosts.map(k => <Do key={k} action={{ type: 'take_boost', kind: k, at: id }} label={`${select.BOOSTS[k].label} · ${fmt(select.BOOSTS[k].price)}`} icon="pills" block kind="ghost" sub={`${select.BOOSTS[k].blurb} Habit +${select.BOOSTS[k].habit}.`} />)}
     </Section>
   );
 }

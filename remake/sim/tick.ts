@@ -10,6 +10,7 @@ import { drawEvents } from './events';
 import { tickFamily } from './family';
 import { tickSupply } from './supply';
 import { hurtHours } from './fights';
+import { habitMorning } from './character';
 import { splitHours } from '@r/content/clock';
 import { tickFactions } from './factions';
 import { tickHostages } from './hostages';
@@ -206,7 +207,7 @@ export function endDay(w: World, rng: Rng) {
   p.apMax = rankOf(w).ap;
   // morning: the day's half of the hours; the night's half comes at nightfall (`clock.ts`)
   w.phase = 'day';
-  p.ap = p.lowDays > 0 ? 0 : hurtHours(w, splitHours(p.apMax).day);
+  p.ap = p.lowDays > 0 ? 0 : habitMorning(w, hurtHours(w, splitHours(p.apMax).day), day);
   for (const k of Object.keys(p.stash) as Product[]) p.stash[k].n = Math.max(0, Math.round(p.stash[k].n));
   p.cash = Math.round(p.cash); p.dirty = Math.round(p.dirty);
 

@@ -26,6 +26,8 @@ export { CHEATS } from './cheats';
 export { consigliere, underboss, familyRank, makeBlock } from './family';
 export { canBeOutlet, outletDemand, outletPrice, driverCarry, drivers, outlets, hijackChance, ordersIn, yourCarry } from './supply';
 export { OUTLETS, SUPPLY } from '@r/content/supply';
+export { reputation, trainBlock, trainFee, trainXp, streakNow, boostBlock, boostedWith, boostedToday, shaking, pepHours } from './character';
+export { TRAINING, TRAIN, BOOSTS, HABIT, REPUTATION } from '@r/content/character';
 export { fightOdds, soldiersOn, sideOf, personPower, ambushOdds } from './fights';
 export { GUNS, BULLETS, HURT, ATTACK } from '@r/content/fights';
 export { MAKING, RANK_LABEL, RANK_BLURB, POSTS } from '@r/content/family';

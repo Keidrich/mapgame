@@ -29,6 +29,8 @@ import { MAKING } from '@r/content/family';
 import { ATTACK, BULLETS, GUNS, HURT } from '@r/content/fights';
 import { attack } from './fights';
 import { canBeOutlet, ordersIn, runDelivery } from './supply';
+import { boostBlock, dryOut, takeBoost, train, trainBlock, trainFee } from './character';
+import { BOOSTS, HABIT, TRAIN } from '@r/content/character';
 import { OUTLETS, SUPPLY } from '@r/content/supply';
 import { endDay, STRAIGHT } from './tick';
 import type { Action, Affordance } from './actions';
@@ -322,6 +324,22 @@ function canInner(w: World, a: Action): Affordance {
       const bad = a.products.find(x => !OUTLETS[b.type]![x]);
       return bad ? no(`They have no call for ${bad}.`) : yes();
     }
+    case 'train': {
+      const why = trainBlock(w, a.skill, a.at); if (why) return no(why);
+      if (busy) return no(busy);
+      const fee = trainFee(w, a.at);
+      const e = ap(TRAIN.ap) ?? (fee ? cost(w, fee) : undefined); return e ? no(e) : yes({ ap: TRAIN.ap, cash: fee || undefined });
+    }
+    case 'take_boost': {
+      const why = boostBlock(w, a.kind, a.at); if (why) return no(why);
+      if (p.boost?.day === w.day && p.boost.kinds.includes(a.kind)) return no('Once a day is plenty.');
+      const e = cost(w, BOOSTS[a.kind].price); return e ? no(e) : yes({ cash: BOOSTS[a.kind].price });
+    }
+    case 'dry_out': {
+      const fx = w.fixerId ? w.npcs[w.fixerId] : undefined; if (!fx?.alive || !fx.rel.met) return no('Find the fixer first: the doctor is his.');
+      if ((p.habit ?? 0) < 10) return no('You have nothing to dry out from.');
+      const e = ap(HABIT.dryOut.ap) ?? cost(w, HABIT.dryOut.price); return e ? no(e) : yes({ ap: HABIT.dryOut.ap, cash: HABIT.dryOut.price });
+    }
     case 'run_delivery': {
       const o = ordersIn(w, cityOfBlock(w, p.blockId));
       if (!o.lots) return no('No orders here that the stash can fill: set a place to take your product, and have some.');
@@ -529,6 +547,9 @@ export function dispatch(world: World, a: Action): World {
       break;
     }
     case 'run_delivery': runDelivery(w, rng); break;
+    case 'train': { const fee = trainFee(w, a.at); if (fee) spend(w, fee); train(w, a.skill, a.at); break; }
+    case 'take_boost': spend(w, BOOSTS[a.kind].price); takeBoost(w, a.kind); break;
+    case 'dry_out': spend(w, HABIT.dryOut.price); dryOut(w); break;
     case 'buy_bullets': spend(w, a.n * BULLETS.price); p.bullets += a.n; log(w, `A box of ${a.n} rounds.`, 'info'); break;
     case 'patch_up': spend(w, HURT.doctor); p.hurtDays = Math.floor((p.hurtDays ?? 0) / 2); log(w, 'A doctor who does not write anything down sets it, stitches it, and takes cash.', 'good'); break;
     case 'seen_fight': if (w.fight) w.fight.seen = true; break;

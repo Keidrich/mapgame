@@ -19,6 +19,7 @@ import { buildJob } from './jobs';
 import { bedsTotal } from './select-core';
 import { crewCost, crewOf, crewWage } from './streetcrews';
 import { isNight, whereIs } from './clock';
+import { characterFactors } from './character';
 
 export type SceneKind = 'chat' | 'intimidate' | 'protect' | 'squeeze' | 'recruit' | 'bribe' | 'settle' | 'lean' | 'buy' | 'favour' | 'crew_pay' | 'crew_take' | 'crew_run';
 
@@ -45,7 +46,15 @@ export function quote(w: World, kind: SceneKind, npcId: Id, opts: { businessId?:
   const n = w.npcs[npcId];
   const p = w.player;
   const biz = opts.businessId ? w.businesses[opts.businessId] : n.workId ? w.businesses[n.workId] : undefined;
-  const q = (x: Partial<SceneQuote> & { label: string }): SceneQuote => ({ kind, chance: 100, factors: [], ap: 1, gain: '', risk: '', ...x });
+  // every rolled quote carries your character's lines (reputation, a bump, the shakes) on top of its
+  // own, so the button and the dice agree without each case having to remember them
+  const q = (x: Partial<SceneQuote> & { label: string }): SceneQuote => {
+    const base: SceneQuote = { kind, chance: 100, factors: [], ap: 1, gain: '', risk: '', ...x };
+    // a quote you only have to walk to still shows its odds (the sheet greys it but keeps the number)
+    if (x.chance === undefined || x.chance >= 100 || (x.disabled && !x.disabled.startsWith('Go to'))) return base;
+    const extra = characterFactors(w, kind);
+    return extra.length ? { ...base, chance: clamp(base.chance + extra.reduce((t, e) => t + e.n, 0), 5, 95), factors: [...base.factors, ...extra] } : base;
+  };
   if (!n?.alive) return q({ label: 'Nobody', disabled: 'They are gone.' });
   if (n.jailedDays) return q({ label: 'Nobody', disabled: `${cap(they(n))} ${vb(n, 'are', 'is')} in a cell for ${n.jailedDays} more days.` });
   // where they are at this hour (`clock.whereIs`): by day at work or at home, by night out at their

@@ -7,7 +7,7 @@ import type { PLAYER } from './types';
 import type { SceneKind } from './scenes';
 import type { HostageChoice } from './hostages';
 import type { CheatKind } from './cheats';
-import type { Approach, Assignment, CityId, Id, ItemId, Slot, JobKind, LabKind, Owner, Product, RacketKind, SpecialistKind } from './types';
+import type { Approach, Assignment, CityId, Id, ItemId, Slot, JobKind, LabKind, Owner, Product, RacketKind, Skill, SpecialistKind } from './types';
 
 export type Action =
   | { type: 'travel'; blockId: Id }
@@ -55,6 +55,9 @@ export type Action =
   | { type: 'retire' }
   | { type: 'set_outlet'; businessId: Id; products: Product[] }
   | { type: 'run_delivery' }
+  | { type: 'train'; skill: Skill; at: Id | 'books' }
+  | { type: 'take_boost'; kind: 'pep' | 'nerve'; at: Id | 'fixer' }
+  | { type: 'dry_out' }
   | { type: 'attack'; factionId: Owner; blockId: Id; crewIds: Id[] }
   | { type: 'buy_bullets'; n: number; at: Id | 'fixer' }
   | { type: 'patch_up' }
