@@ -7,6 +7,7 @@
 import { BUSINESSES, LABS, OFFICIALS, PRODUCTS, RACKETS, SAFEHOUSE_TIERS } from '@r/content/world';
 import { FAIR_RATE, labOutput, labQuality, protectionTake, racketIncome, rankOf, sellCapacity, stashTotal, streetPrice, washCap, washRate, netWorth } from './economy';
 import { drawEvents } from './events';
+import { splitHours } from '@r/content/clock';
 import { tickFactions } from './factions';
 import { tickHostages } from './hostages';
 import { tickCommission } from './commission';
@@ -194,7 +195,9 @@ export function endDay(w: World, rng: Rng) {
   if (p.fear > 20 && day % 3 === 0) p.fear = clamp(p.fear - 1);
   if (p.lowDays > 0) p.lowDays--;
   p.apMax = rankOf(w).ap;
-  p.ap = p.lowDays > 0 ? 0 : p.apMax;
+  // morning: the day's half of the hours; the night's half comes at nightfall (`clock.ts`)
+  w.phase = 'day';
+  p.ap = p.lowDays > 0 ? 0 : splitHours(p.apMax).day;
   for (const k of Object.keys(p.stash) as Product[]) p.stash[k].n = Math.max(0, Math.round(p.stash[k].n));
   p.cash = Math.round(p.cash); p.dirty = Math.round(p.dirty);
 

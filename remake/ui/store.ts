@@ -33,6 +33,8 @@ export interface UiState {
   layer: Layer;
   /** The map in 3D (`CityMap3D.tsx`) instead of flat. A device setting, remembered on this device, not in the save. */
   map3d: boolean;
+  /** The dusk card for a moment after night falls. */
+  dusk?: boolean;
   /** A request for the map to fly somewhere. Bumped, not stored: the map reads and clears it. */
   focus?: { blockId: Id; n: number };
   /** A city you are looking at on the map without being there (the region sheet's "look at the map"). */
@@ -173,6 +175,9 @@ export function act(a: Action): boolean {
     const h = next.history[next.history.length - 1];
     const lines = next.log.filter(l => l.day >= w.day && l.day < next.day && LOUD.has(l.tone) && !/^Day \d+ ends/.test(l.text));
     patch.recap = h ? { day: h.day, clean: h.clean, dirty: h.dirty, spent: h.spent, heat: h.heat, washed: h.washed ?? 0, headline: next.news[next.news.length - 1]?.text, lines: lines.slice(-12) } : null;
+  } else if (a.type === 'nightfall') {
+    // dusk: a moment of the city going dark, then tonight's encounter if there is one
+    patch.dusk = true; setTimeout(() => set({ dusk: false }), 1500);
   } else {
     const toasts = newOnes.filter(l => LOUD.has(l.tone) || a.type === 'scene').map(l => ({ id: toastSeq++, text: l.text, tone: l.tone }));
     if (toasts.length) { patch.toasts = [...state.toasts, ...toasts].slice(-3); for (const t of toasts) setTimeout(() => dismissToast(t.id), 4200); }

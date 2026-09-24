@@ -433,6 +433,8 @@ export interface Job {
   heat: number;
   /** Chance per job that somebody sees something and a case file opens. */
   exposure: number;
+  /** Offered at night for that night only (`clock.ts`): gone in the morning whether taken or not. */
+  tonight?: boolean;
   status: 'offer' | 'planning' | 'ready' | 'paused' | 'done' | 'failed' | 'expired';
   approach?: Approach;
   crewIds: Id[];
@@ -515,7 +517,7 @@ export type Effect =
   | { k: 'evidence'; caseId: Id; n: number }
   | { k: 'openCase'; crime: CaseCrime; suspect: Id | 'player'; witnessId?: Id; summary: string }
   | { k: 'racketDown'; racketId: Id; days: number }
-  | { k: 'jobOffer'; job: Omit<Job, 'id'> }
+  | { k: 'jobOffer'; job: Omit<Job, 'id'>; /** Gone by morning: an offer that exists only tonight. */ tonight?: boolean }
   | { k: 'schedule'; template: string; days: number; npcId?: Id; businessId?: Id; factionId?: Owner }
   | { k: 'log'; text: string; tone: Tone };
 
@@ -583,6 +585,8 @@ export interface World {
   seed: number;
   rng: number;
   day: number;
+  /** Which half of the day it is (`sim/clock.ts`). Absent in saves from before day and night: day. */
+  phase?: 'day' | 'night';
   city: City;
   districts: Record<Id, District>;
   blocks: Record<Id, Block>;

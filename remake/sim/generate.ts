@@ -7,6 +7,7 @@
  * order and every existing seed becomes a different city — which is allowed, but bump
  * `WORLD_VERSION` when you do, because a saved seed would no longer mean what it meant.
  */
+import { splitHours } from '@r/content/clock';
 import { BACKGROUNDS, BUSINESSES, DISTRICTS, OFFICIALS, STYLES, TRAITS } from '@r/content/world';
 import { NAME_GROUP_IDS, businessName, factionName, nickname, personName, styleGroup, type NameGroup } from '@r/content/names';
 import { generateCity, type CitySize, type GeneratedCity } from './city';
@@ -41,7 +42,7 @@ export function newWorld(opts: NewGame): World {
   const gen = generateCity(opts.seed, opts.size);
   const rng = new Rng(opts.seed ^ 0x7e11);
   const w: World = {
-    version: WORLD_VERSION, seed: opts.seed, rng: 0, day: 1,
+    version: WORLD_VERSION, seed: opts.seed, rng: 0, day: 1, phase: 'day',
     city: gen.city, districts: gen.districts, blocks: gen.blocks,
     businesses: {}, npcs: {}, factions: {}, rackets: {}, safehouses: {}, jobs: {}, cases: {}, crews: {}, hostages: {}, commission: newCommission(),
     events: [], scheduled: [], log: [], news: [], history: [], nextId: 1,
@@ -66,7 +67,7 @@ export function newWorld(opts: NewGame): World {
   w.player = {
     name: opts.name.trim() || 'Nobody', nick: opts.nick?.trim() || undefined, background: opts.background, face: rng.int(1, 2 ** 30),
     skills, xp: { muscle: 0, brains: 0, charm: 0, wheels: 0, tech: 0 },
-    cash: bg.cash, dirty: 0, heat: 0, fear: opts.background === 'bruiser' ? 8 : 0, respect: 0, ap: 8, apMax: 8,
+    cash: bg.cash, dirty: 0, heat: 0, fear: opts.background === 'bruiser' ? 8 : 0, respect: 0, ap: splitHours(8).day, apMax: 8,
     blockId: start.id, crewIds: [], businessIds: [], racketIds: [], safehouseIds: [],
     stash: { booze: { n: 0, q: 0 }, green: { n: 0, q: 0 }, pills: { n: 0, q: 0 }, goods: { n: 0, q: 0 } },
     armoury: [], kit: {}, lawyer: false, washedToday: 0, lowDays: 0, straightDays: 0, busts: 0, generation: 1,
@@ -340,6 +341,8 @@ function pickStart(w: World, rng: Rng): Block {
  * with the same seed would.
  */
 export function migrate(w: World): World {
+  // day and night: a save from before them wakes up in the morning with the day's half of its hours
+  if (!w.phase) { w.phase = 'day'; w.player.ap = Math.min(w.player.ap, splitHours(w.player.apMax).day); }
   if (!w.crews) generateStreetCrews(w);
   migrateGear(w);
   if (!w.hostages) w.hostages = {};

@@ -18,6 +18,7 @@ import { addHeat, addInfluence, clamp, fullName, log, money, remember, shortName
 import { buildJob } from './jobs';
 import { bedsTotal } from './select-core';
 import { crewCost, crewOf, crewWage } from './streetcrews';
+import { isNight, whereIs } from './clock';
 
 export type SceneKind = 'chat' | 'intimidate' | 'protect' | 'squeeze' | 'recruit' | 'bribe' | 'settle' | 'lean' | 'buy' | 'favour' | 'crew_pay' | 'crew_take' | 'crew_run';
 
@@ -47,8 +48,12 @@ export function quote(w: World, kind: SceneKind, npcId: Id, opts: { businessId?:
   const q = (x: Partial<SceneQuote> & { label: string }): SceneQuote => ({ kind, chance: 100, factors: [], ap: 1, gain: '', risk: '', ...x });
   if (!n?.alive) return q({ label: 'Nobody', disabled: 'They are gone.' });
   if (n.jailedDays) return q({ label: 'Nobody', disabled: `${cap(they(n))} ${vb(n, 'are', 'is')} in a cell for ${n.jailedDays} more days.` });
-  const here = n.homeBlockId === p.blockId || (biz && biz.blockId === p.blockId);
-  const away = here ? undefined : `Go to ${w.blocks[n.homeBlockId].name} first.`;
+  // where they are at this hour (`clock.whereIs`): by day at work or at home, by night out at their
+  // haunt or on their corner. By day either their home or their place of work will do, as before;
+  // by night you have to go where they are
+  const at = whereIs(w, n);
+  const here = at === p.blockId || (!isNight(w) && (n.homeBlockId === p.blockId || (biz && biz.blockId === p.blockId)));
+  const away = here ? undefined : `Go to ${w.blocks[at]?.name ?? w.blocks[n.homeBlockId].name} first.`;
   switch (kind) {
     case 'chat': {
       const gain = Math.round(4 + p.skills.charm * 0.9 + traitMod(n, 'connected', 2) - traitMod(n, 'honest', 0) + (p.background === 'grifter' ? 3 : 0));
@@ -65,6 +70,7 @@ export function quote(w: World, kind: SceneKind, npcId: Id, opts: { businessId?:
       if (n.traits.includes('coward')) f.push({ label: TRAITS.coward.label, n: 15 });
       if (n.traits.includes('tough')) f.push({ label: TRAITS.tough.label, n: -12 });
       if (p.background === 'bruiser') f.push({ label: 'You look like trouble', n: 8 });
+      if (isNight(w)) f.push({ label: 'After dark, with nobody watching', n: 6 });
       const chance = clamp(35 + f.reduce((t, x) => t + x.n, 0), 5, 95);
       const risk = n.traits.includes('hothead') ? 'A hothead may swing at you.' : n.traits.includes('honest') ? 'An honest one may go to the police.' : 'They hate you a little more either way.';
       return q({ label: 'Lean on them', chance, factors: f, gain: 'Their fear rises, and the street hears about it.', risk, disabled: away });

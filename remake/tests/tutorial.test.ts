@@ -18,7 +18,7 @@ describe('the tutorial', () => {
       const r = tutorial({ days: 25, seed, background });
       const open = r.steps.filter(s => OPENING.includes(s.id));
       expect(open.filter(s => s.done === undefined).map(s => `${s.id}: ${s.stuck.slice(-2).join(' | ')}`)).toEqual([]);
-    });
+    }, 30000);
   }
 
   it('introducing yourself on day one counts', () => {

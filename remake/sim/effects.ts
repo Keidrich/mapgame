@@ -43,7 +43,7 @@ export function apply(w: World, effects: Effect[], rng: Rng) {
       case 'evidence': { const c = w.cases[e.caseId]; if (c) c.evidence = clamp(c.evidence + e.n); break; }
       case 'openCase': openCase(w, e.crime, e.suspect, e.witnessId, e.summary); break;
       case 'racketDown': { const r = w.rackets[e.racketId]; if (r) r.down = Math.max(r.down, e.days); break; }
-      case 'jobOffer': { const j = e.job; const built = buildJob(w, rng, { kind: j.kind, blockId: j.blockId, businessId: j.targetBusinessId, npcId: j.targetNpcId, faction: j.targetFaction, source: j.sourceId ? w.npcs[j.sourceId] : undefined }); if (built) { built.intel = j.intel; if (j.title) built.title = j.title; } break; }
+      case 'jobOffer': { const j = e.job; const built = buildJob(w, rng, { kind: j.kind, blockId: j.blockId, businessId: j.targetBusinessId, npcId: j.targetNpcId, faction: j.targetFaction, source: j.sourceId ? w.npcs[j.sourceId] : undefined }); if (built) { built.intel = j.intel; if (j.title) built.title = j.title; if (e.tonight) { built.expires = w.day; built.planDays = 0; built.tonight = true; } } break; }
       case 'schedule': w.scheduled.push({ day: w.day + e.days, template: e.template, npcId: e.npcId, businessId: e.businessId, factionId: e.factionId }); break;
       case 'log': log(w, e.text, e.tone); break;
     }

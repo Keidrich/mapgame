@@ -519,3 +519,108 @@ on seed 7 and found three more, fixed:
 
 The lieutenant step stays blocked for a rookie through sixty days — nobody reaches level 2 and
 loyalty 55 by following the strip alone — and says so. That is the long game, not a break.
+
+## 14. Day and night
+
+Every day has two halves (`sim/clock.ts`; the rules are data in `content/clock.ts`).
+
+- **Hours.** The day keeps its whole allowance (8 hours at the start, 11 at Kingpin). **Nightfall**
+  is a button, not the end of the day: it closes the day's doors, opens the night's, and gives
+  **3 more hours** (`splitHours`). **Sleep** runs the nightly tick as before. The night is extra
+  rather than carved out of the day, because carving it out halved the daylight territory game:
+  - Steady bot, over five seeds: control 23% before day and night.
+  - Split 5/3: 15%.
+  - Full day + 3 night hours: 24%.
+- **Different people.** `clock.whereIs`:
+  - By day, owners and workers are at work, and everybody else is at home.
+  - By night, the regulars are out at their haunt (the first place that lists them as a patron), a
+    corner crew's boss is on the corner, and owners have gone home.
+  - A person's sheet says where they are now, and "Go to" goes there.
+  - By day, a scene works at someone's home or at their work, as before. By night you have to be
+    where they are.
+- **Different talks.** `SCENE_HOURS`:
+  - Day only: protection pitches, squeezing a till and buying a place.
+  - Night only: recruiting (nobody signs on sober) and dealing with corner crews.
+  - Either: talking, leaning and bribes. Leaning gets +6 after dark.
+  - A shut scene shows greyed out, with when it opens. That is how the clock is learned.
+- **Different opportunities.** `ACTION_HOURS`:
+  - Day only: washing money with the fixer (banking hours), renting and upgrading back rooms, and
+    the train.
+  - Night only: selling on the street and sit-downs (dinner in a back room).
+  - Shops sell by day. The fixer sells at any hour.
+- **Jobs by the hour.** `jobHour`, `hourFactor`, `seenMult`:
+  - Cons, frauds and hacks want business hours. Everything else wants the dark.
+  - In a job's own hour: +8 to the odds, and 0.7× the chance a witness opens a file.
+  - Out of it: −12 to the odds, and 1.35× the chance of a file.
+  - Both show on the job sheet's odds list.
+  - The bots wait for a job's hour unless it would expire first.
+- **Tonight.** At nightfall, most nights (70%), one encounter comes from the night pool
+  (`events.NIGHT`), built around the places open near you:
+  - a card game at the back of a bar (play straight for trust, or deal from the bottom);
+  - an off-duty official talking too much (trust, and maybe their secret);
+  - a load off the back of a truck;
+  - a rival crew drinking on your corner;
+  - a stranger with work that will not wait (a **tonight-only** job, `Job.tonight`, expired by
+    the nightly tick whether taken or not);
+  - a witness drinking alone;
+  - a bar fight you can step into;
+  - a patrolman's tip about a raid.
+- **Tutorial.** A step whose door is shut at this hour is blocked with the reason, and the strip
+  moves on: it points at recruiting by night and at protection by day.
+- **Screen.**
+  - The ledger bar reads Day or Night, and its hour ticks are this half's hours.
+  - The end button is **Nightfall** by day and **Sleep** by night.
+  - Nightfall plays a short dusk card with the city's name before tonight's encounter.
+  - By day the flat map lifts to an overcast grey, and the 3D city goes to daylight: sun, pale
+    walls, windows dark. At night it lights up.
+- **Old saves** wake in the morning with at most the day's hours (`migrate`). `end_day` pressed in
+  daylight sleeps through the night without playing it, which is what idle play does.
+
+**Balance (five seeds, 60 days, before → after):**
+
+| Bot | Control | Worth | Convicted | Heat |
+|---|---|---|---|---|
+| Steady | 23% → 24% | $60k → $76k | 0 → 0 | 47 → 58 |
+| Ruthless | 24% → 34% | — | 0 → 1 of 5 | — |
+| Maniac | — | — | 4 → 4 of 5 | — |
+| Timid, schemer | about the same | about the same | 0 → 0 | — |
+
+Nights add work and add risk.
+
+## 15. The road: the whole game
+
+The Remake is heading toward the full game its inspirations add up to: City of Gangsters (a
+business empire under the crime), Torn (a character you build, timers, a world to be in), and the
+old-school browser mafia games (ranks earned through crimes, a family with a hierarchy, the
+casino, cars, travel with contraband). Everything stays phone-first, one thumb, offline, a city
+generated from a seed.
+
+What exists: territory, protection and rackets; labs and product; crew with levels, loyalty and
+kit; seventy-two kinds of job with complications and set-piece heists; heat, case files, the law
+and officials; rival outfits with diplomacy, war and a Commission; hostages; a region of cities
+with trains and trade routes; day and night.
+
+What is next, in the order recommended:
+1. **The family.** Crew become a family with ranks — soldier, capo, consigliere, underboss —
+   each with duties (a capo runs a crew of soldiers; the consigliere improves sit-downs; the
+   underboss keeps things running when you are jailed), a making ceremony, and betrayal: rats,
+   coups, a successor who is not the one you chose.
+2. **Fights.** A real confrontation system: street fights, shootouts inside jobs and wars,
+   ambushes at night, injuries as hospital time, and a bullet economy (the old games' currency of
+   violence).
+3. **Supply chains** (City of Gangsters). Product has to be carried: stills and labs feed a
+   distribution network of the bars and clubs you own or protect, each with its own demand, and a
+   speakeasy is a business, not a number.
+4. **Your character** (Torn). Training at the gym by night and study by day raise skills; boosts
+   with an addiction cost; a reputation that opens doors (and closes them).
+5. **The back rooms.** Casino games as real minigames at night: poker at the card table the
+   night encounter already seats you at, dice, the numbers draw.
+6. **Cars.** Stealing and chopping cars; a garage; cars as kit for getaways and hijacks.
+7. **Stories.** A nemesis per city — a detective who is building a case on you by name, a rival
+   heir — with arcs across weeks rather than one-card events.
+8. **Seasons.** City-wide events: elections, a crackdown, a festival, a strike at the docks.
+
+Two larger decisions are deliberately left open:
+- **Multiplayer**, in the Torn sense of other real players in the same city. It needs a server,
+  which the game does not have.
+- **An App Store build** through Capacitor, which would add haptics and notifications.

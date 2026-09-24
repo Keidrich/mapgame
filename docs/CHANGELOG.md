@@ -14,6 +14,78 @@ House rules for an entry (see `CLAUDE.md` → *Leave a trail*):
 
 ---
 
+## 2026-09-24 — Remake: day and night, and the road to the full game
+
+**What.** Every day now has two halves, each with different people, conversations and
+opportunities.
+- The day keeps its whole allowance of hours.
+- **Nightfall** adds three hours after dark, in which:
+  - owners have gone home and the regulars are out at their bars;
+  - recruiting and corner crews happen, and product sells on the street;
+  - break-ins and hits go better, and cons and frauds go worse;
+  - most nights bring an encounter from a new night pool.
+- **Sleep** ends the day.
+- The 3D city goes to daylight by day and lights up at nightfall.
+- `docs/REMAKE.md` §15 now holds a roadmap for the full game, inspired by City of Gangsters, Torn and
+  the old browser mafia games.
+
+**Why.** The user asked: "Can we add a day/night as two separate things that provide different
+convos and opportunities? I want to build this game out fully."
+
+**How.**
+- **The rules are data.** `content/clock.ts` has `SCENE_HOURS`, `ACTION_HOURS`, `JOB_HOUR` and
+  `splitHours`. `sim/clock.ts` reads them against the world:
+  - `half` / `isNight` / `hours`;
+  - `whereIs` / `whereLine`: where a person is at this hour;
+  - `closedNow`, which `can()` asks first, so a shut door says so before anything else;
+  - `jobHour` / `hourFactor` / `seenMult`;
+  - `nightfall`.
+- **New state and actions.** `World.phase`, action `nightfall`, and `Job.tonight`, which the
+  nightly tick expires whether the job was taken or not.
+- **Night pool.** `events.NIGHT` holds eight encounters, drawn at nightfall (70% of nights).
+- **Scenes** use `whereIs`: by night you must be where they are; by day, home or work as before.
+  Leaning on someone gets +6 after dark.
+- **Tutorial.** Steps blocked by the hour say so, and the strip moves on (`select.leads` →
+  `hourOf`).
+- **Bots.** Each day plays the routine twice: day, then nightfall, then night. Bots go to where
+  people are now, and wait for a job's own hour. The rookie plays both halves too.
+- **Screen.**
+  - The ledger bar reads Day or Night and ticks this half's hours.
+  - The end button reads Nightfall or Sleep.
+  - A dusk card plays before tonight's encounter.
+  - The person sheet shows where they are now, and shut scenes are greyed with their reason.
+  - The flat map goes overcast by day; the 3D map gets a sun, pale walls and dark windows.
+- **Tuning.** The first cut split the day's hours between the halves (5/3), which squeezed the
+  daylight territory game: the steady bot held 15% instead of 23%. The fix is to make the night
+  extra. Jobs in their own hour also leave fewer witnesses (×0.7), so aggressive bots are not
+  convicted for playing at night.
+
+**Numbers** (five seeds, 60 days, before → after):
+- Steady: control 23% → 24%, worth $60k → $76k, never convicted.
+- Ruthless: control 24% → 34%; convicted in 1 of 5 cities (was 0).
+- Maniac: convicted in 4 of 5, unchanged.
+- Timid and schemer: about the same, never convicted.
+- Rookie tutorial: opening done by day 14 or earlier.
+- Tests: 2137 pass, 8 of them new in `daynight.test.ts`.
+- The honest baseline in the original game is unchanged.
+
+**Watch out.**
+- New cities are born with `phase: 'day'`. Old saves wake in the morning, with their hours clamped
+  to the day's by `migrate`. No save bump.
+- `end_day` pressed in daylight sleeps through the night without playing it. Idle play relies on
+  this, so keep it.
+- `npm run tutorial:ui` now takes over ten minutes, because every day is two halves. Its move
+  limit is 500.
+- More night encounters would be the cheapest way to add variety. The roadmap's larger pillars
+  (the family, fights, supply chains) are not started.
+
+**Files.**
+- New: `remake/content/clock.ts`, `remake/sim/clock.ts`, `remake/tests/daynight.test.ts`.
+- Changed: `remake/sim/{types,actions,effects,events,generate,jobs,reducer,scenes,select,tick}.ts`,
+  `remake/scripts/{bot,tutorial}.ts`, `remake/scripts/ui-tutorial.mjs`,
+  `remake/tests/tutorial.test.ts`, `remake/ui/{App.tsx,store.ts,remake.css}`,
+  `remake/ui/components/{CityMap3D,PersonSheet}.tsx`, and `docs/REMAKE.md` §14–15.
+
 ## 2026-09-24 — Remake: the city in 3D (three.js), behind a 3D/2D toggle
 
 **What.** A 3D map of the city: every lot extruded into a building, lit windows, the overlay on the

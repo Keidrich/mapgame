@@ -14,6 +14,7 @@
  *   3. Nothing launches blind. A complication stops the job and asks, with each answer's check
  *      and price on the button.
  */
+import { hourFactor, seenMult } from './clock';
 import { APPROACH_INFO, BUSINESSES, JOBS, SPECIALISTS } from '@r/content/world';
 import { NAME_GROUP_IDS, personName } from '@r/content/names';
 import { COMPLICATIONS, PITCH, TITLE } from '@r/content/jobtext';
@@ -100,6 +101,8 @@ export function jobOdds(w: World, job: Job, crewIds: Id[], approach: Approach): 
   if (w.player.background === 'hacker' && (like === 'hack' || like === 'fraud')) factors.push({ label: 'You wrote half of this code', n: 8 });
   if (w.player.background === 'grifter' && like === 'con') factors.push({ label: 'The long game is your game', n: 8 });
   const jitter = junkieDrag(w, crewIds); if (jitter) factors.push({ label: 'Somebody on the team is using', n: jitter });
+  // the hour: break-ins and hits want the dark, cons and frauds want the mark at the desk (`clock.ts`)
+  factors.push(hourFactor(w, job.kind));
   const chance = clamp(50 + factors.reduce((t, f) => t + f.n, 0), 5, 95);
   return { chance, factors, required: Math.round(required * 10) / 10, team: Math.round(team * 10) / 10 };
 }
@@ -295,6 +298,12 @@ export function dropJob(w: World, job: Job) {
 
 export function tickJobs(w: World) {
   for (const j of Object.values(w.jobs)) {
+    // tonight's work does not keep till morning: offered or waiting, it is gone and the people on it are free
+    if (j.tonight && (j.status === 'offer' || j.status === 'ready' || j.status === 'planning')) {
+      j.status = 'expired';
+      for (const id of j.crewIds) { const n = w.npcs[id]; if (n?.crew?.assignment?.kind === 'job' && n.crew.assignment.jobId === j.id) n.crew.assignment = undefined; }
+      continue;
+    }
     if (j.status === 'planning') { j.daysLeft--; j.intel++; if (j.daysLeft <= 0) { j.status = 'ready'; log(w, `${j.title} is planned. Launch it when you are ready.`, 'info'); } }
     else if (j.status === 'ready') j.intel = Math.min(j.intel + 0.5, 4);
     else if (j.status === 'offer' && w.day > j.expires) j.status = 'expired';
@@ -399,7 +408,7 @@ function finishJob(w: World, job: Job, rng: Rng, mult: number, extraHeat: number
     f.grievances.unshift(job.title); f.grievances = f.grievances.slice(0, 5);
   }
   // somebody saw something
-  if (rng.chance(def.exposure * (success ? 1 : 1.6) * ap.heat)) {
+  if (rng.chance(def.exposure * (success ? 1 : 1.6) * ap.heat * seenMult(w, job.kind))) {
     const witnesses = Object.values(w.npcs).filter(n => n.alive && n.homeBlockId === job.blockId && !n.crew && !n.faction && n.rel.fear < 50);
     const wit = witnesses.length ? rng.pick(witnesses) : undefined;
     const suspect = job.crewIds.length && rng.chance(0.6) ? rng.pick(job.crewIds) : PLAYER;

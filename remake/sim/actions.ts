@@ -53,6 +53,7 @@ export type Action =
   | { type: 'lay_low'; days: number }
   | { type: 'resolve_event'; eventId: Id; optionId: string }
   | { type: 'retire' }
+  | { type: 'nightfall' }
   | { type: 'end_day' }
   | { type: 'seen_win' }
   // --- testing: stamps the save as tested (`cheats.ts`)

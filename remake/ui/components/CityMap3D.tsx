@@ -29,7 +29,7 @@ import { mute } from './tone';
 const AMBER = new THREE.Color('#e9a23b');
 const HEIGHT: Record<string, number> = { downtown: 2.4, strip: 1.2, market: 1, heights: 0.75, projects: 1.5, docks: 0.55, industrial: 0.7, oldtown: 0.6, suburb: 0.35 };
 
-export interface Map3DProps { w: World; layer?: Layer; onBlock?: (id: Id) => void; selected?: Id; focus?: { blockId: Id; n: number } }
+export interface Map3DProps { w: World; layer?: Layer; night?: boolean; onBlock?: (id: Id) => void; selected?: Id; focus?: { blockId: Id; n: number } }
 
 /** True when this device can draw WebGL at all; the caller falls back to the flat map when not. */
 export function canWebGL(): boolean {
@@ -59,6 +59,7 @@ function pushPoly(pos: number[], poly: Vec[], y: number) {
 }
 
 interface Built {
+  mats: { walls: THREE.MeshLambertMaterial; ground: THREE.MeshLambertMaterial; water: THREE.MeshPhongMaterial };
   root: THREE.Group;
   slabs: THREE.Mesh; slabBlock: Id[]; slabColor: THREE.BufferAttribute;
   roofBlock: Id[]; roofColor: THREE.BufferAttribute;
@@ -77,7 +78,8 @@ function build(w: World): Built {
   const keep = <T extends { dispose: () => void }>(x: T) => { disposables.push(x); return x; };
 
   // ground past the edge of town
-  const ground = new THREE.Mesh(keep(new THREE.PlaneGeometry(city.width * 6, city.height * 6)), keep(new THREE.MeshLambertMaterial({ color: '#101114' })));
+  const groundMat = keep(new THREE.MeshLambertMaterial({ color: '#101114' }));
+  const ground = new THREE.Mesh(keep(new THREE.PlaneGeometry(city.width * 6, city.height * 6)), groundMat);
   ground.rotation.x = -Math.PI / 2; ground.position.set(city.width / 2, -1, city.height / 2);
   root.add(ground);
 
@@ -130,7 +132,8 @@ function build(w: World): Built {
   wg.setAttribute('uv', new THREE.Float32BufferAttribute(wu, 2));
   wg.setAttribute('color', new THREE.Float32BufferAttribute(wc, 3));
   const tex = keep(windowTexture());
-  const walls = new THREE.Mesh(wg, keep(new THREE.MeshLambertMaterial({ color: '#4a505a', vertexColors: true, emissive: '#ffffff', emissiveMap: tex, emissiveIntensity: 1, side: THREE.DoubleSide })));
+  const wallMat = keep(new THREE.MeshLambertMaterial({ color: '#4a505a', vertexColors: true, emissive: '#ffffff', emissiveMap: tex, emissiveIntensity: 1, side: THREE.DoubleSide }));
+  const walls = new THREE.Mesh(wg, wallMat);
   root.add(walls);
   // roofs carry the overlay: from above, who holds a block reads off the tops of its buildings
   const rg = keep(new THREE.BufferGeometry());
@@ -171,14 +174,15 @@ function build(w: World): Built {
   }
   return {
     root, slabs, slabBlock, slabColor, roofBlock, roofColor, cell,
+    mats: { walls: wallMat, ground: groundMat, water: waterMat },
     hits: [slabs, walls, roofs], hitBlock: [slabBlock, wallBlock, roofBlock],
     dispose: () => disposables.forEach(d => d.dispose()),
   };
 }
 
 /** What a block's slab looks like under an overlay: the same rules as the flat map's fills. */
-function slabTint(w: World, b: Block, layer: Layer): THREE.Color {
-  const base = new THREE.Color(select.isParkBlock(b) ? '#16241b' : '#1d2025');
+function slabTint(w: World, b: Block, layer: Layer, night = true): THREE.Color {
+  const base = new THREE.Color(select.isParkBlock(b) ? (night ? '#16241b' : '#3d5a45') : (night ? '#1d2025' : '#6d7178'));
   let col: THREE.Color | undefined, k = 0;
   if (layer === 'control') {
     let best = 0, who: string | undefined;
@@ -190,11 +194,11 @@ function slabTint(w: World, b: Block, layer: Layer): THREE.Color {
   return col ? base.lerp(col, Math.min(1, k)) : base;
 }
 
-export default function CityMap3D({ w, layer = 'control', onBlock, selected, focus }: Map3DProps) {
+export default function CityMap3D({ w, layer = 'control', night = true, onBlock, selected, focus }: Map3DProps) {
   const host = useRef<HTMLDivElement>(null);
   const labels = useRef<HTMLDivElement>(null);
   // the three.js side lives outside React: created once per city, fed the world on every change
-  const three = useRef<{ renderer: THREE.WebGLRenderer; scene: THREE.Scene; camera: THREE.PerspectiveCamera; controls: MapControls; built: Built; dirty: () => void; beacon: THREE.Group; marks: THREE.Group; outline: THREE.LineLoop; sel: THREE.LineLoop; fly: (x: number, z: number) => void; dispose: () => void } | null>(null);
+  const three = useRef<{ sky: THREE.HemisphereLight; moon: THREE.DirectionalLight; beamMat: THREE.MeshBasicMaterial; renderer: THREE.WebGLRenderer; scene: THREE.Scene; camera: THREE.PerspectiveCamera; controls: MapControls; built: Built; dirty: () => void; beacon: THREE.Group; marks: THREE.Group; outline: THREE.LineLoop; sel: THREE.LineLoop; fly: (x: number, z: number) => void; dispose: () => void } | null>(null);
   const cb = useRef({ onBlock });
   cb.current.onBlock = onBlock;
 
@@ -214,7 +218,7 @@ export default function CityMap3D({ w, layer = 'control', onBlock, selected, foc
     scene.background = new THREE.Color('#07080a');
     scene.fog = new THREE.FogExp2('#07080a', 1.1 / span);
     scene.add(built.root);
-    scene.add(new THREE.HemisphereLight('#6a6660', '#141416', 1.5));
+    const sky = new THREE.HemisphereLight('#6a6660', '#141416', 1.5); scene.add(sky);
     const moon = new THREE.DirectionalLight('#b8c2d6', 0.7); moon.position.set(-0.4, 1, 0.3); scene.add(moon);
 
     const camera = new THREE.PerspectiveCamera(42, 1, cell * 0.05, span * 6);
@@ -231,7 +235,8 @@ export default function CityMap3D({ w, layer = 'control', onBlock, selected, foc
 
     // the beacon on your block, your places, the outlines
     const beacon = new THREE.Group();
-    const beam = new THREE.Mesh(new THREE.CylinderGeometry(cell * 0.03, cell * 0.07, cell * 5, 16, 1, true), new THREE.MeshBasicMaterial({ color: AMBER, transparent: true, opacity: 0.16, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+    const beamMat = new THREE.MeshBasicMaterial({ color: AMBER, transparent: true, opacity: 0.16, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
+    const beam = new THREE.Mesh(new THREE.CylinderGeometry(cell * 0.03, cell * 0.07, cell * 5, 16, 1, true), beamMat);
     beam.position.y = cell * 2.5; beacon.add(beam);
     const ring = new THREE.Mesh(new THREE.RingGeometry(cell * 0.14, cell * 0.2, 32), new THREE.MeshBasicMaterial({ color: AMBER, transparent: true, opacity: 0.9, side: THREE.DoubleSide }));
     ring.rotation.x = -Math.PI / 2; ring.position.y = 2; beacon.add(ring);
@@ -322,7 +327,7 @@ export default function CityMap3D({ w, layer = 'control', onBlock, selected, foc
     loop();
 
     three.current = {
-      renderer, scene, camera, controls, built, dirty, beacon, marks, outline, sel, fly,
+      sky, moon, beamMat, renderer, scene, camera, controls, built, dirty, beacon, marks, outline, sel, fly,
       dispose: () => {
         cancelAnimationFrame(raf); ro.disconnect(); controls.dispose();
         renderer.domElement.removeEventListener('pointerdown', onDown); renderer.domElement.removeEventListener('pointerup', onUp); renderer.domElement.removeEventListener('pointercancel', cancel); renderer.domElement.removeEventListener('click', onClick);
@@ -346,13 +351,13 @@ export default function CityMap3D({ w, layer = 'control', onBlock, selected, foc
     const byBlock = new Map<Id, THREE.Color>();
     for (let tri = 0; tri < built.slabBlock.length; tri++) {
       const id = built.slabBlock[tri];
-      let c = byBlock.get(id); if (!c) { c = slabTint(w, w.blocks[id], layer); byBlock.set(id, c); }
+      let c = byBlock.get(id); if (!c) { c = slabTint(w, w.blocks[id], layer, night); byBlock.set(id, c); }
       for (let k = 0; k < 3; k++) { arr[(tri * 3 + k) * 3] = c.r; arr[(tri * 3 + k) * 3 + 1] = c.g; arr[(tri * 3 + k) * 3 + 2] = c.b; }
     }
     built.slabColor.needsUpdate = true;
     const roof = built.roofColor.array as Float32Array;
     for (let tri = 0; tri < built.roofBlock.length; tri++) {
-      const c = byBlock.get(built.roofBlock[tri]) ?? slabTint(w, w.blocks[built.roofBlock[tri]], layer);
+      const c = byBlock.get(built.roofBlock[tri]) ?? slabTint(w, w.blocks[built.roofBlock[tri]], layer, night);
       const r = c.r * 1.25 + 0.03, g = c.g * 1.25 + 0.03, b = c.b * 1.25 + 0.035;
       for (let k = 0; k < 3; k++) { roof[(tri * 3 + k) * 3] = r; roof[(tri * 3 + k) * 3 + 1] = g; roof[(tri * 3 + k) * 3 + 2] = b; }
     }
@@ -381,7 +386,25 @@ export default function CityMap3D({ w, layer = 'control', onBlock, selected, foc
       t.marks.add(m);
     }
     t.dirty();
-  }, [w, layer, selected]);
+  }, [w, layer, selected, night]);
+
+  // the hour: by night the city is lit by its own windows; by day an overcast sky, the windows dark
+  useEffect(() => {
+    const t = three.current; if (!t) return;
+    const span = Math.max(w.city.width, w.city.height);
+    const bg = night ? '#07080a' : '#8e969f';
+    (t.scene.background as THREE.Color).set(bg);
+    t.scene.fog = new THREE.FogExp2(bg, (night ? 1.1 : 0.7) / span);
+    t.sky.color.set(night ? '#6a6660' : '#e8ecf0'); t.sky.groundColor.set(night ? '#141416' : '#4a4a48'); t.sky.intensity = night ? 1.5 : 1.9;
+    t.moon.color.set(night ? '#b8c2d6' : '#fff1dc'); t.moon.intensity = night ? 0.7 : 1.6; t.moon.position.set(night ? -0.4 : 0.5, 1, night ? 0.3 : -0.35);
+    const m = t.built.mats;
+    m.walls.color.set(night ? '#4a505a' : '#9aa0a8'); m.walls.emissiveIntensity = night ? 1 : 0.06;
+    m.ground.color.set(night ? '#101114' : '#3a3c40');
+    m.water.color.set(night ? '#08121f' : '#2d4a66');
+    t.beamMat.opacity = night ? 0.16 : 0.32;
+    t.dirty();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [night, w.city]);
 
   // fly to a block when asked
   useEffect(() => {

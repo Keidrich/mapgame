@@ -61,7 +61,8 @@ export function tutorial(opts: { days: number; seed: number; size?: CitySize; ba
   /** The person sheet's "Go to" button, then a scene. */
   const scene = (id: string, npcId: Id, kind: select.SceneKind, extra: { businessId?: Id; rate?: number } = {}): boolean => {
     const n = w.npcs[npcId]; if (!n) return false;
-    if (w.player.blockId !== n.homeBlockId && !tryAct(id, { type: 'travel', blockId: n.homeBlockId })) return false;
+    const at = select.whereIs(w, n);   // at work or home by day, out at the bar by night
+    if (w.player.blockId !== at && !(w.player.blockId === n.homeBlockId && !select.isNight(w)) && !tryAct(id, { type: 'travel', blockId: at })) return false;
     return tryAct(id, { type: 'scene', kind, npcId, ...extra });
   };
   /** Whichever of talk or threat the sheet shows better odds for — what a rookie picks. */
@@ -75,6 +76,18 @@ export function tutorial(opts: { days: number; seed: number; size?: CitySize; ba
   while (w.day <= opts.days && !w.over) {
     answer();
     record();
+    // the day's half, then the night's: a step shut by day (recruiting) waits for dark, and one
+    // shut at night (protection) waits for morning — `nextLead` skips whichever is shut
+    playHalf();
+    answer();
+    if (can(w, { type: 'nightfall' }).ok) { w = dispatch(w, { type: 'nightfall' }); answer(); record(); playHalf(); }
+    answer();
+    w = dispatch(w, { type: 'end_day' });
+  }
+  record();
+  return { w, steps: [...steps.values()], actions, refusals };
+
+  function playHalf() {
     let guard = 0;
     while (w.player.ap > 0 && guard++ < 12) {
       const l = select.nextLead(w);
@@ -86,13 +99,9 @@ export function tutorial(opts: { days: number; seed: number; size?: CitySize; ba
       if (actions === before) grind(l.id);
       answer();
       record();
-      if (actions === before) break;   // nothing the strip taught can be done today
+      if (actions === before) break;   // nothing the strip taught can be done in this half
     }
-    answer();
-    w = dispatch(w, { type: 'end_day' });
   }
-  record();
-  return { w, steps: [...steps.values()], actions, refusals };
 
   function step(l: select.Lead) {
     const p = w.player;

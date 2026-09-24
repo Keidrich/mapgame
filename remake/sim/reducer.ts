@@ -23,6 +23,7 @@ import { PRODUCTS } from '@r/content/world';
 import { freeFromAssignment, practise } from './people';
 import { playScene, quote } from './scenes';
 import { blockCity, crewCity, travelCost } from './select-core';
+import { closedNow, isNight, nightfall } from './clock';
 import { endDay, STRAIGHT } from './tick';
 import type { Action, Affordance } from './actions';
 import { no, yes } from './actions';
@@ -40,10 +41,12 @@ export function can(w: World, a: Action): Affordance {
 function canInner(w: World, a: Action): Affordance {
   const p = w.player;
   if (w.over && a.type !== 'seen_win') return no('The game is over.');
-  const ap = (n: number) => (p.ap >= n ? undefined : n === 1 ? 'No action points left today. End the day.' : `Needs ${n} action points; you have ${p.ap}.`);
+  const ap = (n: number) => (p.ap >= n ? undefined : n === 1 ? (isNight(w) ? 'No hours left tonight. Get some sleep.' : 'No hours left today. Let night fall.') : `Needs ${n} hours; you have ${p.ap}.`);
   const busy = w.events.length && a.type !== 'resolve_event' ? 'Deal with what is in front of you first.' : undefined;
   const paused = Object.values(w.jobs).find(j => j.status === 'paused');
   if (paused && a.type !== 'answer' && a.type !== 'resolve_event') return no(`${paused.title} is waiting on your call.`);
+  // the clock first: a shut door says so before it says anything about money or hours
+  const shut = closedNow(w, a); if (shut) return no(shut);
   switch (a.type) {
     case 'travel': {
       if (!w.blocks[a.blockId]) return no('Nowhere.');
@@ -294,6 +297,7 @@ function canInner(w: World, a: Action): Affordance {
       return o.disabled ? no(o.disabled) : yes();
     }
     case 'retire': return p.straightDays >= STRAIGHT.days ? yes() : no(`Getting out needs ${money(STRAIGHT.clean)} clean, heat under ${STRAIGHT.heat} and no open files, held for ${STRAIGHT.days} days (${p.straightDays} so far).`);
+    case 'nightfall': return busy ? no(busy) : yes();
     case 'end_day': return busy ? no(busy) : yes();
     case 'seen_win': return yes();
     case 'cheat': return CHEATS.some(c => c.kind === a.what) ? yes() : no('No such tool.');
@@ -460,7 +464,9 @@ export function dispatch(world: World, a: Action): World {
       break;
     }
     case 'retire': { w.retired = true; w.over = { ending: 'straight', day: w.day, text: `You walk away with ${money(p.cash)} clean and nobody looking for you. In ${w.city.name} they still tell stories.` }; break; }
-    case 'end_day': endDay(w, rng); break;
+    case 'nightfall': nightfall(w, rng); break;
+    // in daylight, sleeping skips the night: no encounter, no night hours, straight to morning
+    case 'end_day': if (!isNight(w)) w.phase = 'night'; endDay(w, rng); break;
     case 'seen_win': w.wonSeen = true; break;
     case 'cheat': cheat(w, a.what, rng); break;
   }

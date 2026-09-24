@@ -54,11 +54,13 @@ function Game() {
   const tab = useUi(s => s.tab);
   const sheet = useUi(s => s.sheets[s.sheets.length - 1]);
   const recap = useUi(s => s.recap);
+  const dusk = useUi(s => s.dusk);
+  const night = select.isNight(w);
   const paused = select.pendingJob(w);
   const ready = Object.values(w.jobs).filter(j => j.status === 'ready').length;
   const offers = Object.values(w.jobs).filter(j => j.status === 'offer').length;
   return (
-    <div className="r-game">
+    <div className={`r-game${night ? ' is-night' : ' is-day'}`}>
       <main className="r-main">
         {tab === 'map' ? <MapScreen /> : (
           <div className="r-panel">
@@ -72,9 +74,13 @@ function Game() {
       </main>
       <Hud />
       {/* ending the day: one capsule, always in the same place, lit once the hours are spent */}
-      <div className={`r-endday${w.player.ap === 0 ? ' ready' : ''}`}>
-        {w.events.length ? <span className="r-decide">{w.events.length} to decide</span> : <Do action={{ type: 'end_day' }} label="End the day" icon="moon" />}
+      {/* the clock: by day this lets night fall, by night it goes to sleep and the day is counted */}
+      <div className={`r-endday${w.player.ap === 0 ? ' ready' : ''}${night ? ' night' : ''}`}>
+        {w.events.length ? <span className="r-decide">{w.events.length} to decide</span>
+          : night ? <Do action={{ type: 'end_day' }} label="Sleep" icon="moon" />
+          : <Do action={{ type: 'nightfall' }} label="Nightfall" icon="moon" />}
       </div>
+      {dusk && <div className="r-dusk" aria-hidden="true"><span>Night falls</span><b>{select.cityName(w, select.currentCity(w))}</b></div>}
       <nav className="r-tabbar" aria-label="Sections">
         {TABS.map(t => {
           const badge = t.id === 'jobs' ? ready || offers : t.id === 'crew' ? Object.values(w.hostages).filter(h => h.holder !== PLAYER).length : 0;
@@ -101,7 +107,7 @@ function Game() {
       )}
       {recap && <RecapCard />}
       {!recap && paused?.complication && <ComplicationCard />}
-      {!recap && !paused && w.events.length > 0 && <EventCard />}
+      {!recap && !paused && !dusk && w.events.length > 0 && <EventCard />}
       {w.won && !w.wonSeen && !recap && <WinCard />}
       {w.over && <OverCard />}
       <Toasts />
@@ -122,10 +128,13 @@ function Hud() {
   const n = select.notoriety(w);
   const pct = next ? Math.max(0, Math.min(100, ((n - rank.at) / (next.at - rank.at)) * 100)) : 100;
   const hot = p.heat >= 60;
+  const night = select.isNight(w);
+  // the ticks are this half's hours: the day's allowance by day, the night's after dark
+  const max = select.hours(w)[night ? 'night' : 'day'];
   return (
     <header className="r-top">
       <div className="r-top-row">
-        <button type="button" className="r-dayno" onClick={() => openSheet({ kind: 'menu' })} aria-label={`Day ${w.day}. Menu`}><span>Day</span><b>{w.day}</b></button>
+        <button type="button" className="r-dayno" onClick={() => openSheet({ kind: 'menu' })} aria-label={`${night ? 'Night' : 'Day'} ${w.day}. Menu`}><span>{night ? 'Night' : 'Day'}</span><b>{w.day}</b></button>
         <button type="button" className="r-who" onClick={() => setTab('empire')} aria-label="Your empire">
           <b>{p.nick ? `"${p.nick}"` : p.name} · {select.cityName(w, select.currentCity(w))}</b>
           <span>{rank.label}{next ? <><i title={`${next.at - n} more fear and respect to ${next.label}`}><u style={{ width: `${pct}%` }} /></i>{next.label}</> : null}</span>
@@ -135,9 +144,9 @@ function Hud() {
       <dl className="r-ledger">
         <Figure kind="clean" label="Clean" value={p.cash} />
         <Figure kind="dirty" label="Dirty" value={p.dirty} />
-        <div className={`hours${p.ap === 0 ? ' out' : ''}`} title={`${p.ap} of ${p.apMax} hours left today`}>
-          <dt>Hours</dt>
-          <dd aria-label={`${p.ap} of ${p.apMax}`}>{p.apMax <= 10 ? Array.from({ length: p.apMax }, (_, i) => <i key={i} className={i < p.ap ? 'on' : ''} />) : `${p.ap}/${p.apMax}`}</dd>
+        <div className={`hours${p.ap === 0 ? ' out' : ''}`} title={`${p.ap} of ${max} hours left ${night ? 'tonight' : 'today'}`}>
+          <dt>{night ? 'Tonight' : 'Hours'}</dt>
+          <dd aria-label={`${p.ap} of ${max}`}>{Math.max(max, p.ap) <= 10 ? Array.from({ length: Math.max(max, p.ap) }, (_, i) => <i key={i} className={i < p.ap ? 'on' : ''} />) : `${p.ap}/${max}`}</dd>
         </div>
         <div className={`heat${hot ? ' hot' : ''}`} title={`Heat ${Math.round(p.heat)} of 100`}>
           <dt>Heat</dt><dd>{Math.round(p.heat)}</dd>
@@ -192,7 +201,7 @@ function MapScreen() {
   return (
     <div className="r-mapwrap">
       {map3d && webgl
-        ? <Suspense fallback={<div className="r-map3d r-map3d-wait">Building the city…</div>}><CityMap3D w={view} layer={layer} focus={focus} selected={sel} onBlock={id => { setSel(id); openSheet({ kind: 'block', id }); }} /></Suspense>
+        ? <Suspense fallback={<div className="r-map3d r-map3d-wait">Building the city…</div>}><CityMap3D w={view} layer={layer} night={select.isNight(w)} focus={focus} selected={sel} onBlock={id => { setSel(id); openSheet({ kind: 'block', id }); }} /></Suspense>
         : <CityMap w={view} layer={layer} focus={focus} selected={sel} onBlock={id => { setSel(id); openSheet({ kind: 'block', id }); }} />}
       <div className="r-map-top">
         {shown !== cityId && <button type="button" className="r-viewing" onClick={() => viewCity(undefined, w.player.blockId)}><span>Looking at {select.cityName(w, shown)}</span><b>Back to {select.cityName(w, cityId)}</b></button>}
@@ -259,7 +268,7 @@ function EventCard() {
   return (
     <div className="r-modal" role="dialog" aria-modal="true" aria-labelledby="r-ev-title">
       <div className="r-card">
-        <div className="r-card-head">{n ? <NpcFace n={n} size={52} tint={f ? `${mute(f.color)}55` : undefined} /> : <span className="r-bizicon big"><Icon name="note" size={26} /></span>}<div className="grow"><div className="r-kicker">Day {w.day}{w.events.length > 1 ? ` · 1 of ${w.events.length}` : ''}</div><h2 id="r-ev-title">{e.title}</h2></div></div>
+        <div className="r-card-head">{n ? <NpcFace n={n} size={52} tint={f ? `${mute(f.color)}55` : undefined} /> : <span className="r-bizicon big"><Icon name="note" size={26} /></span>}<div className="grow"><div className="r-kicker">{select.isNight(w) ? 'Night' : 'Day'} {w.day}{w.events.length > 1 ? ` · 1 of ${w.events.length}` : ''}</div><h2 id="r-ev-title">{e.title}</h2></div></div>
         <p className="r-card-text">{e.text}</p>
         <div className="r-card-options">
           {e.options.map(o => (
@@ -399,6 +408,7 @@ function HelpSheet() {
     <Sheet title="How to play" kicker="RACKETS: Remake">
       <ol className="r-help">
         <li><b>The city is yours to take.</b> It was generated for you: every block, business and person. Tap any block on the map to see who holds it and what is there.</li>
+        <li><b>Day and night.</b> Every day has two halves. By day owners are behind their counters and officials at their desks: pitch protection, buy places, wash money, rent rooms, shop. At <i>Nightfall</i> the shutters come down and you get the night's hours: the regulars are out at their bars — that is where you recruit — the corner crews are working, product sells on the street, and break-ins, stick-ups and hits go better in the dark (cons and frauds want business hours). Most nights bring an encounter. <i>Sleep</i> ends the day.</li>
         <li><b>Meet people.</b> Tap a place, then its owner. <i>Talk</i> builds trust and sizes them up; <i>Lean on them</i> builds fear. Every button shows its odds, and “why these odds” shows the arithmetic.</li>
         <li><b>Protection</b> is the first money. A frightened or friendly owner pays you a daily cut. Keep it fair (15% or less) or they resent it.</li>
         <li><b>Rackets</b> run out of places you protect or own, and earn every night. Put crew on them as runners — a racket nobody minds earns 60%.</li>

@@ -29,7 +29,9 @@ export function PersonSheet({ id }: { id: string }) {
   const w = useWorld();
   const n = w.npcs[id];
   if (!n) return <Sheet title="Nobody"><Empty>They are gone.</Empty></Sheet>;
-  const here = n.homeBlockId === w.player.blockId;
+  // where they are at this hour: at work or home by day, out at their haunt or on the corner by night
+  const at = select.whereIs(w, n);
+  const here = at === w.player.blockId || (!select.isNight(w) && n.homeBlockId === w.player.blockId);
   const home = w.blocks[n.homeBlockId];
   const work = n.workId ? w.businesses[n.workId] : undefined;
   const fac = n.faction && n.faction !== PLAYER ? w.factions[n.faction] : undefined;
@@ -57,8 +59,8 @@ export function PersonSheet({ id }: { id: string }) {
       {n.secret?.known && <div className="r-callout dark"><b>What you know:</b> {select.secretLine(n)}.</div>}
 
       {n.crew ? <CrewPanel n={n} /> : n.alive && (
-        <Section title="Face to face" right={!here ? <span className="r-note">{home.name}</span> : <Chip tone="green">Here</Chip>}>
-          {!here && <Do action={{ type: 'travel', blockId: n.homeBlockId }} label={`Go to ${home.name}`} icon="legwork" block />}
+        <Section title="Face to face" right={here ? <Chip tone="green">Here</Chip> : <span className="r-note">{select.whereLine(w, n)}</span>}>
+          {!here && <Do action={{ type: 'travel', blockId: at }} label={`Go to ${w.blocks[at]?.name ?? home.name}`} icon="legwork" block />}
           <Scenes n={n} />
         </Section>
       )}
@@ -99,7 +101,10 @@ function Scenes({ n }: { n: Npc }) {
   return (
     <div className="r-scenes">
       {kinds.map(k => {
-        const q = select.quote(w, k, n.id, { businessId: owner ? work!.id : undefined, rate });
+        const q0 = select.quote(w, k, n.id, { businessId: owner ? work!.id : undefined, rate });
+        // a scene shut at this hour shows, greyed, with when it opens: that is how the clock is learned
+        const shut = select.closedNow(w, { type: 'scene', kind: k, npcId: n.id });
+        const q = shut && (!q0.disabled || q0.disabled.startsWith('Go to')) ? { ...q0, disabled: shut } : q0;
         const hide = q.disabled && /^Only|^Not an official|^It is yours|^They already pay|^An institution/.test(q.disabled);
         if (hide) return null;
         const away = q.disabled?.startsWith('Go to');

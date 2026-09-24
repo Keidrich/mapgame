@@ -23,6 +23,8 @@ export { crewOn, crewOf, crewWage, crewCost, CREW } from './streetcrews';
 export { specialistFee, present, setpieceOpen, SETPIECE_REST, SETPIECE_HARDEN } from './jobs';
 export { needsMet, isDerelict } from './catalogue';
 export { CHEATS } from './cheats';
+export { half, isNight, hours, whereIs, whereLine, jobHour, closedNow, hourFactor } from './clock';
+import { closedNow as closedNow_ } from './clock';
 import { RANKS as RANKS_ } from '@r/content/world';
 import { rankOf as rankOf_ } from './economy';
 export { HOME, REGION, arrivalIn, cityBlocks, cityGeo, cityName_ as cityName, cityOfBlock, controlIn, currentCity, demandIn, fare, fareBetween, isOpen, regionCity, routePrice, safehouseIn } from './region';
@@ -133,7 +135,7 @@ export function leads(w: World): Lead[] {
   // starts with $250 and the cheapest racket is $400; the strip used to sit on this for a week, silent
   const racketKinds = firstBiz ? (BUSINESSES[firstBiz.type].rackets as RacketKind[]).slice().sort((a, b) => RACKETS[a].setup - RACKETS[b].setup) : [];
   const racketOk = firstBiz ? racketKinds.map(k => can(w, { type: 'start_racket', businessId: firstBiz.id, kind: k })) : [];
-  const racketBlocked = firstBiz && racketOk.length && !racketOk.some(r => r.ok) && !/action points/i.test(racketOk[0].why ?? '') ? racketOk[0].why : undefined;
+  const racketBlocked = firstBiz && racketOk.length && !racketOk.some(r => r.ok) && !/action points|hours/i.test(racketOk[0].why ?? '') ? racketOk[0].why : undefined;
   // the back-room step points at your best ground, not wherever you are standing: it needs influence 10
   // on the block, and the first cut pointed at the block underfoot, where a new player seldom has it
   const ground = playerBlocks(w)[0] ?? Object.values(w.blocks).filter(b => (b.influence[PLAYER] ?? 0) > 0).sort((a, b) => (b.influence[PLAYER] ?? 0) - (a.influence[PLAYER] ?? 0))[0];
@@ -149,13 +151,23 @@ export function leads(w: World): Lead[] {
       // wages come out of dirty money first, so one racket and one recruit can leave it at $0 every
       // morning: the step waited on something that could not happen, with $2,961 clean in the drawer
       blocked: fx?.rel.met && p.dirty < 100 ? `Nothing dirty to wash: you have ${money_(p.dirty)}, and wages come out of dirty money first. A job or another racket will leave some over.` : undefined },
-    { id: 'safehouse', text: ground ? `Take a back room on ${ground.name}` : 'Take a back room on your ground', why: 'Beds for more crew, room for stock, space for a lab. It needs influence 10 on the block.', done: p.safehouseIds.length > 0, blockId: ground?.id ?? here.id, blocked: !ground ? 'You need a foothold on a block first: protect a place.' : room && !room.ok && !/action points/i.test(room.why ?? '') ? room.why : undefined },
+    { id: 'safehouse', text: ground ? `Take a back room on ${ground.name}` : 'Take a back room on your ground', why: 'Beds for more crew, room for stock, space for a lab. It needs influence 10 on the block.', done: p.safehouseIds.length > 0, blockId: ground?.id ?? here.id, blocked: !ground ? 'You need a foothold on a block first: protect a place.' : room && !room.ok && !/action points|hours|Landlords/i.test(room.why ?? '') ? room.why : undefined },
     { id: 'hold', text: 'Hold a block', why: 'Thirty influence and the most of anybody. Stack things on one block and it comes fast.', done: playerBlocks(w).length > 0, blockId: here.id },
     { id: 'payroll', text: 'Put an official on your payroll', why: 'A captain cools the precinct; a DA slows the files; a judge shortens sentences.', done: Object.values(w.npcs).some(n => n.payroll), tab: 'people' },
     { id: 'lieutenant', text: 'Put a lieutenant over a district', why: 'Level 2 and loyalty 55. Rackets there run themselves — and they could inherit it all.', done: crew(w).some(n => n.crew?.assignment?.kind === 'district'), tab: 'crew', blocked: crew(w).some(n => n.crew!.level >= 2 && n.crew!.loyalty >= 55) ? undefined : 'Nobody is ready yet: a lieutenant needs level 2 and loyalty 55. Crew learn on jobs and posts, and pay keeps them loyal.' },
     { id: 'road', text: `Hold a quarter of ${w.city.name}`, why: 'The road opens: start up in the next city, with everything you carry. See the region map.', done: !!w.region?.cities.some(c => c.open || (c.founded && c.id !== 'c0')), tab: 'rivals' },
     { id: 'half', text: `Hold half of ${w.city.name}`, why: 'That is winning. The game goes on after.', done: !!w.won, tab: 'rivals' },
   ];
+  // the clock: a step whose door is shut at this hour waits, says when it opens, and the strip moves
+  // on to something that can be done now — recruiting by day, pitching protection by night
+  const hourOf: Partial<Record<string, () => string | undefined>> = {
+    protect: () => (warm ? closedNow_(w, { type: 'scene', kind: 'protect', npcId: warm.id }) : undefined),
+    crew: () => (patron ? closedNow_(w, { type: 'scene', kind: 'recruit', npcId: patron.id }) : undefined),
+    wash: () => (fx?.rel.met ? closedNow_(w, { type: 'fixer_wash', amount: 1 }) : undefined),
+    safehouse: () => closedNow_(w, { type: 'rent_safehouse', blockId: here.id }),
+    payroll: () => closedNow_(w, { type: 'scene', kind: 'bribe', npcId: here.id }),
+  };
+  for (const l of list) { if (l.done || l.blocked) continue; const why = hourOf[l.id]?.(); if (why) l.blocked = why; }
   return list;
 }
 

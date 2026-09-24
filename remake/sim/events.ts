@@ -7,19 +7,25 @@
  * Options never roll dice: an event is a decision with known consequences. The dice live in
  * jobs and scenes, where the odds are on the button.
  */
-import { RACKETS } from '@r/content/world';
+import { PRODUCTS, RACKETS } from '@r/content/world';
 import { describe } from './effects';
 import { stanceOf } from './factions';
 import type { Rng } from './rng';
-import type { Effect, GameEvent, Id, Npc, World } from './types';
+import type { Business, Effect, GameEvent, Id, Npc, World } from './types';
 import { PLAYER } from './types';
 import { cap, fullName, money, nid, shortName, they, their, them, theName, vb } from './util';
 import { agendaLine } from './scenes';
-import { bedsTotal } from './select-core';
+import { bedsTotal, playerBlocks } from './select-core';
 import { crewCut } from './economy';
 
 interface Ctx { npcId?: Id; businessId?: Id; factionId?: Id }
-interface Template { id: string; weight: (w: World) => number; build: (w: World, rng: Rng, ctx: Ctx) => Omit<GameEvent, 'id' | 'template'> | undefined }
+interface Template {
+  id: string;
+  /** Night encounters are drawn at nightfall (`drawNight`); everything else comes with the morning. */
+  half?: 'night';
+  weight: (w: World) => number;
+  build: (w: World, rng: Rng, ctx: Ctx) => Omit<GameEvent, 'id' | 'template'> | undefined;
+}
 
 type Opt = { id: string; label: string; effects: Effect[]; disabled?: string };
 const card = (w: World, title: string, text: string, opts: Opt[], refs: Partial<GameEvent> = {}) => ({
@@ -322,7 +328,125 @@ export const TEMPLATES: Template[] = [
     } },
 ];
 
-const BY_ID = Object.fromEntries(TEMPLATES.map(t => [t.id, t]));
+// ------------------------------------------------------------------------------------ tonight
+/*
+ * What the night puts in front of you. Drawn at nightfall, one most nights, from the places that
+ * are open after dark near where you are standing: the bars, the clubs, the back tables. Each is a
+ * meeting you would not have by day — a regular at the card table, a cop on his fourth drink, a
+ * load off the back of a truck, a stranger with work that will not wait for morning.
+ */
+const NIGHTLIFE = ['bar', 'nightclub', 'restaurant', 'casino'];
+function nightSpots(w: World): Business[] {
+  const here = w.blocks[w.player.blockId]; if (!here) return [];
+  const near = new Set([here.id, ...here.neighborIds]);
+  const all = Object.values(w.businesses).filter(b => NIGHTLIFE.includes(b.type) && b.closed <= 0 && w.blocks[b.blockId]);
+  const close = all.filter(b => near.has(b.blockId));
+  const city = w.districts[here.districtId]?.cityId;
+  return close.length ? close : all.filter(b => w.districts[w.blocks[b.blockId].districtId]?.cityId === city);
+}
+const regulars = (w: World, b: Business) => b.patronIds.map(id => w.npcs[id]).filter((n): n is Npc => !!n?.alive && !n.crew && !n.faction && !n.official);
+
+export const NIGHT: Template[] = [
+  { id: 'night_cards', half: 'night', weight: w => (nightSpots(w).some(b => regulars(w, b).length) ? 3 : 0),
+    build: (w, rng) => {
+      const b = rng.pick(nightSpots(w).filter(x => regulars(w, x).length)); const n = rng.pick(regulars(w, b));
+      const stake = rng.int(3, 8) * 100;
+      return card(w, `Cards at ${b.name}`, `There is a game going in the back of ${b.name}, and ${fullName(n)} is losing at it, loudly. The stakes are ${money(stake)} a hand. ${cap(they(n))} ${vb(n, 'wave', 'waves')} you to the empty chair.`, [
+        { id: 'straight', label: 'Sit in and play it straight', effects: [...pay(w, Math.round(stake / 2)), { k: 'trust', npcId: n.id, n: 14 }, { k: 'respect', n: 1 }], disabled: afford(w, Math.round(stake / 2)) },
+        { id: 'cheat', label: 'Deal from the bottom', effects: [{ k: 'dirty', n: stake }, { k: 'trust', npcId: n.id, n: -12 }, { k: 'npcFear', npcId: n.id, n: 6 }, { k: 'heat', n: 1 }] },
+        { id: 'pass', label: 'Watch, and buy the table a round', effects: [...pay(w, 60), { k: 'trust', npcId: n.id, n: 5 }], disabled: afford(w, 60) },
+      ], { npcId: n.id, businessId: b.id });
+    } },
+  { id: 'night_cop', half: 'night', weight: w => (select_officials(w).length && nightSpots(w).length ? 2 : 0),
+    build: (w, rng) => {
+      const o = rng.pick(select_officials(w)); const b = rng.pick(nightSpots(w));
+      const learn: Effect[] = o.secret && !o.secret.known ? [{ k: 'secretKnown', npcId: o.id }] : [];
+      return card(w, 'Off duty, and talking', `${fullName(o)} is on ${their(o)} fourth drink at ${b.name}, alone, and saying more about ${their(o)} own office than ${they(o)} should.`, [
+        { id: 'fill', label: `Keep ${their(o)} glass full`, effects: [...pay(w, 150), { k: 'trust', npcId: o.id, n: 18 }, ...learn], disabled: afford(w, 150) },
+        { id: 'leave', label: 'Let a sleeping dog lie', effects: [] },
+      ], { npcId: o.id, businessId: b.id });
+    } },
+  { id: 'night_truck', half: 'night', weight: () => 2,
+    build: (w, rng) => {
+      const pr = rng.pick(['booze', 'green', 'pills'] as const); const n = rng.int(8, 18);
+      const price = Math.round((n * PRODUCTS[pr].price * 0.35) / 10) * 10;
+      return card(w, 'Off the back of a truck', `A van with its lights off, a man who will not give his name, and ${n} lots of ${PRODUCTS[pr].label.toLowerCase()} that fell off something. ${money(price)}, cash, now.`, [
+        { id: 'buy', label: `Take the lot for ${money(price)}`, effects: [...pay(w, price), { k: 'product', product: pr, n }, { k: 'heat', n: 1 }], disabled: afford(w, price) },
+        { id: 'no', label: 'Tell him to keep driving', effects: [] },
+      ]);
+    } },
+  { id: 'night_corner', half: 'night', weight: w => (playerBlocks(w).length && Object.values(w.factions).some(f => f.alive) ? 2 : 0),
+    build: (w, rng) => {
+      const b = rng.pick(playerBlocks(w)); const f = rng.pick(Object.values(w.factions).filter(x => x.alive));
+      return card(w, `The ${f.short} on your corner`, `Four of the ${f.short}'s soldiers are drinking on ${b.name} like they own it. People are watching to see what you do.`, [
+        { id: 'run', label: 'Run them off', effects: [{ k: 'fear', n: 3 }, { k: 'influence', blockId: b.id, n: 3 }, { k: 'standing', factionId: f.id, n: -8 }, { k: 'heat', n: 3 }] },
+        { id: 'round', label: 'Send over a round, and a message', effects: [...pay(w, 250), { k: 'standing', factionId: f.id, n: 6 }, { k: 'respect', n: 1 }], disabled: afford(w, 250) },
+        { id: 'leave', label: 'Let them drink', effects: [{ k: 'influence', blockId: b.id, n: -4 }, { k: 'respect', n: -1 }] },
+      ], { factionId: f.id });
+    } },
+  { id: 'night_stranger', half: 'night', weight: w => (nightSpots(w).length ? 3 : 0),
+    build: (w, rng) => {
+      const spot = rng.pick(nightSpots(w));
+      const here = w.blocks[w.player.blockId];
+      const marks = [here.id, ...here.neighborIds].flatMap(id => w.blocks[id]?.businessIds ?? []).map(id => w.businesses[id]).filter(x => x && x.ownedBy !== PLAYER && x.protection?.by !== PLAYER && x.tier < 3);
+      if (!marks.length) return undefined;
+      const t = rng.pick(marks);
+      const kind = rng.chance(0.5) ? 'burglary' : 'robbery';
+      return card(w, 'Work that will not wait', `A woman at the end of the bar at ${spot.name} slides a napkin across: the back door of ${t.name}, and the hour the alarm company changes shifts. Tonight, or never.`, [
+        { id: 'take', label: 'Put it on the board, for tonight', effects: [{ k: 'jobOffer', tonight: true, job: { kind, title: `Tonight: ${t.name}`, pitch: '', tier: 1, blockId: t.blockId, targetBusinessId: t.id, crewMin: 0, crewMax: 2, leans: ['brains', 'tech'], difficulty: 30, planDays: 0, expires: w.day, payout: { dirty: 0, clean: 0, goods: 0, respect: 0, fear: 0 }, heat: 5, exposure: 0.15, status: 'offer', crewIds: [], daysLeft: 0, intel: 2 } }] },
+        { id: 'no', label: 'Finish your drink', effects: [] },
+      ], { businessId: t.id });
+    } },
+  { id: 'night_witness', half: 'night', weight: w => (witnessOut(w) ? 3 : 0),
+    build: (w) => {
+      const n = witnessOut(w)!;
+      return card(w, 'Somebody who saw something', `${fullName(n)} — the one who has been talking to the police about you — is drinking alone tonight, and has not seen you come in.`, [
+        { id: 'scare', label: 'A quiet word in the car park', effects: [{ k: 'npcFear', npcId: n.id, n: 28 }, { k: 'heat', n: 2 }] },
+        { id: 'friend', label: 'Buy a drink, make a friend', effects: [...pay(w, 100), { k: 'trust', npcId: n.id, n: 16 }], disabled: afford(w, 100) },
+        { id: 'leave', label: 'Leave before you are seen', effects: [] },
+      ], { npcId: n.id });
+    } },
+  { id: 'night_fight', half: 'night', weight: w => (nightSpots(w).some(b => regulars(w, b).length) ? 2 : 0),
+    build: (w, rng) => {
+      const b = rng.pick(nightSpots(w).filter(x => regulars(w, x).length));
+      const n = regulars(w, b).sort((a, c) => c.skills.muscle - a.skills.muscle)[0];
+      return card(w, `A fight at ${b.name}`, `Three men from out of the neighbourhood have ${fullName(n)} against the jukebox. ${cap(they(n))} ${vb(n, 'are', 'is')} holding ${their(n)} own — just.`, [
+        { id: 'in', label: 'Step in', effects: [{ k: 'trust', npcId: n.id, n: 24 }, { k: 'respect', n: 2 }, { k: 'fear', n: 1 }, { k: 'heat', n: 1 }] },
+        { id: 'out', label: 'Stay out of it', effects: [] },
+      ], { npcId: n.id, businessId: b.id });
+    } },
+  { id: 'night_raid_tip', half: 'night', weight: w => (w.player.racketIds.some(id => w.rackets[id]?.down === 0) && w.player.heat >= 25 ? 2 : 0),
+    build: (w, rng) => {
+      const r = w.rackets[rng.pick(w.player.racketIds.filter(id => w.rackets[id]?.down === 0))];
+      const b = w.businesses[r.businessId];
+      return card(w, 'A word from a patrolman', `A patrolman you have bought drinks for says Vice is coming for ${b.name} tomorrow. He did not say it, and you did not hear it.`, [
+        { id: 'shut', label: 'Shut it for a night', effects: [{ k: 'racketDown', racketId: r.id, days: 1 }, { k: 'heat', n: -6 }] },
+        { id: 'ride', label: 'Ride it out', effects: [{ k: 'heat', n: 6 }] },
+      ], { businessId: b.id });
+    } },
+];
+/** A witness in a file against you who is out tonight and not yet frightened. */
+function witnessOut(w: World): Npc | undefined {
+  for (const c of Object.values(w.cases ?? {})) {
+    if (c.status === 'closed' || c.suspectId !== PLAYER) continue;
+    const n = c.witnessIds.map(id => w.npcs[id]).find(x => x?.alive && x.rel.fear < 45);
+    if (n) return n;
+  }
+  return undefined;
+}
+const select_officials = (w: World) => Object.values(w.npcs).filter(n => n.alive && n.official && !n.payroll);
+
+/** Nightfall: most nights, one thing tonight puts in front of you. */
+export function drawNight(w: World, rng: Rng) {
+  if (w.events.length >= 2 || !rng.chance(0.7)) return;
+  const pool = NIGHT.map(t => ({ item: t, w: t.weight(w) })).filter(x => x.w > 0);
+  if (!pool.length) return;
+  const t = rng.weighted(pool);
+  const e = t.build(w, rng, {});
+  if (e) w.events.push({ id: nid(w, 'e'), template: t.id, ...e });
+}
+
+const BY_ID = Object.fromEntries([...TEMPLATES, ...NIGHT].map(t => [t.id, t]));
 
 export function drawEvents(w: World, rng: Rng) {
   // scheduled ones first: they are consequences, and consequences arrive on time

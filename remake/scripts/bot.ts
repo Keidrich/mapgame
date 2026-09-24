@@ -25,7 +25,7 @@ export type Counter =
   | 'crews_paid' | 'crews_taken' | 'crews_run' | 'audits' | 'specialists'
   | 'kit_bought' | 'kit_equipped' | 'hostages_taken' | 'hostages_resolved' | 'crew_snatched' | 'ransom_paid'
   | 'meetings' | 'lobbied' | 'voted' | 'setpieces_cased' | 'setpiece_stages' | 'setpieces_done' | 'declared'
-  | 'cities' | 'routes' | 'route_sales' | 'remote_jobs' | 'crew_moved';
+  | 'cities' | 'routes' | 'route_sales' | 'remote_jobs' | 'crew_moved' | 'nights' | 'night_events';
 
 export const SYSTEMS: { label: string; needs: Counter[] }[] = [
   { label: 'talking to people', needs: ['chats'] },
@@ -46,6 +46,8 @@ export const SYSTEMS: { label: string; needs: Counter[] }[] = [
   { label: 'complications', needs: ['complications'] },
   { label: 'casing a target', needs: ['cased'] },
   { label: 'events', needs: ['events'] },
+  { label: 'nightfall', needs: ['nights'] },
+  { label: 'night encounters', needs: ['night_events'] },
   { label: 'diplomacy', needs: ['tributes', 'sitdowns'] },
   { label: 'lieutenants', needs: ['lieutenants'] },
   { label: 'guards', needs: ['guards'] },
@@ -170,6 +172,15 @@ function day(c: Ctx) {
   answerEverything(c);
   const p = () => c.w.player;
   if (c.s.layLow !== undefined && p().heat > c.s.layLow && p().lowDays === 0) { if (act(c, { type: 'lay_low', days: 3 })) bump(c, 'lay_low'); answerEverything(c); return; }
+  // two halves: the same routine by day and again after dark. Every step asks `can()`, so what is
+  // shut at this hour is simply refused — the bot does not need its own copy of the clock
+  shift(c);
+  if (act(c, { type: 'nightfall' })) { bump(c, 'nights'); answerEverything(c); shift(c); }
+  answerEverything(c);
+  if (act(c, { type: 'end_day' })) { /* counted in run */ }
+  answerEverything(c);
+}
+function shift(c: Ctx) {
   manageCrew(c);
   hostages(c);
   // building comes before the street work: the street loop spends every action point it can
@@ -183,8 +194,6 @@ function day(c: Ctx) {
   street(c);
   politics(c);
   commission(c);
-  answerEverything(c);
-  if (act(c, { type: 'end_day' })) { /* counted in run */ }
   answerEverything(c);
 }
 
@@ -204,7 +213,7 @@ function answerEverything(c: Ctx) {
     const e = c.w.events[0]; if (!e) break;
     const scored = e.options.filter(o => !o.disabled).map(o => ({ o, v: scoreEffects(c, o.effects) }));
     const pick = scored.sort((a, b) => b.v - a.v)[0]?.o ?? e.options[e.options.length - 1];
-    if (act(c, { type: 'resolve_event', eventId: e.id, optionId: pick.id })) bump(c, 'events');
+    if (act(c, { type: 'resolve_event', eventId: e.id, optionId: pick.id })) { bump(c, 'events'); if (e.template.startsWith('night_')) bump(c, 'night_events'); }
     else break;
   }
 }
@@ -278,6 +287,11 @@ function runJobs(c: Ctx) {
       const kind = (['safecracker', 'hacker', 'driver', 'gunman', 'face'] as const).find(k => can(w(), { type: 'hire_specialist', jobId: j.id, kind: k }).ok && j.leans.includes(({ safecracker: 'brains', hacker: 'tech', driver: 'wheels', gunman: 'muscle', face: 'charm' } as const)[k]));
       if (kind && act(c, { type: 'hire_specialist', jobId: j.id, kind })) bump(c, 'specialists');
     }
+    // a job waits for its own hour — the dark for a break-in, office hours for a con — unless it
+    // would be gone before that hour comes round again
+    // (not the collector: it wants every kind run once, not the best odds, and a chain waiting on
+    // office hours ran out of days before its last link)
+    if (c.s.curiosity < 1 && select.jobHour(j.kind) !== select.half(w()) && j.expires > w().day) continue;
     const approach = bestApproach(c, j, j.crewIds);
     if (select.jobOdds(w(), j, j.crewIds, approach.a).chance < c.s.launchAt) { act(c, { type: 'drop_job', jobId: j.id }); continue; }
     const away = !select.present(w(), j);
@@ -369,7 +383,7 @@ function money(c: Ctx) {
   const w = () => c.w; const p = () => w().player;
   // the fixer: meet them once, then wash when clean money is what we are short of
   const fx = w().fixerId ? w().npcs[w().fixerId!] : undefined;
-  if (fx?.alive && !fx.rel.met && p().ap >= 3) { goTo(c, fx.homeBlockId); if (act(c, { type: 'scene', kind: 'chat', npcId: fx.id })) bump(c, 'chats'); }
+  if (fx?.alive && !fx.rel.met && p().ap >= 3) { goTo(c, select.whereIs(w(), fx)); if (act(c, { type: 'scene', kind: 'chat', npcId: fx.id })) bump(c, 'chats'); }
   const laundry = p().racketIds.some(id => w().rackets[id] && RACKETS[w().rackets[id].kind].wash);
   if (fx?.rel.met && p().dirty > 1500 && (!laundry || p().cash < 3000)) {
     const amt = Math.min(p().dirty - 500, select.fixerCap(w()) - p().washedToday);
@@ -416,14 +430,14 @@ function street(c: Ctx) {
         if ((!q.disabled || q.disabled.startsWith('Go to')) && q.chance >= 45) cands.push({ a: { type: 'scene', kind: 'protect', npcId: o.id, businessId: b.id, rate: 0.12 }, v: q.chance * (b.income / 100) * (b.protection ? 0.5 : 1), k: 'protected', block: b.blockId });
         if (q.chance < 45) {
           const t = select.quote(w(), 'intimidate', o.id);
-          if (o.rel.fear < 50 && t.chance >= 45) cands.push({ a: { type: 'scene', kind: 'intimidate', npcId: o.id }, v: t.chance * c.s.threaten, k: 'threats', block: o.homeBlockId });
-          if (o.rel.trust < 30) cands.push({ a: { type: 'scene', kind: 'chat', npcId: o.id }, v: (25 + (o.rel.met ? 0 : 10)) * chatLean(c), k: 'chats', block: o.homeBlockId });
+          if (o.rel.fear < 50 && t.chance >= 45) cands.push({ a: { type: 'scene', kind: 'intimidate', npcId: o.id }, v: t.chance * c.s.threaten, k: 'threats', block: select.whereIs(w(), o) });
+          if (o.rel.trust < 30) cands.push({ a: { type: 'scene', kind: 'chat', npcId: o.id }, v: (25 + (o.rel.met ? 0 : 10)) * chatLean(c), k: 'chats', block: select.whereIs(w(), o) });
         }
       }
-      if (o.agenda?.known && o.agenda.cost && o.agenda.cost < (p().cash + p().dirty) * 0.25) cands.push({ a: { type: 'scene', kind: 'settle', npcId: o.id }, v: 55, k: 'settled', block: o.homeBlockId });
-      if (o.rel.owes && b.protection?.by === PLAYER) cands.push({ a: { type: 'scene', kind: 'favour', npcId: o.id }, v: 50, k: 'favours', block: o.homeBlockId });
-      if (!o.rel.met) cands.push({ a: { type: 'scene', kind: 'chat', npcId: o.id }, v: 20, k: 'chats', block: o.homeBlockId });
-      if (o.secret?.known && c.rng.chance(0.3)) cands.push({ a: { type: 'scene', kind: 'lean', npcId: o.id }, v: 30, k: 'leaned', block: o.homeBlockId });
+      if (o.agenda?.known && o.agenda.cost && o.agenda.cost < (p().cash + p().dirty) * 0.25) cands.push({ a: { type: 'scene', kind: 'settle', npcId: o.id }, v: 55, k: 'settled', block: select.whereIs(w(), o) });
+      if (o.rel.owes && b.protection?.by === PLAYER) cands.push({ a: { type: 'scene', kind: 'favour', npcId: o.id }, v: 50, k: 'favours', block: select.whereIs(w(), o) });
+      if (!o.rel.met) cands.push({ a: { type: 'scene', kind: 'chat', npcId: o.id }, v: 20, k: 'chats', block: select.whereIs(w(), o) });
+      if (o.secret?.known && c.rng.chance(0.3)) cands.push({ a: { type: 'scene', kind: 'lean', npcId: o.id }, v: 30, k: 'leaned', block: select.whereIs(w(), o) });
       if (b.protection?.by !== PLAYER && b.till > b.income * 1.5 && o.rel.fear > 25 && c.rng.chance(c.s.squeeze)) cands.push({ a: { type: 'scene', kind: 'squeeze', npcId: o.id, businessId: b.id }, v: 20 + Math.max(0, c.s.threaten - 0.8) * 30, k: 'squeezed', block: b.blockId });
       // patrons: future crew
       for (const pid of b.patronIds) {
@@ -431,8 +445,8 @@ function street(c: Ctx) {
         const best = Math.max(...Object.values(n.skills));
         if (p().crewIds.length < select.bedsTotal(w())) {
           const q = select.quote(w(), 'recruit', n.id);
-          if (!q.disabled && q.chance >= 40 && best >= 5) cands.push({ a: { type: 'scene', kind: 'recruit', npcId: n.id }, v: 60 + best * 4, k: 'recruited', block: n.homeBlockId });
-          else if (best >= 6 && n.rel.trust < 20 && p().crewIds.length < 8) cands.push({ a: { type: 'scene', kind: 'chat', npcId: n.id }, v: 22 + best * 2, k: 'chats', block: n.homeBlockId });
+          if (!q.disabled && q.chance >= 40 && best >= 5) cands.push({ a: { type: 'scene', kind: 'recruit', npcId: n.id }, v: 60 + best * 4, k: 'recruited', block: select.whereIs(w(), n) });
+          else if (best >= 6 && n.rel.trust < 20 && p().crewIds.length < 8) cands.push({ a: { type: 'scene', kind: 'chat', npcId: n.id }, v: 22 + best * 2, k: 'chats', block: select.whereIs(w(), n) });
         }
       }
     }
@@ -440,7 +454,7 @@ function street(c: Ctx) {
     if (p().heat > c.s.bribeAt) for (const o of select.officials(w())) {
       if (o.payroll) continue;
       const q = select.quote(w(), 'bribe', o.id);
-      if (!q.disabled && q.chance >= 40 && (q.cash ?? 0) * 3 < p().cash + p().dirty) cands.push({ a: { type: 'scene', kind: 'bribe', npcId: o.id }, v: 70, k: 'bribed', block: o.homeBlockId });
+      if (!q.disabled && q.chance >= 40 && (q.cash ?? 0) * 3 < p().cash + p().dirty) cands.push({ a: { type: 'scene', kind: 'bribe', npcId: o.id }, v: 70, k: 'bribed', block: select.whereIs(w(), o) });
     }
     // buy a place with clean money
     const buyable = people.filter(b => b.protection?.by === PLAYER && select.businessPrice(w(), b) < p().cash * 0.6);
@@ -500,8 +514,11 @@ function pref(k: RacketKind, laundry: boolean, dirty: number) {
 function corners(c: Ctx) {
   const w = () => c.w; const p = () => w().player;
   // the corners: deal with any crew on ground we are working, the cheapest way that will land
+  // the collector keeps one crew nobody has dealt with until it has tried taking a corner by force:
+  // `takeover` needs such a crew, and with every crew bought or run off the job was never offered
+  const spare = c.s.curiosity >= 1 && !tried(c, 'takeover') ? Object.values(w().crews ?? {}).find(x => x.terms === 'none')?.id : undefined;
   for (const cr of Object.values(w().crews ?? {})) {
-    if (cr.terms !== 'none' || p().ap < 2) continue;
+    if (cr.terms !== 'none' || p().ap < 2 || cr.id === spare) continue;
     const b = w().blocks[cr.blockId];
     const near = [b.id, ...b.neighborIds].some(id => (w().blocks[id].influence[PLAYER] ?? 0) > 5);
     if (!near && cr.members < 10) continue;

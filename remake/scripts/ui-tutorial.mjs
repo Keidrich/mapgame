@@ -37,14 +37,14 @@ const dismiss = async () => {
 };
 const log = [];
 let last = '', same = 0;
-for (let step = 0; step < 140; step++) {
+for (let step = 0; step < 500; step++) {   // two halves a day: roughly twice the presses per day it took before
   await dismiss();
   if (await p.$('.r-sheet')) { await p.click('.r-close', { force: true }).catch(() => {}); await p.waitForTimeout(150); }
   if (!(await p.$('.r-tabbar button.on:has-text("City")'))) { await p.click('.r-tabbar button:has-text("City")', { force: true }); await p.waitForTimeout(150); }
   const lead = await p.$('.r-lead-top b'); if (!lead) { log.push('no lead strip'); break; }
   const text = (await lead.innerText()).trim();
   const day = (await p.innerText('.r-dayno b')).trim();
-  if (text !== last) { log.push(`day ${day}: ${text}`); last = text; same = 0; } else same++;
+  if (text !== last) { log.push(`day ${day}: ${text}`); console.log(`day ${day}: ${text}`); last = text; same = 0; } else same++;
   if (/Put an official|lieutenant|quarter of|half of/i.test(text)) break;
   await p.click('.r-lead-top', { force: true }); await p.waitForTimeout(250);
   let did = null;
@@ -78,6 +78,6 @@ for (let step = 0; step < 140; step++) {
   }
   if (Number(day) > 30) break;
 }
-console.log(log.join('\n'));
+// each step was printed as it came
 console.log('errors:', errors.length ? errors.slice(0, 5) : 'none');
 await b.close();
