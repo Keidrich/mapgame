@@ -10,6 +10,7 @@ import { CaseSection } from './JobFaction';
 import { Icon } from '@ui/icons';
 import { openSheet, useWorld, focusBlock } from '../store';
 import { Emblem, NpcFace } from './Faces';
+import { mute } from './tone';
 import { jobIcon, payoutLine } from './JobFaction';
 import { BizRow, RacketRow, SafehousePanel } from './PlaceSheets';
 import { roleLine } from './PersonSheet';
@@ -184,10 +185,10 @@ export function RivalsTab() {
     <div className="r-tab">
       <h2 className="r-tab-title">Rivals</h2>
       <CommissionSection />
-      {fs.map(f => {
+      <div className="r-rivals">{fs.map(f => {
         const stance = select.stanceOf(f, w.day);
         return (
-          <button type="button" key={f.id} className="r-rival" onClick={() => openSheet({ kind: 'faction', id: f.id })} style={{ ['--f' as string]: f.color }}>
+          <button type="button" key={f.id} className="r-rival" onClick={() => openSheet({ kind: 'faction', id: f.id })} style={{ ['--f' as string]: mute(f.color) }}>
             <Emblem e={f.emblem} size={44} />
             <div className="grow">
               <div className="r-row-title">{f.name} {!f.alive && <Chip tone="red">Finished</Chip>}</div>
@@ -196,7 +197,7 @@ export function RivalsTab() {
             </div>
           </button>
         );
-      })}
+      })}</div>
       <p className="r-note">They run the same game you do — protection, rackets, soldiers, ground — and they fight each other as readily as you.</p>
       <button type="button" className="r-btn block" onClick={() => focusBlock(w.player.blockId)}>Show me the map</button>
       <button type="button" className="r-btn block" onClick={() => openSheet({ kind: 'region' })}>The region: the cities down the road</button>

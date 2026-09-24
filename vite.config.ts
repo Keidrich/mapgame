@@ -26,7 +26,7 @@ export default defineConfig({
       // ui/main.tsx registers the worker itself: the injected one-liner never noticed a new
       // build, so a shipped change sat behind the cached old one until enough reloads
       injectRegister: null,
-      includeAssets: ['favicon.svg', 'icon.svg'],
+      includeAssets: ['favicon.svg', 'icon.svg', 'apple-touch-icon.png'],
       manifest: {
         name: 'Rackets: Crime Empire',
         short_name: 'Rackets',
@@ -36,7 +36,10 @@ export default defineConfig({
         display: 'standalone',
         orientation: 'portrait',
         icons: [
-          { src: 'icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any maskable' },
+          { src: 'icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' },
+          { src: 'icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: 'icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          { src: 'icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
       },
       workbox: {

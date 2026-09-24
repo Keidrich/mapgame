@@ -175,19 +175,44 @@ after day 10: the end.
   when zoomed out, and overlays for who holds it, your heat, money and police. Pan and pinch move
   the `viewBox` directly and commit only when the gesture ends.
 - **People, Crew, Jobs, Empire, Rivals** tabs; sheets for a block, a place, a person, a job, an outfit.
-- **The look ("neon arcade", since the UI remake).** Built to feel like the mobile games people keep
-  on their phones, not a newspaper: a deep-violet night palette; chunky buttons that press down
-  onto a darker edge; a HUD of currency pills (clean, dirty, energy for action points, heat) with
-  the rank as a level bar and a level badge on your face, and money that changes floating a +/−
-  number off its pill; a dock of big icon tiles with the current one lifted in gold and red count
-  badges; round tools down the map's right edge (the overlay cycles on a tap); the next lead as a
-  **quest** card with a progress ring; a big moon **End day** button that glows once the day's
-  energy is spent; sheets that rise with a handle and hold their content in lit cards; every scene
-  an action card with its odds in a coloured badge; events as pop-up cards whose first choice is
-  gold; and the morning recap as a **reward screen** — one to three stars for the day, the takings
-  popping in as tiles, the day's headline, and "Next day". Lilita One for display and numbers,
-  Nunito for text, both linked at runtime so the game still opens offline on rounded system faces.
-  Motion (the sheet rise, the pop-in, the shine on meters, the pulses) is off under reduced motion.
+- **The look ("night shift", since the second UI remake).** The arcade look it replaced read as a
+  children's game; this one is built as a native iOS app, because the Remake is played saved to the
+  home screen, standalone, one-thumbed.
+  - **Palette.** Warm near-black ink, paper-white text, and one accent — streetlight amber — which
+    always means *you*: your ground on the map, your pin, the button that does the thing. Clean
+    money is green, dirty is copper, heat red-orange, the law blue. Outfit colours from the sim are
+    drawn muted to one saturation (`components/tone.ts`), so rivals read as dyed ink, not poster
+    paint; the sim's values are untouched and old saves get the same treatment.
+  - **Type.** Big Shoulders Display (drawn for Chicago's signage) for titles, names and big
+    figures; the system face (SF Pro on an iPhone) for everything read, and for the ledger's money
+    (the display face's condensed $ reads as an S); Newsreader for the courier's headlines and
+    city mottos. Linked at runtime from `App.tsx`; offline before the first load it falls back to
+    condensed and serif system faces.
+  - **Frame.** The map is full-bleed under two translucent material bars. The top is a **ledger
+    bar**: the day set large, the city and your rank with a bar to the next, then clean, dirty,
+    hours (the day's action points as ticks) and heat as one ruled line; a figure that changes
+    shows by how much for a moment. The bottom is an iOS **tab bar** — six line icons, amber for
+    where you are, red count badges. **End the day** is a capsule above it, lit amber once the
+    hours are spent.
+  - **Map.** A stack under the ledger bar: the courier's headline, then the **next step** card (the
+    tutorial — see §13) with how far through the line you are and, when the step is waiting on
+    something, what. A grouped control column on the right (overlay, where am I, the region), where
+    you are bottom left.
+  - **Sheets** rise from the bottom with a grabber; drag the head down to dismiss (`Sheet` in
+    `kit.tsx`), or tap the dimmed map. Content is **inset grouped**, as in Settings: a section's
+    heading sits above one rounded group, rows are 44pt+ with a chevron when they go somewhere.
+    Every scene is a row — the verb in amber, its odds as a tinted figure, the cost — pressed whole.
+  - **Cards.** Events and complications rise from the bottom within reach of a thumb (centred on
+    wide screens), their choices a grouped list. The morning is a **night report**: a ledger page
+    with the courier's headline, what came in and went out with the net under a rule, and what
+    happened, each line marked by the kind of news. No stars, no bursts.
+  - **Installed.** `index.html` carries `apple-touch-icon` (a PNG — iOS uses nothing else for the
+    home screen, and without one the icon is a screenshot), the web-app title, and a dark
+    background before the stylesheet arrives; the manifest has 192/512 PNGs and a maskable one.
+    Inside the app: no text selection or callouts on chrome, no double-tap zoom, no rubber-banding
+    the whole frame, fields at 16px so iOS never zooms on focus, safe areas on all four edges. In
+    Safari on an iPhone, the start screen says once how to add it to the home screen.
+  Motion (sheets rising, figures changing, the pin's pulse) is off under reduced motion.
 
 ## 7. Testing and the soak
 
@@ -455,6 +480,18 @@ What the first run found, all fixed:
   days, and never once they are paid half again what they are worth (`events.ts: wantsRaise`).
 - **Dealing was the cheapest racket and earns nothing without product.** The business sheet says
   so on the button (`select.racketWarning`) until you have product or a lab making it.
+
+**Through the screen.** `npm run tutorial:ui` (with a built preview on :4173) plays the same line in
+a phone-sized browser: taps the strip, presses what the sheet it opens offers, reads the odds as a
+person would, ends the day when nothing asked for can be done. It reached the mid-game by day 7-11
+on seed 7 and found three more, fixed:
+- **The protect step pointed at the softest owner, not the one you had just won over** — the step
+  before had you build trust with somebody, and this one sent you to a stranger at 11%. It points
+  at whichever owner you have warmed up most now, and names their place.
+- **A job's crew list opened empty**, so "Take it on" was grey until you ticked people. It opens
+  with the fewest it needs already picked, best at what the job leans on, free people first.
+- **The wash step could never happen**: wages come out of dirty money first, and one racket and
+  one recruit left it at $0 every morning while $2,961 sat clean. It is blocked with that reason.
 
 The lieutenant step stays blocked for a rookie through sixty days — nobody reaches level 2 and
 loyalty 55 by following the strip alone — and says so. That is the long game, not a break.

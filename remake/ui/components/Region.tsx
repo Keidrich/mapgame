@@ -13,7 +13,7 @@ import { useWorld, viewCity } from '../store';
 import { Chip, Do, Empty, Meter, Row, Section, Sheet, fmt } from './kit';
 
 const R = { small: 16, medium: 22, large: 29 } as const;
-const GOLD = '#f0a841', BLUE = '#5aa7e6', DIM = '#59606d';
+const GOLD = '#e9a23b', BLUE = '#6e9bef', DIM = '#4a4e55';
 
 export function RegionSheet() {
   const w = useWorld();
@@ -34,13 +34,13 @@ export function RegionSheet() {
     <Sheet title="The region" kicker={`${cities.filter(x => x.founded).length} of ${cities.length} cities yours to walk`}>
       <div className="r-region-map">
         <svg viewBox="0 0 1000 700" role="img" aria-label="Region map">
-          {cities.flatMap(a => a.links.filter(id => id > a.id).map(id => { const b = byId[id]; const lit = (a.founded || a.open) && (b.founded || b.open); return <line key={`${a.id}-${id}`} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={lit ? '#8a7a5a' : '#3a3f4a'} strokeWidth={lit ? 5 : 3} strokeDasharray={lit ? undefined : '10 10'} />; }))}
+          {cities.flatMap(a => a.links.filter(id => id > a.id).map(id => { const b = byId[id]; const lit = (a.founded || a.open) && (b.founded || b.open); return <line key={`${a.id}-${id}`} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={lit ? '#5d564b' : '#2a2e34'} strokeWidth={lit ? 5 : 3} strokeDasharray={lit ? undefined : '10 10'} />; }))}
           {(w.routes ?? []).map(r => { const a = byId[r.from], b = byId[r.to]; return a && b ? <line key={r.id} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={GOLD} strokeWidth={2} strokeDasharray="4 8" /> : null; })}
           {cities.map(x => (
             <g key={x.id} onClick={() => setSel(x.id)} style={{ cursor: 'pointer' }} role="button" aria-label={x.name}>
               {x.id === here && <circle cx={x.x} cy={x.y} r={R[x.size] + 9} fill="none" stroke={GOLD} strokeWidth={3} />}
-              <circle cx={x.x} cy={x.y} r={R[x.size]} fill={colour(x)} fillOpacity={x.founded ? 0.9 : 0.35} stroke={sel === x.id ? '#f4efe6' : colour(x)} strokeWidth={sel === x.id ? 4 : 2} />
-              <text x={x.x} y={x.y + R[x.size] + 30} textAnchor="middle" fill="#e8e2d6" fontSize="26" fontWeight={600}>{x.name}</text>
+              <circle cx={x.x} cy={x.y} r={R[x.size]} fill={colour(x)} fillOpacity={x.founded ? 0.9 : 0.35} stroke={sel === x.id ? '#ede8df' : colour(x)} strokeWidth={sel === x.id ? 4 : 2} />
+              <text x={x.x} y={x.y + R[x.size] + 30} textAnchor="middle" fill="#ede8df" fontSize="26" fontWeight={700}>{x.name}</text>
               {x.founded && <text x={x.x} y={x.y + 9} textAnchor="middle" fill="#11141b" fontSize="22" fontWeight={700}>{Math.round(select.controlIn(w, x.id) * 100)}%</text>}
             </g>
           ))}

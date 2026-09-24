@@ -3,25 +3,26 @@
  * and loaded lazily, so neither game carries the other's code until it is wanted.
  */
 import './remake.css';
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { APPROACH_INFO } from '@r/content/world';
 import { select, PLAYER } from '@r/sim/index';
 import { Icon } from '@ui/icons';
 import { setMode } from '@ui/mode';
 import { act, boot, closeRecap, closeSheets, dismissToast, focusBlock, leaveGame, openSheet, quitGame, setLayer, setTab, useUi, useWorld, viewCity, type Layer, type Tab } from './store';
 import { CityMap } from './components/CityMap';
-import { Face, NpcFace } from './components/Faces';
+import { NpcFace } from './components/Faces';
+import { mute } from './components/tone';
 import { JobSheet, FactionSheet } from './components/JobFaction';
 import { PersonSheet } from './components/PersonSheet';
 import { BlockSheet, BusinessSheet } from './components/PlaceSheets';
 import { Start } from './components/Start';
 import { RegionSheet } from './components/Region';
 import { CrewTab, EmpireTab, JobsTab, PeopleTab, RivalsTab } from './components/Tabs';
-import { Do, Meter, Sheet, fmt } from './components/kit';
-import { GBag, GBolt, GCash, GChevron, GFlame, GLayers, GStar, GTrophy } from './components/GameIcons';
+import { Do, Meter, Section, Sheet, fmt } from './components/kit';
 
-const FONTS = 'https://fonts.googleapis.com/css2?family=Lilita+One&family=Nunito:wght@500;600;700;800;900&display=swap';
-/** The two faces, linked once; if they cannot load the game falls back to rounded system fonts. */
+const FONTS = 'https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;700;800&family=Newsreader:ital,opsz,wght@1,6..72,400;1,6..72,500&display=swap';
+/** The display and press faces, linked once; body text is the system face. Offline before the
+ *  first load, the game falls back to condensed and serif system faces and still reads. */
 function useFonts() {
   useEffect(() => {
     if (document.querySelector(`link[href="${FONTS}"]`)) return;
@@ -58,7 +59,6 @@ function Game() {
   const offers = Object.values(w.jobs).filter(j => j.status === 'offer').length;
   return (
     <div className="r-game">
-      <Hud />
       <main className="r-main">
         {tab === 'map' ? <MapScreen /> : (
           <div className="r-panel">
@@ -69,19 +69,20 @@ function Game() {
             {tab === 'rivals' && <RivalsTab />}
           </div>
         )}
-        {/* the end of the day: a big moon, glowing once the day's energy is spent */}
-        <div className={`g-endday${w.player.ap === 0 ? ' ready' : ''}`}>
-          {w.events.length ? <span className="g-decide">{w.events.length} to decide</span> : <Do action={{ type: 'end_day' }} label="End day" icon="moon" kind="primary" />}
-        </div>
       </main>
+      <Hud />
+      {/* ending the day: one capsule, always in the same place, lit once the hours are spent */}
+      <div className={`r-endday${w.player.ap === 0 ? ' ready' : ''}`}>
+        {w.events.length ? <span className="r-decide">{w.events.length} to decide</span> : <Do action={{ type: 'end_day' }} label="End the day" icon="moon" />}
+      </div>
       <nav className="r-tabbar" aria-label="Sections">
         {TABS.map(t => {
           const badge = t.id === 'jobs' ? ready || offers : t.id === 'crew' ? Object.values(w.hostages).filter(h => h.holder !== PLAYER).length : 0;
           return (
             <button type="button" key={t.id} className={tab === t.id ? 'on' : ''} aria-current={tab === t.id ? 'page' : undefined} onClick={() => setTab(t.id)}>
-              <span className="g-tile"><Icon name={t.icon} size={22} strokeWidth={tab === t.id ? 2.2 : 1.7} /></span>
+              <Icon name={t.icon} size={24} strokeWidth={tab === t.id ? 2 : 1.6} />
               <span>{t.label}</span>
-              {badge ? <i className={t.id === 'jobs' && ready ? 'hot' : t.id === 'crew' ? 'hot' : ''}>{badge}</i> : null}
+              {badge ? <i>{badge}</i> : null}
             </button>
           );
         })}
@@ -109,9 +110,9 @@ function Game() {
 }
 
 /**
- * The HUD, the way mobile games draw it: you on the left with your rank as a level bar, the day on
- * the right, and four pills — clean money, dirty money, the day's energy, heat. Money that changes
- * floats a +/− number off its pill, so a night's takings are something you see land.
+ * The ledger bar. The day, set large, is the page number; beside it the city and your rank with
+ * how far to the next. Under that, the four figures the whole game turns on, as a ledger line:
+ * clean, dirty, the hours left in the day, heat. A figure that moves shows by how much, briefly.
  */
 function Hud() {
   const w = useWorld();
@@ -120,51 +121,49 @@ function Hud() {
   const next = select.nextRank(w);
   const n = select.notoriety(w);
   const pct = next ? Math.max(0, Math.min(100, ((n - rank.at) / (next.at - rank.at)) * 100)) : 100;
-  const level = select.rankIndex(w) + 1;
+  const hot = p.heat >= 60;
   return (
-    <header className="g-hud">
-      <div className="g-hud-top">
-        <button type="button" className="g-avatar" onClick={() => openSheet({ kind: 'menu' })} aria-label="Menu">
-          <Face seed={p.face} pronoun="they" age={34} mood="neutral" size={44} tint="#3b2f7a" />
-          <span className="g-lvl">{level}</span>
+    <header className="r-top">
+      <div className="r-top-row">
+        <button type="button" className="r-dayno" onClick={() => openSheet({ kind: 'menu' })} aria-label={`Day ${w.day}. Menu`}><span>Day</span><b>{w.day}</b></button>
+        <button type="button" className="r-who" onClick={() => setTab('empire')} aria-label="Your empire">
+          <b>{p.nick ? `"${p.nick}"` : p.name} · {select.cityName(w, select.currentCity(w))}</b>
+          <span>{rank.label}{next ? <><i title={`${next.at - n} more fear and respect to ${next.label}`}><u style={{ width: `${pct}%` }} /></i>{next.label}</> : null}</span>
         </button>
-        <div className="g-who">
-          <b>{p.nick ? `"${p.nick}"` : p.name}</b>
-          <div className="g-xp" title={next ? `${next.at - n} more fear and respect to ${next.label}` : 'The top'}><i style={{ width: `${pct}%` }} /><span>{rank.label}{next ? ` · ${n}/${next.at}` : ''}</span></div>
-        </div>
-        <button type="button" className="g-day" onClick={() => openSheet({ kind: 'menu' })} aria-label={`Day ${w.day}`}><span>DAY</span><b>{w.day}</b></button>
+        <button type="button" className="r-iconbtn" onClick={() => openSheet({ kind: 'menu' })} aria-label="Menu"><svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><circle cx="3.5" cy="9" r="1.6" fill="currentColor" /><circle cx="9" cy="9" r="1.6" fill="currentColor" /><circle cx="14.5" cy="9" r="1.6" fill="currentColor" /></svg></button>
       </div>
-      <div className="g-res">
-        <Pill kind="clean" icon={<GCash size={26} />} value={p.cash} title="Clean money" />
-        <Pill kind="dirty" icon={<GBag size={26} />} value={p.dirty} title="Dirty money" />
-        <div className={`g-pill energy${p.ap === 0 ? ' empty' : ''}`} title="Action points left today">
-          <GBolt size={26} /><b>{p.ap}/{p.apMax}</b>
+      <dl className="r-ledger">
+        <Figure kind="clean" label="Clean" value={p.cash} />
+        <Figure kind="dirty" label="Dirty" value={p.dirty} />
+        <div className={`hours${p.ap === 0 ? ' out' : ''}`} title={`${p.ap} of ${p.apMax} hours left today`}>
+          <dt>Hours</dt>
+          <dd aria-label={`${p.ap} of ${p.apMax}`}>{p.apMax <= 10 ? Array.from({ length: p.apMax }, (_, i) => <i key={i} className={i < p.ap ? 'on' : ''} />) : `${p.ap}/${p.apMax}`}</dd>
         </div>
-        <div className={`g-pill heat${p.heat >= 60 ? ' hot' : ''}`} title={`Heat ${Math.round(p.heat)}`}>
-          <GFlame size={26} hot={p.heat >= 60} /><b>{Math.round(p.heat)}</b>
-          <span className="g-heatbar"><i style={{ width: `${p.heat}%` }} /></span>
+        <div className={`heat${hot ? ' hot' : ''}`} title={`Heat ${Math.round(p.heat)} of 100`}>
+          <dt>Heat</dt><dd>{Math.round(p.heat)}</dd>
+          <u><s style={{ width: `${Math.min(100, p.heat)}%` }} /></u>
         </div>
-      </div>
+      </dl>
     </header>
   );
 }
 
-/** A currency pill that floats the change off it when the number moves. */
-function Pill({ kind, icon, value, title }: { kind: string; icon: ReactNode; value: number; title: string }) {
+/** One money figure on the ledger line; when it changes, the change shows beside it for a moment. */
+function Figure({ kind, label, value }: { kind: string; label: string; value: number }) {
   const prev = useRef(value);
   const [deltas, setDeltas] = useState<{ id: number; n: number }[]>([]);
   useEffect(() => {
     const d = value - prev.current; prev.current = value;
     if (!d) return;
     const id = Date.now() + Math.random();
-    setDeltas(x => [...x.slice(-2), { id, n: d }]);
-    const t = setTimeout(() => setDeltas(x => x.filter(y => y.id !== id)), 1500);
+    setDeltas(x => [...x.slice(-1), { id, n: d }]);
+    const t = setTimeout(() => setDeltas(x => x.filter(y => y.id !== id)), 1600);
     return () => clearTimeout(t);
   }, [value]);
   return (
-    <div className={`g-pill ${kind}`} title={title}>
-      {icon}<b>{fmt(value)}</b>
-      {deltas.map(d => <span key={d.id} className={`g-delta ${d.n > 0 ? 'up' : 'down'}`}>{d.n > 0 ? '+' : '−'}{fmt(Math.abs(d.n))}</span>)}
+    <div className={kind}>
+      <dt>{label}</dt><dd>{fmt(value)}</dd>
+      {deltas.map(d => <span key={d.id} className={`r-delta ${d.n > 0 ? 'up' : 'down'}`}>{d.n > 0 ? '+' : '−'}{fmt(Math.abs(d.n))}</span>)}
     </div>
   );
 }
@@ -184,34 +183,37 @@ function MapScreen() {
   const looking = useUi(s => s.viewCity);
   const shown = looking && looking !== cityId && w.region?.cities.some(c => c.id === looking && c.founded) ? looking : cityId;
   const view = useMemo(() => select.cityView(w, shown), [w, shown]);
+  const lay = LAYERS.find(l => l.id === layer) ?? LAYERS[0];
   return (
     <div className="r-mapwrap">
       <CityMap w={view} layer={layer} focus={focus} selected={sel} onBlock={id => { setSel(id); openSheet({ kind: 'block', id }); }} />
-      {shown !== cityId && <button type="button" className="g-viewing" onClick={() => viewCity(undefined, w.player.blockId)}><span>Looking at {select.cityName(w, shown)}</span><b>Back to {select.cityName(w, cityId)}</b></button>}
-      {headline && shown === cityId && <div className="r-paper"><span>{select.cityName(w, cityId).toUpperCase()} COURIER · DAY {headline.day}</span><b>{headline.text}</b></div>}
-      <LeadStrip />
-      {/* round tools down the right edge: the overlay cycles on a tap, like a game's view toggle */}
+      <div className="r-map-top">
+        {shown !== cityId && <button type="button" className="r-viewing" onClick={() => viewCity(undefined, w.player.blockId)}><span>Looking at {select.cityName(w, shown)}</span><b>Back to {select.cityName(w, cityId)}</b></button>}
+        {headline && shown === cityId && <div className="r-paper"><span>Courier</span><b>{headline.text}</b></div>}
+        {shown === cityId && <LeadStrip />}
+      </div>
       <div className="r-map-tools">
-        <button type="button" className="g-fab" onClick={() => setLayer(LAYERS[(LAYERS.findIndex(l => l.id === layer) + 1) % LAYERS.length].id)} aria-label={`Map overlay: ${LAYERS.find(l => l.id === layer)?.label}. Tap for the next.`}><GLayers size={24} /><small>{LAYERS.find(l => l.id === layer)?.short}</small></button>
-        <button type="button" className="g-fab" onClick={() => focusBlock(w.player.blockId)} aria-label="Where am I"><Icon name="you" size={24} strokeWidth={2} /><small>Me</small></button>
-        <button type="button" className="g-fab gold" onClick={() => openSheet({ kind: 'region' })} aria-label="The region"><Icon name="map" size={24} strokeWidth={2.2} /><small>Region</small></button>
+        <button type="button" className="r-tool on" onClick={() => setLayer(LAYERS[(LAYERS.findIndex(l => l.id === layer) + 1) % LAYERS.length].id)} aria-label={`Map shows: ${lay.label}. Tap for the next.`}><Icon name="territory" size={20} strokeWidth={1.8} /><small>{lay.short}</small></button>
+        <button type="button" className="r-tool" onClick={() => focusBlock(w.player.blockId)} aria-label="Where am I"><Icon name="you" size={20} strokeWidth={1.8} /><small>Me</small></button>
+        <button type="button" className="r-tool" onClick={() => openSheet({ kind: 'region' })} aria-label="The region"><Icon name="legwork" size={20} strokeWidth={1.8} /><small>Region</small></button>
       </div>
       {shown === cityId && <button type="button" className="r-here-card" onClick={() => openSheet({ kind: 'block', id: here.id })}>
-        <span className="r-kicker">You are on{Object.keys(w.cities ?? {}).length ? ` · ${select.cityName(w, cityId)}` : ''}</span>
+        <span className="r-kicker">You are on</span>
         <b>{here.name}</b>
         <span className="r-note">{w.districts[here.districtId].name} · {select.businessesIn(w, here.id).length} places · {select.holderName(w, here.id)}</span>
       </button>}
       {layer === 'control' && <div className="r-legend">
-        <span><i style={{ background: '#f0a841' }} />You</span>
-        {factions.map(f => <span key={f.id}><i style={{ background: f.color }} />{f.short}</span>)}
+        <span><i style={{ background: 'var(--amber)' }} />You</span>
+        {factions.map(f => <span key={f.id}><i style={{ background: mute(f.color) }} />{f.short}</span>)}
       </div>}
     </div>
   );
 }
 
 /**
- * The next thing worth doing, pointing at a real person or place. One line on the map, and a tap
- * away from the whole list. Read off the world every render (`select.leads`), so it cannot drift.
+ * The next step: the tutorial, as one line on the map. It names a real person, place or tab, and a
+ * tap goes there. The step shown is `select.nextLead` — the first that is not done and not waiting
+ * on something — and a step that is waiting says what on. The whole line folds out below it.
  */
 function LeadStrip() {
   const w = useWorld();
@@ -220,6 +222,7 @@ function LeadStrip() {
   const todo = all.filter(l => !l.done);
   const next = select.nextLead(w);
   if (!todo.length || !next) return null;
+  const done = all.length - todo.length;
   const go = (l: select.Lead) => {
     setOpen(false);
     if (l.npcId) openSheet({ kind: 'person', id: l.npcId });
@@ -229,25 +232,13 @@ function LeadStrip() {
   };
   return (
     <div className={`r-leads${open ? ' open' : ''}`}>
-      <QuestRing done={all.length - todo.length} of={all.length} />
       <button type="button" className="r-lead-top" onClick={() => go(next)}>
-        <span className="r-kicker">Quest</span>
+        <span className="r-kicker">Next<u><s style={{ width: `${(done / all.length) * 100}%` }} /></u><em>{done} of {all.length}</em></span>
         <b>{next.text}</b>
         {next.blocked && <span className="r-why">{next.blocked}</span>}
       </button>
-      <button type="button" className="r-lead-more" aria-expanded={open} aria-label="All quests" onClick={() => setOpen(o => !o)}><Icon name={open ? 'caret_up' : 'down'} size={20} strokeWidth={2.4} /></button>
-      {open && <ol className="r-lead-list">{all.map(l => <li key={l.id} className={l.done ? 'done' : ''}><button type="button" disabled={l.done} onClick={() => go(l)}><GStar size={22} dim={!l.done} /><b>{l.text}</b><span>{!l.done && l.blocked ? l.blocked : l.why}</span></button></li>)}</ol>}
-    </div>
-  );
-}
-
-/** How far along the quest line you are, as a ring. */
-function QuestRing({ done, of }: { done: number; of: number }) {
-  const r = 18, c = 2 * Math.PI * r;
-  return (
-    <div className="g-quest-ring" aria-label={`${done} of ${of} done`}>
-      <svg width="44" height="44" viewBox="0 0 44 44"><circle cx="22" cy="22" r={r} fill="#110f2a" stroke="#2c2862" strokeWidth="5" /><circle cx="22" cy="22" r={r} fill="none" stroke="#ffcc33" strokeWidth="5" strokeLinecap="round" strokeDasharray={`${(done / Math.max(1, of)) * c} ${c}`} /></svg>
-      <b>{done}/{of}</b>
+      <button type="button" className="r-lead-more" aria-expanded={open} aria-label={open ? 'Hide the steps' : 'Every step'} onClick={() => setOpen(o => !o)}><Icon name={open ? 'caret_up' : 'down'} size={18} strokeWidth={2} /></button>
+      {open && <ol className="r-lead-list">{all.map(l => <li key={l.id} className={l.done ? 'done' : l.id === next.id ? 'now' : ''}><button type="button" disabled={l.done} onClick={() => go(l)}><span className="r-tick">{l.done ? <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 5.2l2.3 2.3 4.7-5" stroke="currentColor" strokeWidth="1.8" fill="none" strokeLinecap="round" strokeLinejoin="round" /></svg> : null}</span><b>{l.text}</b><span>{!l.done && l.blocked ? l.blocked : l.why}</span></button></li>)}</ol>}
     </div>
   );
 }
@@ -260,7 +251,7 @@ function EventCard() {
   return (
     <div className="r-modal" role="dialog" aria-modal="true" aria-labelledby="r-ev-title">
       <div className="r-card">
-        <div className="r-card-head">{n ? <NpcFace n={n} size={52} tint={f ? `${f.color}55` : undefined} /> : <span className="r-bizicon big"><Icon name="note" size={28} /></span>}<div><div className="r-kicker">Day {w.day}{w.events.length > 1 ? ` · 1 of ${w.events.length}` : ''}</div><h2 id="r-ev-title">{e.title}</h2></div></div>
+        <div className="r-card-head">{n ? <NpcFace n={n} size={52} tint={f ? `${mute(f.color)}55` : undefined} /> : <span className="r-bizicon big"><Icon name="note" size={26} /></span>}<div className="grow"><div className="r-kicker">Day {w.day}{w.events.length > 1 ? ` · 1 of ${w.events.length}` : ''}</div><h2 id="r-ev-title">{e.title}</h2></div></div>
         <p className="r-card-text">{e.text}</p>
         <div className="r-card-options">
           {e.options.map(o => (
@@ -301,31 +292,29 @@ function ComplicationCard() {
 }
 
 /**
- * The end of the day as a reward screen: stars for how the day went, the takings as tiles that pop
- * in one by one, the day's headline, and everything that happened in a list. Three stars is a day
- * that made money and cooled off; one is a day that cost you.
+ * The night report: a page from the ledger. The courier's headline, what came in and went out as
+ * figures with the net under a rule, and everything that happened, each line marked by what kind
+ * of news it is. No stars and no fanfare — the numbers are the reward.
  */
 function RecapCard() {
   const w = useWorld();
   const r = useUi(s => s.recap)!;
   const net = r.clean + r.dirty - r.spent;
-  const stars = net > 0 ? (r.heat < 40 ? 3 : 2) : 1;
   return (
     <div className="r-modal" role="dialog" aria-modal="true" aria-labelledby="r-recap-title">
       <div className="r-card paper">
-        <div className="g-burst" />
-        <div className="r-paper-mast">Day {r.day} complete{r.away ? ` · ${r.away} day${r.away > 1 ? 's' : ''} away` : ''}</div>
-        <div className="g-stars">{[0, 1, 2].map(i => <GStar key={i} size={i === 1 ? 54 : 42} dim={i >= stars} />)}</div>
-        <h2 id="r-recap-title" className="r-headline">{r.headline ?? `${w.city.name} sleeps`}</h2>
-        <div className="g-reward">
-          <div><GCash size={30} /><b className="green">{fmt(r.clean)}</b><span>Clean</span></div>
-          <div><GBag size={30} /><b className="orange">{fmt(r.dirty)}</b><span>Dirty</span></div>
-          <div><Icon name="cash" size={28} /><b>−{fmt(r.spent)}</b><span>Paid out</span></div>
-          <div><GFlame size={30} hot={r.heat >= 60} /><b>{r.heat}</b><span>Heat</span></div>
-          {r.washed > 0 && <div><Icon name="laundering" size={28} /><b>{fmt(r.washed)}</b><span>Washed</span></div>}
+        <div className="r-paper-mast"><span>Night of day {r.day}{r.away ? ` · ${r.away} day${r.away > 1 ? 's' : ''} away` : ''}</span><span>{w.city.name}</span></div>
+        <h2 id="r-recap-title" className="r-headline">{r.headline ?? `${w.city.name} sleeps.`}</h2>
+        <div className="r-ledger-rows">
+          <div><span>Clean in</span><b className="green">{fmt(r.clean)}</b></div>
+          <div><span>Dirty in</span><b className="orange">{fmt(r.dirty)}</b></div>
+          <div><span>Paid out</span><b>{r.spent ? `−${fmt(r.spent)}` : fmt(0)}</b></div>
+          {r.washed > 0 && <div><span>Washed</span><b>{fmt(r.washed)}</b></div>}
+          <div className="net"><span>The night</span><b className={net > 0 ? 'green' : net < 0 ? 'orange' : undefined}>{net > 0 ? '+' : net < 0 ? '−' : ''}{fmt(Math.abs(net))}</b></div>
+          <div><span>Heat</span><b style={r.heat >= 60 ? { color: 'var(--heat)' } : undefined}>{r.heat}</b></div>
         </div>
         {r.lines.length > 0 && <ul className="r-recap-lines">{r.lines.map((l, i) => <li key={i} className={l.tone}>{l.text}</li>)}</ul>}
-        <button type="button" className="r-btn primary block big" onClick={closeRecap} autoFocus>{w.events.length ? `Decide (${w.events.length})` : 'Next day'} <GChevron size={20} /></button>
+        <button type="button" className="r-btn primary block big" onClick={closeRecap} autoFocus>{w.events.length ? `Decide (${w.events.length})` : 'Morning'}</button>
       </div>
     </div>
   );
@@ -335,10 +324,8 @@ function WinCard() {
   const w = useWorld();
   return (
     <div className="r-modal" role="dialog" aria-modal="true"><div className="r-card paper">
-      <div className="g-burst" />
-      <div className="r-paper-mast">Victory</div>
-      <div className="g-stars"><GTrophy size={84} /></div>
-      <h2 className="r-headline">THE CITY HAS A NEW OWNER</h2>
+      <div className="r-paper-mast"><span>Day {w.day}</span><span>{w.city.name}</span></div>
+      <div className="r-ending">The city is yours</div>
       <p className="r-card-text">Half of {w.city.name} answers to you{Object.values(w.factions).every(f => !f.alive) ? ', and every outfit that stood against you is gone' : ''}. The game goes on — hold it.</p>
       <Do action={{ type: 'seen_win' }} label="Keep going" kind="primary" block />
     </div></div>
@@ -349,12 +336,11 @@ function OverCard() {
   const w = useWorld();
   const o = w.over!;
   const title = { kingpin: 'Kingpin', straight: 'Out clean', dead: 'Dead', convicted: 'Convicted', broke: 'Finished' }[o.ending];
+  const won = o.ending === 'kingpin' || o.ending === 'straight';
   return (
     <div className="r-modal" role="dialog" aria-modal="true"><div className="r-card paper">
-      {(o.ending === 'kingpin' || o.ending === 'straight') && <div className="g-burst" />}
-      <div className="r-paper-mast">{o.ending === 'kingpin' || o.ending === 'straight' ? 'You made it' : 'Game over'} · day {o.day}</div>
-      <div className="g-stars">{o.ending === 'kingpin' || o.ending === 'straight' ? <GTrophy size={76} /> : [0, 1, 2].map(i => <GStar key={i} size={i === 1 ? 50 : 40} dim />)}</div>
-      <h2 className="r-headline">{title.toUpperCase()}</h2>
+      <div className="r-paper-mast"><span>{won ? 'You made it' : 'The end'} · day {o.day}</span><span>{w.city.name}</span></div>
+      <div className={`r-ending${won ? '' : ' lost'}`}>{title}</div>
       <p className="r-card-text">{o.text}</p>
       <div className="r-stats">
         <div><span>Days</span><b>{o.day}</b></div>
@@ -378,20 +364,23 @@ function MenuSheet() {
   const [tools, setTools] = useState(false);
   return (
     <Sheet title={w.city.name} kicker={`Seed ${w.seed} · day ${w.day}`}>
-      <p className="r-note">“{w.city.motto}”</p>
-      <div className="r-rel">
-        <Meter value={select.controlShare(w) * 100} label="Your share of the city" right={`${(select.controlShare(w) * 100).toFixed(1)}% of ${Object.keys(w.blocks).length} blocks — half wins it`} />
+      <p className="r-motto-line">“{w.city.motto}”</p>
+      <Meter value={select.controlShare(w) * 100} label="Your share of the city" right={`${(select.controlShare(w) * 100).toFixed(1)}% of ${Object.keys(w.blocks).length} blocks — half wins it`} />
+      <div className="r-menu">
+        <button type="button" onClick={() => openSheet({ kind: 'help' })}><Icon name="help" size={20} /> How to play</button>
+        <button type="button" onClick={() => openSheet({ kind: 'region' })}><Icon name="legwork" size={20} /> The region</button>
+        <button type="button" onClick={leaveGame}><Icon name="city_hall" size={20} /> Your cities<em>this one stays saved</em></button>
+        <button type="button" onClick={() => { closeSheets(); setMode('original'); }}><Icon name="map" size={20} /> The original RACKETS</button>
       </div>
-      <button type="button" className="r-btn block" onClick={() => openSheet({ kind: 'help' })}><Icon name="help" size={16} /> How to play</button>
-      <button type="button" className="r-btn block" onClick={() => { closeSheets(); setMode('original'); }}><Icon name="map" size={16} /> Back to the original RACKETS</button>
-      <button type="button" className="r-btn block" onClick={leaveGame}><Icon name="city_hall" size={16} /> Your cities — this one stays saved</button>
-      <button type="button" className={`r-btn block ${sure ? 'danger' : 'ghost'}`} onClick={() => (sure ? quitGame() : setSure(true))}>{sure ? 'Tap again: this city is gone for good' : 'Delete this city'}</button>
-      <button type="button" className="r-btn ghost block" aria-expanded={tools} onClick={() => setTools(t => !t)}>{tools ? 'Hide the testing tools' : 'Testing tools'}{w.cheated ? ' · used on this save' : ''}</button>
-      {tools && <div className="r-section">
+      <div className="r-menu">
+        <button type="button" aria-expanded={tools} onClick={() => setTools(t => !t)}><Icon name="wrench" size={20} /> Testing tools<em>{w.cheated ? 'used on this save' : tools ? 'hide' : ''}</em></button>
+        <button type="button" className="danger" onClick={() => (sure ? quitGame() : setSure(true))}><Icon name="trash" size={20} /> {sure ? 'Tap again: this city is gone for good' : 'Delete this city'}</button>
+      </div>
+      {tools && <Section title="Testing tools">
         <p className="r-note">For trying a system without playing weeks to reach it. Each one marks this save as tested.</p>
-        <div className="r-inline-actions">{select.CHEATS.map(c => <Do key={c.kind} action={{ type: 'cheat', what: c.kind }} label={c.label} small kind="ghost" />)}</div>
-      </div>}
-      <p className="r-note">The Remake saves on its own, separately from the original game. You can keep three cities. While the app is closed a day passes every six hours, up to three, and the careful choice is made for you.</p>
+        <div className="r-inline-actions">{select.CHEATS.map(c => <Do key={c.kind} action={{ type: 'cheat', what: c.kind }} label={c.label} small />)}</div>
+      </Section>}
+      <p className="r-note" style={{ marginTop: 18 }}>The Remake saves on its own, separately from the original game. You can keep three cities. While the app is closed a day passes every six hours, up to three, and the careful choice is made for you.</p>
       {void PLAYER}
     </Sheet>
   );

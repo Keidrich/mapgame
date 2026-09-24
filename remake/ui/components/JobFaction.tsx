@@ -8,6 +8,7 @@ import type { Action } from '@r/sim/index';
 import { can } from '@r/sim/index';
 import { openSheet, useWorld } from '../store';
 import { Emblem, NpcFace } from './Faces';
+import { mute } from './tone';
 import { Chip, Dial, Do, Empty, Row, Section, Sheet, fmt } from './kit';
 
 const JOB_ICON: Record<string, string> = { burglary: 'lockpicks', robbery: 'robbery', heist: 'heist_bank', hijack: 'hijack_load', hit: 'hit', kidnap: 'kidnap', arson: 'arson_hire', sabotage: 'war_strike', con: 'long_con', fraud: 'check_kiting', hack: 'hack', smuggle: 'smuggle_run', raid: 'raid_rival', frame: 'frame', setpiece: 'crown' };
@@ -47,7 +48,15 @@ export function payoutLine(j: Job, approach?: Approach): string {
 export function JobSheet({ id }: { id: string }) {
   const w = useWorld();
   const j = w.jobs[id];
-  const [pick, setPick] = useState<Id[]>([]);
+  // an offer opens with the fewest people it needs already picked — the best at what it leans on,
+  // free ones first — so "Take it on" is live the moment the sheet opens; a new player met a
+  // greyed-out button and an empty list, and the tutorial's job step took them days
+  const [pick, setPick] = useState<Id[]>(() => {
+    if (!j || j.status !== 'offer' || !j.crewMin) return [];
+    return select.crew(w).filter(n => n.crew!.status === 'ready' && n.crew!.assignment?.kind !== 'job')
+      .sort((a, b) => Number(!!a.crew!.assignment) - Number(!!b.crew!.assignment) || j.leans.reduce((t, s) => t + b.skills[s] - a.skills[s], 0))
+      .slice(0, j.crewMin).map(n => n.id);
+  });
   if (!j) return <Sheet title="Gone"><Empty>That job is off the board.</Empty></Sheet>;
   const def = JOBS[j.kind];
   const src = j.sourceId ? w.npcs[j.sourceId] : undefined;
@@ -147,8 +156,8 @@ export function FactionSheet({ id }: { id: string }) {
       <p className="r-note">Above +50 you are allies; down to −10 it is peace. Below −30 it is beef — they wreck rackets and take places off you. Below −55 it is war, and somebody will come for you personally.</p>
       {f.grievances.length > 0 && <Section title="What they hold against you">{f.grievances.map((g, i) => <p key={i} className="r-memory">{g}</p>)}</Section>}
       <Section title="The people">
-        {boss && <Row onClick={() => openSheet({ kind: 'person', id: boss.id })} left={<NpcFace n={boss} size={40} tint={`${f.color}66`} />} title={select.fullName(boss)} sub="Boss" />}
-        {f.lieutenantIds.map(lid => { const n = w.npcs[lid]; return n ? <Row key={lid} onClick={() => openSheet({ kind: 'person', id: lid })} left={<NpcFace n={n} size={32} tint={`${f.color}44`} />} title={select.fullName(n)} sub={n.alive ? 'Lieutenant' : 'Dead'} /> : null; })}
+        {boss && <Row onClick={() => openSheet({ kind: 'person', id: boss.id })} left={<NpcFace n={boss} size={40} tint={`${mute(f.color)}66`} />} title={select.fullName(boss)} sub="Boss" />}
+        {f.lieutenantIds.map(lid => { const n = w.npcs[lid]; return n ? <Row key={lid} onClick={() => openSheet({ kind: 'person', id: lid })} left={<NpcFace n={n} size={32} tint={`${mute(f.color)}44`} />} title={select.fullName(n)} sub={n.alive ? 'Lieutenant' : 'Dead'} /> : null; })}
       </Section>
       {f.alive && (
         <Section title="Talk to them">

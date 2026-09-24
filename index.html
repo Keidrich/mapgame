@@ -6,7 +6,15 @@
     <meta name="theme-color" content="#0b0d10" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Rackets" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="format-detection" content="telephone=no" />
     <link rel="icon" href="/favicon.svg" />
+    <!-- iOS takes its home-screen icon from here, and only from a PNG: without it the icon is a
+         screenshot of whatever page was open when the player tapped Add to Home Screen -->
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <!-- dark before the stylesheet arrives, so a standalone launch never flashes white -->
+    <style>html, body { background: #0b0d10; }</style>
     <title>Rackets</title>
   </head>
   <body>

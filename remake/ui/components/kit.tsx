@@ -1,8 +1,7 @@
 /** The Remake's small parts: a button that asks the sim, a meter, a sheet, a chip. */
-import { useState, type ReactNode } from 'react';
+import { useRef, useState, type PointerEvent as RPE, type ReactNode } from 'react';
 import { can, type Action } from '@r/sim/index';
 import { Icon } from '@ui/icons';
-import { GClose } from './GameIcons';
 import { act, closeSheet, useWorld } from '../store';
 
 /**
@@ -53,18 +52,47 @@ export function Dial({ value, label }: { value: number; label: ReactNode }) {
   );
 }
 
+/**
+ * An iOS sheet. It rises from the bottom; dragging its head down past a fifth of its height (or
+ * flicking it) sends it away, as does tapping the dimmed screen behind it. Only the head drags —
+ * the body scrolls, and a sheet that also dragged from its body would fight every scroll.
+ */
 export function Sheet({ title, kicker, children, art, onClose = closeSheet }: { title: ReactNode; kicker?: ReactNode; children: ReactNode; art?: ReactNode; onClose?: () => void }) {
+  const el = useRef<HTMLElement>(null);
+  const drag = useRef<{ y: number; t: number; dy: number } | null>(null);
+  const down = (e: RPE<HTMLElement>) => {
+    if ((e.target as HTMLElement).closest('button')) return;
+    drag.current = { y: e.clientY, t: performance.now(), dy: 0 };
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+    el.current?.classList.add('dragging');
+  };
+  const move = (e: RPE<HTMLElement>) => {
+    const d = drag.current; if (!d || !el.current) return;
+    d.dy = Math.max(0, e.clientY - d.y);
+    el.current.style.transform = `translateY(${d.dy}px)`;
+  };
+  const up = () => {
+    const d = drag.current; const s = el.current; drag.current = null;
+    if (!d || !s) return;
+    s.classList.remove('dragging');
+    const fast = d.dy / Math.max(1, performance.now() - d.t) > 0.6;
+    if (d.dy > s.offsetHeight * 0.2 || (fast && d.dy > 30)) { s.classList.add('settle'); s.style.transform = 'translateY(100%)'; setTimeout(onClose, 200); return; }
+    s.classList.add('settle'); s.style.transform = '';
+    setTimeout(() => s.classList.remove('settle'), 260);
+  };
+  const handlers = { onPointerDown: down, onPointerMove: move, onPointerUp: up, onPointerCancel: up };
   return (
     <div className="r-sheet-wrap" role="dialog" aria-modal="true">
       <button type="button" className="r-scrim" aria-label="Close" onClick={onClose} />
-      <section className="r-sheet">
-        <header className="r-sheet-head">
+      <section className="r-sheet" ref={el}>
+        <div className="r-grab" aria-hidden="true" {...handlers} />
+        <header className="r-sheet-head" {...handlers}>
           {art}
           <div className="grow">
             {kicker && <div className="r-kicker">{kicker}</div>}
             <h2>{title}</h2>
           </div>
-          <button type="button" className="r-close" aria-label="Close" onClick={onClose}><GClose size={18} /></button>
+          <button type="button" className="r-close" aria-label="Close" onClick={onClose}><svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M1.5 1.5l9 9M10.5 1.5l-9 9" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg></button>
         </header>
         <div className="r-sheet-body">{children}</div>
       </section>

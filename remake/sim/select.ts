@@ -8,7 +8,7 @@ import type { RacketKind } from './types';
 import { protectionTake, racketIncome, washCap, washRate } from './economy';
 import { PLAYER } from './types';
 import type { Block, Business, Id, Npc, World } from './types';
-import { controller } from './util';
+import { controller, money as money_ } from './util';
 
 export { businessPrice, crewCut, fixerCap, fixerRate, labOutput, labQuality, levelMult, netWorth, nextRank, notoriety, protectionTake, racketIncome, rankOf, runnerFactor, saturationMult, sellCapacity, stashTotal, streetPrice, synergyOf, upgradeCost, washCap, washRate, INSTITUTION_RESPECT, FAIR_RATE } from './economy';
 export { bedsTotal, blockCity, controlShare, crewCity, crewIn, playerBlocks, travelCost } from './select-core';
@@ -111,6 +111,11 @@ export function leads(w: World): Lead[] {
   const nearby = [here.id, ...here.neighborIds];
   const owners = nearby.flatMap(id => businessesIn(w, id)).filter(b => b.tier < 3 && b.ownedBy !== PLAYER).map(b => w.npcs[b.ownerId]).filter(n => n?.alive);
   const soft = owners.slice().sort((a, b) => a.nerve - b.nerve)[0];
+  // the protect step points at whoever you have already warmed up — most trust or fear, owners
+  // not yet paying you — and only falls back to the softest. It used to point at the softest
+  // regardless, so a player who had just won somebody over was sent to a stranger at 11%
+  const warm = owners.filter(n => { const b = n.workId ? w.businesses[n.workId] : undefined; return b && b.protection?.by !== PLAYER; })
+    .map(n => ({ n, v: Math.max(n.rel.trust, n.rel.fear) })).filter(x => x.v > 0).sort((a, b) => b.v - a.v)[0]?.n ?? soft;
   // the first step introduces you to somebody new: an owner you already know from the neighbourhood
   // does not count as an introduction, and pointing at one left seed 42 talking to Rufus Tillman forever
   const stranger = owners.filter(n => !n.rel.met).sort((a, b) => a.nerve - b.nerve)[0] ?? nearby.flatMap(id => businessesIn(w, id)).flatMap(b => [b.ownerId, ...b.patronIds]).map(id => w.npcs[id]).find(n => n?.alive && !n.rel.met && !n.faction);
@@ -136,11 +141,14 @@ export function leads(w: World): Lead[] {
   const list: Lead[] = [
     { id: 'talk', text: stranger ? `Introduce yourself to ${fullName(stranger)}` : 'Introduce yourself to somebody', why: 'Talking builds trust and shows you what somebody is like.', done: (p.introduced ?? 0) > 0 || met >= 1, npcId: stranger?.id },
     { id: 'lean', text: soft ? `Get ${fullName(soft)} to trust or fear you` : 'Get an owner to trust or fear you', why: 'Thirty of either and protection becomes a real ask. Cowards and low nerve fold fastest.', done: leaned || prot > 0, npcId: soft?.id },
-    { id: 'protect', text: 'Put a business under your protection', why: 'Your first daily money, and your first foothold on a block.', done: prot > 0, npcId: soft?.id },
+    { id: 'protect', text: warm && warm.workId ? `Put ${w.businesses[warm.workId].name} under your protection` : 'Put a business under your protection', why: 'Your first daily money, and your first foothold on a block. The odds show on the button; talk or lean more first if they are poor.', done: prot > 0, npcId: warm?.id },
     { id: 'racket', text: firstBiz ? `Start a racket at ${firstBiz.name}` : 'Start a racket in a place you protect', why: 'Rackets earn every night. The cheap ones pay for themselves in a week.', done: p.racketIds.length > 0, businessId: firstBiz?.id, blocked: racketBlocked && `${racketBlocked} Protection pays every night.` },
     { id: 'crew', text: patron ? `Win over ${fullName(patron)} and recruit them` : 'Recruit somebody', why: 'Crew run rackets properly, go on jobs and one day run districts.', done: p.crewIds.length > 0, npcId: patron?.id },
     { id: 'job', text: offer ? `Pull a job: ${offer.title}` : 'Pull a job', why: 'Jobs are the fast money, and the loud way to make a name.', done: Object.values(w.jobs).some(j => j.status === 'done' || j.status === 'failed'), tab: 'jobs' },
-    { id: 'wash', text: fx && !fx.rel.met ? `Find the fixer, ${fullName(fx)}, and wash some money` : 'Wash some dirty money', why: 'Buying places, lawyers and officials takes clean money.', done: washed, npcId: fx && !fx.rel.met ? fx.id : undefined, tab: fx?.rel.met ? 'empire' : undefined },
+    { id: 'wash', text: fx && !fx.rel.met ? `Find the fixer, ${fullName(fx)}, and wash some money` : 'Wash some dirty money', why: 'Buying places, lawyers and officials takes clean money.', done: washed, npcId: fx && !fx.rel.met ? fx.id : undefined, tab: fx?.rel.met ? 'empire' : undefined,
+      // wages come out of dirty money first, so one racket and one recruit can leave it at $0 every
+      // morning: the step waited on something that could not happen, with $2,961 clean in the drawer
+      blocked: fx?.rel.met && p.dirty < 100 ? `Nothing dirty to wash: you have ${money_(p.dirty)}, and wages come out of dirty money first. A job or another racket will leave some over.` : undefined },
     { id: 'safehouse', text: ground ? `Take a back room on ${ground.name}` : 'Take a back room on your ground', why: 'Beds for more crew, room for stock, space for a lab. It needs influence 10 on the block.', done: p.safehouseIds.length > 0, blockId: ground?.id ?? here.id, blocked: !ground ? 'You need a foothold on a block first: protect a place.' : room && !room.ok && !/action points/i.test(room.why ?? '') ? room.why : undefined },
     { id: 'hold', text: 'Hold a block', why: 'Thirty influence and the most of anybody. Stack things on one block and it comes fast.', done: playerBlocks(w).length > 0, blockId: here.id },
     { id: 'payroll', text: 'Put an official on your payroll', why: 'A captain cools the precinct; a DA slows the files; a judge shortens sentences.', done: Object.values(w.npcs).some(n => n.payroll), tab: 'people' },

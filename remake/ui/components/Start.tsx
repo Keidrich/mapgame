@@ -38,14 +38,16 @@ export function Start() {
     <div className="r-start">
       <TitleTabs current="remake" />
       <header className="r-masthead">
-        <div className="r-masthead-rule"><span>Every city generated</span><span>72 kinds of job</span><span>Plays offline</span></div>
+        <div className="r-masthead-rule">Every city generated · plays offline</div>
         <h1>RACKETS</h1>
-        <p className="r-masthead-sub">Build a crime empire in a city nobody has seen before</p>
+        <p className="r-masthead-sub">Build a crime empire in a city nobody has seen before.</p>
       </header>
+      <InstallHint />
 
       {saved.length > 0 && (
         <section className="r-saved" aria-label="Your cities">
           <h3 className="r-h3">Your cities</h3>
+          <div className="r-saved-list">
           {saved.map(x => (
             <div key={x.slot} className="r-saved-row">
               <button type="button" className="r-saved-main" onClick={() => void open(x.slot)}>
@@ -53,9 +55,10 @@ export function Start() {
                 <span>{x.name} · day {x.day} · worth ${x.worth.toLocaleString('en-US')} · seed {x.seed}</span>
               </button>
               <button type="button" className="r-btn primary small" onClick={() => void open(x.slot)}>Continue</button>
-              <button type="button" className={`r-btn small ${sure === x.slot ? 'danger' : 'ghost'}`} onClick={() => { if (sure === x.slot) { void deleteSlot(x.slot); setSure(null); } else setSure(x.slot); }}>{sure === x.slot ? 'Gone for good?' : 'Delete'}</button>
+              <button type="button" className={`r-btn small ${sure === x.slot ? 'danger' : 'ghost'}`} style={sure === x.slot ? undefined : { color: 'var(--text-3)' }} onClick={() => { if (sure === x.slot) { void deleteSlot(x.slot); setSure(null); } else setSure(x.slot); }}>{sure === x.slot ? 'Gone for good?' : 'Delete'}</button>
             </div>
           ))}
+          </div>
         </section>
       )}
 
@@ -70,7 +73,7 @@ export function Start() {
             {factions.map(f => <span key={f.id} className="r-rival-chip"><Emblem e={f.emblem} size={20} />{f.name}</span>)}
           </div>
           <div className="r-city-controls">
-            <button type="button" className="r-btn primary" onClick={() => setSeed(randomSeed())}><Icon name="gambling_den" size={16} /> Another city</button>
+            <button type="button" className="r-btn" onClick={() => setSeed(randomSeed())}><Icon name="gambling_den" size={16} /> Another city</button>
             <div className="r-seg" role="group" aria-label="City size">
               {(Object.keys(CITY_SIZES) as CitySize[]).map(s => <button type="button" key={s} className={size === s ? 'on' : ''} aria-pressed={size === s} onClick={() => setSize(s)}>{CITY_SIZES[s].label}</button>)}
             </div>
@@ -78,13 +81,13 @@ export function Start() {
           <form className="r-seed" onSubmit={e => { e.preventDefault(); useSeedText(); }}>
             <label htmlFor="r-seed-in">Seed</label>
             <input id="r-seed-in" className="r-input" placeholder={String(seed)} value={seedText} onChange={e => setSeedText(e.target.value)} autoComplete="off" />
-            <button type="submit" className="r-btn small">Use</button>
+            <button type="submit" className="r-btn small ghost">Use</button>
           </form>
           <p className="r-hint">Same seed, same city — for anybody, on any device. Share it.</p>
         </div>
       </section>
 
-      <section className="r-who">
+      <section className="r-who-start">
         <div className="r-field-row">
           <div className="grow"><label htmlFor="r-name">Your name</label><input id="r-name" className="r-input" placeholder="What do they call you?" value={name} onChange={e => setName(e.target.value)} maxLength={24} autoComplete="off" /></div>
           <div className="grow"><label htmlFor="r-nick">Street name (optional)</label><input id="r-nick" className="r-input" placeholder="Leave it to the street" value={nick} onChange={e => setNick(e.target.value)} maxLength={18} autoComplete="off" /></div>
@@ -106,10 +109,31 @@ export function Start() {
       </section>
 
       <footer className="r-start-foot">
-        <button type="button" className="r-btn primary block big" onClick={begin} disabled={full}><span className="g-city">Play · {preview.city.name}</span></button>
+        <button type="button" className="r-btn primary block big" onClick={begin} disabled={full}><span className="r-city-name">Play {preview.city.name}</span></button>
         {full && <p className="r-why center">Three cities is the most you can keep. Delete one above to start another.</p>}
         <p className="r-hint center">Starting on {preview.blocks[preview.player.blockId].name}, {preview.districts[preview.blocks[preview.player.blockId].districtId].name}.</p>
       </footer>
+    </div>
+  );
+}
+
+/**
+ * Opened in Safari rather than from the home screen, the game says how to install it once: it is
+ * built to run standalone — full screen, offline, its own icon — and on an iPhone that is two taps
+ * nobody finds unprompted. Nothing shows once it is installed, or on anything but iOS.
+ */
+function InstallHint() {
+  const [gone, setGone] = useState(() => { try { return localStorage.getItem('rackets.remake.install-hint') === 'x'; } catch { return false; } });
+  const nav = typeof navigator !== 'undefined' ? navigator : undefined;
+  const ios = !!nav && /iPhone|iPad|iPod/.test(nav.userAgent);
+  const standalone = typeof window !== 'undefined' && ((nav as Navigator & { standalone?: boolean })?.standalone || window.matchMedia?.('(display-mode: standalone)').matches);
+  if (gone || !ios || standalone) return null;
+  const close = () => { setGone(true); try { localStorage.setItem('rackets.remake.install-hint', 'x'); } catch { /* shown again next time */ } };
+  return (
+    <div className="r-install" role="note">
+      <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path d="M10 2.5v10M6.5 6 10 2.5 13.5 6M5 9H4v8.5h12V9h-1" stroke="currentColor" strokeWidth="1.6" fill="none" strokeLinecap="round" strokeLinejoin="round" /></svg>
+      <span><b>Play it as an app.</b> Tap Share, then Add to Home Screen: full screen, offline, and your city waiting when you open it.</span>
+      <button type="button" aria-label="Dismiss" onClick={close}>×</button>
     </div>
   );
 }

@@ -5,6 +5,7 @@
  * relationship does. A frightened owner looks frightened.
  */
 import type { Emblem as EmblemT, Npc, Trait } from '@r/sim/types';
+import { mute } from './tone';
 
 function mulberry(seed: number) { let t = seed >>> 0; return () => { t = (t + 0x6d2b79f5) | 0; let x = Math.imul(t ^ (t >>> 15), 1 | t); x = (x + Math.imul(x ^ (x >>> 7), 61 | x)) ^ x; return ((x ^ (x >>> 14)) >>> 0) / 4294967296; }; }
 const SKIN = ['#f5d6c0', '#eac1a1', '#d9a47f', '#c68a62', '#a86d48', '#8a5436', '#6b3f28', '#4e2c1d'];
@@ -111,7 +112,7 @@ const CHARGES = [
 export function Emblem({ e, size = 32, title }: { e: EmblemT; size?: number; title?: string }) {
   return (
     <svg width={size} height={size} viewBox="0 0 64 64" className="r-emblem" role={title ? 'img' : undefined} aria-label={title} aria-hidden={title ? undefined : true}>
-      <path d={SHAPES[e.shape % SHAPES.length]} fill={e.bg} stroke="#0b0c10" strokeWidth="2" />
+      <path d={SHAPES[e.shape % SHAPES.length]} fill={mute(e.bg)} stroke="#0b0c10" strokeWidth="2" />
       <path d={SHAPES[e.shape % SHAPES.length]} fill="none" stroke={e.fg} strokeOpacity=".35" strokeWidth="1" transform="translate(32 32) scale(.86) translate(-32 -32)" />
       <path d={CHARGES[e.charge % CHARGES.length]} fill={e.charge === 5 ? 'none' : e.fg} stroke={e.charge === 5 ? e.fg : 'none'} strokeWidth="4" strokeLinecap="round" />
     </svg>

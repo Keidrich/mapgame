@@ -5,6 +5,7 @@ import type { Npc } from '@r/sim/types';
 import { Icon } from '@ui/icons';
 import { act, openSheet, useWorld } from '../store';
 import { NpcFace } from './Faces';
+import { mute } from './tone';
 import { Chip, Dial, Do, Empty, Meter, Row, Section, Sheet, fmt } from './kit';
 import { KitList, ShopSection } from './Armoury';
 import { HostageCard } from './Hostages';
@@ -33,7 +34,7 @@ export function PersonSheet({ id }: { id: string }) {
   const work = n.workId ? w.businesses[n.workId] : undefined;
   const fac = n.faction && n.faction !== PLAYER ? w.factions[n.faction] : undefined;
   return (
-    <Sheet title={select.fullName(n)} kicker={roleLine(w, n)} art={<NpcFace n={n} size={64} tint={fac?.color ? `${fac.color}55` : undefined} />}>
+    <Sheet title={select.fullName(n)} kicker={roleLine(w, n)} art={<NpcFace n={n} size={64} tint={fac?.color ? `${mute(fac.color)}55` : undefined} />}>
       <div className="r-chips">
         {!n.alive && <Chip tone="red">Dead</Chip>}
         {n.jailedDays ? <Chip tone="blue">In jail · {n.jailedDays}d</Chip> : null}

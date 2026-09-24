@@ -14,6 +14,77 @@ House rules for an entry (see `CLAUDE.md` → *Leave a trail*):
 
 ---
 
+## 2026-09-24 — Remake: "night shift", a grown-up iOS redesign, and the tutorial played through the screen
+
+**What.** Every screen of the Remake is redesigned. The look is now a dark, restrained, native iOS app,
+built for play saved to the home screen, and the "neon arcade" look is gone. A browser bot also plays
+the tutorial through the real screen (`npm run tutorial:ui`). It found three more tutorial breaks,
+and all three are fixed.
+
+**Why.** The user said the UI "feels like a kids game" and asked for "a full reimagine, assume people
+will be playing in a standalone app or in the iOS web browser save to homepage feature".
+- The arcade pass had chunky 3D buttons, coin and gem icons, stars and sunbursts, and a bubbly
+  display face.
+- Nothing about it was iOS-shaped, and iOS had no PNG icon to use for the home screen.
+
+**How.**
+- **Rewrite.** `remake/ui/remake.css` was rewritten from scratch as tokens plus iOS patterns. See
+  `docs/REMAKE.md` §6 for the whole design.
+  - **Palette.** Warm ink, paper-white text, and streetlight amber, which always means *you*.
+  - **Type.** Big Shoulders Display for titles and figures, the system face for reading, and
+    Newsreader for the city's own voice (headlines and mottos).
+  - **Frame.** Material ledger and tab bars over a full-bleed map, inset grouped sections, and
+    44pt rows.
+  - **Sheets.** They carry a grabber and are swiped away by their head.
+  - **Cards and scenes.** Bottom cards for decisions; scenes are rows.
+  - **The morning recap** is now a ledger page.
+- **Shell and screens.**
+  - `App.tsx`: the HUD became the ledger bar and the dock became a tab bar. The moon became an
+    "End the day" capsule, and the quest card became the "Next" card with a progress rule. The
+    reward screen became the night report, and the menu became a grouped list.
+  - `kit.tsx`: `Sheet` does drag-to-dismiss.
+  - `Start.tsx`: new masthead, radio-row backgrounds, and a one-time "Add to Home Screen" hint on
+    iOS Safari.
+  - `GameIcons.tsx` is deleted.
+- **Outfit colours** are muted on screen by `components/tone.ts`, not in the sim. Old saves look
+  right, and no generation changes.
+- **Home-screen install.**
+  - `public/apple-touch-icon.png` (180 px), `icon-192.png`, `icon-512.png` and
+    `icon-maskable-512.png`, all rendered from `icon.svg`.
+  - `index.html` gets the apple-touch-icon link, the web-app title meta tag, and a dark
+    pre-stylesheet background.
+  - The manifest lists the PNGs.
+  - These are shared with the original game.
+- **Tutorial fixes found through the screen:**
+  - The protect step points at the owner you have warmed up, not the softest stranger.
+  - A job's crew list opens pre-picked with the fewest it needs, so "Take it on" is live.
+  - The wash step is blocked, with the reason, when dirty money is under $100. Wages come out of
+    dirty money first, so it could never happen for a one-racket start.
+- **The tool.** `remake/scripts/ui-tutorial.mjs` needs a running preview. Set `CHROMIUM=` to use a
+  local browser.
+
+**Numbers.**
+- UI tutorial, seed 7: the opening is done by day 7-11 (dice). Before these fixes it stalled on the
+  protect step, then on the wash step, for good.
+- Sim rookie: unchanged or faster. Seed 7: day 6/9/9 for grifter/bruiser/brain.
+- Gate green: 2127 tests. The honest baseline is unchanged.
+
+**Watch out.**
+- The UI is dark-only on purpose.
+- Class names starting `g-` are gone. `r-who` is now the ledger bar's name block; the start
+  screen's section is `r-who-start`.
+- `.r-section` styles every child after its head as one rounded group. A new child type may need a
+  padding rule next to the others.
+- No save bump.
+
+**Files.**
+- `remake/ui/{remake.css,App.tsx}`.
+- `remake/ui/components/{kit,Start,CityMap,Region,Faces,Tabs,JobFaction,PersonSheet}.tsx`.
+- `remake/ui/components/tone.ts` (new), `remake/ui/components/GameIcons.tsx` (deleted).
+- `remake/sim/select.ts`, `remake/scripts/ui-tutorial.mjs` (new).
+- `index.html`, `vite.config.ts`, `package.json`, `public/*.png`.
+- `docs/REMAKE.md` §6 and §13.
+
 ## 2026-09-24 — Remake: the bots play the tutorial, and what they found
 
 **What.** A new bot, the rookie (`remake/scripts/tutorial.ts`), plays the quest line by doing only

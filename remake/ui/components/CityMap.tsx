@@ -12,8 +12,9 @@ import { select, PLAYER, type World } from '@r/sim/index';
 import type { Block, City, Id, Vec } from '@r/sim/types';
 import { Icon } from '@ui/icons';
 import type { Layer } from '../store';
+import { mute } from './tone';
 
-const GOLD = '#f0a841';
+const GOLD = '#e9a23b';
 interface View { x: number; y: number; w: number; h: number }
 
 function mulberry(seed: number) { let t = seed >>> 0; return () => { t = (t + 0x6d2b79f5) | 0; let x = Math.imul(t ^ (t >>> 15), 1 | t); x = (x + Math.imul(x ^ (x >>> 7), 61 | x)) ^ x; return ((x ^ (x >>> 14)) >>> 0) / 4294967296; }; }
@@ -90,7 +91,7 @@ function layerFill(w: World, b: Block, layer: Layer): { fill: string; opacity: n
     let best = 0, who: string | undefined;
     for (const [k, v] of Object.entries(b.influence)) if (v > best) { best = v; who = k; }
     if (!who || best < 8) return undefined;
-    const color = who === PLAYER ? GOLD : w.factions[who]?.color ?? '#888';
+    const color = who === PLAYER ? GOLD : mute(w.factions[who]?.color ?? '#888');
     return { fill: color, opacity: c ? 0.28 + Math.min(0.32, best / 300) : 0.1 + best / 400 };
   }
   if (layer === 'heat') return b.heat > 2 ? { fill: '#ff5a36', opacity: Math.min(0.7, b.heat / 100 + 0.08) } : undefined;
@@ -201,7 +202,7 @@ export function CityMap({ w, layer = 'control', onBlock, selected, focus, mini, 
     <svg ref={svg} className={`r-map${mini ? ' mini' : ''}${className ? ` ${className}` : ''}`} viewBox={`${committed.x} ${committed.y} ${committed.w} ${committed.h}`} preserveAspectRatio="xMidYMid slice"
       onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onWheel={wheel} role="img" aria-label={`Map of ${w.city.name}`}>
       {/* past the city limits: open ground, so the edge of town reads as an edge and not a void */}
-      <defs><pattern id="r-outskirts" width="60" height="60" patternUnits="userSpaceOnUse"><rect width="60" height="60" fill="#0d1015" /><circle cx="10" cy="10" r="2.2" fill="#161b22" /><circle cx="40" cy="38" r="1.6" fill="#161b22" /></pattern></defs>
+      <defs><pattern id="r-outskirts" width="60" height="60" patternUnits="userSpaceOnUse"><rect width="60" height="60" fill="#0a0b0d" /><circle cx="10" cy="10" r="1.6" fill="#15171b" /><circle cx="40" cy="38" r="1.2" fill="#15171b" /></pattern></defs>
       <rect x={-4000} y={-4000} width={city.width + 8000} height={city.height + 8000} fill="url(#r-outskirts)" />
       <rect x={-60} y={-60} width={city.width + 120} height={city.height + 120} rx={80} className="r-ground" />
       <StaticCity w={w} detail={labels} />
@@ -217,10 +218,11 @@ export function CityMap({ w, layer = 'control', onBlock, selected, focus, mini, 
       {detail && Object.values(w.businesses).map(b => {
         const mine = b.ownedBy === PLAYER || b.protection?.by === PLAYER;
         const fac = b.protection && b.protection.by !== PLAYER ? w.factions[b.protection.by] : undefined;
-        const color = mine ? GOLD : fac ? fac.color : b.tier === 3 ? '#c9b8ff' : '#aab2c0';
+        const color = mine ? GOLD : fac ? mute(fac.color) : b.tier === 3 ? '#c3b1f3' : '#8f8a82';
         return (
           <g key={b.id} transform={`translate(${b.pos.x} ${b.pos.y})`} className="r-biz">
-            <circle r={u(close ? 9 : 4)} fill={close ? '#11141b' : color} stroke={color} strokeWidth={u(close ? 1.5 : 0.8)} />
+            {/* far out, a place nobody holds is a faint dot: a lit street of them read as polka dots */}
+            <circle r={u(close ? 9 : 3.2)} fill={close ? '#111317' : color} fillOpacity={close || mine || fac ? 1 : 0.45} stroke={color} strokeOpacity={close || mine || fac ? 1 : 0} strokeWidth={u(close ? 1.5 : 0.8)} />
             {close && <g transform={`translate(${-u(6)} ${-u(6)}) scale(${u(12) / 24})`} style={{ color }}><Icon of="business" id={b.type} size={24} strokeWidth={2} /></g>}
             {close && b.racketIds.some(id => w.rackets[id]?.owner === PLAYER) && <circle cx={u(8)} cy={-u(8)} r={u(3)} fill={GOLD} />}
           </g>
