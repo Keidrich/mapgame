@@ -9,7 +9,15 @@ export function bedsTotal(w: World): number {
 }
 
 export const playerBlocks = (w: World) => Object.values(w.blocks).filter(b => controller(b) === PLAYER);
-export const controlShare = (w: World) => playerBlocks(w).length / Math.max(1, Object.keys(w.blocks).length);
+/**
+ * Your share of one city's blocks — the home city unless another is named. Winning is half of the
+ * home city, as it always was; the region's other cities are counted on their own (`region.ts`).
+ */
+export function controlShare(w: World, city = 'c0'): number {
+  let n = 0, mine = 0;
+  for (const b of Object.values(w.blocks)) { if ((w.districts[b.districtId]?.cityId || 'c0') !== city) continue; n++; if (controller(b) === PLAYER) mine++; }
+  return mine / Math.max(1, n);
+}
 
 /**
  * What walking somewhere costs. Next door is free. Anywhere you can reach through ground you

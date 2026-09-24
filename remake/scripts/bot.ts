@@ -24,7 +24,8 @@ export type Counter =
   | 'lieutenants' | 'guards' | 'runners' | 'lawyer' | 'lay_low' | 'travel' | 'cases_opened' | 'raids' | 'busts'
   | 'crews_paid' | 'crews_taken' | 'crews_run' | 'audits' | 'specialists'
   | 'kit_bought' | 'kit_equipped' | 'hostages_taken' | 'hostages_resolved' | 'crew_snatched' | 'ransom_paid'
-  | 'meetings' | 'lobbied' | 'voted' | 'setpieces_cased' | 'setpiece_stages' | 'setpieces_done' | 'declared';
+  | 'meetings' | 'lobbied' | 'voted' | 'setpieces_cased' | 'setpiece_stages' | 'setpieces_done' | 'declared'
+  | 'cities' | 'routes' | 'route_sales' | 'remote_jobs';
 
 export const SYSTEMS: { label: string; needs: Counter[] }[] = [
   { label: 'talking to people', needs: ['chats'] },
@@ -55,7 +56,14 @@ export const SYSTEMS: { label: string; needs: Counter[] }[] = [
   { label: 'the Commission', needs: ['lobbied', 'voted'] },
   { label: 'set-pieces', needs: ['setpieces_done'] },
   { label: 'war', needs: ['declared'] },
+  // the region: reached in natural play only once a quarter of a city is yours, which is late in
+  // sixty days; the region scenario (`npm run sim2 -- 60 7 medium grifter region`) always reaches them
+  { label: 'another city', needs: ['cities'] },
+  { label: 'trade routes', needs: ['route_sales'] },
+  { label: 'remote work', needs: ['remote_jobs'] },
 ];
+/** The rows only the region reaches: excluded from the natural sweep's must-reach list, held by the region scenario instead. */
+export const REGION_SYSTEMS = ['another city', 'trade routes', 'remote work'];
 
 // ---------------------------------------------------------------------------------- temperaments
 /**
@@ -99,16 +107,18 @@ export interface Style {
    * reach, and how much a never-run kind jumps the queue on the board (in dollars of value).
    */
   curiosity: number; novelty: number;
+  /** Takes the train once a road opens, and sets up in the next city. */
+  roams: boolean;
 }
 export type StyleId = 'timid' | 'steady' | 'schemer' | 'ruthless' | 'maniac' | 'collector';
 export const STYLES: Record<StyleId, Style> = {
-  timid: { label: 'Timid', blurb: 'Only sure things, pays everybody off, lays low early.', takeAt: 75, launchAt: 60, maxJobs: 1, loudCost: 20, cleverBonus: 0, heatCare: 2.5, threaten: 0.4, squeeze: 0.03, corner: 'crew_pay', layLow: 55, bribeAt: 25, truceAt: -30, tribute: true, war: 'never', kitMult: 6, kitSlots: ['armour', 'car', 'look'], hostage: 'ransom', holdDays: 0, payFor: 1.2, kidnaps: false, lobby: 'defend', peace: true, setpieces: false, curiosity: 0.1, novelty: 0 },
-  steady: { label: 'Steady', blurb: 'The bot as it always played: good odds, fair dealing, a war only if it comes.', takeAt: 55, launchAt: 35, maxJobs: 2, loudCost: 6, cleverBonus: 0, heatCare: 1, threaten: 0.8, squeeze: 0.25, corner: 'crew_take', layLow: 85, bribeAt: 35, truceAt: -50, tribute: true, war: 'never', kitMult: 4, kitSlots: ['weapon', 'tool', 'car', 'armour', 'tech', 'look'], hostage: 'ransom', holdDays: 3, payFor: 2, kidnaps: false, lobby: 'defend', peace: true, setpieces: true, curiosity: 0.2, novelty: 1500 },
-  schemer: { label: 'Schemer', blurb: 'Clever over loud, officials early, works every vote at the table.', takeAt: 55, launchAt: 40, maxJobs: 2, loudCost: 14, cleverBonus: 6, heatCare: 1.2, threaten: 0.5, squeeze: 0.1, corner: 'crew_take', layLow: 80, bribeAt: 15, truceAt: -45, tribute: true, war: 'never', kitMult: 4, kitSlots: ['look', 'tech', 'tool', 'car', 'armour'], hostage: 'trade', holdDays: 2, payFor: 1.5, kidnaps: true, lobby: 'always', peace: true, setpieces: true, curiosity: 0.5, novelty: 5000 },
-  ruthless: { label: 'Ruthless', blurb: 'Takes long odds, runs crews off, picks a war with the weakest outfit.', takeAt: 45, launchAt: 30, maxJobs: 2, loudCost: 0, cleverBonus: 0, heatCare: 0.5, threaten: 1.4, squeeze: 0.5, corner: 'crew_run', layLow: 92, bribeAt: 50, truceAt: -85, tribute: false, war: 'weakest', kitMult: 2.5, kitSlots: ['weapon', 'armour', 'car', 'tool'], hostage: 'ransom', holdDays: 5, payFor: 3, kidnaps: true, lobby: 'defend', peace: false, setpieces: true, curiosity: 0.3, novelty: 3000 },
-  maniac: { label: 'Maniac', blurb: 'Anything over 30%, always loud, war on everybody, no hostage comes home.', takeAt: 30, launchAt: 20, maxJobs: 3, loudCost: -10, cleverBonus: 0, heatCare: 0, threaten: 2, squeeze: 0.8, corner: 'crew_run', bribeAt: Infinity, tribute: false, war: 'everyone', kitMult: 1.5, kitSlots: ['weapon', 'armour'], hostage: 'kill', holdDays: 1, kidnaps: true, lobby: 'never', peace: false, setpieces: true, curiosity: 0.3, novelty: 5000 },
+  timid: { label: 'Timid', blurb: 'Only sure things, pays everybody off, lays low early.', takeAt: 75, launchAt: 60, maxJobs: 1, loudCost: 20, cleverBonus: 0, heatCare: 2.5, threaten: 0.4, squeeze: 0.03, corner: 'crew_pay', layLow: 55, bribeAt: 25, truceAt: -30, tribute: true, war: 'never', kitMult: 6, kitSlots: ['armour', 'car', 'look'], hostage: 'ransom', holdDays: 0, payFor: 1.2, kidnaps: false, lobby: 'defend', peace: true, setpieces: false, curiosity: 0.1, novelty: 0, roams: false },
+  steady: { label: 'Steady', blurb: 'The bot as it always played: good odds, fair dealing, a war only if it comes.', takeAt: 55, launchAt: 35, maxJobs: 2, loudCost: 6, cleverBonus: 0, heatCare: 1, threaten: 0.8, squeeze: 0.25, corner: 'crew_take', layLow: 85, bribeAt: 35, truceAt: -50, tribute: true, war: 'never', kitMult: 4, kitSlots: ['weapon', 'tool', 'car', 'armour', 'tech', 'look'], hostage: 'ransom', holdDays: 3, payFor: 2, kidnaps: false, lobby: 'defend', peace: true, setpieces: true, curiosity: 0.2, novelty: 1500, roams: true },
+  schemer: { label: 'Schemer', blurb: 'Clever over loud, officials early, works every vote at the table.', takeAt: 55, launchAt: 40, maxJobs: 2, loudCost: 14, cleverBonus: 6, heatCare: 1.2, threaten: 0.5, squeeze: 0.1, corner: 'crew_take', layLow: 80, bribeAt: 15, truceAt: -45, tribute: true, war: 'never', kitMult: 4, kitSlots: ['look', 'tech', 'tool', 'car', 'armour'], hostage: 'trade', holdDays: 2, payFor: 1.5, kidnaps: true, lobby: 'always', peace: true, setpieces: true, curiosity: 0.5, novelty: 5000, roams: true },
+  ruthless: { label: 'Ruthless', blurb: 'Takes long odds, runs crews off, picks a war with the weakest outfit.', takeAt: 45, launchAt: 30, maxJobs: 2, loudCost: 0, cleverBonus: 0, heatCare: 0.5, threaten: 1.4, squeeze: 0.5, corner: 'crew_run', layLow: 92, bribeAt: 50, truceAt: -85, tribute: false, war: 'weakest', kitMult: 2.5, kitSlots: ['weapon', 'armour', 'car', 'tool'], hostage: 'ransom', holdDays: 5, payFor: 3, kidnaps: true, lobby: 'defend', peace: false, setpieces: true, curiosity: 0.3, novelty: 3000, roams: true },
+  maniac: { label: 'Maniac', blurb: 'Anything over 30%, always loud, war on everybody, no hostage comes home.', takeAt: 30, launchAt: 20, maxJobs: 3, loudCost: -10, cleverBonus: 0, heatCare: 0, threaten: 2, squeeze: 0.8, corner: 'crew_run', bribeAt: Infinity, tribute: false, war: 'everyone', kitMult: 1.5, kitSlots: ['weapon', 'armour'], hostage: 'kill', holdDays: 1, kidnaps: true, lobby: 'never', peace: false, setpieces: true, curiosity: 0.3, novelty: 5000, roams: true },
   // not a temperament: the catalogue scenario's player, who wants to have done everything once
-  collector: { label: 'Collector', blurb: 'Plays the catalogue scenario: every job once, whatever it pays.', takeAt: 20, launchAt: 10, maxJobs: 8, loudCost: 0, cleverBonus: 0, heatCare: 0.5, threaten: 1, squeeze: 0.3, corner: 'crew_take', layLow: 90, bribeAt: 30, tribute: false, war: 'never', kitMult: 3, kitSlots: ['weapon', 'armour', 'tool', 'tech'], hostage: 'ransom', holdDays: 2, payFor: 1.5, kidnaps: true, lobby: 'always', peace: false, setpieces: false, curiosity: 1, novelty: 1e6 },
+  collector: { label: 'Collector', blurb: 'Plays the catalogue scenario: every job once, whatever it pays.', takeAt: 20, launchAt: 10, maxJobs: 8, loudCost: 0, cleverBonus: 0, heatCare: 0.5, threaten: 1, squeeze: 0.3, corner: 'crew_take', layLow: 90, bribeAt: 30, tribute: false, war: 'never', kitMult: 3, kitSlots: ['weapon', 'armour', 'tool', 'tech'], hostage: 'ransom', holdDays: 2, payFor: 1.5, kidnaps: true, lobby: 'always', peace: false, setpieces: false, curiosity: 1, novelty: 1e6, roams: false },
 };
 /** The five temperaments the sweep compares, mildest first. The collector is a scenario, not a temperament. */
 export const STYLE_IDS: StyleId[] = ['timid', 'steady', 'schemer', 'ruthless', 'maniac'];
@@ -137,9 +147,10 @@ function act(c: Ctx, a: Action): boolean {
   return true;
 }
 
-export function run(opts: { days: number; seed: number; size?: CitySize; background?: Background; style?: StyleId; scenario?: 'catalogue' }): RunResult {
+export function run(opts: { days: number; seed: number; size?: CitySize; background?: Background; style?: StyleId; scenario?: 'catalogue' | 'region' }): RunResult {
   const w0 = newWorld({ seed: opts.seed, size: opts.size ?? 'medium', name: 'Bot', background: opts.background ?? 'grifter' });
   if (opts.scenario === 'catalogue') boost(w0);
+  if (opts.scenario === 'region') boostRegion(w0);
   const c: Ctx = { w: w0, rng: new Rng(opts.seed * 31 + 7), s: STYLES[opts.scenario === 'catalogue' ? 'collector' : opts.style ?? 'steady'], counts: {}, kinds: {}, offered: {}, taken: {}, actions: 0, refused: 0, seen: new Set() };
   while (c.w.day <= opts.days && !c.w.over) {
     day(c);
@@ -161,6 +172,7 @@ function day(c: Ctx) {
   build(c);
   corners(c);
   runJobs(c);
+  region(c);   // before money: the stash is what a route ships, and money() sells it on the corner
   money(c);
   kit(c);
   street(c);
@@ -261,7 +273,14 @@ function runJobs(c: Ctx) {
     }
     const approach = bestApproach(c, j, j.crewIds);
     if (select.jobOdds(w(), j, j.crewIds, approach.a).chance < c.s.launchAt) { act(c, { type: 'drop_job', jobId: j.id }); continue; }
+    const away = !select.present(w(), j);
+    // a job in another city needs somebody to go; with nobody on it, send somebody or let it go
+    if (away && !j.crewIds.length) {
+      const spare = select.crew(w()).find(n => n.crew!.status === 'ready' && n.crew!.assignment?.kind !== 'job');
+      if (!spare || !act(c, { type: 'join_job', jobId: j.id, npcId: spare.id })) { act(c, { type: 'drop_job', jobId: j.id }); continue; }
+    }
     if (act(c, { type: 'launch_job', jobId: j.id, approach: approach.a })) {
+      if (away) bump(c, 'remote_jobs');
       const r = w().jobs[j.id];
       if (r?.status === 'paused') answerEverything(c);
       else if (r?.result) bump(c, r.result.success ? 'jobs_done' : 'jobs_failed');
@@ -541,6 +560,49 @@ function curious(c: Ctx) {
   }
 }
 
+// ------------------------------------------------------------------------------------ region
+/**
+ * The road: once one opens, a roaming style with a crew and money takes the train and starts up in
+ * the city that pays best for what it makes; in any city without a back room it takes one; with
+ * back rooms in two cities it opens a route for whatever it holds a lot of and the far end wants.
+ */
+function region(c: Ctx) {
+  const w = () => c.w; const p = () => w().player;
+  if (!c.s.roams || !w().region) return;
+  const here = select.currentCity(w());
+  const purse = () => p().cash + p().dirty;
+  const next = w().region!.cities.filter(x => x.open && !x.founded).sort((a, b) => Object.values(b.demand).reduce((t, v) => t + v, 0) - Object.values(a.demand).reduce((t, v) => t + v, 0))[0];
+  // one city at a time: it moves on only once the city it is in is a quarter its own
+  const settled = here === select.HOME ? true : select.controlIn(w(), here) >= select.REGION.unlockAt;
+  if (next && settled && p().crewIds.length >= 3 && purse() > select.fare(w(), next.id) + 8000 && p().ap >= select.REGION.trainAp) {
+    if (act(c, { type: 'travel_city', cityId: next.id })) { bump(c, 'cities'); return; }
+  }
+  if (!select.safehouseIn(w(), here) && here !== select.HOME && purse() > 3000) act(c, { type: 'rent_safehouse', blockId: p().blockId });
+  // a route to whichever of its cities pays best for what it holds a lot of, from any other with a door
+  const mine = w().region!.cities.filter(x => x.founded && select.safehouseIn(w(), x.id));
+  for (const prod of ['booze', 'green', 'pills', 'goods'] as const) {
+    if (p().stash[prod].n < 15 || purse() < 6000 || mine.length < 2) continue;
+    const to = mine.slice().sort((a, b) => b.demand[prod] - a.demand[prod])[0];
+    const from = mine.find(x => x.id !== to.id)!;
+    if (to.demand[prod] < 1.05) continue;
+    if (act(c, { type: 'open_route', from: from.id, to: to.id, product: prod })) bump(c, 'routes');
+  }
+}
+
+// ---------------------------------------------------------------------------------- scenario
+/**
+ * The region scenario: the catalogue's mid-game empire, holding a third of its home city, so the
+ * road is open on day one. Not an economy curve; it proves the train, the second city, the routes
+ * and remote work run.
+ */
+export function boostRegion(w: World) {
+  boost(w);
+  const here = w.blocks[w.player.blockId].center;
+  const home = Object.values(w.blocks).filter(b => !w.districts[b.districtId].cityId).sort((a, b) => Math.hypot(a.center.x - here.x, a.center.y - here.y) - Math.hypot(b.center.x - here.x, b.center.y - here.y));
+  for (const b of home.slice(0, Math.ceil(home.length * 0.32))) b.influence[PLAYER] = 70;
+  for (const k of ['booze', 'green', 'pills', 'goods'] as const) w.player.stash[k] = { n: 60, q: 60 };
+}
+
 // ---------------------------------------------------------------------------------- scenario
 /**
  * The catalogue scenario: a mid-game empire on day one, so every job in the catalogue has what it
@@ -672,6 +734,8 @@ function commission(c: Ctx) {
 
 /** Things that happen to the bot rather than things it does, counted as they appear. */
 function watch(c: Ctx) {
+  const sold = (c.w.routes ?? []).reduce((t, r) => t + (r.moved ?? 0), 0);
+  if (sold > (c.counts.route_sales ?? 0)) c.counts.route_sales = sold;
   for (const j of Object.values(c.w.jobs)) {
     // offered, taken and finished, per kind: "never run" alone cannot say whether a job was never
     // on the board, never worth taking, or taken and dropped

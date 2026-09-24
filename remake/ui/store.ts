@@ -18,7 +18,8 @@ export type Sheet =
   | { kind: 'job'; id: Id }
   | { kind: 'faction'; id: Id }
   | { kind: 'menu' }
-  | { kind: 'help' };
+  | { kind: 'help' }
+  | { kind: 'region' };
 export interface Toast { id: number; text: string; tone: LogEntry['tone'] }
 export interface Recap { day: number; clean: number; dirty: number; spent: number; heat: number; washed: number; headline?: string; lines: LogEntry[]; away?: number }
 

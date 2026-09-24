@@ -14,6 +14,66 @@ House rules for an entry (see `CLAUDE.md` → *Leave a trail*):
 
 ---
 
+## 2026-09-24 — Remake: the region — more than one city, trade and work between them
+
+**What.** Every Remake save now has a region of five or six cities on a map. Hold a quarter of a city
+and the road opens to the cities beside it; take the train and start up in the next one — generated
+the day you arrive, into the same save — with everything you carry and everybody who works for you.
+Each city pays its own price for booze, green, pills and goods; trade routes sell your stash in
+another city every night; jobs from your other cities come onto your board and your crew can run
+them without you.
+
+**Why.** The user asked for "a world map with multiple cities. Once a player takes a certain percent
+of one they can start up in the next and have cross city trade and work." It also answers the
+question before it: the Remake's map never grew.
+
+**How.**
+- `remake/sim/regionmap.ts` — the region from its own stream (`seed ^ 0x2e610`): cities placed
+  around home, two nearest linked both ways, kinds with demand multipliers (home flat at 1).
+- `remake/sim/city.ts` — `generateCity(seed, size, prefix)`: every id a city makes can be prefixed.
+- `remake/sim/generate.ts` — the population half of `newWorld` is now `populateCity`, run over one
+  city's blocks and districts. Outfit ids take the prefix too (`c2.f0`); outfit colours avoid ones
+  already worn; relations are only drawn for pairs that have none. **The home city is
+  byte-identical**: eighteen seed/size worlds hashed the same before and after, so no
+  `WORLD_VERSION` bump. `generateStreetCrews(w, blocks, seed)` likewise.
+- `remake/sim/region.ts` — `foundCity`, `tickRegion` (the quarter that opens the road), `arrivalIn`,
+  `controlIn`, `fare`, routes (`REGION`: 12 lots a night, 80% after freight, 3% stopped on the road).
+- Actions `travel_city`, `open_route {from, to, product}`, `close_route`. Walking between cities is
+  refused with a pointer to the train. Back rooms are four per city (was four in all). You arrive
+  with 12 influence on your street — enough for a back room.
+- `jobs.ts` — `present(w, job)`: a job in another city runs without you (your skills not counted,
+  −6) and needs at least one of your people; one offer in five comes from another city you have been
+  to. `economy.streetPrice` reads the city's demand. `controlShare(w, city = 'c0')`.
+- UI: the map draws only the city you are in (`select.cityView`); a Region sheet (map, each city's
+  prices, the train, routes) from the map tools and the Rivals tab; jobs and outfits elsewhere name
+  their city; a lead for the road.
+- Bot: roaming styles take the train once the road opens and the city they are in is a quarter
+  theirs, take a back room there, and open routes to whichever of their cities pays best. New
+  `region` scenario and coverage rows (another city, trade routes, remote work), held by
+  `remake/tests/region.test.ts` (17 tests) rather than by the natural sweep.
+
+**Numbers.** One-city play is unchanged to the dollar (seed 7 steady $104k, 25.7%; every style the
+same as before). Naturally, steady opens the road on seed 7 around day 60 and ruthless founds a
+second city on seed 1. The region scenario on seed 7 founds two more cities, opens three routes
+that move 959 lots in sixty days, and runs 11 jobs from a distance. A founded city adds ~1 MB to a
+save and ~50 ms to generate; the scenario's 60 days take ~35 s with three cities live, against ~11 s
+for one.
+
+**Watch out.**
+- Ground held with nothing on it decays while you are away: the scenario's home city, handed a
+  third of its blocks as bare influence, fell to 3% once the bot left. Rackets, places and back rooms
+  hold ground; influence alone does not. That is the existing territory rule, now visible.
+- The tick walks every city you have founded; a player with all six will feel it on a slow phone.
+- Not built: seeing another city's map without going there, moving individual crew between cities
+  (your crew is wherever you need them), and a separate Commission per city (it is one table for
+  the region).
+
+**Files.** `remake/sim/{region,regionmap}.ts` (new), `remake/sim/{city,generate,streetcrews,economy,jobs,catalogue,reducer,actions,types,select,select-core,tick}.ts`,
+`remake/ui/components/Region.tsx` (new), `remake/ui/{App.tsx,store.ts,remake.css}`, `remake/ui/components/{CityMap,Tabs}.tsx`,
+`remake/scripts/{bot,headless}.ts`, `remake/tests/{region,ui,pass3}.test.ts(x)`, `docs/REMAKE.md` §11.
+
+---
+
 ## 2026-09-24 — Remake: every job the original had
 
 **What.** The Remake had fifteen job kinds; the original had seventy ops. All of them are in the

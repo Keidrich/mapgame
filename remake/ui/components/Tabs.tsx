@@ -71,7 +71,7 @@ export function JobsTab() {
   const live = jobs.filter(j => ['planning', 'ready', 'paused'].includes(j.status));
   const offers = jobs.filter(j => j.status === 'offer').sort((a, b) => a.tier - b.tier);
   const past = jobs.filter(j => j.status === 'done' || j.status === 'failed').sort((a, b) => b.expires - a.expires).slice(0, 8);
-  const row = (j: typeof jobs[number]) => <Row key={j.id} onClick={() => openSheet({ kind: 'job', id: j.id })} left={<span className="r-bizicon"><Icon name={jobIcon(j)} size={20} /></span>} title={j.title} sub={`${JOBS[j.kind].label} · tier ${j.tier} · ${payoutLine(j)}`} right={j.status === 'planning' ? <Chip tone="gold">{j.daysLeft}d</Chip> : j.status === 'ready' ? <Chip tone="green">Ready</Chip> : j.status === 'done' ? <Chip tone="green">Done</Chip> : j.status === 'failed' ? <Chip tone="red">Failed</Chip> : j.sourceId ? <NpcFace n={w.npcs[j.sourceId]} size={28} /> : undefined} />;
+  const row = (j: typeof jobs[number]) => <Row key={j.id} onClick={() => openSheet({ kind: 'job', id: j.id })} left={<span className="r-bizicon"><Icon name={jobIcon(j)} size={20} /></span>} title={j.title} sub={`${JOBS[j.kind].label} · tier ${j.tier} · ${payoutLine(j)}${select.present(w, j) ? '' : ` · in ${select.cityName(w, select.cityOfBlock(w, j.blockId))}, run without you`}`} right={j.status === 'planning' ? <Chip tone="gold">{j.daysLeft}d</Chip> : j.status === 'ready' ? <Chip tone="green">Ready</Chip> : j.status === 'done' ? <Chip tone="green">Done</Chip> : j.status === 'failed' ? <Chip tone="red">Failed</Chip> : j.sourceId ? <NpcFace n={w.npcs[j.sourceId]} size={28} /> : undefined} />;
   return (
     <div className="r-tab">
       <h2 className="r-tab-title">Jobs</h2>
@@ -105,7 +105,7 @@ export function EmpireTab() {
           <div><span>Clean</span><b className="green">{fmt(p.cash)}</b></div>
           <div><span>Dirty</span><b className="orange">{fmt(p.dirty)}</b></div>
           <div><span>Worth</span><b>{fmt(select.netWorth(w))}</b></div>
-          <div><span>Control</span><b>{(select.controlShare(w) * 100).toFixed(1)}%</b></div>
+          <div><span>Control{Object.keys(w.cities ?? {}).length ? ` of ${select.cityName(w, select.currentCity(w))}` : ''}</span><b>{(select.controlShare(w, select.currentCity(w)) * 100).toFixed(1)}%</b></div>
         </div>
         <Section title="Tomorrow, roughly">
           <p className="r-note">Dirty in <b className="orange">{fmt(f.dirty)}</b> · clean in <b className="green">{fmt(f.clean)}</b>{f.washed ? ` (after washing ${fmt(f.washed)})` : ''} · wages <b>{fmt(f.costs)}</b>. Selling rackets and labs come on top.</p>
@@ -182,7 +182,7 @@ export function RivalsTab() {
             <Emblem e={f.emblem} size={44} />
             <div className="grow">
               <div className="r-row-title">{f.name} {!f.alive && <Chip tone="red">Finished</Chip>}</div>
-              <div className="r-row-sub">{select.factionBlocks(w, f.id).length} blocks · {f.soldiers} soldiers · {w.districts[f.homeDistrictId]?.name}</div>
+              <div className="r-row-sub">{select.factionBlocks(w, f.id).length} blocks · {f.soldiers} soldiers · {w.districts[f.homeDistrictId]?.name}{Object.keys(w.cities ?? {}).length ? `, ${select.cityName(w, w.districts[f.homeDistrictId]?.cityId || 'c0')}` : ''}</div>
               <Dial value={f.standing} label={select.STANCE_LABEL[stance]} />
             </div>
           </button>
@@ -190,6 +190,7 @@ export function RivalsTab() {
       })}
       <p className="r-note">They run the same game you do — protection, rackets, soldiers, ground — and they fight each other as readily as you.</p>
       <button type="button" className="r-btn block" onClick={() => focusBlock(w.player.blockId)}>Show me the map</button>
+      <button type="button" className="r-btn block" onClick={() => openSheet({ kind: 'region' })}>The region: the cities down the road</button>
     </div>
   );
 }

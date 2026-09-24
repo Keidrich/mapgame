@@ -24,7 +24,7 @@ const bil = (a: Vec, b: Vec, c: Vec, d: Vec, u: number, v: number): Vec => ({ x:
 /** Building footprints inside one block: each lattice cell is cut into a few lots, deterministically. */
 function lotsFor(city: City, b: Block): string {
   const vt = (i: number, j: number) => city.verts[j * (city.cols + 1) + i];
-  const r = mulberry(parseInt(b.id.slice(1), 10) * 7919 + 17);
+  const r = mulberry(blockNo(b) * 7919 + 17);
   let d = '';
   const [i0, j0, i1, j1] = b.cells;
   for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) {
@@ -42,7 +42,7 @@ function lotsFor(city: City, b: Block): string {
   return d;
 }
 function treesFor(b: Block): Vec[] {
-  const r = mulberry(parseInt(b.id.slice(1), 10) * 104729 + 3);
+  const r = mulberry(blockNo(b) * 104729 + 3);
   const xs = b.poly.map(p => p.x), ys = b.poly.map(p => p.y);
   const out: Vec[] = [];
   for (let k = 0; k < 40 && out.length < 26; k++) {
@@ -51,6 +51,8 @@ function treesFor(b: Block): Vec[] {
   }
   return out;
 }
+/** The number in a block's id, with any city prefix off it (`c2.b14` → 14): the lots and trees are seeded by it. */
+function blockNo(b: Block) { return parseInt(b.id.replace(/^.*b/, ''), 10) || 0; }
 function inside(p: Vec, poly: Vec[]) { let c = false; for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) { const a = poly[i], b = poly[j]; if ((a.y > p.y) !== (b.y > p.y) && p.x < ((b.x - a.x) * (p.y - a.y)) / (b.y - a.y) + a.x) c = !c; } return c; }
 
 /** The part of the map that never changes for a given city. */
@@ -129,7 +131,7 @@ export function CityMap({ w, layer = 'control', onBlock, selected, focus, mini, 
   const framed = useRef(false);
   useEffect(() => {
     if (mini) { const aspect = box.h / box.w; const vw = Math.max(full.w, full.h / aspect); apply({ x: city.width / 2 - vw / 2, y: city.height / 2 - (vw * aspect) / 2, w: vw, h: vw * aspect }, true); return; }
-    if (!framed.current) { framed.current = true; const b = w.blocks[w.player.blockId]; apply({ x: b.center.x - 500, y: b.center.y - 500, w: 1000, h: 1000 }, true); }
+    if (!framed.current) { framed.current = true; const b = w.blocks[w.player.blockId] ?? Object.values(w.blocks)[0]; if (b) apply({ x: b.center.x - 500, y: b.center.y - 500, w: 1000, h: 1000 }, true); }
     else apply(view.current, true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [box.w, box.h, mini]);
@@ -191,7 +193,8 @@ export function CityMap({ w, layer = 'control', onBlock, selected, focus, mini, 
   const labels = !mini && ppu > 0.4;
   const u = (px: number) => px / Math.max(ppu, 0.0001);
   const blocks = Object.values(w.blocks);
-  const here = w.blocks[w.player.blockId];
+  // undefined when the map shows a city you are not in (the region's other cities)
+  const here = w.blocks[w.player.blockId] as Block | undefined;
   const known = new Set(w.player.safehouseIds.map(id => w.safehouses[id]?.blockId));
 
   return (
@@ -207,7 +210,7 @@ export function CityMap({ w, layer = 'control', onBlock, selected, focus, mini, 
         {blocks.map(b => { const f = layerFill(w, b, layer); return f ? <path key={b.id} d={pathOf(b.poly)} fill={f.fill} fillOpacity={f.opacity} /> : null; })}
       </g>
       {!mini && selected && w.blocks[selected] && <path d={pathOf(w.blocks[selected].poly)} className="r-selected" style={{ strokeWidth: u(2.5) }} />}
-      {!mini && <path d={pathOf(here.poly)} className="r-here" style={{ strokeWidth: u(2) }} />}
+      {!mini && here && <path d={pathOf(here.poly)} className="r-here" style={{ strokeWidth: u(2) }} />}
       {/* district names when zoomed out */}
       {!close && Object.values(w.districts).map(d => <text key={d.id} x={d.center.x} y={d.center.y} className="r-district-label" style={{ fontSize: u(mini ? 9 : 12) }}>{d.name}</text>)}
       {/* places */}
@@ -227,7 +230,7 @@ export function CityMap({ w, layer = 'control', onBlock, selected, focus, mini, 
       {/* street crews: a fist on the corner, red while they are nobody's */}
       {detail && Object.values(w.crews ?? {}).map(c => { const b = w.blocks[c.blockId]; if (!b) return null; const col = c.terms === 'none' ? '#e5534b' : GOLD; return <g key={c.id} transform={`translate(${b.center.x - u(16)} ${b.center.y + u(8)}) scale(${u(14) / 24})`}><rect x="-3" y="-3" width="30" height="30" rx="6" fill="#11141b" stroke={col} /><g style={{ color: col }}><Icon name="fist" size={24} strokeWidth={2} /></g></g>; })}
       {/* you */}
-      {!mini && <g transform={`translate(${here.center.x} ${here.center.y})`} className="r-pin">
+      {!mini && here && <g transform={`translate(${here.center.x} ${here.center.y})`} className="r-pin">
         <circle r={u(14)} className="r-pin-halo" />
         <circle r={u(6)} fill={GOLD} stroke="#0d0f14" strokeWidth={u(2)} />
       </g>}

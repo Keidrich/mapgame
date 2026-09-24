@@ -10,6 +10,7 @@ import { drawEvents } from './events';
 import { tickFactions } from './factions';
 import { tickHostages } from './hostages';
 import { tickCommission } from './commission';
+import { tickRegion } from './region';
 import { generateJobs, tickJobs } from './jobs';
 import { openCases, tickLaw } from './law';
 import { writeNews } from './news';
@@ -170,6 +171,7 @@ export function endDay(w: World, rng: Rng) {
   tickHostages(w, rng);
   tickLaw(w, rng);
   tickCommission(w, rng);
+  tickRegion(w, rng);
 
   // ---- people's own lives: fear fades, trust settles, somebody always needs something
   for (const n of Object.values(w.npcs)) {

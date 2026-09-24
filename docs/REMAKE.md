@@ -343,7 +343,44 @@ places of your own running the rackets the paper jobs need, a gun, a war, a file
 who cases the least-tried kind it can find anywhere and takes everything it can staff. Seeds 7, 1
 and 3 between them run every kind to a result, and a test holds that. It is not an economy curve.
 
-## 11. Deliberately not carried over (yet)
+## 11. The region: more than one city
+
+Every save has a **region** of five or six cities on a map, joined by road and rail
+(`sim/regionmap.ts` draws it, `sim/region.ts` runs it). The one you start in is `c0`; the others
+each have a kind — a port, a mill town, a capital, a resort, a college town, a border town, a rail
+junction — a size, and a price for everything you make (the home city pays the street's ordinary
+price; a resort pays ×1.45 for pills, a college town ×1.5 for green).
+
+- **Opening the road.** Hold a quarter of a city (`REGION.unlockAt`) and the cities linked to it
+  open. You can then take the train there: a day's action points (4) and a fare by distance.
+- **Starting up.** The first time you arrive, the city is generated in full — streets, people,
+  outfits, precincts, street crews — from its own seed, into the same world as the first, every id
+  it makes prefixed with its own (`c2.b14`, `c2.f0`). You arrive with everything you carry and
+  everybody who works for you, a foothold of 12 on the street you get off on (enough to take a back
+  room there), and nobody knowing your name. Every system works per block and per district, so the
+  second city's rackets, outfits, law and jobs run without knowing it is a second city.
+- **One city at a time on screen.** The map draws the city you are in (`select.cityView`); walking
+  is within a city, the train is between them. Back rooms are capped at four *per city*.
+- **Trade.** Streets pay each city's own price. A **route** between two cities where you have a back
+  room sells up to 12 lots a night from your stash in the far city, at its price less 20% freight;
+  3% of nights a load is stopped (lots gone, heat where it was going). Routes are opened from the
+  region sheet, from anywhere.
+- **Work.** One board offer in five comes from another city you have been to. A job in another city
+  can be run from where you are: your people go without you (your skills do not count, −6), and it
+  needs at least one of them.
+- **Control and winning.** `controlShare` is per city; winning is still half of the home city. The
+  Commission sits for the whole region — every outfit you have met is at the table.
+- **Saves.** The home city's generation is byte-identical to before (a check hashed eighteen
+  seed/size worlds before and after the refactor into `populateCity`), so no `WORLD_VERSION` bump;
+  a save from before gains a region with only its own city founded. A second city adds about 1 MB
+  to a save and roughly doubles the nightly tick; the bots and the scenario keep to one or two.
+
+**The region scenario** (`npm run sim2 -- 60 7 medium grifter region`): the catalogue's mid-game
+empire holding a third of its home city, so the road is open on day one; the bot takes the train,
+takes a back room, opens routes and works the home city from a distance. Natural play reaches the
+road late (steady opens it around day 60 on seed 7; ruthless reaches a second city on seed 1).
+
+## 12. Deliberately not carried over (yet)
 
 Not in the Remake: an admin panel and scenario sweep for the bot (the temperament sweep covers what
 the scenarios were for), and set-pieces that change the landmark afterwards (a looted cathedral stays a

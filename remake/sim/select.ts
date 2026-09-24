@@ -18,8 +18,27 @@ export { depth, accrualMult, heldDays, T as TERRITORY } from './territory';
 export { stashCapacity, STRAIGHT, WIN_SHARE } from './tick';
 export { restockCost, auditOdds } from './reducer';
 export { crewOn, crewOf, crewWage, crewCost, CREW } from './streetcrews';
-export { specialistFee } from './jobs';
+export { specialistFee, present } from './jobs';
 export { needsMet, isDerelict } from './catalogue';
+export { HOME, REGION, arrivalIn, cityBlocks, cityGeo, cityName_ as cityName, cityOfBlock, controlIn, currentCity, demandIn, fare, isOpen, regionCity, routePrice, safehouseIn } from './region';
+import { HOME as HOME_, cityGeo as cityGeo_ } from './region';
+/**
+ * The world as the map draws it: one city's streets, blocks, places and corners. With only the home
+ * city founded that is the whole world, returned as it is.
+ */
+export function cityView(w: World, id: string): World {
+  if (id === HOME_ && !Object.keys(w.cities ?? {}).length) return w;
+  const inCity = (blockId: string) => { const b = w.blocks[blockId]; return !!b && (w.districts[b.districtId]?.cityId || HOME_) === id; };
+  const pick = <T,>(r: Record<string, T>, ok: (x: T) => boolean) => Object.fromEntries(Object.entries(r).filter(([, x]) => ok(x))) as Record<string, T>;
+  return {
+    ...w, city: cityGeo_(w, id),
+    districts: pick(w.districts, d => (d.cityId || HOME_) === id),
+    blocks: pick(w.blocks, b => inCity(b.id)),
+    businesses: pick(w.businesses, b => inCity(b.blockId)),
+    crews: pick(w.crews ?? {}, c => inCity(c.blockId)),
+    safehouses: pick(w.safehouses, s => inCity(s.blockId)),
+  };
+}
 import { CATALOGUE, isCatalogue } from '@r/content/catalogue';
 /** What a job kind is pointed at, for the catalogue's kinds; undefined for the first fourteen. */
 export const jobTarget = (k: string) => (isCatalogue(k) ? CATALOGUE[k].target : undefined);
@@ -99,6 +118,7 @@ export function leads(w: World): Lead[] {
     { id: 'hold', text: 'Hold a block', why: 'Thirty influence and the most of anybody. Stack things on one block and it comes fast.', done: playerBlocks(w).length > 0, blockId: here.id },
     { id: 'payroll', text: 'Put an official on your payroll', why: 'A captain cools the precinct; a DA slows the files; a judge shortens sentences.', done: Object.values(w.npcs).some(n => n.payroll), tab: 'people' },
     { id: 'lieutenant', text: 'Put a lieutenant over a district', why: 'Level 2 and loyalty 55. Rackets there run themselves — and they could inherit it all.', done: crew(w).some(n => n.crew?.assignment?.kind === 'district'), tab: 'crew' },
+    { id: 'road', text: `Hold a quarter of ${w.city.name}`, why: 'The road opens: start up in the next city, with everything you carry. See the region map.', done: !!w.region?.cities.some(c => c.open || (c.founded && c.id !== 'c0')), tab: 'rivals' },
     { id: 'half', text: `Hold half of ${w.city.name}`, why: 'That is winning. The game goes on after.', done: !!w.won, tab: 'rivals' },
   ];
   return list;

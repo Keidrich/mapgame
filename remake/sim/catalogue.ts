@@ -101,10 +101,10 @@ const reachTier = (w: World) => { const n = w.player.fear + w.player.respect; re
  * A catalogue job for the board: a random kind the player qualifies for and is big enough to
  * hear about, pointed at the nearest thing it fits.
  */
-export function pickCatalogueTarget(w: World, rng: Rng): { kind: CatalogueKind; blockId: Id; businessId?: Id; npcId?: Id; caseId?: Id; faction?: Owner } | undefined {
+export function pickCatalogueTarget(w: World, rng: Rng, from = w.player.blockId): { kind: CatalogueKind; blockId: Id; businessId?: Id; npcId?: Id; caseId?: Id; faction?: Owner } | undefined {
   const reach = reachTier(w);
   const kinds = rng.shuffle(CATALOGUE_KINDS.filter(k => def(k).tier <= reach && !needsMet(w, k)));
-  const here = w.blocks[w.player.blockId];
+  const here = w.blocks[from];
   const near = new Set<Id>([here.id, ...here.neighborIds, ...here.neighborIds.flatMap(id => w.blocks[id].neighborIds)]);
   const byNear = <T,>(xs: T[], block: (x: T) => Id) => { const a = xs.filter(x => near.has(block(x))); return a.length ? a : xs; };
   for (const kind of kinds.slice(0, 6)) {

@@ -102,7 +102,10 @@ export function qualityMult(q: number) { return 0.7 + (q / 100) * 0.55; }
 export function streetPrice(w: World, product: Product, blockId: string): number {
   const b = w.blocks[blockId];
   const lot = w.player.stash[product];
-  return Math.round(PRODUCTS[product].price * qualityMult(lot.q || 50) * (0.7 + (b?.wealth ?? 50) / 100 * 0.6));
+  // each city of the region pays its own price for each thing (`region.ts`); the home city pays the street's
+  const city = b ? w.districts[b.districtId]?.cityId || 'c0' : 'c0';
+  const demand = w.region?.cities.find(c => c.id === city)?.demand[product] ?? 1;
+  return Math.round(PRODUCTS[product].price * qualityMult(lot.q || 50) * (0.7 + (b?.wealth ?? 50) / 100 * 0.6) * demand);
 }
 /** Units a selling racket can move in a day. */
 export function sellCapacity(r: Racket) { return [0, 8, 14, 22][r.level]; }

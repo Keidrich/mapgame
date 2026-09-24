@@ -6,10 +6,13 @@ import type { SitDownOffer } from './factions';
 import type { PLAYER } from './types';
 import type { SceneKind } from './scenes';
 import type { HostageChoice } from './hostages';
-import type { Approach, Assignment, Id, ItemId, Slot, JobKind, LabKind, Owner, Product, RacketKind, SpecialistKind } from './types';
+import type { Approach, Assignment, CityId, Id, ItemId, Slot, JobKind, LabKind, Owner, Product, RacketKind, SpecialistKind } from './types';
 
 export type Action =
   | { type: 'travel'; blockId: Id }
+  | { type: 'travel_city'; cityId: CityId }
+  | { type: 'open_route'; from: CityId; to: CityId; product: Product }
+  | { type: 'close_route'; id: Id }
   | { type: 'scene'; kind: SceneKind; npcId: Id; businessId?: Id; rate?: number }
   | { type: 'set_rate'; businessId: Id; rate: number }
   | { type: 'drop_protection'; businessId: Id }

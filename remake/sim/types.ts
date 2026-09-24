@@ -54,6 +54,8 @@ export interface City {
 
 export interface District {
   id: Id;
+  /** Which city of the region it belongs to; absent means the home city (`c0`). */
+  cityId?: CityId;
   name: string;
   kind: DistrictKind;
   center: Vec;
@@ -300,6 +302,34 @@ export interface Commission {
   vote?: 'yes' | 'no';
   history: { day: number; kind: ProposalKind; passed: boolean; text: string }[];
 }
+
+// ---------------------------------------------------------------------------------------- region
+export type CityId = string;
+export interface RegionCity {
+  id: CityId;
+  name: string;
+  kind: string;
+  blurb: string;
+  motto?: string;
+  size: 'small' | 'medium' | 'large';
+  /** Where it sits on the region map, 1000 × 700. */
+  x: number; y: number;
+  links: CityId[];
+  /** Its own seed: every save with this region gets the same city there. */
+  seed: number;
+  /** What it pays for each product against the street's ordinary price. */
+  demand: Record<Product, number>;
+  /** Generated and yours to walk. */
+  founded: boolean;
+  foundedDay?: number;
+  arrivalBlockId?: Id;
+  /** The road to it is open: a city beside it is a quarter yours. */
+  open?: boolean;
+  /** A quarter of it is yours (and its neighbours have heard). */
+  reached?: boolean;
+}
+export interface Region { cities: RegionCity[] }
+export interface Route { id: Id; from: CityId; to: CityId; product: Product; since: number; moved?: number }
 
 // ---------------------------------------------------------------------------------- street crews
 /**
@@ -555,6 +585,12 @@ export interface World {
   crews: Record<Id, StreetCrew>;
   hostages: Record<Id, Hostage>;
   commission: Commission;
+  /** The cities down the road (`region.ts`). Absent on a save from before the region; `migrate` adds it. */
+  region?: Region;
+  /** The streets and water of every city but the first, which stays in `city`. */
+  cities?: Record<CityId, City>;
+  /** Standing orders moving product from one of your cities to another. */
+  routes?: Route[];
   events: GameEvent[];
   scheduled: { day: number; template: string; npcId?: Id; businessId?: Id; factionId?: Owner }[];
   log: LogEntry[];

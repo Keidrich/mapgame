@@ -16,10 +16,12 @@ const days = Number(daysArg ?? 60), seed = Number(seedArg ?? 7);
 const size = (sizeArg as 'small' | 'medium' | 'large') ?? 'medium';
 const background = (bgArg as Background) ?? 'grifter';
 
-function one(style: StyleId, scenario?: 'catalogue'): RunResult {
+const w0 = (r: RunResult) => r.w;
+function one(style: StyleId, scenario?: 'catalogue' | 'region'): RunResult {
   const t0 = performance.now();
   const r = run({ days, seed, size, background, style, scenario });
-  if (scenario) console.log('scenario catalogue (a mid-game empire on day one — this is not an economy curve)');
+  if (scenario) console.log(`scenario ${scenario} (a mid-game empire on day one — this is not an economy curve)`);
+  if (w0(r).region) console.log(`region: ${r.w.region!.cities.map(x => `${x.name}${x.founded ? ` ${(select.controlIn(r.w, x.id) * 100).toFixed(1)}%` : x.open ? ' (open)' : ''}`).join(' · ')}; routes ${(r.w.routes ?? []).length}`);
   const w = r.w; const p = w.player;
   console.log(`${w.city.name} (seed ${seed}, ${STYLES[style].label.toLowerCase()}) — ${w.day - 1} days in ${((performance.now() - t0) / 1000).toFixed(1)}s, ${r.actions} actions, ${r.refused} refused`);
   for (const h of w.history.filter(x => x.day % 5 === 0 || x.day === 1)) console.log(`  day ${String(h.day).padStart(3)}  clean ${String(h.clean).padStart(6)}  dirty ${String(h.dirty).padStart(6)}  spent ${String(h.spent).padStart(5)}  heat ${String(h.heat).padStart(3)}  control ${String(h.control).padStart(5)}%  worth ${h.worth}`);
@@ -59,6 +61,9 @@ if (styleArg === 'all') {
   const kinds: RunResult['kinds'] = {};
   for (const { r } of runs) for (const [k, v] of Object.entries(r.kinds)) kinds[k as JobKind] = (kinds[k as JobKind] ?? 0) + (v ?? 0);
   catalogue(kinds);
+} else if (styleArg === 'region') {
+  const r = one('steady', 'region');
+  coverage(r.counts);
 } else if (styleArg === 'catalogue') {
   const r = one('collector', 'catalogue');
   coverage(r.counts);

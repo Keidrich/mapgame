@@ -30,6 +30,11 @@ import { addHeat, addInfluence, clamp, fullName, log, money, nid, remember, shor
 
 const LEAN_W = [1, 0.7, 0.5, 0.35];
 
+/** Which city of the region a block is in (see `region.ts`; inlined here to keep the import graph a tree). */
+const cityAt = (w: World, blockId: Id) => { const b = w.blocks[blockId]; return (b && w.districts[b.districtId]?.cityId) || 'c0'; };
+/** Whether you are in the city the job is in. If not, your people go without you. */
+export const present = (w: World, job: Job) => cityAt(w, job.blockId) === cityAt(w, w.player.blockId);
+
 export interface Odds { chance: number; factors: { label: string; n: number }[]; required: number; team: number }
 
 /** How a team stacks up on one skill: the best of them, plus a third of everybody else. */
@@ -57,7 +62,9 @@ export function leansFor(job: Job, approach: Approach): Skill[] {
 export function jobOdds(w: World, job: Job, crewIds: Id[], approach: Approach): Odds {
   const leans = leansFor(job, approach);
   let team = 0, wsum = 0;
-  leans.forEach((s, i) => { team += teamSkill(w, crewIds, s, true, job.specialist) * LEAN_W[i]; wsum += LEAN_W[i]; });
+  // you go on every job you are in the city for; one in another city, your people run without you
+  const here = present(w, job);
+  leans.forEach((s, i) => { team += teamSkill(w, crewIds, s, here, job.specialist) * LEAN_W[i]; wsum += LEAN_W[i]; });
   team = team / (wsum || 1);
   // A difficulty of 30 wants a team skill of about 4.5; 70 wants 8.5. Measured against a solo
   // start: the first draft (difficulty/9 + 2) put every early burglary at 13–28%, so a new player's
@@ -67,6 +74,7 @@ export function jobOdds(w: World, job: Job, crewIds: Id[], approach: Approach): 
   const skillPart = Math.round((team - required) * 8);
   factors.push({ label: `Your people${job.specialist ? ` and ${job.specialist.name}` : ''} against the job (${leans.join(', ')})`, n: skillPart });
   const intel = Math.min(12, job.intel * 4); if (intel) factors.push({ label: 'Days of planning', n: intel });
+  if (!here) factors.push({ label: 'Run from another city, without you', n: -6 });
   const hands = crewIds.length + (job.specialist ? 1 : 0);
   const extra = Math.max(0, hands - job.crewMin) * 3; if (extra) factors.push({ label: 'Extra hands', n: extra });
   const short = hands < job.crewMin ? -(job.crewMin - hands) * 15 : 0; if (short) factors.push({ label: 'Short-handed', n: short });
@@ -172,13 +180,16 @@ export function generateJobs(w: World, n: number) {
 
 function pickTarget(w: World, rng: Rng): Target | undefined {
   const p = w.player;
-  const here = w.blocks[p.blockId];
+  // work from the other cities you have been to: one offer in five, once there are any
+  const elsewhere = (w.region?.cities ?? []).filter(c => c.founded && c.arrivalBlockId && c.id !== cityAt(w, p.blockId));
+  const from = elsewhere.length && rng.chance(0.2) ? rng.pick(elsewhere).arrivalBlockId! : p.blockId;
+  const here = w.blocks[from];
   const near = new Set<Id>([here.id, ...here.neighborIds, ...here.neighborIds.flatMap(id => w.blocks[id].neighborIds)]);
   const contacts = Object.values(w.npcs).filter(n => n.alive && n.rel.met && n.rel.trust >= 10 && !n.crew);
   const source = contacts.length ? rng.pick(contacts.sort((a, b) => (b.traits.includes('connected') ? 1 : 0) - (a.traits.includes('connected') ? 1 : 0)).slice(0, 8)) : undefined;
   const bizNear = [...near].flatMap(id => w.blocks[id].businessIds).map(id => w.businesses[id]).filter(b => b.ownedBy !== PLAYER && b.protection?.by !== PLAYER && b.closed === 0);
   // a third of the board comes from the rest of the catalogue, sized to who you are
-  if (rng.chance(0.35)) { const c = pickCatalogueTarget(w, rng); if (c) return { ...c, source: c.kind === 'buy_case' || c.kind === 'spring_crew' ? (w.fixerId ? w.npcs[w.fixerId] : source) : source }; }
+  if (rng.chance(0.35)) { const c = pickCatalogueTarget(w, rng, from); if (c) return { ...c, source: c.kind === 'buy_case' || c.kind === 'spring_crew' ? (w.fixerId ? w.npcs[w.fixerId] : source) : source }; }
   const r = rng.float();
   // a known grudge is the best kind of job: somebody wants it done and will owe you
   const grudge = Object.values(w.npcs).find(n => n.alive && n.agenda?.known && (n.agenda.kind === 'revenge' || n.agenda.kind === 'rival') && n.agenda.targetId && w.npcs[n.agenda.targetId]?.alive && !Object.values(w.jobs).some(j => j.sourceId === n.id && j.status === 'offer'));

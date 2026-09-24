@@ -43,3 +43,26 @@ describe('every sheet and tab renders', () => {
     for (const f of Object.values(w.factions)) renderToString(<FactionSheet id={f.id} />);
   }, 90000);
 });
+
+describe('the region renders', () => {
+  it('with one city, and with two: the region sheet, the tabs, and the map of each city', async () => {
+    const { RegionSheet } = await import('@r/ui/components/Region');
+    const { dispatch, select } = await import('@r/sim/index');
+    let w = newWorld({ seed: 7, size: 'small', name: 'T', background: 'grifter' });
+    startGame(w);
+    expect(renderToString(<RegionSheet />)).toContain(w.city.name);
+    const c = w.region!.cities.find(x => x.id !== 'c0' && x.links.includes('c0'))!;
+    c.open = true; w.player.cash = 50000; w.player.ap = 9;
+    w = dispatch(w, { type: 'travel_city', cityId: c.id });
+    startGame(w);
+    const html = renderToString(<RegionSheet />);
+    expect(html).toContain(c.name);
+    for (const T of [PeopleTab, CrewTab, JobsTab, EmpireTab, RivalsTab]) expect(() => renderToString(<T />)).not.toThrow();
+    // the map draws the city you are in, and only it
+    const there = select.cityView(w, c.id);
+    expect(Object.keys(there.blocks).every(id => id.startsWith(`${c.id}.`))).toBe(true);
+    expect(renderToString(<CityMap w={there} />)).toContain(c.name);
+    expect(renderToString(<CityMap w={select.cityView(w, 'c0')} />)).toContain(w.city.name);
+    renderToString(<BlockSheet id={w.player.blockId} />);
+  }, 60000);
+});

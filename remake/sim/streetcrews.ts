@@ -14,7 +14,7 @@ import { STYLES } from '@r/content/world';
 import { factionName, nickname, personName, styleGroup } from '@r/content/names';
 import { rollTraits } from './generate';
 import { Rng } from './rng';
-import type { Faction, Id, Npc, StreetCrew, World } from './types';
+import type { Block, Faction, Id, Npc, StreetCrew, World } from './types';
 import { PLAYER } from './types';
 import { addInfluence, clamp, controller, fullName, log, money, nid, theName } from './util';
 
@@ -27,12 +27,14 @@ export const CREW = {
   growEvery: 7,
 };
 
-export function generateStreetCrews(w: World) {
+/** `only` and `seed` are for a city further down the road; the home city uses every block and the save's seed, as it always did. */
+export function generateStreetCrews(w: World, only?: Block[], seed = w.seed) {
   if (!w.crews) w.crews = {};
-  const rng = new Rng(w.seed ^ 0x5ec2e);
-  const cores = new Set(Object.values(w.blocks).filter(b => controller(b)).map(b => b.id));
-  const pool = Object.values(w.blocks).filter(b => !cores.has(b.id) && b.businessIds.length && ['projects', 'docks', 'market', 'strip', 'industrial'].includes(w.districts[b.districtId].kind) && b.id !== w.player?.blockId);
-  const n = Math.min(pool.length, Math.max(2, Math.round(Object.keys(w.blocks).length / 55)));
+  const rng = new Rng(seed ^ 0x5ec2e);
+  const all = only ?? Object.values(w.blocks);
+  const cores = new Set(all.filter(b => controller(b)).map(b => b.id));
+  const pool = all.filter(b => !cores.has(b.id) && b.businessIds.length && ['projects', 'docks', 'market', 'strip', 'industrial'].includes(w.districts[b.districtId].kind) && b.id !== w.player?.blockId);
+  const n = Math.min(pool.length, Math.max(2, Math.round(all.length / 55)));
   for (const b of rng.shuffle(pool).slice(0, n)) {
     const pn = personName(rng, styleGroup(rng, 'gang'));
     const id = nid(w, 'n');
@@ -44,7 +46,7 @@ export function generateStreetCrews(w: World) {
     w.npcs[id] = boss;
     const cid = nid(w, 'c');
     const name = factionName(rng, 'gang', boss, b.name.split(' & ')[0]).name.replace(/^The /, '');
-    w.crews[cid] = { id: cid, name, bossId: id, blockId: b.id, members: rng.int(3, 5), since: 1, terms: 'none', wage: 0 };
+    w.crews[cid] = { id: cid, name, bossId: id, blockId: b.id, members: rng.int(3, 5), since: w.day, terms: 'none', wage: 0 };
   }
 }
 

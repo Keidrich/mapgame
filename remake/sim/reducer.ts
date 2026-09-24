@@ -9,7 +9,7 @@ import { BUSINESSES, LABS, RACKETS, SAFEHOUSE_TIERS, SLOTS, SPECIALISTS } from '
 import { fixerCap, fixerRate, streetPrice, upgradeCost } from './economy';
 import { apply } from './effects';
 import { sitDown, sitDownOdds, tributeEffect } from './factions';
-import { answerComplication, buildJob, caseKinds, dropJob, hireSpecialist, launchJob, specialistFee, takeJob } from './jobs';
+import { answerComplication, buildJob, caseKinds, dropJob, hireSpecialist, launchJob, present, specialistFee, takeJob } from './jobs';
 import { openCases } from './law';
 import { ITEMS } from '@r/content/kit';
 import { SETPIECE_RANK, setpieceFor } from '@r/content/setpieces';
@@ -17,6 +17,8 @@ import { equip, returnKit, shopItems, unequip } from './kit';
 import { hostageChoices, isHeld, resolveHostage } from './hostages';
 import { LOBBY_PULL, lobbyCost } from './commission';
 import { isCatalogue, needsMet } from './catalogue';
+import { REGION, arrivalIn, cityName_, cityOfBlock, currentCity, fare, foundCity, isOpen, openRoute, regionCity, safehouseIn } from './region';
+import { PRODUCTS } from '@r/content/world';
 import { freeFromAssignment, practise } from './people';
 import { playScene, quote } from './scenes';
 import { travelCost } from './select-core';
@@ -45,8 +47,28 @@ function canInner(w: World, a: Action): Affordance {
     case 'travel': {
       if (!w.blocks[a.blockId]) return no('Nowhere.');
       if (a.blockId === p.blockId) return no('You are here.');
+      if (cityOfBlock(w, a.blockId) !== currentCity(w)) return no(`That is in ${cityName_(w, cityOfBlock(w, a.blockId))}. Take the train from the region map.`);
       const c = travelCost(w, a.blockId); const r = ap(c); return r ? no(r) : yes({ ap: c });
     }
+    case 'travel_city': {
+      const c = regionCity(w, a.cityId); if (!c) return no('Nowhere.');
+      if (a.cityId === currentCity(w)) return no('You are here.');
+      if (!isOpen(w, a.cityId)) return no(`Nobody in ${c.name} knows your name yet. Hold a quarter of a city on the road to it.`);
+      if (busy) return no(busy);
+      const f = fare(w, a.cityId); const e = cost(w, f) ?? ap(REGION.trainAp); return e ? no(e) : yes({ ap: REGION.trainAp, cash: f });
+    }
+    case 'open_route': {
+      // between any two of your cities, wherever you are standing: the stash goes where you go
+      const from = regionCity(w, a.from), to = regionCity(w, a.to);
+      if (!from?.founded || !to?.founded) return no('You have to have been to both ends.');
+      if (a.from === a.to) return no('A route goes somewhere else.');
+      if (!(a.product in PRODUCTS)) return no('Nothing like that.');
+      if (!safehouseIn(w, a.from)) return no(`You need a back room in ${from.name} to load from.`);
+      if (!safehouseIn(w, a.to)) return no(`You need a back room in ${to.name} to unload into.`);
+      if ((w.routes ?? []).some(r => r.to === a.to && r.product === a.product)) return no(`Something of yours already carries ${a.product} to ${to.name}.`);
+      const e = cost(w, REGION.routeSetup); return e ? no(e) : yes({ cash: REGION.routeSetup });
+    }
+    case 'close_route': return (w.routes ?? []).some(r => r.id === a.id) ? yes() : no('No such route.');
     case 'scene': {
       const n = w.npcs[a.npcId]; if (!n) return no('Nobody.');
       if (isHeld(w, a.npcId)) return no(n.crew ? 'They are being held. Pay, or wait.' : 'They are in a back room, and not talking.');
@@ -89,7 +111,8 @@ function canInner(w: World, a: Action): Affordance {
     case 'rent_safehouse': {
       const b = w.blocks[a.blockId]; if (!b) return no('Nowhere.');
       if (b.safehouseId) return no('You already have a place here.');
-      if (p.safehouseIds.length >= 4) return no('Four places is as many as anybody can keep secret.');
+      // four to a city: the cap was written for one city, and a region of them each needs a door
+      if (p.safehouseIds.filter(id => w.safehouses[id] && cityOfBlock(w, w.safehouses[id].blockId) === cityOfBlock(w, b.id)).length >= 4) return no('Four places in one city is as many as anybody can keep secret.');
       const own = controller(b) === PLAYER || (b.influence[PLAYER] ?? 0) >= 10;
       if (!own) return no('You need a foothold on the block first (influence 10).');
       const c = SAFEHOUSE_TIERS[0].buy; const r = ap(1) ?? cost(w, c); return r ? no(r) : yes({ ap: 1, cash: c });
@@ -184,6 +207,7 @@ function canInner(w: World, a: Action): Affordance {
       const j = w.jobs[a.jobId]; if (!j) return no('Gone.');
       if (j.status === 'planning') return no(`${j.daysLeft} more day${j.daysLeft > 1 ? 's' : ''} of planning.`);
       if (j.status !== 'ready') return no('Not ready.');
+      if (!present(w, j) && j.crewIds.length === 0) return no(`That is in ${cityName_(w, cityOfBlock(w, j.blockId))}. Go there, or send somebody.`);
       if (j.crewIds.some(id => w.npcs[id]?.crew?.status !== 'ready' && w.npcs[id]?.crew?.status !== 'busy')) return no('Somebody on this job is hurt or locked up. Drop the job and take it again.');
       if (busy) return no(busy);
       const r = ap(1); return r ? no(r) : yes({ ap: 1 });
@@ -264,6 +288,17 @@ export function dispatch(world: World, a: Action): World {
   if (ok.ap) p.ap -= ok.ap;
   switch (a.type) {
     case 'travel': p.blockId = a.blockId; log(w, `You go to ${w.blocks[a.blockId].name}${ok.ap ? ' (a cab)' : ''}.`, 'info', { blockId: a.blockId }); break;
+    case 'travel_city': {
+      const c = regionCity(w, a.cityId)!;
+      spend(w, fare(w, a.cityId));
+      const first = !c.founded;
+      const at = foundCity(w, a.cityId) ?? arrivalIn(w, a.cityId);
+      p.blockId = at;
+      log(w, first ? `You get off the train in ${c.name} with everything you own and everybody who works for you. Nobody here has heard of you yet. ${c.blurb}` : `Back in ${c.name}.`, 'info', { blockId: at });
+      break;
+    }
+    case 'open_route': { spend(w, REGION.routeSetup); openRoute(w, a.from, a.to, a.product); break; }
+    case 'close_route': { w.routes = (w.routes ?? []).filter(r => r.id !== a.id); log(w, 'You close the route.', 'info'); break; }
     case 'scene': playScene(w, a.kind, a.npcId, rng, { businessId: a.businessId, rate: a.rate }); break;
     case 'set_rate': w.businesses[a.businessId].protection!.rate = a.rate; break;
     case 'drop_protection': { const b = w.businesses[a.businessId]; b.protection = undefined; const o = w.npcs[b.ownerId]; if (o) o.rel.trust = clamp(o.rel.trust + 10, -100, 100); log(w, `You let ${b.name} go.`, 'info'); break; }

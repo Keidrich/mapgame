@@ -3,7 +3,7 @@
  * and loaded lazily, so neither game carries the other's code until it is wanted.
  */
 import './remake.css';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { APPROACH_INFO } from '@r/content/world';
 import { select, PLAYER } from '@r/sim/index';
 import { Icon } from '@ui/icons';
@@ -15,6 +15,7 @@ import { JobSheet, FactionSheet } from './components/JobFaction';
 import { PersonSheet } from './components/PersonSheet';
 import { BlockSheet, BusinessSheet } from './components/PlaceSheets';
 import { Start } from './components/Start';
+import { RegionSheet } from './components/Region';
 import { CrewTab, EmpireTab, JobsTab, PeopleTab, RivalsTab } from './components/Tabs';
 import { Do, Meter, Sheet, fmt } from './components/kit';
 
@@ -78,6 +79,7 @@ function Game() {
           {sheet.kind === 'faction' && <FactionSheet id={sheet.id} />}
           {sheet.kind === 'menu' && <MenuSheet />}
           {sheet.kind === 'help' && <HelpSheet />}
+          {sheet.kind === 'region' && <RegionSheet />}
         </>
       )}
       {recap && <RecapCard />}
@@ -125,17 +127,21 @@ function MapScreen() {
   const here = w.blocks[w.player.blockId];
   const headline = w.news[w.news.length - 1];
   const factions = Object.values(w.factions).filter(f => f.alive);
+  const cityId = select.currentCity(w);
+  // the map draws the city you are in; the others are a train ride away (the region sheet)
+  const view = useMemo(() => select.cityView(w, cityId), [w, cityId]);
   return (
     <div className="r-mapwrap">
-      <CityMap w={w} layer={layer} focus={focus} selected={sel} onBlock={id => { setSel(id); openSheet({ kind: 'block', id }); }} />
-      {headline && <div className="r-paper"><span>{w.city.name.toUpperCase()} COURIER · DAY {headline.day}</span><b>{headline.text}</b></div>}
+      <CityMap w={view} layer={layer} focus={focus} selected={sel} onBlock={id => { setSel(id); openSheet({ kind: 'block', id }); }} />
+      {headline && <div className="r-paper"><span>{select.cityName(w, cityId).toUpperCase()} COURIER · DAY {headline.day}</span><b>{headline.text}</b></div>}
       <LeadStrip />
       <div className="r-map-tools">
         <div className="r-seg small" role="group" aria-label="Map overlay">{LAYERS.map(l => <button type="button" key={l.id} className={layer === l.id ? 'on' : ''} aria-pressed={layer === l.id} onClick={() => setLayer(l.id)}>{l.label}</button>)}</div>
         <button type="button" className="r-btn small" onClick={() => focusBlock(w.player.blockId)}><Icon name="you" size={14} /> Where am I</button>
+        <button type="button" className="r-btn small" onClick={() => openSheet({ kind: 'region' })}><Icon name="map" size={14} /> Region</button>
       </div>
       <button type="button" className="r-here-card" onClick={() => openSheet({ kind: 'block', id: here.id })}>
-        <span className="r-kicker">You are on</span>
+        <span className="r-kicker">You are on{Object.keys(w.cities ?? {}).length ? ` · ${select.cityName(w, cityId)}` : ''}</span>
         <b>{here.name}</b>
         <span className="r-note">{w.districts[here.districtId].name} · {select.businessesIn(w, here.id).length} places · {select.holderName(w, here.id)}</span>
       </button>

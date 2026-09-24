@@ -9,7 +9,7 @@
  */
 import { BACKGROUNDS, BUSINESSES, DISTRICTS, OFFICIALS, STYLES, TRAITS } from '@r/content/world';
 import { NAME_GROUP_IDS, businessName, factionName, nickname, personName, styleGroup, type NameGroup } from '@r/content/names';
-import { generateCity, type CitySize } from './city';
+import { generateCity, type CitySize, type GeneratedCity } from './city';
 import { pointInPoly } from './geom';
 import { Rng } from './rng';
 import { addInfluence, nid } from './util';
@@ -17,6 +17,7 @@ import { generateJobs } from './jobs';
 import { generateStreetCrews } from './streetcrews';
 import { migrateGear } from './kit';
 import { newCommission } from './commission';
+import { generateRegion } from './regionmap';
 import type { AgendaKind, Background, Block, Business, BusinessType, District, Faction, FactionStyle, Id, Npc, OfficialKind, Role, SecretKind, Skill, Skills, Temperament, Trait, World } from './types';
 import { PLAYER, SKILLS } from './types';
 
@@ -47,89 +48,10 @@ export function newWorld(opts: NewGame): World {
     player: undefined as unknown as World['player'],
   };
 
-  // ---- the look of each district's names: cosmetic only, never read by a number
-  const groupsOf: Record<Id, { g: NameGroup; w: number }[]> = {};
-  for (const d of Object.values(w.districts)) {
-    const lead = rng.shuffle(NAME_GROUP_IDS).slice(0, 3);
-    groupsOf[d.id] = NAME_GROUP_IDS.map(g => ({ g, w: g === lead[0] ? 6 : g === lead[1] ? 3 : g === lead[2] ? 2 : 1 }));
-  }
-  const groupFor = (blockId: Id): NameGroup => rng.weighted(groupsOf[w.blocks[blockId].districtId].map(x => ({ item: x.g, w: x.w })));
-
-  const mkNpc = (role: Role, homeBlockId: Id, extra: Partial<Npc> & { group?: NameGroup; last?: string } = {}): Npc => {
-    const pn = personName(rng, extra.group ?? groupFor(homeBlockId));
-    const traits = rollTraits(rng);
-    const skills = rollSkills(rng, role);
-    const id = nid(w, 'n');
-    const n: Npc = {
-      id, first: pn.first, last: extra.last ?? pn.last, pronoun: pn.pronoun,
-      age: role === 'patron' ? rng.int(19, 70) : rng.int(24, 66), face: rng.int(1, 2 ** 30),
-      role, homeBlockId, skills, traits,
-      nerve: Math.max(5, Math.min(98, Math.round(rng.gauss(45, 15) + (traits.includes('tough') ? 18 : 0) + (traits.includes('hothead') ? 10 : 0) - (traits.includes('coward') ? 22 : 0)))),
-      wealth: Math.round(rng.gauss(40, 18)),
-      rel: { trust: 0, fear: 0, respect: 0, owes: 0 }, memory: [], ties: [], known: false, alive: true,
-      ...stripGen(extra),
-    };
-    if (rng.chance(role === 'boss' || role === 'lieutenant' ? 0.9 : 0.12)) n.nick = nickname(rng);
-    w.npcs[id] = n;
-    return n;
-  };
-
-  // ---- businesses, block by block, and the people who own and use them
-  const blocks = Object.values(w.blocks);
-  const bankCount: Record<Id, number> = {};
-  for (const b of blocks) {
-    if (b.landmark && /Park|Gardens|Common|Green|Fields/.test(b.landmark)) continue;
-    const d = w.districts[b.districtId];
-    const def = DISTRICTS[d.kind];
-    const [i0, j0, i1, j1] = b.cells;
-    const cellsN = (i1 - i0 + 1) * (j1 - j0 + 1);
-    const n = Math.max(1, Math.min(4, Math.round((cellsN > 1 ? 2 : 1) + rng.float() * (def.population / 45))));
-    for (let k = 0; k < n; k++) {
-      let type = rng.weighted(Object.entries(def.business).map(([t, wt]) => ({ item: t as BusinessType, w: wt! })));
-      // institutions are rare on purpose: one bank to a district, a handful in a city
-      if (BUSINESSES[type].tier === 3) {
-        const c = bankCount[d.id] ?? 0;
-        if (c >= 1 || rng.chance(0.4)) type = rng.pick(['bar', 'restaurant', 'corner_store', 'diner'] as BusinessType[]);
-        else bankCount[d.id] = c + 1;
-      }
-      mkBusiness(w, rng, b, type, mkNpc);
-    }
-  }
-
-  // ---- the web: family under one roof, friends down the street, the odd feud
-  weave(w, rng);
-
-  // ---- agendas and secrets: what people want, and what they are hiding
-  const agendaKinds: AgendaKind[] = ['debt', 'revenge', 'sick', 'escape', 'rival', 'kid'];
-  const secretKinds: SecretKind[] = ['affair', 'skimming', 'debts', 'past', 'informant', 'habit'];
-  const civilians = Object.values(w.npcs);
-  for (const n of civilians) {
-    if (rng.chance(0.28)) {
-      const kind = n.traits.includes('gambler') && rng.chance(0.6) ? 'debt' : rng.pick(agendaKinds);
-      const pool = kind === 'revenge' || kind === 'rival' ? civilians.filter(x => x.id !== n.id && x.homeBlockId !== n.homeBlockId && w.blocks[x.homeBlockId].districtId === w.blocks[n.homeBlockId].districtId) : [];
-      const target = pool.length ? rng.pick(pool) : undefined;
-      if ((kind === 'revenge' || kind === 'rival') && !target) continue;
-      n.agenda = { kind, known: false, since: 1, targetId: target?.id, cost: kind === 'debt' ? rng.int(8, 40) * 100 : kind === 'sick' ? rng.int(15, 60) * 100 : kind === 'escape' ? rng.int(10, 30) * 100 : kind === 'kid' ? rng.int(5, 20) * 100 : undefined };
-    }
-    if (rng.chance(0.3)) n.secret = { kind: n.traits.includes('gambler') ? 'debts' : n.traits.includes('junkie') ? 'habit' : rng.pick(secretKinds), known: false };
-  }
-
-  // ---- the outfits
-  const size = { small: 3, medium: 4, large: 5 }[opts.size];
-  mkFactions(w, rng, size, mkNpc);
-
-  // ---- the law and the people who run the city
-  for (const p of gen.precincts) {
-    const cap = mkNpc('official', p.blockId, { official: 'captain' });
-    cap.nerve = Math.max(cap.nerve, 60);
-    for (const did of p.districtIds) w.districts[did].precinctId = p.id;
-    cap.precinctId = p.id;
-  }
-  const officials: [OfficialKind, Id][] = [['judge', gen.courthouseBlockId], ['prosecutor', gen.courthouseBlockId], ['councillor', gen.cityHallBlockId]];
-  for (const [k, bid] of officials) { const o = mkNpc('official', bid, { official: k }); o.wealth = 70; void OFFICIALS[k]; }
+  const { fixBlocks, mkNpc } = populateCity(w, gen, rng, { small: 3, medium: 4, large: 5 }[opts.size], '');
 
   // ---- the fixer: somebody who washes money for a fee, found somewhere unglamorous
-  const fixBlock = rng.pick(blocks.filter(b => ['market', 'oldtown', 'strip', 'docks'].includes(w.districts[b.districtId].kind) && b.businessIds.length));
+  const fixBlock = rng.pick(fixBlocks);
   if (fixBlock) { const f = mkNpc('fixer', fixBlock.id); f.nick = f.nick ?? nickname(rng); f.traits = ['quiet', 'greedy']; w.fixerId = f.id; }
 
   // ---- you
@@ -159,8 +81,102 @@ export function newWorld(opts: NewGame): World {
   // street crews come from their own stream, after everything else, so they changed no seed's city
   generateStreetCrews(w);
   ensureFixer(w);
+  // the cities down the road, from their own stream, after everything else
+  w.region = generateRegion(w);
   w.log.push({ day: 1, text: `${w.city.name}. ${w.city.motto} You start on ${start.name}, in ${w.districts[start.districtId].name}, with ${bg.cash.toLocaleString('en-US')} dollars and nobody's respect.`, tone: 'info', blockId: start.id });
   return w;
+}
+
+/**
+ * Fill a generated city with people, places and outfits. The home city is filled by `newWorld`
+ * through here with an empty prefix and in exactly the order it always was (a test holds every
+ * seed's world byte-identical); a city further down the road is filled the same way, into the
+ * same world, when you first go there (`region.ts: foundCity`).
+ */
+export function populateCity(w: World, gen: GeneratedCity, rng: Rng, factionCount: number, prefix: string) {
+  const made = new Set<Id>();
+  // ---- the look of each district's names: cosmetic only, never read by a number
+  const groupsOf: Record<Id, { g: NameGroup; w: number }[]> = {};
+  for (const d of Object.values(gen.districts)) {
+    const lead = rng.shuffle(NAME_GROUP_IDS).slice(0, 3);
+    groupsOf[d.id] = NAME_GROUP_IDS.map(g => ({ g, w: g === lead[0] ? 6 : g === lead[1] ? 3 : g === lead[2] ? 2 : 1 }));
+  }
+  const groupFor = (blockId: Id): NameGroup => rng.weighted(groupsOf[w.blocks[blockId].districtId].map(x => ({ item: x.g, w: x.w })));
+
+  const mkNpc = (role: Role, homeBlockId: Id, extra: Partial<Npc> & { group?: NameGroup; last?: string } = {}): Npc => {
+    const pn = personName(rng, extra.group ?? groupFor(homeBlockId));
+    const traits = rollTraits(rng);
+    const skills = rollSkills(rng, role);
+    const id = nid(w, 'n');
+    const n: Npc = {
+      id, first: pn.first, last: extra.last ?? pn.last, pronoun: pn.pronoun,
+      age: role === 'patron' ? rng.int(19, 70) : rng.int(24, 66), face: rng.int(1, 2 ** 30),
+      role, homeBlockId, skills, traits,
+      nerve: Math.max(5, Math.min(98, Math.round(rng.gauss(45, 15) + (traits.includes('tough') ? 18 : 0) + (traits.includes('hothead') ? 10 : 0) - (traits.includes('coward') ? 22 : 0)))),
+      wealth: Math.round(rng.gauss(40, 18)),
+      rel: { trust: 0, fear: 0, respect: 0, owes: 0 }, memory: [], ties: [], known: false, alive: true,
+      ...stripGen(extra),
+    };
+    if (rng.chance(role === 'boss' || role === 'lieutenant' ? 0.9 : 0.12)) n.nick = nickname(rng);
+    w.npcs[id] = n; made.add(id);
+    return n;
+  };
+
+  // ---- businesses, block by block, and the people who own and use them
+  const blocks = Object.values(gen.blocks);
+  const bankCount: Record<Id, number> = {};
+  for (const b of blocks) {
+    if (b.landmark && /Park|Gardens|Common|Green|Fields/.test(b.landmark)) continue;
+    const d = w.districts[b.districtId];
+    const def = DISTRICTS[d.kind];
+    const [i0, j0, i1, j1] = b.cells;
+    const cellsN = (i1 - i0 + 1) * (j1 - j0 + 1);
+    const n = Math.max(1, Math.min(4, Math.round((cellsN > 1 ? 2 : 1) + rng.float() * (def.population / 45))));
+    for (let k = 0; k < n; k++) {
+      let type = rng.weighted(Object.entries(def.business).map(([t, wt]) => ({ item: t as BusinessType, w: wt! })));
+      // institutions are rare on purpose: one bank to a district, a handful in a city
+      if (BUSINESSES[type].tier === 3) {
+        const c = bankCount[d.id] ?? 0;
+        if (c >= 1 || rng.chance(0.4)) type = rng.pick(['bar', 'restaurant', 'corner_store', 'diner'] as BusinessType[]);
+        else bankCount[d.id] = c + 1;
+      }
+      mkBusiness(w, rng, b, type, mkNpc);
+    }
+  }
+
+  // ---- the web: family under one roof, friends down the street, the odd feud
+  weave(w, rng, made);
+
+  // ---- agendas and secrets: what people want, and what they are hiding
+  const agendaKinds: AgendaKind[] = ['debt', 'revenge', 'sick', 'escape', 'rival', 'kid'];
+  const secretKinds: SecretKind[] = ['affair', 'skimming', 'debts', 'past', 'informant', 'habit'];
+  const civilians = Object.values(w.npcs).filter(n => made.has(n.id));
+  for (const n of civilians) {
+    if (rng.chance(0.28)) {
+      const kind = n.traits.includes('gambler') && rng.chance(0.6) ? 'debt' : rng.pick(agendaKinds);
+      const pool = kind === 'revenge' || kind === 'rival' ? civilians.filter(x => x.id !== n.id && x.homeBlockId !== n.homeBlockId && w.blocks[x.homeBlockId].districtId === w.blocks[n.homeBlockId].districtId) : [];
+      const target = pool.length ? rng.pick(pool) : undefined;
+      if ((kind === 'revenge' || kind === 'rival') && !target) continue;
+      n.agenda = { kind, known: false, since: w.day, targetId: target?.id, cost: kind === 'debt' ? rng.int(8, 40) * 100 : kind === 'sick' ? rng.int(15, 60) * 100 : kind === 'escape' ? rng.int(10, 30) * 100 : kind === 'kid' ? rng.int(5, 20) * 100 : undefined };
+    }
+    if (rng.chance(0.3)) n.secret = { kind: n.traits.includes('gambler') ? 'debts' : n.traits.includes('junkie') ? 'habit' : rng.pick(secretKinds), known: false };
+  }
+
+  // ---- the outfits
+  mkFactions(w, rng, factionCount, mkNpc, Object.values(gen.districts), prefix);
+
+  // ---- the law and the people who run the city
+  for (const p of gen.precincts) {
+    const cap = mkNpc('official', p.blockId, { official: 'captain' });
+    cap.nerve = Math.max(cap.nerve, 60);
+    for (const did of p.districtIds) w.districts[did].precinctId = p.id;
+    cap.precinctId = p.id;
+  }
+  const officials: [OfficialKind, Id][] = [['judge', gen.courthouseBlockId], ['prosecutor', gen.courthouseBlockId], ['councillor', gen.cityHallBlockId]];
+  for (const [k, bid] of officials) { const o = mkNpc('official', bid, { official: k }); o.wealth = 70; void OFFICIALS[k]; }
+
+  const fixBlocks = blocks.filter(b => ['market', 'oldtown', 'strip', 'docks'].includes(w.districts[b.districtId].kind) && b.businessIds.length);
+  return { mkNpc, fixBlocks, made };
 }
 
 /**
@@ -234,9 +250,9 @@ function mkBusiness(w: World, rng: Rng, b: Block, type: BusinessType, mkNpc: (ro
 }
 
 /** Friends down the street and across the district, and a few old grudges. */
-function weave(w: World, rng: Rng) {
+function weave(w: World, rng: Rng, only: Set<Id>) {
   const byDistrict: Record<Id, Npc[]> = {};
-  for (const n of Object.values(w.npcs)) (byDistrict[w.blocks[n.homeBlockId].districtId] ??= []).push(n);
+  for (const n of Object.values(w.npcs)) if (only.has(n.id)) (byDistrict[w.blocks[n.homeBlockId].districtId] ??= []).push(n);
   const tie = (a: Npc, b: Npc, kind: 'friend' | 'rival' | 'partner') => {
     if (a.id === b.id || a.ties.some(t => t.id === b.id)) return;
     a.ties.push({ id: b.id, kind }); b.ties.push({ id: a.id, kind });
@@ -251,8 +267,8 @@ function weave(w: World, rng: Rng) {
   }
 }
 
-function mkFactions(w: World, rng: Rng, count: number, mkNpc: (role: Role, home: Id, extra?: Partial<Npc> & { group?: NameGroup; last?: string }) => Npc) {
-  const districts = Object.values(w.districts).filter(d => d.blockIds.length >= 6);
+function mkFactions(w: World, rng: Rng, count: number, mkNpc: (role: Role, home: Id, extra?: Partial<Npc> & { group?: NameGroup; last?: string }) => Npc, pool: District[], prefix: string) {
+  const districts = pool.filter(d => d.blockIds.length >= 6);
   // homes spread apart: farthest-point over district centres
   const homes: District[] = [rng.pick(districts)];
   while (homes.length < Math.min(count, districts.length)) {
@@ -260,14 +276,15 @@ function mkFactions(w: World, rng: Rng, count: number, mkNpc: (role: Role, home:
     homes.push(next);
   }
   const styles = rng.shuffle(['family', 'syndicate', 'gang', 'cartel', 'crew'] as FactionStyle[]);
-  const usedColors = new Set<string>();
+  // colours already worn by an outfit in another city stay theirs where they can
+  const usedColors = new Set<string>(Object.values(w.factions).map(f => f.color));
   homes.forEach((home, k) => {
     const style = styles[k % styles.length];
     const def = STYLES[style];
     const hq = rng.pick(home.blockIds.filter(id => w.blocks[id].businessIds.length) .concat(home.blockIds).slice(0, 8));
     const group = styleGroup(rng, style);
     const boss = mkNpc('boss', hq, { group });
-    const id = `f${k}`;
+    const id = `${prefix}f${k}`;
     const fname = factionName(rng, style, boss, w.blocks[hq].name.split(' & ')[0]);
     const color = def.colors.find(c => !usedColors.has(c)) ?? def.colors[0]; usedColors.add(color);
     const temperament: Temperament = rng.pick(def.temperaments);
@@ -298,10 +315,11 @@ function mkFactions(w: World, rng: Rng, count: number, mkNpc: (role: Role, home:
     // most businesses on their core already pay them
     for (const bid of core) for (const bizId of w.blocks[bid].businessIds) {
       const biz = w.businesses[bizId];
-      if (biz.tier < 3 && rng.chance(0.65)) biz.protection = { by: id, rate: rng.int(10, 18) / 100, since: 1 };
+      if (biz.tier < 3 && rng.chance(0.65)) biz.protection = { by: id, rate: rng.int(10, 18) / 100, since: w.day };
     }
   });
-  for (const a of Object.values(w.factions)) for (const b of Object.values(w.factions)) if (a.id !== b.id) a.relations[b.id] = b.relations[a.id] ?? rng.int(-30, 25);
+  // every outfit has a view of every other, the new city's included; old pairs keep theirs
+  for (const a of Object.values(w.factions)) for (const b of Object.values(w.factions)) if (a.id !== b.id && a.relations[b.id] === undefined) a.relations[b.id] = b.relations[a.id] ?? rng.int(-30, 25);
 }
 
 function minD(d: District, homes: District[]) { return Math.min(...homes.map(h => Math.hypot(h.center.x - d.center.x, h.center.y - d.center.y))); }
@@ -327,6 +345,8 @@ export function migrate(w: World): World {
   if (!w.hostages) w.hostages = {};
   if (!w.commission) w.commission = newCommission();
   ensureFixer(w);
+  // a save from before the region is a region of one founded city; the rest are down the road
+  if (!w.region) w.region = generateRegion(w);
   return w;
 }
 

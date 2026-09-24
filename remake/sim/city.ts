@@ -49,7 +49,12 @@ export interface GeneratedCity {
 type CellKind = 'land' | 'sea' | 'river' | 'gone';
 const HALF = { 0: 12, 1: 6.5, 2: 4.5 } as const;
 
-export function generateCity(seed: number, size: CitySize = 'medium'): GeneratedCity {
+/**
+ * `prefix` namespaces every id the city makes (districts, blocks, streets, bridges, precincts) so a
+ * second city can live in the same world as the first. The home city's prefix is empty, which keeps
+ * every existing seed's ids — and so every save — exactly as they were.
+ */
+export function generateCity(seed: number, size: CitySize = 'medium', prefix = ''): GeneratedCity {
   const rng = new Rng(seed ^ 0x51c3a);
   const { cols, rows } = CITY_SIZES[size];
 
@@ -128,14 +133,14 @@ export function generateCity(seed: number, size: CitySize = 'medium'): Generated
   for (let i = 0; i <= cols; i++) {
     const rank = (i % avX === offX ? 0 : i === 0 || i === cols ? 2 : 1) as 0 | 1 | 2;
     const n = streetName(rng, rank, numberX ? nth++ : undefined, taken);
-    streets.push({ id: `sx${i}`, name: n.full, rank, axis: 'x', index: i, points: Array.from({ length: rows + 1 }, (_, j) => vt(i, j)) });
+    streets.push({ id: `${prefix}sx${i}`, name: n.full, rank, axis: 'x', index: i, points: Array.from({ length: rows + 1 }, (_, j) => vt(i, j)) });
     (streets[streets.length - 1] as Street & { short: string }).short = n.short;
   }
   nth = 1;
   for (let j = 0; j <= rows; j++) {
     const rank = (j % avY === offY ? 0 : j === 0 || j === rows ? 2 : 1) as 0 | 1 | 2;
     const n = streetName(rng, rank, numberX ? undefined : nth++, taken);
-    streets.push({ id: `sy${j}`, name: n.full, rank, axis: 'y', index: j, points: Array.from({ length: cols + 1 }, (_, i) => vt(i, j)) });
+    streets.push({ id: `${prefix}sy${j}`, name: n.full, rank, axis: 'y', index: j, points: Array.from({ length: cols + 1 }, (_, i) => vt(i, j)) });
     (streets[streets.length - 1] as Street & { short: string }).short = n.short;
   }
   const xLine = (i: number) => streets[i] as Street & { short: string };
@@ -177,7 +182,7 @@ export function generateCity(seed: number, size: CitySize = 'medium'): Generated
   const districts: Record<Id, District> = {};
   const dIds = seeds.map((s, idx) => {
     const k = kinds[idx] ?? 'suburb';
-    const id = `d${idx}`;
+    const id = `${prefix}d${idx}`;
     const def = DISTRICTS[k];
     districts[id] = {
       id, name: districtName(rng, k, dNames), kind: k, center: round1(s),
@@ -222,7 +227,7 @@ export function generateCity(seed: number, size: CitySize = 'medium'): Generated
       if (ok) break;
       if (w === 2 && h === 2) { if (rng.chance(0.5)) w = 1; else h = 1; } else { w = 1; h = 1; }
     }
-    const id = `b${bn++}`;
+    const id = `${prefix}b${bn++}`;
     for (let a = 0; a < w; a++) for (let b = 0; b < h; b++) cellBlock[i + a][j + b] = id;
     const i1 = i + w - 1, j1 = j + h - 1;
     const sides = [
@@ -290,7 +295,7 @@ export function generateCity(seed: number, size: CitySize = 'medium'): Generated
     if (strict && !crosses(from, to)) return false;
     link(a, b);
     const line = vertical ? xLine(i + 1) : yLine(j + 1);
-    bridges.push({ id: `br${bridges.length}`, streetId: line.id, from: round1(from), to: round1(to) });
+    bridges.push({ id: `${prefix}br${bridges.length}`, streetId: line.id, from: round1(from), to: round1(to) });
     return true;
   };
   // every avenue meeting the river crosses it
@@ -333,7 +338,7 @@ export function generateCity(seed: number, size: CitySize = 'medium'): Generated
   const dlist = Object.values(districts);
   const pCount = dlist.length >= 9 ? 3 : 2;
   const pSeeds = rng.shuffle(dlist).slice(0, pCount);
-  const precincts = pSeeds.map((d, n) => ({ id: `p${n}`, name: `${ordinalWord(n + 1)} Precinct`, blockId: '', districtIds: [] as Id[], center: d.center }));
+  const precincts = pSeeds.map((d, n) => ({ id: `${prefix}p${n}`, name: `${ordinalWord(n + 1)} Precinct`, blockId: '', districtIds: [] as Id[], center: d.center }));
   for (const d of dlist) {
     const p = precincts.reduce((a, b) => (dist(a.center, d.center) <= dist(b.center, d.center) ? a : b));
     d.precinctId = p.id; p.districtIds.push(d.id);
