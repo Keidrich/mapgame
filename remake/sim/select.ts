@@ -2,7 +2,8 @@
  * Read-only questions for the UI. Components never compute an outcome; they ask here, and every
  * answer comes from the same function the simulation itself uses.
  */
-import { BUSINESSES, LABS, RACKETS } from '@r/content/world';
+import { BUSINESSES, LABS, OFFICIALS, RACKETS, SAFEHOUSE_TIERS } from '@r/content/world';
+import { bribeMult } from './seasons';
 import { can } from './reducer';
 import type { RacketKind } from './types';
 import { protectionTake, racketIncome, washCap, washRate } from './economy';
@@ -10,7 +11,7 @@ import { PLAYER } from './types';
 import type { Block, Business, Id, Npc, World } from './types';
 import { controller, money as money_ } from './util';
 
-export { businessPrice, crewCut, fixerCap, fixerRate, labOutput, labQuality, levelMult, netWorth, nextRank, notoriety, protectionTake, racketIncome, rankOf, runnerFactor, saturationMult, sellCapacity, stashTotal, streetPrice, synergyOf, upgradeCost, washCap, washRate, INSTITUTION_RESPECT, FAIR_RATE } from './economy';
+export { ownTake, OWN_SHARE, businessPrice, crewCut, fixerCap, fixerRate, labOutput, labQuality, levelMult, netWorth, nextRank, notoriety, protectionTake, racketIncome, rankOf, runnerFactor, saturationMult, sellCapacity, stashTotal, streetPrice, synergyOf, upgradeCost, washCap, washRate, INSTITUTION_RESPECT, FAIR_RATE } from './economy';
 export { bedsTotal, blockCity, controlShare, crewCity, crewIn, playerBlocks, travelCost } from './select-core';
 export { quote, agendaLine, secretLine, type SceneKind, type SceneQuote } from './scenes';
 export { jobOdds, payoutFor, complicationOdds, caseKinds, insider, leansFor } from './jobs';
@@ -42,7 +43,7 @@ export { MAKING, RANK_LABEL, RANK_BLURB, POSTS } from '@r/content/family';
 export { half, isNight, hours, whereIs, whereLine, jobHour, closedNow, hourFactor } from './clock';
 import { closedNow as closedNow_ } from './clock';
 import { RANKS as RANKS_ } from '@r/content/world';
-import { rankOf as rankOf_ } from './economy';
+import { rankOf as rankOf_, ownTake } from './economy';
 export { HOME, REGION, arrivalIn, cityBlocks, cityGeo, cityName_ as cityName, cityOfBlock, controlIn, currentCity, demandIn, fare, fareBetween, isOpen, regionCity, routePrice, safehouseIn } from './region';
 import { HOME as HOME_, cityGeo as cityGeo_ } from './region';
 /**
@@ -78,7 +79,8 @@ export const peopleOn = (w: World, blockId: Id): Npc[] => Object.values(w.npcs).
 export const crew = (w: World): Npc[] => w.player.crewIds.map(id => w.npcs[id]).filter(n => n?.alive && n.crew);
 export const known = (w: World): Npc[] => Object.values(w.npcs).filter(n => n.alive && n.rel.met && !n.crew).sort((a, b) => (b.rel.met ?? 0) - (a.rel.met ?? 0));
 export const officials = (w: World): Npc[] => Object.values(w.npcs).filter(n => n.alive && n.official);
-export const protectedBy = (w: World, who = PLAYER): Business[] => Object.values(w.businesses).filter(b => b.protection?.by === who);
+/** The places paying you protection: not the ones you own outright, which are listed as yours (a bought place kept its old protection and showed up twice). */
+export const protectedBy = (w: World, who = PLAYER): Business[] => Object.values(w.businesses).filter(b => b.protection?.by === who && !(who === PLAYER && b.ownedBy === PLAYER));
 export const isParkBlock = (b: Block) => !!b.landmark && /Park|Gardens|Common|Green|Fields/.test(b.landmark) && b.businessIds.length === 0;
 
 /** Tomorrow's money, forecast from the same formulas the tick uses. Sellers and the laundry are estimates. */
@@ -86,7 +88,7 @@ export function forecast(w: World): { dirty: number; clean: number; costs: numbe
   const p = w.player;
   let dirty = 0, clean = 0, costs = 0, washed = 0;
   for (const b of protectedBy(w)) dirty += protectionTake(b);
-  for (const id of p.businessIds) { const b = w.businesses[id]; if (b && b.closed === 0) clean += Math.round(b.income * 0.45); }
+  for (const id of p.businessIds) { const b = w.businesses[id]; if (b && b.closed === 0) clean += ownTake(b); }
   for (const id of p.racketIds) {
     const r = w.rackets[id]; if (!r || r.down > 0) continue;
     const def = RACKETS[r.kind];
@@ -95,6 +97,10 @@ export function forecast(w: World): { dirty: number; clean: number; costs: numbe
     const x = racketIncome(w, r); if (def.clean) clean += x; else dirty += x;
   }
   for (const id of p.crewIds) costs += w.npcs[id]?.crew?.cut ?? 0;
+  // the rent and anything on the payroll that falls due tomorrow: the first cut counted wages only
+  for (const id of p.safehouseIds) { const s = w.safehouses[id]; if (s) costs += SAFEHOUSE_TIERS[s.tier - 1].rent; }
+  for (const n of Object.values(w.npcs)) if (n.alive && n.payroll && n.payroll > 1 && w.day > (n.payrollSince ?? 0) && (w.day - (n.payrollSince ?? 0)) % 7 === 0) costs += n.payroll;
+  if (p.lawyer) costs += 150;
   const wash = Math.min(washed, p.dirty + dirty);
   return { dirty: dirty - wash, clean: clean + Math.round(wash * washRate(w)), costs, washed: wash };
 }
@@ -144,7 +150,22 @@ export function leads(w: World): Lead[] {
   const prot = protectedBy(w).length + p.businessIds.length;
   const washed = w.history.some(h => (h.washed ?? 0) > 0) || p.washedToday > 0;
   const fx = w.fixerId ? w.npcs[w.fixerId] : undefined;
-  const patron = nearby.flatMap(id => businessesIn(w, id)).flatMap(b => b.patronIds).map(id => w.npcs[id]).filter(n => n?.alive && !n.crew && !n.faction).sort((a, b) => Math.max(...Object.values(b.skills)) - Math.max(...Object.values(a.skills)))[0];
+  // the recruit step sticks with whoever you are already warming up — the most trusted person you have
+  // met who is not yours yet — and only falls back to the best hands nearby. It used to re-pick from
+  // wherever you stood, so it switched to a 68-year-old stranger at 6% just after you had somebody at 49%
+  const warmest = Object.values(w.npcs).filter(n => n.alive && n.rel.met && !n.crew && !n.faction && !n.official && !n.nemesis && n.role !== 'fixer' && n.rel.trust > 0).sort((a, b) => b.rel.trust - a.rel.trust)[0];
+  const patron = warmest ?? nearby.flatMap(id => businessesIn(w, id)).flatMap(b => b.patronIds).map(id => w.npcs[id]).filter(n => n?.alive && !n.crew && !n.faction).sort((a, b) => Math.max(...Object.values(b.skills)) - Math.max(...Object.values(a.skills)))[0];
+  // the job step: a job already under way is the one to finish, not another to take
+  const underway = Object.values(w.jobs).find(j => j.status === 'planning' || j.status === 'ready');
+  // a racket with nobody minding it, and somebody free to mind it
+  const unminded = p.racketIds.map(id => w.rackets[id]).find(r => r && !r.runnerId);
+  const spare = crew(w).find(n => n.crew!.status === 'ready' && !n.crew!.assignment);
+  // the payroll step: whether any official would take money you have
+  // (the same weekly price as the bribe scene in `scenes.ts`; an honest one takes a secret, not money)
+  const bribes = Object.values(w.npcs).filter(n => n.alive && n.official && !n.payroll && !n.jailedDays && (!n.traits.includes('honest') || n.secret?.known))
+    .map(n => Math.round(OFFICIALS[n.official!].weekly * (n.traits.includes('greedy') ? 0.75 : 1) * bribeMult(w)));
+  const cheapest = Math.min(...bribes, Infinity);
+  const payrollBlocked = !bribes.length ? 'Every official here is honest: money will not do it. Something they are hiding might — talk to them, and dig.' : p.cash + p.dirty < cheapest ? `The cheapest official wants ${money_(cheapest)} a week, and you have ${money_(p.cash + p.dirty)}.` : undefined;
   const firstBiz = protectedBy(w)[0] ?? w.businesses[p.businessIds[0]];
   const offer = Object.values(w.jobs).find(j => j.status === 'offer');
   // the racket step: the cheapest racket the place allows, and whether it can be paid for. A bruiser
@@ -162,14 +183,17 @@ export function leads(w: World): Lead[] {
     { id: 'protect', text: warm && warm.workId ? `Put ${w.businesses[warm.workId].name} under your protection` : 'Put a business under your protection', why: 'Your first daily money, and your first foothold on a block. The odds show on the button; talk or lean more first if they are poor.', done: prot > 0, npcId: warm?.id },
     { id: 'racket', text: firstBiz ? `Start a racket at ${firstBiz.name}` : 'Start a racket in a place you protect', why: 'Rackets earn every night. The cheap ones pay for themselves in a week.', done: p.racketIds.length > 0, businessId: firstBiz?.id, blocked: racketBlocked && `${racketBlocked} Protection pays every night.` },
     { id: 'crew', text: patron ? `Win over ${fullName(patron)} and recruit them` : 'Recruit somebody', why: 'Crew run rackets properly, go on jobs and one day run districts.', done: p.crewIds.length > 0, npcId: patron?.id },
-    { id: 'job', text: offer ? `Pull a job: ${offer.title}` : 'Pull a job', why: 'Jobs are the fast money, and the loud way to make a name.', done: Object.values(w.jobs).some(j => j.status === 'done' || j.status === 'failed'), tab: 'jobs' },
+    { id: 'runner', text: unminded && spare ? `Put ${fullName(spare)} on the ${RACKETS[unminded.kind].label.toLowerCase()} as its runner` : 'Put somebody on a racket as its runner', why: 'A racket nobody minds earns 60%. A runner pays their own wages, and the first nights stop costing you.', done: p.racketIds.some(id => w.rackets[id]?.runnerId), npcId: spare?.id, blocked: !p.racketIds.length ? 'Start a racket first.' : !spare ? 'Everybody you have is busy. Recruit somebody.' : undefined },
+    { id: 'job', text: underway ? `${underway.status === 'ready' ? 'Run' : 'Finish planning'}: ${underway.title}` : offer ? `Pull a job: ${offer.title}` : 'Pull a job', why: 'Jobs are the fast money, and the loud way to make a name.', done: Object.values(w.jobs).some(j => j.status === 'done' || j.status === 'failed'), tab: 'jobs',
+      // one job at a time: it used to name a new offer the moment you took one, and a player who obeyed took every job on the board
+      blocked: underway?.status === 'planning' ? `Planning: ${underway.daysLeft} day${underway.daysLeft === 1 ? '' : 's'} left, then run it from the Jobs tab.` : undefined },
     { id: 'wash', text: fx && !fx.rel.met ? `Find the fixer, ${fullName(fx)}, and wash some money` : 'Wash some dirty money', why: 'Buying places, lawyers and officials takes clean money.', done: washed, npcId: fx && !fx.rel.met ? fx.id : undefined, tab: fx?.rel.met ? 'empire' : undefined,
-      // wages come out of dirty money first, so one racket and one recruit can leave it at $0 every
-      // morning: the step waited on something that could not happen, with $2,961 clean in the drawer
-      blocked: fx?.rel.met && p.dirty < 100 ? `Nothing dirty to wash: you have ${money_(p.dirty)}, and wages come out of dirty money first. A job or another racket will leave some over.` : undefined },
+      // blocked only when there is truly nothing to wash: at "under $100" the step said it could not be
+      // done while the Money view offered to wash $75, and doing that finished it
+      blocked: fx?.rel.met && p.dirty <= 0 ? 'Nothing dirty to wash yet. Protection and most rackets pay dirty; a night of them will leave some.' : undefined },
     { id: 'safehouse', text: ground ? `Take a back room on ${ground.name}` : 'Take a back room on your ground', why: 'Beds for more crew, room for stock, space for a lab. It needs influence 10 on the block.', done: p.safehouseIds.length > 0, blockId: ground?.id ?? here.id, blocked: !ground ? 'You need a foothold on a block first: protect a place.' : room && !room.ok && !/action points|hours|Landlords/i.test(room.why ?? '') ? room.why : undefined },
     { id: 'hold', text: 'Hold a block', why: 'Thirty influence and the most of anybody. Stack things on one block and it comes fast.', done: playerBlocks(w).length > 0, blockId: here.id },
-    { id: 'payroll', text: 'Put an official on your payroll', why: 'A captain cools the precinct; a DA slows the files; a judge shortens sentences.', done: Object.values(w.npcs).some(n => n.payroll), tab: 'people' },
+    { id: 'payroll', text: 'Put an official on your payroll', why: 'A captain cools the precinct; a DA slows the files; a judge shortens sentences.', done: Object.values(w.npcs).some(n => n.payroll), tab: 'people', blocked: payrollBlocked },
     { id: 'lieutenant', text: 'Put a lieutenant over a district', why: 'Level 2 and loyalty 55. Rackets there run themselves — and they could inherit it all.', done: crew(w).some(n => n.crew?.assignment?.kind === 'district'), tab: 'crew', blocked: crew(w).some(n => n.crew!.level >= 2 && n.crew!.loyalty >= 55) ? undefined : 'Nobody is ready yet: a lieutenant needs level 2 and loyalty 55. Crew learn on jobs and posts, and pay keeps them loyal.' },
     { id: 'road', text: `Hold a quarter of ${w.city.name}`, why: 'The road opens: start up in the next city, with everything you carry. See the region map.', done: !!w.region?.cities.some(c => c.open || (c.founded && c.id !== 'c0')), tab: 'rivals' },
     { id: 'half', text: `Hold half of ${w.city.name}`, why: 'That is winning. The game goes on after.', done: !!w.won, tab: 'rivals' },
@@ -184,7 +208,38 @@ export function leads(w: World): Lead[] {
     payroll: () => closedNow_(w, { type: 'scene', kind: 'bribe', npcId: here.id }),
   };
   for (const l of list) { if (l.done || l.blocked) continue; const why = hourOf[l.id]?.(); if (why) l.blocked = why; }
+  // a finished step says what you did — read from what is there, not from where you are standing, which
+  // rewrote finished steps as things you never did ("Put Corner Mart under your protection")
+  for (const l of list) if (l.done) { const t = doneText(w, l.id); if (t) l.text = t; }
   return list;
+}
+
+/** What a finished step was, in the past tense, from what the player actually has. */
+function doneText(w: World, id: string): string | undefined {
+  const p = w.player;
+  const firstProt = Object.values(w.businesses).find(b => b.protection?.by === PLAYER) ?? w.businesses[p.businessIds[0]];
+  const firstRacket = w.rackets[p.racketIds[0]];
+  const firstCrew = w.npcs[p.crewIds[0]];
+  const firstJob = Object.values(w.jobs).find(j => j.status === 'done' || j.status === 'failed');
+  const room = w.safehouses[p.safehouseIds[0]];
+  const official = Object.values(w.npcs).find(n => n.payroll && n.official);
+  const lt = crew(w).find(n => n.crew?.assignment?.kind === 'district');
+  const runner = p.racketIds.map(x => w.rackets[x]).find(r => r?.runnerId);
+  switch (id) {
+    case 'talk': return 'Introduced yourself';
+    case 'lean': return 'Got an owner to trust or fear you';
+    case 'protect': return firstProt ? `Put ${firstProt.name} under your protection` : undefined;
+    case 'racket': return firstRacket ? `Started ${RACKETS[firstRacket.kind].label.toLowerCase()} at ${w.businesses[firstRacket.businessId]?.name}` : undefined;
+    case 'crew': return firstCrew ? `Recruited ${fullName(firstCrew)}` : 'Recruited somebody';
+    case 'runner': return runner?.runnerId && w.npcs[runner.runnerId] ? `${fullName(w.npcs[runner.runnerId])} runs the ${RACKETS[runner.kind].label.toLowerCase()}` : undefined;
+    case 'job': return firstJob ? `Pulled a job: ${firstJob.title}` : undefined;
+    case 'wash': return 'Washed some money';
+    case 'safehouse': return room ? `Took a back room on ${w.blocks[room.blockId]?.name}` : undefined;
+    case 'hold': return playerBlocks(w)[0] ? `Held ${playerBlocks(w)[0].name}` : undefined;
+    case 'payroll': return official ? `Put ${fullName(official)} on your payroll` : undefined;
+    case 'lieutenant': return lt && lt.crew?.assignment?.kind === 'district' ? `${fullName(lt)} runs ${w.districts[lt.crew.assignment.districtId]?.name}` : undefined;
+    default: return undefined;
+  }
 }
 
 /**
@@ -196,7 +251,9 @@ export function racketWarning(w: World, kind: RacketKind): string | undefined {
   const sells = RACKETS[kind].sells; if (!sells?.length) return undefined;
   const have = sells.some(pr => w.player.stash[pr].n > 0);
   const making = w.player.safehouseIds.some(id => w.safehouses[id]?.labs.some(l => sells.includes(LABS[l.kind].product)));
-  return have || making ? undefined : 'Sells your own product, and you have none: it earns nothing until a still or grow room is running in a back room.';
+  if (have || making) return undefined;
+  // fencing sells hot goods, which come from jobs, not from a still (the first cut said "still" for both)
+  return sells.every(pr => pr === 'goods') ? 'Sells hot goods, and you have none: it earns nothing until a job brings some in.' : 'Sells your own product, and you have none: it earns nothing until a still or grow room is running in a back room.';
 }
 
 /**

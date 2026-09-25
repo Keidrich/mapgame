@@ -79,6 +79,14 @@ export function synergyOf(w: World, r: Racket) {
 }
 
 /** A plain earning racket's day. Sellers and the laundry are worked out where they act. */
+/**
+ * What a place you own pays you a day, clean: its owner's share of the takings. One number, used by
+ * the payout, the Buy button's promise and every screen that shows it — the Buy button promised the
+ * whole takings and paid under half (found in play).
+ */
+export const OWN_SHARE = 0.45;
+export const ownTake = (b: Business) => Math.round(b.income * OWN_SHARE);
+
 export function racketIncome(w: World, r: Racket): number {
   const def = RACKETS[r.kind];
   const b = w.businesses[r.businessId];

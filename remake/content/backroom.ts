@@ -32,6 +32,8 @@ export const POKER = {
    */
   cheat: 0.35, cheatTech: 0.03, cheatBrains: 0.02, cheatFloor: 0.05,
   caught: { heat: 2, respect: -2, trust: -15, fear: 5 },
+  /** Caught: this many days before that back room will have you again. */
+  banDays: 14,
   /** Playing straight with regulars: they like you a little more for the sitting. */
   trust: 4,
 };

@@ -23,8 +23,10 @@ export function TableCard() {
   const t = w.table!;
   const b = w.businesses[t.businessId];
   // what to hold: the table's own advice to start with, then yours
-  const [hold, setHold] = useState<number[]>(() => select.autoHold(t.hand));
-  useEffect(() => { if (t.stage === 'draw') setHold(select.autoHold(t.hand)); }, [t.hands, t.stage, t.hand]);
+  // (hooks before the dice branch: a dice 'table' has no hand, and reading one crashed every boot
+  // after it, because the table is saved with the world)
+  const [hold, setHold] = useState<number[]>(() => (t.game === 'poker' ? select.autoHold(t.hand) : []));
+  useEffect(() => { if (t.game === 'poker' && t.stage === 'draw') setHold(select.autoHold(t.hand)); }, [t.game, t.hands, t.stage, t.hand]);
   const flip = (i: number) => setHold(h => (h.includes(i) ? h.filter(x => x !== i) : [...h, i]));
   if (t.game === 'dice') {
     return (

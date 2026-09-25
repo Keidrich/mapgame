@@ -7,6 +7,7 @@
  */
 import { SAFEHOUSE_TIERS } from '@r/content/world';
 import { hire } from './people';
+import { hours, isNight } from './clock';
 import type { Rng } from './rng';
 import type { CityId, World } from './types';
 import { PLAYER } from './types';
@@ -18,7 +19,7 @@ export type CheatKind =
 export const CHEATS: { kind: CheatKind; label: string; what: string }[] = [
   { kind: 'cash', label: '+$10k clean', what: 'Ten thousand clean.' },
   { kind: 'dirty', label: '+$10k dirty', what: 'Ten thousand dirty.' },
-  { kind: 'ap', label: 'Full energy', what: 'Action points back to the day\'s full.' },
+  { kind: 'ap', label: 'Full energy', what: 'Hours back to full for this half of the day.' },
   { kind: 'heat', label: 'Cool off', what: 'Heat to zero.' },
   { kind: 'fame', label: '+30 fear & respect', what: 'The street takes you seriously: rank, set-pieces, the seat.' },
   { kind: 'crew', label: '+3 crew here', what: 'Three good people from this city, hired.' },
@@ -37,7 +38,8 @@ export function cheat(w: World, what: CheatKind, rng: Rng) {
   switch (what) {
     case 'cash': p.cash += 10000; break;
     case 'dirty': p.dirty += 10000; break;
-    case 'ap': p.ap = p.apMax; break;
+    // the half you are in: the whole day's eight at night showed "8 of 3"
+    case 'ap': p.ap = isNight(w) ? hours(w).night : hours(w).day; break;
     case 'heat': p.heat = 0; break;
     case 'fame': p.fear = clamp(p.fear + 30); p.respect = clamp(p.respect + 30); break;
     case 'crew': {

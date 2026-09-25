@@ -7,7 +7,7 @@ import { ITEMS, SLOTS_ORDER, SLOT_LABEL, type ItemId } from '@r/content/kit';
 import { select, PLAYER } from '@r/sim/index';
 import type { Id } from '@r/sim/types';
 import { Icon } from '@ui/icons';
-import { useWorld } from '../store';
+import { act, useWorld } from '../store';
 import { Chip, Do, Empty, Row, Section, fmt } from './kit';
 
 export const itemLine = (id: ItemId) => { const d = ITEMS[id]; return [d.skill && d.bonus ? `+${d.bonus} ${d.skill}` : '', d.armour ? `stops ${Math.round(d.armour * 100)}%` : ''].filter(Boolean).join(' · '); };
@@ -62,6 +62,13 @@ export function ArmourySection() {
               <div className="r-inline-actions">
                 <Do action={{ type: 'equip', item: id, to: PLAYER }} label="Carry it" small />
                 {takers.map(n => <Do key={n.id} action={{ type: 'equip', item: id, to: n.id }} label={`Give ${n.first}`} small kind="ghost" />)}
+                {/* the best three get a button; everybody else is one pick away (it used to stop at three) */}
+                {crew.length > takers.length && (
+                  <select className="r-give" aria-label={`Give the ${d.label.toLowerCase()} to somebody else`} value="" onChange={e => { if (e.target.value) act({ type: 'equip', item: id, to: e.target.value }); }}>
+                    <option value="">Somebody else…</option>
+                    {crew.filter(n => !takers.includes(n)).map(n => <option key={n.id} value={n.id}>{select.fullName(n)}</option>)}
+                  </select>
+                )}
               </div>
             </div>
           );

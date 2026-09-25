@@ -10,7 +10,7 @@
 import type { Rng } from './rng';
 import type { Case, CaseCrime, Id, World } from './types';
 import { PLAYER } from './types';
-import { addHeat, clamp, fullName, log, money, nid } from './util';
+import { addHeat, clamp, fullName, log, money, nid, poss } from './util';
 import { injure, jail } from './people';
 import { RACKETS } from '@r/content/world';
 import { succeed } from './legacy';
@@ -123,7 +123,7 @@ function trial(w: World, c: Case, rng: Rng) {
   } else {
     c.status = 'closed';
     w.player.respect = clamp(w.player.respect + 8);
-    log(w, `Not guilty. You walk down the courthouse steps and everybody on ${w.city.name}'s streets hears about it by nightfall.`, 'good');
+    log(w, `Not guilty. You walk down the courthouse steps and everybody on ${poss(w.city.name)} streets hears about it by nightfall.`, 'good');
   }
 }
 

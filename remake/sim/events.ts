@@ -13,17 +13,18 @@ import { stanceOf } from './factions';
 import type { Rng } from './rng';
 import type { Business, Effect, GameEvent, Id, Npc, World } from './types';
 import { PLAYER } from './types';
-import { cap, fullName, money, nid, shortName, they, their, them, theName, vb } from './util';
+import { cap, fullName, money, nid, shortName, they, their, them, theName, vb, poss } from './util';
 import { agendaLine } from './scenes';
 import { bedsTotal, playerBlocks } from './select-core';
 import { crewCut } from './economy';
 import { ambushOdds } from './fights';
-import { bribePrice, detective, duelOdds, heir } from './stories';
+import { cheatChance } from './backroom';
+import { arcOf, bribePrice, detective, duelOdds, heir } from './stories';
 import { DETECTIVE, FRIEND, HEIR } from '@r/content/stories';
 import { ELECTION, RESPONSES, SEASONS } from '@r/content/seasons';
 import { machineOdds } from './seasons';
 
-interface Ctx { npcId?: Id; businessId?: Id; factionId?: Id }
+interface Ctx { npcId?: Id; businessId?: Id; factionId?: Id; n?: number }
 interface Template {
   id: string;
   /** Night encounters are drawn at nightfall (`drawNight`); everything else comes with the morning. */
@@ -32,12 +33,34 @@ interface Template {
   build: (w: World, rng: Rng, ctx: Ctx) => Omit<GameEvent, 'id' | 'template'> | undefined;
 }
 
-type Opt = { id: string; label: string; effects: Effect[]; disabled?: string };
-const card = (w: World, title: string, text: string, opts: Opt[], refs: Partial<GameEvent> = {}) => ({
-  title, text, ...refs,
-  options: opts.map(o => ({ id: o.id, label: o.label, effects: o.effects, hint: describe(w, o.effects), disabled: o.disabled })),
-});
+/** `note`: what the effects cannot say themselves (a loan's repayment is a week off), added to the hint. */
+type Opt = { id: string; label: string; effects: Effect[]; disabled?: string; note?: string };
+/**
+ * No card promises what cannot happen: an option worth "heat -6" to a boss with no heat, or "respect
+ * -3" to one with none, is cut to what is there to lose (and dropped when that is nothing), so the
+ * hint on the button and the effect agree. Found in play: a patrolman's "heat -6" on day 2 at heat 0.
+ */
+function possible(w: World, e: Effect): Effect | undefined {
+  const p = w.player;
+  const have = e.k === 'heat' ? p.heat : e.k === 'fear' ? p.fear : e.k === 'respect' ? p.respect : undefined;
+  const v = (e as { n?: number }).n;
+  if (have === undefined || v === undefined || v >= 0) return e;
+  const n = -Math.min(-v, Math.floor(have));
+  return n ? { ...e, n } as Effect : undefined;
+}
+// a card always has a way out: with every option priced beyond a broke player (the card table at
+// night), none could be taken, the card could not be closed, and the night could never end — a
+// soft-lock the tutorial bot found on seed 1. So a card with nothing open gets a free walk-away
+const card = (w: World, title: string, text: string, opts: Opt[], refs: Partial<GameEvent> = {}) => {
+  const all = opts.every(o => o.disabled) ? [...opts, { id: 'walk', label: 'Walk away', effects: [] }] : opts;
+  return {
+    title, text, ...refs,
+    options: all.map(o => { const effects = o.effects.map(e => possible(w, e)).filter((e): e is Effect => !!e); return { id: o.id, label: o.label, effects, hint: [describe(w, effects), o.note].filter(Boolean).join(' · ') || 'Nothing happens.', disabled: o.disabled }; }),
+  };
+};
 
+/** The places that are yours: owned or under your protection. */
+const yourPlaces = (w: World) => Object.values(w.businesses).filter(b => b.closed <= 0 && (b.ownedBy === PLAYER || b.protection?.by === PLAYER));
 const crew = (w: World) => w.player.crewIds.map(id => w.npcs[id]).filter((n): n is Npc => !!n?.alive && !!n.crew);
 const afford = (w: World, n: number) => (w.player.cash + w.player.dirty >= n ? undefined : `You need ${money(n)}.`);
 const affordDirty = (w: World, n: number) => (w.player.dirty >= n ? undefined : `You need ${money(n)} dirty.`);
@@ -241,7 +264,7 @@ export const TEMPLATES: Template[] = [
   { id: 'heir_oath', weight: () => 0,
     build: (w, _rng, ctx) => {
       const n = w.npcs[ctx.npcId!]; const f = w.factions[ctx.factionId!]; if (!n?.alive || !f) return undefined;
-      return card(w, `${shortName(n)} makes a promise`, `At a table in the back of ${theName(f)}'s club, ${fullName(n)} puts a hand on the boss's shoulder and says, loud enough to carry, that one day ${they(n)} will bury you. People who were there are still repeating it.`, [
+      return card(w, `${shortName(n)} makes a promise`, `At a table in the back of ${poss(theName(f))} club, ${fullName(n)} puts a hand on the boss's shoulder and says, loud enough to carry, that one day ${they(n)} will bury you. People who were there are still repeating it.`, [
         { id: 'note', label: 'Let them talk', effects: [] },
         { id: 'gift', label: `Send your respects: ${money(HEIR.gift.cost)}`, effects: [...pay(w, HEIR.gift.cost), { k: 'arc', kind: 'heir', n: -HEIR.gift.cut }], disabled: afford(w, HEIR.gift.cost) },
       ], { npcId: n.id, factionId: f.id });
@@ -262,7 +285,7 @@ export const TEMPLATES: Template[] = [
       if (!r) return undefined;
       const b = w.businesses[r.businessId];
       return card(w, `${shortName(n)} hits ${b.name}`, `${fullName(n)}'s people put a brick through the window at ${b.name} and a man in hospital. The ${RACKETS[r.kind].label.toLowerCase()} there is shut for three days.`, [
-        { id: 'back', label: `Hit back, tonight (${ambushOdds(w, f.id)}%)`, effects: [{ k: 'racketDown', racketId: r.id, days: 3 }, { k: 'fight', factionId: f.id, odds: ambushOdds(w, f.id) }, { k: 'arc', kind: 'heir', n: 5 }] },
+        { id: 'back', label: `Hit back, now (${ambushOdds(w, f.id)}%)`, effects: [{ k: 'racketDown', racketId: r.id, days: 3 }, { k: 'fight', factionId: f.id, odds: ambushOdds(w, f.id) }, { k: 'arc', kind: 'heir', n: 5 }] },
         { id: 'absorb', label: 'Swallow it', effects: [{ k: 'racketDown', racketId: r.id, days: 3 }, { k: 'respect', n: -2 }] },
       ], { npcId: n.id, factionId: f.id, businessId: b.id });
     } },
@@ -320,15 +343,16 @@ export const TEMPLATES: Template[] = [
         { id: 'refuse', label: 'The rate is the rate', effects: [{ k: 'trust', npcId: o.id, n: -15 }, { k: 'npcFear', npcId: o.id, n: 10 }] },
       ], { npcId: o.id, businessId: b.id });
     } },
-  { id: 'cop_taste', weight: w => (w.player.heat > 20 ? 3 : 1),
+  // a patrolman only leans on somebody with something going and some heat to sell back: the first cut
+  // came on day 2, at heat 0, to a boss with nothing, and said "nice little thing you've got going"
+  { id: 'cop_taste', weight: w => (yourPlaces(w).length && w.player.heat >= 15 ? (w.player.heat > 35 ? 3 : 1.5) : 0),
     build: (w, rng) => {
+      const b = rng.pick(yourPlaces(w));
       const amt = Math.round((300 + w.player.heat * 12) / 50) * 50;
-      const block = w.blocks[w.player.blockId];
-      void rng;
-      return card(w, 'A patrolman wants a taste', `A uniform leans on the counter on ${block.name}. "Nice little thing you've got going. Be a shame." ${money(amt)} and he forgets your face.`, [
+      return card(w, 'A patrolman wants a taste', `A uniform leans on the counter at ${b.name}. "Nice little thing you've got going here. Be a shame." ${money(amt)} and the paperwork forgets your face.`, [
         { id: 'pay', label: `Pay ${money(amt)}`, effects: [...pay(w, amt), { k: 'heat', n: -6 }], disabled: afford(w, amt) },
-        { id: 'refuse', label: 'Tell him to walk his beat', effects: [{ k: 'heat', n: 7 }, { k: 'respect', n: 1 }] },
-      ]);
+        { id: 'refuse', label: 'Tell them to walk their beat', effects: [{ k: 'heat', n: 7 }, { k: 'respect', n: 1 }] },
+      ], { businessId: b.id });
     } },
   { id: 'rival_muscle', weight: w => (Object.values(w.factions).some(f => f.alive && (stanceOf(f, w.day) === 'tension' || stanceOf(f, w.day) === 'beef')) ? 4 : 0),
     build: (w, rng) => {
@@ -337,7 +361,9 @@ export const TEMPLATES: Template[] = [
       const f = rng.pick(fs);
       const block = w.blocks[w.player.blockId];
       const toll = 400 + Math.round(Math.abs(f.standing) * 20 / 50) * 50;
-      return card(w, `${f.short} soldiers on ${block.name}`, `Three soldiers from ${theName(f)} are leaning on a car across the street, watching your door. One of them waves.`, [
+      // "your door" only where you have one: on a block of strangers they are watching you (found in play)
+      const door = Object.values(w.safehouses).some(x => x.blockId === block.id) || block.businessIds.some(id => w.businesses[id]?.ownedBy === PLAYER || w.businesses[id]?.protection?.by === PLAYER);
+      return card(w, `${f.short} soldiers on ${block.name}`, `Three soldiers from ${theName(f)} are leaning on a car across the street, ${door ? 'watching your door' : 'watching you'}. One of them waves.`, [
         { id: 'face', label: 'Walk over and face them', effects: [{ k: 'standing', factionId: f.id, n: -8 }, { k: 'respect', n: 4 }, { k: 'fear', n: 3 }, { k: 'heat', n: 3 }] },
         { id: 'pay', label: `Send over ${money(toll)} and a smile`, effects: [...pay(w, toll), { k: 'standing', factionId: f.id, n: 6 }, { k: 'respect', n: -2 }], disabled: afford(w, toll) },
         { id: 'ignore', label: 'Stay inside', effects: [{ k: 'influence', blockId: block.id, n: -8 }, { k: 'respect', n: -1 }] },
@@ -366,7 +392,7 @@ export const TEMPLATES: Template[] = [
     build: (w, rng) => {
       const n = rng.pick(crew(w));
       const amt = rng.int(6, 20) * 50;
-      return card(w, `${shortName(n)}'s family`, `${fullName(n)}'s mother needs an operation, and the insurance says no. ${cap(they(n))} ${vb(n, 'have', 'has')} not asked you. ${cap(they(n))} ${vb(n, 'are', 'is')} not going to.`, [
+      return card(w, `${poss(shortName(n))} family`, `${fullName(n)}'s mother needs an operation, and the insurance says no. ${cap(they(n))} ${vb(n, 'have', 'has')} not asked you. ${cap(they(n))} ${vb(n, 'are', 'is')} not going to.`, [
         { id: 'pay', label: `Pay for it (${money(amt)})`, effects: [...pay(w, amt), { k: 'loyalty', npcId: n.id, n: 20 }, { k: 'respect', n: 1 }], disabled: afford(w, amt) },
         { id: 'no', label: 'It is not your business', effects: [{ k: 'loyalty', npcId: n.id, n: -6 }] },
       ], { npcId: n.id });
@@ -382,11 +408,12 @@ export const TEMPLATES: Template[] = [
         { id: 'fire', label: 'Out. Today.', effects: [{ k: 'product', product: prod, n: -lost }, { k: 'fire', npcId: n.id }, { k: 'fear', n: 2 }] },
       ], { npcId: n.id });
     } },
-  { id: 'journalist', weight: w => (w.player.heat > 35 || w.player.fear + w.player.respect > 60 ? 2 : 0),
+  // not while a reporter's story (`stories.ts`) is running: one reporter at a time is plenty
+  { id: 'journalist', weight: w => (!arcOf(w, 'reporter') && (w.player.heat > 35 || w.player.fear + w.player.respect > 60) ? 2 : 0),
     build: (w, rng) => {
       const paper = rng.pick(['the Courier', 'the Evening Standard', 'the Ledger', 'the Harbor Times']);
       return card(w, 'A reporter is asking questions', `Somebody from ${paper} has been showing your photograph around ${w.districts[w.blocks[w.player.blockId].districtId].name}.`, [
-        { id: 'pay', label: 'Buy the story (1,500)', effects: [...pay(w, 1500), { k: 'heat', n: -8 }], disabled: afford(w, 1500) },
+        { id: 'pay', label: `Buy the story (${money(1500)})`, effects: [...pay(w, 1500), { k: 'heat', n: -8 }], disabled: afford(w, 1500) },
         { id: 'scare', label: 'Have a word with the editor', effects: [{ k: 'heat', n: 4 }, { k: 'fear', n: 3 }] },
         { id: 'ignore', label: 'Let them write it', effects: [{ k: 'schedule', template: 'expose', days: 3 }] },
       ]);
@@ -427,13 +454,14 @@ export const TEMPLATES: Template[] = [
         { id: 'no', label: 'Stay out of it', effects: [{ k: 'standing', factionId: f.id, n: -3 }] },
       ], { factionId: f.id });
     } },
-  { id: 'loan', weight: w => (Object.values(w.businesses).some(b => (b.protection?.by === PLAYER || b.ownedBy === PLAYER)) ? 2 : 0),
+  // nobody asks a player with $268 for $3,000: the card came with only the say-no option live
+  { id: 'loan', weight: w => (w.player.cash + w.player.dirty >= 1500 && Object.values(w.businesses).some(b => (b.protection?.by === PLAYER || b.ownedBy === PLAYER)) ? 2 : 0),
     build: (w, rng) => {
       const b = rng.pick(Object.values(w.businesses).filter(x => x.protection?.by === PLAYER || x.ownedBy === PLAYER));
       const o = w.npcs[b.ownerId];
       const amt = rng.int(10, 30) * 100;
       return card(w, `${shortName(o)} needs a loan`, `${fullName(o)} of ${b.name} needs ${money(amt)} to cover a bad month. ${cap(they(o))} will pay back a third on top in a week.`, [
-        { id: 'lend', label: `Lend ${money(amt)}`, effects: [...pay(w, amt), { k: 'trust', npcId: o.id, n: 10 }, { k: 'schedule', template: 'loan_due', days: 7, npcId: o.id, businessId: b.id }], disabled: afford(w, amt) },
+        { id: 'lend', label: `Lend ${money(amt)}`, effects: [...pay(w, amt), { k: 'trust', npcId: o.id, n: 10 }, { k: 'schedule', template: 'loan_due', days: 7, npcId: o.id, businessId: b.id, n: amt }], disabled: afford(w, amt), note: `${money(Math.round(amt * 4 / 3))} back in a week, if ${they(o)} can` },
         { id: 'no', label: 'Not a bank', effects: [{ k: 'trust', npcId: o.id, n: -5 }] },
       ], { npcId: o.id, businessId: b.id });
     } },
@@ -441,13 +469,14 @@ export const TEMPLATES: Template[] = [
     build: (w, _rng, ctx) => {
       const o = ctx.npcId ? w.npcs[ctx.npcId] : undefined; if (!o?.alive) return undefined;
       const b = ctx.businessId ? w.businesses[ctx.businessId] : undefined;
-      const amt = Math.round((b ? b.income * 12 : 2000) / 100) * 100;
+      // the loan and the third on top it promised (a save from before the amount was kept falls back to the old guess)
+      const amt = ctx.n ? Math.round(ctx.n * 4 / 3) : Math.round((b ? b.income * 12 : 2000) / 100) * 100;
       if (o.traits.includes('gambler') || o.traits.includes('junkie')) return card(w, `${shortName(o)} cannot pay`, `The week is up. ${fullName(o)} has nothing — it went where ${their(o)} money always goes.`, [
         { id: 'forgive', label: 'Forgive it', effects: [{ k: 'trust', npcId: o.id, n: 25 }, { k: 'owes', npcId: o.id, n: 1 }, { k: 'respect', n: 2 }] },
         { id: 'lean', label: 'Remind them what they owe', effects: [{ k: 'npcFear', npcId: o.id, n: 30 }, { k: 'trust', npcId: o.id, n: -20 }, { k: 'fear', n: 2 }, { k: 'owes', npcId: o.id, n: 1 }] },
       ], { npcId: o.id });
       return card(w, `${shortName(o)} pays you back`, `${fullName(o)} comes by with an envelope and a handshake. Every dollar, and the third on top.`, [
-        { id: 'take', label: 'Take it', effects: [{ k: 'dirty', n: amt }, { k: 'trust', npcId: o.id, n: 5 }] },
+        { id: 'take', label: `Take ${money(amt)}`, effects: [{ k: 'dirty', n: amt }, { k: 'trust', npcId: o.id, n: 5 }] },
       ], { npcId: o.id });
     } },
   { id: 'informant', weight: w => (w.player.heat > 40 && crew(w).some(n => n.secret?.kind === 'informant' && !n.secret.known) ? 4 : 0),
@@ -470,12 +499,13 @@ export const TEMPLATES: Template[] = [
         { id: 'tax', label: 'Let them work, for a cut', effects: [{ k: 'dirty', n: 300 }, { k: 'trust', npcId: lead.id, n: 10 }] },
       ], { npcId: lead.id });
     } },
-  { id: 'festival', weight: w => (w.player.businessIds.length + Object.values(w.businesses).filter(b => b.protection?.by === PLAYER).length >= 3 ? 1.5 : 0),
+  // not during the Festival season: two festivals in one week read as a bug
+  { id: 'festival', weight: w => (w.season?.kind !== 'festival' && w.player.businessIds.length + Object.values(w.businesses).filter(b => b.protection?.by === PLAYER).length >= 3 ? 1.5 : 0),
     build: (w, rng) => {
       const b = rng.pick(Object.values(w.blocks).filter(x => (x.influence[PLAYER] ?? 0) >= 30));
       if (!b) return undefined;
       return card(w, 'A street festival', `${b.name} is putting on a festival for the saint's day. Somebody has to pay for the band.`, [
-        { id: 'pay', label: 'Pay for everything (1,000)', effects: [...pay(w, 1000), { k: 'respect', n: 5 }, { k: 'influence', blockId: b.id, n: 10 }], disabled: afford(w, 1000) },
+        { id: 'pay', label: `Pay for everything (${money(1000)})`, effects: [...pay(w, 1000), { k: 'respect', n: 5 }, { k: 'influence', blockId: b.id, n: 10 }], disabled: afford(w, 1000) },
         { id: 'skip', label: 'Let somebody else', effects: [] },
       ]);
     } },
@@ -483,13 +513,14 @@ export const TEMPLATES: Template[] = [
     build: (w, rng) => {
       const n = rng.pick(crew(w).filter(x => x.crew!.status === 'injured' && x.crew!.statusDays >= 3));
       return card(w, 'A doctor who does not ask', `There is a doctor on the docks who treats people without writing anything down. ${fullName(n)} could be on ${their(n)} feet tomorrow.`, [
-        { id: 'pay', label: 'Pay the doctor (600)', effects: [...pay(w, 600), { k: 'heal', npcId: n.id }, { k: 'loyalty', npcId: n.id, n: 8 }], disabled: afford(w, 600) },
+        { id: 'pay', label: `Pay the doctor (${money(600)})`, effects: [...pay(w, 600), { k: 'heal', npcId: n.id }, { k: 'loyalty', npcId: n.id, n: 8 }], disabled: afford(w, 600) },
         { id: 'wait', label: 'Let it heal', effects: [] },
       ], { npcId: n.id });
     } },
-  { id: 'blood', weight: w => (Object.values(w.npcs).some(n => n.alive && n.agenda?.kind === 'revenge' && !n.agenda.targetId) ? 4 : 0),
+  // (not somebody already carrying an avenger's story: their arc is the rest of it)
+  { id: 'blood', weight: w => (Object.values(w.npcs).some(n => n.alive && n.agenda?.kind === 'revenge' && !n.agenda.targetId && !n.nemesis) ? 4 : 0),
     build: (w, rng) => {
-      const n = rng.pick(Object.values(w.npcs).filter(x => x.alive && x.agenda?.kind === 'revenge' && !x.agenda.targetId));
+      const n = rng.pick(Object.values(w.npcs).filter(x => x.alive && x.agenda?.kind === 'revenge' && !x.agenda.targetId && !x.nemesis));
       const amt = 2000;
       return card(w, 'Somebody wants blood', `${fullName(n)} lost somebody because of you, and has been telling anyone who will listen what ${they(n)} ${vb(n, 'are', 'is')} going to do about it.`, [
         { id: 'pay', label: `Blood money (${money(amt)})`, effects: [...pay(w, amt), { k: 'trust', npcId: n.id, n: 30 }, { k: 'log', text: `${fullName(n)} takes the money. It does not make anything right.`, tone: 'info' }], disabled: afford(w, amt) },
@@ -548,7 +579,7 @@ export const TEMPLATES: Template[] = [
       const b = w.businesses[rng.pick(w.player.businessIds)]; if (!b) return undefined;
       const r = b.racketIds.find(id => w.rackets[id]);
       return card(w, 'The city inspector', `An inspector from city hall has found forty things wrong with ${b.name}, and suggests there might be a way to find fewer.`, [
-        { id: 'pay', label: 'Find fewer (500 clean)', effects: [{ k: 'cash', n: -500 }], disabled: affordClean(w, 500) },
+        { id: 'pay', label: `Find fewer (${money(500)} clean)`, effects: [{ k: 'cash', n: -500 }], disabled: affordClean(w, 500) },
         { id: 'fight', label: 'Make them do their job', effects: [...(r ? [{ k: 'racketDown', racketId: r, days: 3 } as Effect] : []), { k: 'heat', n: 2 }] },
       ], { businessId: b.id });
     } },
@@ -591,6 +622,7 @@ function nightSpots(w: World): Business[] {
   const city = w.districts[here.districtId]?.cityId;
   return close.length ? close : all.filter(b => w.districts[w.blocks[b.blockId].districtId]?.cityId === city);
 }
+const barred = (w: World, id: Id) => (w.player.banned?.[id] ?? 0) > w.day;
 const regulars = (w: World, b: Business) => b.patronIds.map(id => w.npcs[id]).filter((n): n is Npc => !!n?.alive && !n.crew && !n.faction && !n.official);
 
 export const NIGHT: Template[] = [
@@ -606,15 +638,16 @@ export const NIGHT: Template[] = [
         { id: 'pay', label: `Hand over ${money(price)} and a message for their boss`, effects: [...pay(w, price), { k: 'standing', factionId: f.id, n: 8 }], disabled: afford(w, price) },
       ], { factionId: f.id });
     } },
-  { id: 'night_cards', half: 'night', weight: w => (nightSpots(w).some(b => regulars(w, b).length) ? 3 : 0),
+  // (never a back room that threw you out for cheating)
+  { id: 'night_cards', half: 'night', weight: w => (nightSpots(w).some(b => regulars(w, b).length && !barred(w, b.id)) ? 3 : 0),
     build: (w, rng) => {
-      const b = rng.pick(nightSpots(w).filter(x => regulars(w, x).length)); const n = rng.pick(regulars(w, b));
+      const b = rng.pick(nightSpots(w).filter(x => regulars(w, x).length && !barred(w, x.id))); const n = rng.pick(regulars(w, b));
       const stake = rng.int(3, 8) * 100;
       return card(w, `Cards at ${b.name}`, `There is a game going in the back of ${b.name}, and ${fullName(n)} is losing at it, loudly. The stakes are ${money(stake)} a hand. ${cap(they(n))} ${vb(n, 'wave', 'waves')} you to the empty chair.`, [
         // the chair is a real seat now (`backroom.ts`): the old one-line hand stays for a boss in a hurry
         { id: 'play', label: 'Take the chair and play it out', effects: [{ k: 'table', businessId: b.id, npcId: n.id, stake }], disabled: afford(w, stake * 4) },
-        { id: 'straight', label: 'Sit in for one hand and play it straight', effects: [...pay(w, Math.round(stake / 2)), { k: 'trust', npcId: n.id, n: 14 }, { k: 'respect', n: 1 }], disabled: afford(w, Math.round(stake / 2)) },
-        { id: 'cheat', label: 'Deal from the bottom', effects: [{ k: 'dirty', n: stake }, { k: 'trust', npcId: n.id, n: -12 }, { k: 'npcFear', npcId: n.id, n: 6 }, { k: 'heat', n: 1 }] },
+        { id: 'straight', label: `Sit in for one hand and play it straight (about ${money(Math.round(stake / 2))} down)`, effects: [...pay(w, Math.round(stake / 2)), { k: 'trust', npcId: n.id, n: 14 }, { k: 'respect', n: 1 }], disabled: afford(w, Math.round(stake / 2)) },
+        { id: 'cheat', label: `Deal from the bottom (${100 - Math.round(cheatChance(w) * 100)}% nobody sees)`, effects: [{ k: 'cheatHand', businessId: b.id, npcId: n.id, stake }], disabled: afford(w, stake) },
         { id: 'pass', label: 'Watch, and buy the table a round', effects: [...pay(w, 60), { k: 'trust', npcId: n.id, n: 5 }], disabled: afford(w, 60) },
       ], { npcId: n.id, businessId: b.id });
     } },
@@ -636,10 +669,11 @@ export const NIGHT: Template[] = [
         { id: 'no', label: 'Tell him to keep driving', effects: [] },
       ]);
     } },
-  { id: 'night_corner', half: 'night', weight: w => (playerBlocks(w).length && Object.values(w.factions).some(f => f.alive) ? 2 : 0),
+  // (never your allies: an ally drinking on your corner is a visit, not a provocation)
+  { id: 'night_corner', half: 'night', weight: w => (playerBlocks(w).length && Object.values(w.factions).some(f => f.alive && stanceOf(f, w.day) !== 'allied') ? 2 : 0),
     build: (w, rng) => {
-      const b = rng.pick(playerBlocks(w)); const f = rng.pick(Object.values(w.factions).filter(x => x.alive));
-      return card(w, `The ${f.short} on your corner`, `Four of the ${f.short}'s soldiers are drinking on ${b.name} like they own it. People are watching to see what you do.`, [
+      const b = rng.pick(playerBlocks(w)); const f = rng.pick(Object.values(w.factions).filter(x => x.alive && stanceOf(x, w.day) !== 'allied'));
+      return card(w, `The ${f.short} on your corner`, `Four of the ${poss(f.short)} soldiers are drinking on ${b.name} like they own it. People are watching to see what you do.`, [
         { id: 'run', label: 'Run them off', effects: [{ k: 'fear', n: 3 }, { k: 'influence', blockId: b.id, n: 3 }, { k: 'standing', factionId: f.id, n: -8 }, { k: 'heat', n: 3 }] },
         { id: 'round', label: 'Send over a round, and a message', effects: [...pay(w, 250), { k: 'standing', factionId: f.id, n: 6 }, { k: 'respect', n: 1 }], disabled: afford(w, 250) },
         { id: 'leave', label: 'Let them drink', effects: [{ k: 'influence', blockId: b.id, n: -4 }, { k: 'respect', n: -1 }] },
@@ -680,7 +714,7 @@ export const NIGHT: Template[] = [
     build: (w, rng) => {
       const r = w.rackets[rng.pick(w.player.racketIds.filter(id => w.rackets[id]?.down === 0))];
       const b = w.businesses[r.businessId];
-      return card(w, 'A word from a patrolman', `A patrolman you have bought drinks for says Vice is coming for ${b.name} tomorrow. He did not say it, and you did not hear it.`, [
+      return card(w, 'A word from a patrolman', `A patrolman who drinks where your people drink says Vice is coming for ${b.name} tomorrow. He did not say it, and you did not hear it.`, [
         { id: 'shut', label: 'Shut it for a night', effects: [{ k: 'racketDown', racketId: r.id, days: 1 }, { k: 'heat', n: -6 }] },
         { id: 'ride', label: 'Ride it out', effects: [{ k: 'heat', n: 6 }] },
       ], { businessId: b.id });
@@ -700,11 +734,11 @@ const select_officials = (w: World) => Object.values(w.npcs).filter(n => n.alive
 /** Nightfall: most nights, one thing tonight puts in front of you. */
 export function drawNight(w: World, rng: Rng) {
   if (w.events.length >= 2 || !rng.chance(0.7)) return;
-  const pool = NIGHT.map(t => ({ item: t, w: t.weight(w) })).filter(x => x.w > 0);
+  const pool = NIGHT.map(t => ({ item: t, w: t.weight(w) })).filter(x => x.w > 0 && !resting(w, x.item.id));
   if (!pool.length) return;
   const t = rng.weighted(pool);
   const e = t.build(w, rng, {});
-  if (e) w.events.push({ id: nid(w, 'e'), template: t.id, ...e });
+  if (e && !tooSoon(w, t.id, e)) w.events.push({ id: nid(w, 'e'), template: t.id, ...e });
 }
 
 const BY_ID = Object.fromEntries([...TEMPLATES, ...NIGHT].map(t => [t.id, t]));
@@ -718,11 +752,35 @@ export function drawEvents(w: World, rng: Rng) {
     const e = t.build(w, rng, s); if (e) w.events.push({ id: nid(w, 'e'), template: t.id, ...e });
   }
   if (w.events.length >= 2 || !rng.chance(0.62)) return;
-  const pool = TEMPLATES.map(t => ({ item: t, w: t.weight(w) })).filter(x => x.w > 0 && !w.events.some(e => e.template === x.item.id));
+  // cards on their week's rest are out of the pool before the draw, so a day still gets a card, a different one
+  const pool = TEMPLATES.map(t => ({ item: t, w: t.weight(w) })).filter(x => x.w > 0 && !w.events.some(e => e.template === x.item.id) && !resting(w, x.item.id));
   if (!pool.length) return;
   const t = rng.weighted(pool);
   const e = t.build(w, rng, {});
-  if (e) w.events.push({ id: nid(w, 'e'), template: t.id, ...e });
+  if (e && !tooSoon(w, t.id, e)) w.events.push({ id: nid(w, 'e'), template: t.id, ...e });
+}
+
+/**
+ * A card drawn at random does not come round again too soon: the same card about the same person or
+ * place within three weeks, or the same card at all within a week, is skipped. Without this the same
+ * crew member's mother needed the same operation twice in a fortnight, and a patrolman came most days.
+ * Scheduled cards (consequences and story beats) are never held back.
+ */
+// the patrolman is a heat valve as much as a card: when you are hot he comes round every few days,
+// because the week's rest took away most of what a busy boss had to shed heat with (the steady bot's
+// heat went 51 → 69, and two of five seeds ended in a cell or a box)
+const REST: Record<string, (w: World) => number> = { cop_taste: w => (w.player.heat > 35 ? 3 : 7) };
+const resting = (w: World, template: string) => w.day - (w.cardSeen?.[template] ?? -99) < (REST[template]?.(w) ?? 7);
+function tooSoon(w: World, template: string, e: Omit<GameEvent, 'id' | 'template'>): boolean {
+  const seen = (w.cardSeen ??= {});
+  const who = e.npcId ?? e.businessId ?? e.factionId ?? '';
+  const last = seen[`${template}:${who}`] ?? -99;
+  // (the week is filtered out of the pool already; this is the three weeks per person, except for a
+  // card with its own shorter rest, which comes back to the same place on that rest)
+  const rest = REST[template]?.(w);
+  if (w.day - last < (rest !== undefined && rest < 7 ? rest : 21) || resting(w, template)) return true;
+  seen[template] = w.day; seen[`${template}:${who}`] = w.day;
+  return false;
 }
 
 export { agendaLine };

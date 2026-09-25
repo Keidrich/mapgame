@@ -8,11 +8,11 @@ import { openCase } from './law';
 import { freeFromAssignment, hire, injure, jail, kill } from './people';
 import type { Rng } from './rng';
 import type { Effect, World } from './types';
-import { addHeat, addInfluence, clamp, fullName, log, money, shortName } from './util';
+import { addHeat, addInfluence, clamp, fullName, log, money, shortName, poss } from './util';
 import { crewCut } from './economy';
 import { RAT } from '@r/content/family';
 import { ambush } from './fights';
-import { sitDown } from './backroom';
+import { cheatHand, sitDown } from './backroom';
 import { arcDo, arcOf, detective, endHeir } from './stories';
 import { back } from './seasons';
 import { PLAYER } from './types';
@@ -41,7 +41,7 @@ export function apply(w: World, effects: Effect[], rng: Rng) {
       case 'fire': { const n = w.npcs[e.npcId]; if (n?.crew) { freeFromAssignment(w, n); n.exCrew = w.day; n.crew = undefined; n.faction = undefined; n.role = 'patron'; p.crewIds = p.crewIds.filter(x => x !== n.id); } break; }
       case 'caught': { const n = w.npcs[e.npcId]; if (n?.crew) { const back = Math.round((n.crew.skimmed ?? 0) * 0.5); p.dirty += back; n.crew.skimmed = 0; n.crew.caughtDay = w.day; n.crew.loyalty = clamp(n.crew.loyalty - 8); } break; }
       case 'heal': { const n = w.npcs[e.npcId]; if (n?.crew?.status === 'injured') { n.crew.status = 'ready'; n.crew.statusDays = 0; } break; }
-      case 'payroll': { const n = w.npcs[e.npcId]; if (n) n.payroll = e.n > 0 ? e.n : undefined; break; }
+      case 'payroll': { const n = w.npcs[e.npcId]; if (n) { n.payroll = e.n > 0 ? e.n : undefined; n.payrollSince = w.day; } break; }
       case 'cut': { const n = w.npcs[e.npcId]; if (n?.crew) n.crew.cut = Math.max(0, n.crew.cut + e.n); break; }
       case 'rate': { const b = w.businesses[e.businessId]; if (b?.protection) b.protection.rate = e.n; break; }
       case 'agendaKnown': { const n = w.npcs[e.npcId]; if (n?.agenda) n.agenda.known = true; break; }
@@ -50,12 +50,13 @@ export function apply(w: World, effects: Effect[], rng: Rng) {
       case 'openCase': openCase(w, e.crime, e.suspect, e.witnessId, e.summary); break;
       case 'racketDown': { const r = w.rackets[e.racketId]; if (r) r.down = Math.max(r.down, e.days); break; }
       case 'jobOffer': { const j = e.job; const built = buildJob(w, rng, { kind: j.kind, blockId: j.blockId, businessId: j.targetBusinessId, npcId: j.targetNpcId, faction: j.targetFaction, source: j.sourceId ? w.npcs[j.sourceId] : undefined }); if (built) { built.intel = j.intel; if (j.title) built.title = j.title; if (e.tonight) { built.expires = w.day; built.planDays = 0; built.tonight = true; } } break; }
-      case 'schedule': w.scheduled.push({ day: w.day + e.days, template: e.template, npcId: e.npcId, businessId: e.businessId, factionId: e.factionId }); break;
+      case 'schedule': w.scheduled.push({ day: w.day + e.days, template: e.template, npcId: e.npcId, businessId: e.businessId, factionId: e.factionId, ...(e.n ? { n: e.n } : {}) }); break;
       case 'log': log(w, e.text, e.tone); break;
       case 'ratFed': { const n = w.npcs[e.npcId]; if (n?.crew?.rat) { n.crew.rat.fed = true; const worst = Object.values(w.cases).filter(c => c.status === 'open' && c.suspectId === PLAYER).sort((a, b) => b.evidence - a.evidence)[0]; if (worst) worst.evidence = clamp(worst.evidence - RAT.fedCut); log(w, `${fullName(n)} goes on talking, and now it is your story they tell.`, 'good', { npcId: n.id }); } break; }
       case 'defect': defect(w, e.npcId); break;
       case 'fight': ambush(w, rng, e.factionId); break;
       case 'table': if (!w.table || w.table.stage === 'left') sitDown(w, rng, e.businessId, e.stake, e.npcId); break;
+      case 'cheatHand': cheatHand(w, rng, e.businessId, e.npcId, e.stake); break;
       case 'arc': { const a = arcOf(w, e.kind); if (a) { if (e.n) a.meter = clamp(a.meter + e.n); if (e.status) { a.status = e.status; a.ended = w.day; } } break; }
       case 'arcDo': arcDo(w, rng, e.kind, e.what); break;
       case 'detKeep': { const d = detective(w); if (d) d.boughtUntil = w.day + e.days; break; }
@@ -120,12 +121,12 @@ export function describe(w: World, effects: Effect[]): string {
       case 'owes': out.push(`${name(w, e.npcId)} owes you`); break;
       case 'fire': out.push(`${name(w, e.npcId)} leaves the crew`); break;
       case 'caught': out.push(`${name(w, e.npcId)} stops skimming, and gives half of it back`); break;
-      case 'heal': out.push(`${name(w, e.npcId)} back on their feet`); break;
+      case 'heal': out.push(`${name(w, e.npcId)} patched up`); break;
       case 'payroll': out.push(e.n > 0 ? `${name(w, e.npcId)} on the payroll at ${money(e.n)}/wk` : `${name(w, e.npcId)} off the payroll`); break;
-      case 'cut': out.push(`${name(w, e.npcId)}'s cut ${e.n > 0 ? '+' : '−'}${money(Math.abs(e.n))}/day`); break;
+      case 'cut': out.push(`${poss(name(w, e.npcId))} cut ${e.n > 0 ? '+' : '−'}${money(Math.abs(e.n))}/day`); break;
       case 'rate': out.push(`rate ${Math.round(e.n * 100)}%`); break;
       case 'agendaKnown': out.push(`learn what ${name(w, e.npcId)} needs`); break;
-      case 'secretKnown': out.push(`learn ${name(w, e.npcId)}'s secret`); break;
+      case 'secretKnown': out.push(`learn ${poss(name(w, e.npcId))} secret`); break;
       case 'evidence': out.push(`case evidence ${sign(e.n)}`); break;
       case 'openCase': out.push('a case file opens'); break;
       case 'racketDown': out.push(`a racket shut ${e.days}d`); break;
@@ -133,11 +134,12 @@ export function describe(w: World, effects: Effect[]): string {
       case 'ratFed': out.push(`${name(w, e.npcId)} starts carrying your lies to the police`); break;
       case 'fight': out.push(`a fight: about ${e.odds}% to see them off`); break;
       case 'table': out.push(`a seat at the table, ${money(e.stake)} a hand`); break;
+      case 'cheatHand': out.push(`${money(e.stake)} if nobody sees; the stake and the place if somebody does`); break;
       case 'arc': out.push([e.n ? `${ARC_WORD[e.kind]} ${sign(e.n)}` : '', e.status ? 'it ends here' : ''].filter(Boolean).join(', ')); break;
       case 'arcDo': out.push(ARC_DO[`${e.kind}:${e.what}`] ?? 'it comes to a head'); break;
       case 'detKeep': out.push(`bought for ${e.days} more days`); break;
       case 'detFree': out.push('he is back on you, and angrier'); break;
-      case 'season': out.push(e.act === 'soften' ? 'the police look half as hard' : e.act === 'end' ? 'it ends tomorrow' : `the ${e.side === 'machine' ? 'machine' : 'reformers'} get your money`); break;
+      case 'season': out.push(e.act === 'soften' ? 'the police look half as hard' : e.act === 'end' ? 'it ends tomorrow' : e.side === 'machine' ? 'the machine gets your money' : 'the reformers get your money'); break;
       case 'heirEnd': out.push(e.how === 'partner' ? 'partners, and a truce' : e.how === 'duel' ? 'a fight in the street, settled tonight' : 'a killing, and a war'); break;
       case 'defect': out.push(`${name(w, e.npcId)} walks, and their district goes dark`); break;
       case 'showdown': out.push(`${e.chance}% they back down; otherwise they walk with their district`); break;

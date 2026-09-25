@@ -7,7 +7,7 @@
  * here a verb is one press, and what it can lead to is written on it.
  */
 import { BUSINESSES, OFFICIALS, TRAITS } from '@r/content/world';
-import { INSTITUTION_RESPECT, businessPrice, crewCut, FAIR_RATE } from './economy';
+import { INSTITUTION_RESPECT, businessPrice, crewCut, FAIR_RATE, ownTake } from './economy';
 import { openCase } from './law';
 import { hire, practise, spreadWord } from './people';
 import { kitBonus, kitOf } from './kit';
@@ -43,6 +43,13 @@ const traitMod = (n: Npc, t: string, v: number) => (n.traits.includes(t as never
 /** Friends and family standing behind someone: harder to scare, slower to trust. */
 const backup = (w: World, n: Npc) => n.ties.filter(t => t.kind !== 'rival' && w.npcs[t.id]?.alive).length;
 
+/** Traits as a sentence: the nouns take an article ("a gambler and connected", not "gambler and connected"). */
+const NOUN_TRAITS = new Set(['coward', 'hothead', 'gambler', 'junkie']);
+function traitPhrase(n: Npc): string {
+  const words = n.traits.map(t => { const l = TRAITS[t].label.toLowerCase(); return NOUN_TRAITS.has(t) ? `a ${l}` : l; });
+  return words.length > 1 ? `${words.slice(0, -1).join(', ')} and ${words.at(-1)}` : words[0] ?? 'hard to read';
+}
+
 export function quote(w: World, kind: SceneKind, npcId: Id, opts: { businessId?: Id; rate?: number } = {}): SceneQuote {
   const n = w.npcs[npcId];
   const p = w.player;
@@ -67,7 +74,7 @@ export function quote(w: World, kind: SceneKind, npcId: Id, opts: { businessId?:
   switch (kind) {
     case 'chat': {
       const gain = Math.round(4 + p.skills.charm * 0.9 + traitMod(n, 'connected', 2) - traitMod(n, 'honest', 0) + (p.background === 'grifter' ? 3 : 0));
-      return q({ label: n.rel.met ? 'Talk' : 'Introduce yourself', gain: `Trust +${gain}. You get the measure of ${them(n)}${n.agenda && !n.agenda.known ? ', and maybe what they need' : ''}.`, risk: 'Nothing.', disabled: away });
+      return q({ label: n.rel.met ? 'Talk' : 'Introduce yourself', gain: `Trust +${gain}. You get the measure of ${them(n)}${n.agenda && !n.agenda.known ? `, and maybe what ${they(n)} ${vb(n, 'need', 'needs')}` : ''}.`, risk: 'Nothing.', disabled: away });
     }
     case 'intimidate': {
       const f: SceneQuote['factors'] = [
@@ -106,6 +113,7 @@ export function quote(w: World, kind: SceneKind, npcId: Id, opts: { businessId?:
     }
     case 'squeeze': {
       if (!biz || biz.ownerId !== n.id) return q({ label: 'Squeeze', disabled: 'Only an owner has a till to empty.' });
+      if (biz.ownedBy === PLAYER) return q({ label: 'Squeeze', disabled: 'It is your till now.' });
       if (biz.tier === 3) return q({ label: 'Squeeze', disabled: 'Not a place you squeeze.' });
       const take = Math.round(Math.min(biz.till, biz.income * (1 + n.rel.fear / 40)));
       const chance = clamp(Math.round(20 + n.rel.fear * 0.9 + p.skills.muscle * 2 - n.nerve * 0.4), 5, 95);
@@ -162,7 +170,7 @@ export function quote(w: World, kind: SceneKind, npcId: Id, opts: { businessId?:
       const premium = willing ? 1 : 1.3;
       const cost = Math.round(price * premium);
       const inst = biz.tier === 3 && p.respect < INSTITUTION_RESPECT ? `An institution will not sell to somebody with less than ${INSTITUTION_RESPECT} respect.` : undefined;
-      return q({ label: `Buy ${biz.name} (${money(cost)} clean)`, cash: cost, clean: true, gain: `Yours: ${money(biz.income)} a day, clean, and a solid foothold.`, risk: willing ? 'Nothing.' : 'They want a premium to sell to a stranger.', disabled: inst });
+      return q({ label: `Buy ${biz.name} (${money(cost)} clean)`, cash: cost, clean: true, gain: `Yours: ${money(ownTake(biz))} a day, clean (the owner's share of ${money(biz.income)} takings), and a solid foothold.`, risk: willing ? 'Nothing.' : 'They want a premium to sell to a stranger.', disabled: inst });
     }
     case 'crew_pay': case 'crew_take': case 'crew_run': {
       const c = crewOf(w, n.id);
@@ -202,7 +210,7 @@ export function playScene(w: World, kind: SceneKind, npcId: Id, rng: Rng, opts: 
       const gain = Math.round(4 + p.skills.charm * 0.9 + (n.traits.includes('connected') ? 2 : 0) + (p.background === 'grifter' ? 3 : 0));
       n.rel.trust = clamp(n.rel.trust + gain, -100, 100);
       const learned: string[] = [];
-      if (!n.known) { n.known = true; learned.push(`${they(n)} ${vb(n, 'are', 'is')} ${n.traits.map(t => TRAITS[t].label.toLowerCase()).join(' and ')}`); }
+      if (!n.known) { n.known = true; learned.push(`${they(n)} ${vb(n, 'are', 'is')} ${traitPhrase(n)}`); }
       if (n.agenda && !n.agenda.known && rng.chance(0.35 + p.skills.charm * 0.04)) { n.agenda.known = true; learned.push(`what ${they(n)} ${vb(n, 'need', 'needs')}: ${agendaLine(w, n)}`); }
       else if (n.secret && !n.secret.known && rng.chance(0.08 + p.skills.brains * 0.02)) { n.secret.known = true; learned.push(`something ${they(n)} would rather you did not know: ${secretLine(n)}`); }
       practise(w, 'charm', 3);
@@ -219,10 +227,12 @@ export function playScene(w: World, kind: SceneKind, npcId: Id, rng: Rng, opts: 
       addHeat(w, 2, n.homeBlockId); practise(w, 'muscle', 4);
       if (ok) {
         const f = Math.round(22 + p.skills.muscle * 2 + (n.traits.includes('coward') ? 12 : 0) - (n.traits.includes('tough') ? 8 : 0));
+        const was = n.rel.fear;
         n.rel.fear = clamp(n.rel.fear + f); n.rel.trust = clamp(n.rel.trust - 8, -100, 100);
         remember(n, w.day, 'threatened', 'You leaned on them.');
         spreadWord(w, npcId, n.homeBlockId, 6, 0);
-        log(w, `${fullName(n)} goes pale. Fear +${f}.`, 'warn', { npcId });
+        // what it actually moved, not what it tried to: "Fear +48" three times over on somebody already at 100
+        log(w, n.rel.fear > was ? `${fullName(n)} goes pale. Fear +${Math.round(n.rel.fear - was)}.` : `${fullName(n)} could not be more frightened of you than this.`, 'warn', { npcId });
       } else {
         n.rel.trust = clamp(n.rel.trust - 12, -100, 100); n.rel.fear = clamp(n.rel.fear + 5);
         p.respect = clamp(p.respect - 1);
@@ -278,7 +288,7 @@ export function playScene(w: World, kind: SceneKind, npcId: Id, rng: Rng, opts: 
     }
     case 'bribe': {
       if (ok) {
-        n.payroll = qt.cash ?? 0; spend(w, n.payroll);
+        n.payroll = qt.cash ?? 0; n.payrollSince = w.day; spend(w, n.payroll);
         n.rel.trust = clamp(n.rel.trust + 10, -100, 100);
         log(w, `${fullName(n)} (${OFFICIALS[n.official!].label}) is on your payroll: ${money(n.payroll)} a week.`, 'good', { npcId });
       } else {

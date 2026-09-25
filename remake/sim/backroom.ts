@@ -29,6 +29,7 @@ export const CATEGORY = ['high card', 'a pair', 'two pair', 'three of a kind', '
  * of the biggest groups, then the kickers). Higher is better; equal is a split.
  */
 export function score(hand: number[]): number {
+  if (hand.length !== 5) return 0;   // no hand (the dice have none) scores nothing, rather than throwing
   const ranks = hand.map(c => c % 13);
   const counts = new Map<number, number>();
   for (const r of ranks) counts.set(r, (counts.get(r) ?? 0) + 1);
@@ -60,6 +61,7 @@ export const describe = (hand: number[]) => CATEGORY[categoryOf(hand)];
 
 /** What a player at the table keeps: any pair or better, four to a flush, or the top card. */
 export function autoHold(hand: number[]): number[] {
+  if (hand.length !== 5) return [];
   const counts = new Map<number, number>();
   for (const c of hand) counts.set(c % 13, (counts.get(c % 13) ?? 0) + 1);
   const paired = hand.map((c, i) => ((counts.get(c % 13) ?? 0) >= 2 ? i : -1)).filter(i => i >= 0);
@@ -81,6 +83,7 @@ const houseIsYours = (w: World, b: Business) => b.ownedBy === PLAYER || b.racket
 export function tableBlock(w: World, businessId: Id, stake: number): string | undefined {
   const b = w.businesses[businessId];
   if (!hasTable(w, b)) return 'There is no game here.';
+  if ((w.player.banned?.[businessId] ?? 0) > w.day) return `They remember you here. Not for another ${w.player.banned![businessId] - w.day} days.`;
   if (half(w) !== 'night') return 'The game starts after dark.';
   if (b.blockId !== w.player.blockId) return `Go to ${w.blocks[b.blockId].name} first.`;
   if (!POKER.stakes.includes(stake)) return 'Those are not the stakes.';
@@ -124,6 +127,25 @@ export const readChance = (w: World) => Math.min(POKER.readMax, POKER.read + w.p
 /** The chance of being caught dealing from the bottom. */
 export const cheatChance = (w: World) => Math.max(POKER.cheatFloor, POKER.cheat - w.player.skills.tech * POKER.cheatTech - w.player.skills.brains * POKER.cheatBrains);
 
+/**
+ * The night encounter's one crooked hand. The first cut paid the stake every time, with no odds on
+ * the button and no money needed on the table; now it is the same risk as at a seat.
+ */
+export function cheatHand(w: World, rng: Rng, businessId: Id, npcId: Id, stake: number) {
+  const n = w.npcs[npcId]; const b = w.businesses[businessId];
+  if (!rng.chance(cheatChance(w))) {
+    w.player.dirty += stake; n.rel.trust = clamp(n.rel.trust - 6, -100, 100);
+    log(w, `A card off the bottom, and ${money(stake)} of ${fullName(n)}'s money is yours. Nobody saw.`, 'money', { npcId });
+    return;
+  }
+  spend(w, Math.min(stake, w.player.cash + w.player.dirty));
+  addHeat(w, POKER.caught.heat, b.blockId);
+  w.player.respect = clamp(w.player.respect + POKER.caught.respect, 0, 100);
+  n.rel.trust = clamp(n.rel.trust + POKER.caught.trust, -100, 100); n.rel.fear = clamp(n.rel.fear + POKER.caught.fear, 0, 100);
+  w.player.banned = { ...(w.player.banned ?? {}), [businessId]: w.day + POKER.banDays };
+  log(w, `${fullName(n)} sees the card come off the bottom. You leave ${money(stake)} on the table and ${b.name} behind you, for a fortnight at least.`, 'bad', { npcId, businessId });
+}
+
 export function draw(w: World, rng: Rng, hold: number[], cheat: boolean) {
   const t = w.table!;
   const keep = t.hand.filter((_, i) => hold.includes(i));
@@ -158,6 +180,8 @@ export function draw(w: World, rng: Rng, hold: number[], cheat: boolean) {
 function caught(w: World, t: Table) {
   const p = w.player;
   t.stage = 'done'; t.caught = true; t.youWon = false;
+  // thrown out of the place, not just the sitting: the first cut let you sit straight back down
+  p.banned = { ...(p.banned ?? {}), [t.businessId]: w.day + POKER.banDays };
   t.lines.push('A card comes off the bottom and somebody sees it. The table goes quiet; then it does not.');
   addHeat(w, POKER.caught.heat, w.businesses[t.businessId].blockId);
   p.respect = clamp(p.respect + POKER.caught.respect, 0, 100);
@@ -230,6 +254,7 @@ export function leave(w: World) {
 export function diceBlock(w: World, businessId: Id, stake: number): string | undefined {
   const b = w.businesses[businessId];
   if (!hasTable(w, b)) return 'Nobody is rolling here.';
+  if ((w.player.banned?.[businessId] ?? 0) > w.day) return `They remember you here. Not for another ${w.player.banned![businessId] - w.day} days.`;
   if (half(w) !== 'night') return 'The dice come out after dark.';
   if (b.blockId !== w.player.blockId) return `Go to ${w.blocks[b.blockId].name} first.`;
   if (!DICE.bets.includes(stake)) return 'Those are not the stakes.';

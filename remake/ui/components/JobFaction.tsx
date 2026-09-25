@@ -42,7 +42,11 @@ export function payoutLine(j: Job, approach?: Approach): string {
   const p = select.payoutFor(j, approach);
   const parts = [p.dirty ? `${fmt(p.dirty)} dirty` : '', p.clean ? `${fmt(p.clean)} clean` : '', p.goods ? `${p.goods} hot goods` : ''].filter(Boolean);
   if (j.setpiece && !parts.length) return j.setpiece.id === 'locker' ? 'Nothing in the bag — the paper on you burns' : 'Respect, and what it does';
-  return parts.length ? parts.join(' + ') : j.kind === 'hit' || j.kind === 'frame' || j.kind === 'sabotage' || j.kind === 'arson' ? 'Nothing in the bag — the point is what it does' : 'Respect, mostly';
+  if (parts.length) return parts.join(' + ');
+  if (j.kind === 'hit' || j.kind === 'frame' || j.kind === 'sabotage' || j.kind === 'arson') return 'Nothing in the bag — the point is what it does';
+  // no money in it: say what it does pay, in the coin it pays (it said "Respect, mostly" for jobs that paid fear)
+  const rep = [p.fear ? `fear +${p.fear}` : '', p.respect ? `respect +${p.respect}` : ''].filter(Boolean).join(', ');
+  return rep ? `No money: ${rep}` : 'No money in it';
 }
 
 export function JobSheet({ id }: { id: string }) {
@@ -73,7 +77,8 @@ export function JobSheet({ id }: { id: string }) {
         <div><span>Take</span><b>{payoutLine(j, j.approach)}</b></div>
         <div><span>Crew</span><b>{j.crewMin ? `${j.crewMin}–${j.crewMax} + you` : `you, +${j.crewMax}`}</b></div>
         <div><span>Planning</span><b>{j.planDays ? `${j.planDays} day${j.planDays > 1 ? 's' : ''}` : 'none'}</b></div>
-        <div><span>Heat</span><b>{j.heat > 0 ? `+${j.heat}` : j.heat}</b></div>
+        {/* the heat as the approaches will bring it: the bare figure hid that loud is ×1.5 and a job gone wrong ×1.4 on top */}
+        <div><span>Heat</span><b>{j.heat > 0 ? `+${Math.round(j.heat * APPROACH_INFO.quiet.heat)}–${Math.round(j.heat * APPROACH_INFO.loud.heat)}` : j.heat}</b></div>
       </div>
       <div className="r-chips">
         {target && <button type="button" className="r-chip link" onClick={() => openSheet({ kind: 'business', id: target.id })}>{target.name} · security {target.security}</button>}
@@ -113,9 +118,9 @@ export function JobSheet({ id }: { id: string }) {
                 <div className="r-approach-head">
                   <b>{APPROACH_INFO[a].label}</b>
                   <span className={`r-odds ${o.chance >= 65 ? 'good' : o.chance >= 40 ? 'mid' : 'bad'}`}>{o.chance}%</span>
-                  <span className="r-note grow">{APPROACH_INFO[a].blurb} Take {payoutLine(j, a)}.</span>
+                  <span className="r-note grow">{APPROACH_INFO[a].blurb} Take: {payoutLine(j, a).replace(/^./, c => c.toLowerCase())}. Heat +{Math.round(j.heat * APPROACH_INFO[a].heat)}, +{Math.round(j.heat * APPROACH_INFO[a].heat * 1.4)} if it goes wrong.</span>
                 </div>
-                <ul className="r-factors">{o.factors.map((f, i) => <li key={i}><span>{f.label}</span><b className={f.n >= 0 ? 'pos' : 'neg'}>{f.n >= 0 ? '+' : ''}{f.n}</b></li>)}</ul>
+                <ul className="r-factors">{[{ label: 'Where it starts', n: o.chance - o.factors.reduce((t, f) => t + f.n, 0) }, ...o.factors].map((f, i) => <li key={i}><span>{f.label}</span><b className={f.n >= 0 ? 'pos' : 'neg'}>{f.n >= 0 && i ? '+' : ''}{f.n}</b></li>)}</ul>
                 {j.status !== 'offer' && <Do action={{ type: 'launch_job', jobId: j.id, approach: a }} label={`Go in ${APPROACH_INFO[a].label.toLowerCase()}`} kind="primary" block />}
               </div>
             );

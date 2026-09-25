@@ -252,6 +252,26 @@ export function generateCity(seed: number, size: CitySize = 'medium', prefix = '
     districts[d].blockIds.push(id);
   }
 
+  // ---- two blocks on the same pair of streets (a long avenue past two blocks, both named for it and
+  // the same cross street) were indistinguishable in every log and list. The second takes another pair
+  // of its own corners, and failing that a number. No rng is drawn, so the city is otherwise unchanged
+  const named = new Map<string, Block>();
+  for (const b of Object.values(blocks)) {
+    if (!named.has(b.name)) { named.set(b.name, b); continue; }
+    const [i, j, i1, j1] = b.cells;
+    const pairs = [xLine(i), xLine(i1 + 1)].flatMap(x => [yLine(j), yLine(j1 + 1)].map(y => `${x.short} & ${y.short}`));
+    let n = pairs.find(x => !named.has(x));
+    if (!n) {
+      // every corner is somebody else's: say which side of the first one it is, as people do
+      const first = named.get(b.name)!;
+      const dx = b.center.x - first.center.x, dy = b.center.y - first.center.y;
+      const side = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'east' : 'west') : (dy > 0 ? 'south' : 'north');
+      n = `${b.name}, ${side} side`;
+      for (let k = 2; named.has(n); k++) n = `${b.name}, ${side} side ${k}`;
+    }
+    b.name = n; named.set(n, b);
+  }
+
   // ---- adjacency across streets, then bridges over the river
   const link = (a: Id, b: Id) => { if (a === b) return; const A = blocks[a], B = blocks[b]; if (!A.neighborIds.includes(b)) A.neighborIds.push(b); if (!B.neighborIds.includes(a)) B.neighborIds.push(a); };
   for (let i = 0; i < cols; i++) for (let j = 0; j < rows; j++) {

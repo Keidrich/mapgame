@@ -27,8 +27,13 @@ export function money(n: number): string {
   return n < 0 ? `-${s}` : s;
 }
 
-export const fullName = (n: Npc) => (n.nick ? `${n.first} "${n.nick}" ${n.last}` : `${n.first} ${n.last}`);
-export const shortName = (n: Npc) => (n.nick ? `"${n.nick}" ${n.last}` : `${n.first} ${n.last}`);
+// curly quotes round a nickname, so a name can sit inside a job title or a quoted line without the
+// straight quotes colliding (`Rodrigo "The Mouse" Mendoza` inside "…" read as three strings)
+export const fullName = (n: Npc) => (n.nick ? `${n.first} “${n.nick}” ${n.last}` : `${n.first} ${n.last}`);
+export const shortName = (n: Npc) => (n.nick ? `“${n.nick}” ${n.last}` : `${n.first} ${n.last}`);
+/** A job named in a sentence. Titles carry proper names, so they are quoted, never lowercased
+ *  ("on rodrigo "the mouse" mendoza has to go" — found in play). */
+export const jobRef = (title: string) => `‘${title}’`;
 export const they = (n: Npc) => n.pronoun === 'he' ? 'he' : n.pronoun === 'she' ? 'she' : 'they';
 export const them = (n: Npc) => n.pronoun === 'he' ? 'him' : n.pronoun === 'she' ? 'her' : 'them';
 export const their = (n: Npc) => n.pronoun === 'he' ? 'his' : n.pronoun === 'she' ? 'her' : 'their';
@@ -87,6 +92,8 @@ export function spendClean(w: World, n: number): boolean {
 }
 
 /** "the Grove Kings", "the Shanahan Syndicate" — never "the The Shanahan Syndicate". */
+/** A possessive that reads right on a plural name: the Cassidys', not the Cassidys's. */
+export const poss = (s: string) => /s$/i.test(s) ? `${s}'` : `${s}'s`;
 export const theName = (f: { name: string }) => `the ${f.name.replace(/^The /, '')}`;
 /** A verb that agrees with a person's pronoun: `vb(n, 'have', 'has')`. "He have" is not a crime story. */
 export const vb = (n: Npc, plural: string, singular: string) => (n.pronoun === 'they' ? plural : singular);

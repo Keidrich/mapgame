@@ -5,7 +5,7 @@
  * day they come.
  */
 import { BUSINESSES, LABS, OFFICIALS, PRODUCTS, RACKETS, SAFEHOUSE_TIERS } from '@r/content/world';
-import { FAIR_RATE, labOutput, labQuality, protectionTake, racketIncome, rankOf, sellCapacity, stashTotal, streetPrice, washCap, washRate, netWorth } from './economy';
+import { FAIR_RATE, ownTake, labOutput, labQuality, protectionTake, racketIncome, rankOf, sellCapacity, stashTotal, streetPrice, washCap, washRate, netWorth } from './economy';
 import { drawEvents } from './events';
 import { tickFamily } from './family';
 import { tickSupply } from './supply';
@@ -49,23 +49,11 @@ export function endDay(w: World, rng: Rng) {
   const gain = (b: Id, n: number) => { gains[b] = (gains[b] ?? 0) + n; };
   const pay = (n: number) => { if (spend(w, n)) { sum.spent += n; return true; } return false; };
 
-  // ---- the crew: mend, get paid, stay or go
+  // ---- the crew mend (they are paid below, once the night's money is in)
   for (const id of p.crewIds.slice()) {
     const n = w.npcs[id]; const c = n?.crew; if (!n?.alive || !c) continue;
     if (c.status === 'injured' || c.status === 'jailed' || c.status === 'travel') { c.statusDays--; if (c.statusDays <= 0) { const was = c.status; c.status = 'ready'; c.statusDays = 0; log(w, was === 'travel' ? `${fullName(n)} is in ${w.region?.cities.find(x => x.id === (c.cityId || 'c0'))?.name ?? 'town'} and ready to work.` : `${fullName(n)} is back.`, 'good', { npcId: id }); } }
     if (c.status === 'jailed') continue;
-    if (pay(c.cut)) c.loyalty = clamp(c.loyalty + (c.cut >= 30 ? 0.4 : 0.1));
-    else { c.loyalty = clamp(c.loyalty - 10); log(w, `You could not pay ${fullName(n)}.`, 'bad', { npcId: id }); }
-    if (n.traits.includes('loyal')) c.loyalty = clamp(c.loyalty + 0.3);
-    const a = c.assignment;
-    if (a?.kind === 'guard') { gain(a.blockId, 3); gainXp(w, id, 3); }
-    if (a?.kind === 'district') { for (const bid of w.districts[a.districtId].blockIds) if ((w.blocks[bid].influence[PLAYER] ?? 0) > 10) gain(bid, 0.5); gainXp(w, id, 3); }
-    // made men do not walk out (`family.ts` keeps them at a floor); associates can
-    if (!c.made && c.loyalty < 15 && rng.chance(0.25)) {
-      freeFromAssignment(w, n); n.crew = undefined; n.faction = undefined; n.role = 'patron'; n.rel.trust = -30; n.exCrew = w.day;
-      p.crewIds = p.crewIds.filter(x => x !== id);
-      log(w, `${fullName(n)} walked. Nobody saw them go.`, 'bad', { npcId: id });
-    }
   }
 
   // ---- protection and places you own
@@ -87,7 +75,7 @@ export function endDay(w: World, rng: Rng) {
         if (o.rel.trust < -30 && o.rel.fear < 20 && rng.chance(0.2)) { b.protection = undefined; log(w, `${fullName(o)} stops paying you. ${b.name} is on its own now.`, 'bad', { businessId: b.id }); }
       }
     } else if (b.ownedBy === PLAYER) {
-      const profit = Math.round(b.income * 0.45);
+      const profit = ownTake(b);
       p.cash += profit; sum.clean += profit; gain(b.blockId, 1);
     }
   }
@@ -164,6 +152,25 @@ export function endDay(w: World, rng: Rng) {
     gain(s.blockId, 1);
   }
 
+  // ---- the crew: get paid, stay or go. After the takings, not before: paid first, a player who went
+  // to sleep on $85 with $2,369 coming in that night stiffed five people (found in play)
+  for (const id of p.crewIds.slice()) {
+    const n = w.npcs[id]; const c = n?.crew; if (!n?.alive || !c) continue;
+    if (c.status === 'jailed') continue;
+    if (pay(c.cut)) c.loyalty = clamp(c.loyalty + (c.cut >= 30 ? 0.4 : 0.1));
+    else { c.loyalty = clamp(c.loyalty - 10); log(w, `You could not pay ${fullName(n)}.`, 'bad', { npcId: id }); }
+    if (n.traits.includes('loyal')) c.loyalty = clamp(c.loyalty + 0.3);
+    const a = c.assignment;
+    if (a?.kind === 'guard') { gain(a.blockId, 3); gainXp(w, id, 3); }
+    if (a?.kind === 'district') { for (const bid of w.districts[a.districtId].blockIds) if ((w.blocks[bid].influence[PLAYER] ?? 0) > 10) gain(bid, 0.5); gainXp(w, id, 3); }
+    // made men do not walk out (`family.ts` keeps them at a floor); associates can
+    if (!c.made && c.loyalty < 15 && rng.chance(0.25)) {
+      freeFromAssignment(w, n); n.crew = undefined; n.faction = undefined; n.role = 'patron'; n.rel.trust = -30; n.exCrew = w.day;
+      p.crewIds = p.crewIds.filter(x => x !== id);
+      log(w, `${fullName(n)} walked. Nobody saw them go.`, 'bad', { npcId: id });
+    }
+  }
+
   // ---- the numbers: tonight's draw, against today's slips
   drawNumbers(w, day);
   tickCars(w);
@@ -172,8 +179,11 @@ export function endDay(w: World, rng: Rng) {
   sum.dirty += tickSupply(w, rng);
 
   // ---- the payroll and the lawyer
-  if (day % 7 === 0) for (const n of Object.values(w.npcs)) if (n.payroll && n.payroll > 1 && n.alive) {
+  // a week after the day it started, then every week: charged on every seventh day of the calendar,
+  // somebody put on the payroll on day 5 was paid up front and then again on day 7 (found in play)
+  for (const n of Object.values(w.npcs)) if (n.payroll && n.payroll > 1 && n.alive && day > (n.payrollSince ?? 0) && (day - (n.payrollSince ?? 0)) % 7 === 0) {
     if (!pay(n.payroll)) { n.payroll = undefined; log(w, `You missed the payment to ${fullName(n)}. The arrangement is over.`, 'bad', { npcId: n.id }); }
+    else log(w, `Paid ${fullName(n)} ${money(n.payroll)} for the week.`, 'money', { npcId: n.id });
   }
   if (p.lawyer && !pay(150)) { p.lawyer = false; log(w, 'Your lawyer stops returning calls. Pay your bills.', 'bad'); }
 

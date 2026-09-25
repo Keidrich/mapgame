@@ -143,6 +143,13 @@ export function tutorial(opts: { days: number; seed: number; size?: CitySize; ba
         scene(id, l.npcId, 'chat');
         return;
       }
+      case 'runner': {
+        // the person sheet the strip opens offers "Run the …" for each racket nobody minds
+        const r = p.racketIds.map(x => w.rackets[x]).find(x => x && !x.runnerId);
+        if (!l.npcId || !r) { note(id, 'nobody to put on a racket'); return; }
+        tryAct(id, { type: 'assign', npcId: l.npcId, assignment: { kind: 'racket', racketId: r.id } });
+        return;
+      }
       case 'job': {
         // the Jobs tab: an offer, the crew the sheet pre-picks, then the best-looking approach
         const ready = Object.values(w.jobs).find(j => j.status === 'ready');

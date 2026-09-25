@@ -164,6 +164,8 @@ export interface Crew {
   status: CrewStatus;
   statusDays: number;
   assignment?: Assignment;
+  /** The post they left for a job, and go back to after it (`people.ts` `toJob` / `offJob`). */
+  back?: Assignment;
   xp: number;
   level: number;
   /** What they carry. Owned by the outfit; see `content/kit.ts`. */
@@ -185,6 +187,8 @@ export interface Npc {
   face: number;
   role: Role;
   official?: OfficialKind;
+  /** The day a weekly payroll started: it is paid a week after, then every week (`tick.ts`). */
+  payrollSince?: number;
   /** Somebody whose story is you (`stories.ts`): the detective with your file, the heir with your name. */
   nemesis?: import('@r/content/stories').ArcKind;
   /** The day they left your crew (fired, walked, defected): somebody who might sell what they know. */
@@ -247,7 +251,7 @@ export interface Business {
   dugIn?: number;
   /** The products this place takes from your drivers (`supply.ts`), and what it got tonight. */
   outlet?: Product[];
-  supplied?: { day: number; n: number };
+  supplied?: { day: number; n: number; by?: Partial<Record<Product, number>> };
 }
 
 export type RacketKind =
@@ -418,6 +422,8 @@ export interface Complication {
 }
 
 export interface Job {
+  /** A witness on this job was paid off or frightened quiet: nobody opens a file on it. */
+  hushed?: boolean;
   id: Id;
   kind: JobKind;
   title: string;
@@ -510,6 +516,8 @@ export type Effect =
   | { k: 'detFree' }
   | { k: 'heirEnd'; how: 'partner' | 'duel' | 'kill' }
   | { k: 'table'; businessId: Id; npcId: Id; stake: number }
+  /** One crooked hand at the night encounter's table: it comes off, or you are seen (`backroom.ts`). */
+  | { k: 'cheatHand'; businessId: Id; npcId: Id; stake: number }
   | { k: 'cash'; n: number }
   | { k: 'dirty'; n: number }
   | { k: 'heat'; n: number }
@@ -539,7 +547,7 @@ export type Effect =
   | { k: 'openCase'; crime: CaseCrime; suspect: Id | 'player'; witnessId?: Id; summary: string }
   | { k: 'racketDown'; racketId: Id; days: number }
   | { k: 'jobOffer'; job: Omit<Job, 'id'>; /** Gone by morning: an offer that exists only tonight. */ tonight?: boolean }
-  | { k: 'schedule'; template: string; days: number; npcId?: Id; businessId?: Id; factionId?: Owner }
+  | { k: 'schedule'; template: string; days: number; npcId?: Id; businessId?: Id; factionId?: Owner; n?: number }
   | { k: 'log'; text: string; tone: Tone }
   /** The family: feed a rat lies, a capo walks off with his district, or a showdown decided on the night. */
   | { k: 'ratFed'; npcId: Id }
@@ -555,7 +563,8 @@ export type { ItemId, Slot };
 export type Tone = 'info' | 'good' | 'bad' | 'money' | 'warn' | 'war' | 'law';
 export interface LogEntry { day: number; text: string; tone: Tone; blockId?: Id; npcId?: Id; businessId?: Id }
 
-export interface Headline { day: number; text: string; weight: number }
+/** `blockId`: where it happened, so a tap on the paper goes there (absent on a quiet day and older saves). */
+export interface Headline { day: number; text: string; weight: number; blockId?: Id }
 
 // ------------------------------------------------------------------------------------------ player
 export type Background = 'bruiser' | 'grifter' | 'brain' | 'wheelman' | 'hacker' | 'drifter';
@@ -616,6 +625,8 @@ export interface Player {
   /** The back rooms (`backroom.ts`): dice games tonight, and numbers slips waiting on tonight's draw. */
   dice?: { day: number; n: number };
   slips?: { day: number; pick: number; amount: number }[];
+  /** Back rooms you were thrown out of for cheating, and until when (`backroom.ts`). */
+  banned?: Record<Id, number>;
   /** Cars you have taken and not yet got rid of (`cars.ts`), and the blocks you took from tonight. */
   garage?: Car[];
   lifted?: { day: number; blockIds: Id[] };
@@ -662,6 +673,8 @@ export interface World {
   nextSeason?: { kind: import('@r/content/seasons').SeasonKind; day: number };
   aftermath?: import('./seasons').Aftermath;
   seasonCount?: number;
+  /** When each random card was last drawn, by template and by template:person (`events.ts` `tooSoon`). */
+  cardSeen?: Record<string, number>;
   /** The detective and the heir (`stories.ts`). */
   stories?: { arcs: import('./stories').Arc[] };
   /** The card table you are sitting at, or the dice you just rolled (`backroom.ts`). */
@@ -696,7 +709,8 @@ export interface World {
   /** Standing orders moving product from one of your cities to another. */
   routes?: Route[];
   events: GameEvent[];
-  scheduled: { day: number; template: string; npcId?: Id; businessId?: Id; factionId?: Owner }[];
+  /** `n`: an amount the card was scheduled with (a loan's size), absent on older saves. */
+  scheduled: { day: number; template: string; npcId?: Id; businessId?: Id; factionId?: Owner; n?: number }[];
   log: LogEntry[];
   news: Headline[];
   history: DaySummary[];

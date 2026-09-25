@@ -10,6 +10,7 @@ import { Icon } from '@ui/icons';
 import { setMode } from '@ui/mode';
 import { act, boot, closeRecap, closeSheets, dismissToast, focusBlock, leaveGame, openSheet, quitGame, setLayer, setMap3d, setTab, useUi, useWorld, viewCity, type Layer, type Tab } from './store';
 import { TableCard } from './components/Backroom';
+import { ErrorBoundary } from '@ui/components/ErrorBoundary';
 import { seasonChip } from './components/Seasons';
 import { CityMap } from './components/CityMap';
 import { NpcFace } from './components/Faces';
@@ -20,7 +21,7 @@ import { BlockSheet, BusinessSheet } from './components/PlaceSheets';
 import { Start } from './components/Start';
 import { RegionSheet } from './components/Region';
 import { CrewTab, EmpireTab, JobsTab, PeopleTab, RivalsTab } from './components/Tabs';
-import { Do, Meter, Section, Sheet, fmt } from './components/kit';
+import { Do, Meter, Section, Sheet, count, fmt } from './components/kit';
 
 const FONTS = 'https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;700;800&family=Newsreader:ital,opsz,wght@1,6..72,400;1,6..72,500&display=swap';
 /** The display and press faces, linked once; body text is the system face. Offline before the
@@ -39,7 +40,9 @@ export function RemakeApp() {
   const booting = useUi(s => s.booting);
   const has = useUi(s => !!s.world);
   if (booting) return <div className="r-root"><div className="r-splash"><b>RACKETS</b><span>Loading your city…</span></div></div>;
-  return <div className="r-root">{has ? <Game /> : <Start />}</div>;
+  // a crash inside a city goes back to the start screen, not round a reload that opens the same
+  // city and crashes again (found in play: a saved dice table broke every boot after it)
+  return <div className="r-root">{has ? <ErrorBoundary what="this city" onReset={leaveGame} resetLabel="Back to the start screen"><Game /></ErrorBoundary> : <Start />}</div>;
 }
 
 const TABS: { id: Tab; label: string; icon: string }[] = [
@@ -110,7 +113,7 @@ function Game() {
       {recap && <RecapCard />}
       {!recap && paused?.complication && <ComplicationCard />}
       {!recap && !dusk && w.fight && !w.fight.seen && <FightCard />}
-      {!recap && !dusk && !(w.fight && !w.fight.seen) && w.table && w.table.stage !== 'left' && <TableCard />}
+      {!recap && !dusk && !(w.fight && !w.fight.seen) && w.table && w.table.stage !== 'left' && <ErrorBoundary what="the table" onReset={() => act({ type: 'table_leave' })} resetLabel="Get up from the table"><TableCard /></ErrorBoundary>}
       {!recap && !paused && !dusk && !(w.fight && !w.fight.seen) && !(w.table && w.table.stage !== 'left') && w.events.length > 0 && <EventCard />}
       {w.won && !w.wonSeen && !recap && <WinCard />}
       {w.over && <OverCard />}
@@ -209,7 +212,9 @@ function MapScreen() {
         : <CityMap w={view} layer={layer} focus={focus} selected={sel} onBlock={id => { setSel(id); openSheet({ kind: 'block', id }); }} />}
       <div className="r-map-top">
         {shown !== cityId && <button type="button" className="r-viewing" onClick={() => viewCity(undefined, w.player.blockId)}><span>Looking at {select.cityName(w, shown)}</span><b>Back to {select.cityName(w, cityId)}</b></button>}
-        {headline && shown === cityId && <div className="r-paper"><span>Courier</span><b>{headline.text}</b></div>}
+        {headline && shown === cityId && (headline.blockId && w.blocks[headline.blockId]
+          ? <button type="button" className="r-paper" onClick={() => { focusBlock(headline.blockId!); openSheet({ kind: 'block', id: headline.blockId! }); }} aria-label={`Courier: ${headline.text}. Show where.`}><span>Courier</span><b>{headline.text}</b></button>
+          : <div className="r-paper"><span>Courier</span><b>{headline.text}</b></div>)}
         {shown === cityId && <LeadStrip />}
       </div>
       <div className="r-map-tools">
@@ -221,7 +226,7 @@ function MapScreen() {
       {shown === cityId && <button type="button" className="r-here-card" onClick={() => openSheet({ kind: 'block', id: here.id })}>
         <span className="r-kicker">You are on</span>
         <b>{here.name}</b>
-        <span className="r-note">{w.districts[here.districtId].name} · {select.businessesIn(w, here.id).length} places · {select.holderName(w, here.id)}</span>
+        <span className="r-note">{w.districts[here.districtId].name} · {count(select.businessesIn(w, here.id).length, 'place')} · {select.holderName(w, here.id)}</span>
       </button>}
       {layer === 'control' && <div className="r-legend">
         <span><i style={{ background: 'var(--amber)' }} />You</span>
@@ -272,7 +277,7 @@ function EventCard() {
   return (
     <div className="r-modal" role="dialog" aria-modal="true" aria-labelledby="r-ev-title">
       <div className="r-card">
-        <div className="r-card-head">{n ? <NpcFace n={n} size={52} tint={f ? `${mute(f.color)}55` : undefined} /> : <span className="r-bizicon big"><Icon name="note" size={26} /></span>}<div className="grow"><div className="r-kicker">{select.isNight(w) ? 'Night' : 'Day'} {w.day}{w.events.length > 1 ? ` · 1 of ${w.events.length}` : ''}</div><h2 id="r-ev-title">{e.title}</h2></div></div>
+        <div className="r-card-head">{n ? <NpcFace n={n} size={52} tint={f ? `${mute(f.color)}55` : undefined} /> : <span className="r-bizicon big"><Icon name="note" size={26} /></span>}<div className="grow"><div className="r-kicker">{select.isNight(w) ? 'Night' : 'Day'} {w.day}{w.events.length > 1 ? ` · ${w.events.length - 1} more after this` : ''}</div><h2 id="r-ev-title">{e.title}</h2></div></div>
         <p className="r-card-text">{e.text}</p>
         <div className="r-card-options">
           {e.options.map(o => (
@@ -319,7 +324,7 @@ function ComplicationCard() {
             return (
               <button type="button" key={o.id} className="r-option" onClick={() => act({ type: 'answer', jobId: j.id, optionId: o.id })}>
                 <b>{o.label} <span className={`r-odds ${chance >= 65 ? 'good' : chance >= 40 ? 'mid' : 'bad'}`}>{chance}%</span></b>
-                <span>{o.skill} check · take ×{o.payout}{o.heat ? ` · heat +${o.heat}` : ''}{o.safe ? ' · the safe choice' : ''}</span>
+                <span>{o.skill} check · take ×{o.payout}{o.heat ? ` · heat +${o.heat}` : ''}{o.safe ? ' · failing it does not sink the job' : ''}</span>
               </button>
             );
           })}
@@ -439,7 +444,7 @@ function HelpSheet() {
         <li><b>Cars.</b> After dark, every block has something parked worth taking — better where the money lives. Keep it in your garage (one on the street, more with safehouses) while it cools, then chop it for parts, or respray it at a garage you control and keep it as kit or sell it clean. A car in the crew is a getaway: fewer arrests when a job goes wrong, fewer loads taken on the road.</li>
         <li><b>People with your name in their mouth.</b> Nothing is written in: what you do decides who comes. Heat can bring a detective with a file on you, fame a reporter, a hated outfit an heir with a grudge, a killing somebody's family, a man you let go a turncoat — and now and then an old friend turns up with a score. Every game is different; some go weeks with none. Each is on Rivals, with what you can do about it.</li>
         <li><b>Seasons.</b> Every couple of weeks the whole city changes for a few days — an election, a police crackdown, a festival, a strike at the docks — and the papers have it three days ahead. Each opens with a choice; the election's winner changes what officials cost, or how hard the police look, for weeks after (Rivals).</li>
-        <li><b>Dirty and clean.</b> Most money is dirty. Buying businesses, officials and a lawyer need clean. The fixer washes by hand; a laundering racket washes every night while it is switched on.</li>
+        <li><b>Dirty and clean.</b> Most money is dirty. Buying businesses, officials and a lawyer need clean. The fixer washes by hand; a laundering racket washes every night while it is switched on. A place you buy pays you {Math.round(select.OWN_SHARE * 100)}% of its takings a day, clean — the old owner stays on to run it. Wages come out after the night's money is in.</li>
         <li><b>Crew</b> come from the regulars. Build trust, then recruit. Beds come from safehouses. Crew level up; a good one can run a whole district.</li>
         <li><b>Jobs</b> arrive from people who trust you, from grudges you know about, and from wars. You can case any place yourself. Every job shows its odds per approach; big ones stop halfway and ask.</li>
         <li><b>Ground.</b> Influence builds where you run things, faster the more you stack on one block, and a block you hold deeply bleeds into its neighbours — that is how you take parks and empty streets. Half the city wins it.</li>

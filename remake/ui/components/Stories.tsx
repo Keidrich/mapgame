@@ -6,6 +6,7 @@
  */
 import { select } from '@r/sim/index';
 import type { Arc } from '@r/sim/stories';
+import { them } from '@r/sim/util';
 import { openSheet, useWorld } from '../store';
 import { NpcFace } from './Faces';
 import { Chip, Do, Empty, Meter, Row, Section, fmt } from './kit';
@@ -45,7 +46,7 @@ function ArcCard({ a }: { a: Arc }) {
   const hostile = a.kind !== 'friend';
   return (
     <div className="r-arc">
-      <Row onClick={() => n && openSheet({ kind: 'person', id: n.id })} left={n ? <NpcFace n={n} size={40} /> : undefined} title={title(w, a)} sub={`${select.ARCS[a.kind].blurb} Since day ${a.since}.${a.dirt ? ' You have something on them.' : ''}`} right={<Icon name="caret" size={16} />} />
+      <Row onClick={() => n && openSheet({ kind: 'person', id: n.id })} left={n ? <NpcFace n={n} size={40} /> : undefined} title={title(w, a)} sub={`${select.ARCS[a.kind].blurb} Since day ${a.since}.${a.dirt ? ` You have something on ${n ? them(n) : 'them'}.` : ''}`} right={<Icon name="caret" size={16} />} />
       {a.status === 'active' && <>
         <Meter value={a.meter} tone={hostile ? 'red' : 'gold'} label={select.ARCS[a.kind].meter} right={`${Math.round(a.meter)}/100`} />
         <p className="r-note">{WHEN[a.kind]}</p>

@@ -10,6 +10,7 @@
 import { ATTACK, FIGHT, GUNS, HURT, SOLDIER } from '@r/content/fights';
 import { factionBlocks } from './factions';
 import { armourOf, kitOf, skillOf } from './kit';
+import { isNight } from './clock';
 import { injure, kill } from './people';
 import type { Rng } from './rng';
 import type { Faction, FightReport, Id, Owner, World } from './types';
@@ -85,7 +86,13 @@ export function brawl(w: World, rng: Rng, side: Who[], them: Opponent, title: st
     }
   }
   const won = ours > theirs && ours > 0;
-  lines.push(won ? `${them.label[0].toUpperCase()}${them.label.slice(1)} break and run.` : `You pull back, carrying whoever cannot walk.`);
+  // the last line says what actually happened to your side: "carrying whoever cannot walk" when
+  // nobody was down, or "lucky to be walking" when you were carried, read wrong (found in play)
+  const youDown = !standing.includes(PLAYER) && side.includes(PLAYER);
+  const oursDown = side.length - standing.length;
+  lines.push(won ? `${them.label[0].toUpperCase()}${them.label.slice(1)} break and run.`
+    : youDown ? 'Somebody gets you off the street before they finish it.'
+    : oursDown ? 'You pull back, carrying whoever cannot walk.' : 'You pull back before it gets worse.');
   const report: FightReport = { day: w.day, title, lines, won, down };
   w.fight = report;
   return report;
@@ -126,10 +133,10 @@ export function ambush(w: World, rng: Rng, factionId: Owner) {
   const here = w.player.blockId;
   const guards = w.player.crewIds.filter(id => { const a = w.npcs[id]?.crew?.assignment; return a?.kind === 'guard' && a.blockId === here; });
   const them = soldiersOn(w, f); them.count = Math.max(2, Math.ceil(them.count * 0.7));
-  const r = brawl(w, rng, sideOf(w, guards), them, `Outside, after dark: the ${f.short}`);
+  const r = brawl(w, rng, sideOf(w, guards), them, `${isNight(w) ? 'Outside, after dark' : 'Outside, in broad daylight'}: the ${f.short}`);
   f.soldiers = Math.max(0, f.soldiers - (r.down ?? 0));
   if (r.won) w.player.fear = clamp(w.player.fear + 3, 0, 100);
-  log(w, r.won ? `The ${f.short} came for you, and went home short.` : `The ${f.short} came for you, and you are lucky to be walking.`, r.won ? 'good' : 'war');
+  log(w, r.won ? `The ${f.short} came for you, and went home short.` : w.player.hurtDays ? `The ${f.short} came for you, and you are laid up ${w.player.hurtDays} days.` : `The ${f.short} came for you, and you got away.`, r.won ? 'good' : 'war');
 }
 
 /** The odds of seeing off an ambush, with whoever is guarding the block you are on. */

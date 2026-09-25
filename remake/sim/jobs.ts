@@ -23,12 +23,12 @@ import { armourOf, kitOf, skillOf } from './kit';
 import { holdHostage, holdingRoom } from './hostages';
 import { SETPIECES, SETPIECE_RANK, setpieceFor } from '@r/content/setpieces';
 import { buildCatalogue, catalogueEffect, catalogueKindsFor, catalogueText, isCatalogue, likeOf, pickCatalogueTarget } from './catalogue';
-import { gainXp, injure, jail, kill, practise, spreadWord } from './people';
+import { gainXp, injure, jail, kill, offJob, practise, spreadWord, toJob } from './people';
 import { Rng } from './rng';
 import type { Approach, Id, Job, JobKind, JobPayout, Npc, Owner, Skill, SpecialistKind, World } from './types';
 import { PLAYER } from './types';
 import { getawayMult } from './cars';
-import { addHeat, addInfluence, clamp, fullName, log, money, nid, remember, shortName } from './util';
+import { addHeat, addInfluence, clamp, fullName, log, money, nid, remember, shortName, jobRef } from './util';
 
 const LEAN_W = [1, 0.7, 0.5, 0.35];
 
@@ -164,9 +164,9 @@ export function buildJob(w: World, rng: Rng, t: Target): Job | undefined {
   const cat = isCatalogue(t.kind) ? buildCatalogue(w, rng, t.kind, t) : undefined;
   if (isCatalogue(t.kind) && !cat) return;
   if (cat) { ({ difficulty, dirty, clean, goods, respect, fear, tier, tname } = cat); }
-  const fill = (s: string) => s.replace(/\{T\}/g, tname).replace(/\{B\}/g, block.name).replace(/\{S\}/g, t.source ? shortName(t.source) : 'Word on the street');
+  const fill = (s: string) => s.replace(/\{T\}/g, tname).replace(/\{B\}/g, block.name).replace(/\{S\}/g, t.source ? shortName(t.source) : 'Word on the street').replace(/\b(the) the /gi, '$1 ');
   const sp = t.kind === 'setpiece' ? setpieceFor(block.landmark) : undefined;
-  const title = cat ? fill(catalogueText(t.kind as never).title) : sp ? sp.title.replace('{L}', tname) : rng.pick(TITLE[t.kind as keyof typeof TITLE]).replace('{T}', tname).replace('{B}', block.name);
+  const title = cat ? fill(catalogueText(t.kind as never).title) : sp ? sp.title.replace('{L}', tname) : rng.pick(TITLE[t.kind as keyof typeof TITLE]).replace('{T}', tname).replace('{B}', block.name).replace(/\b(the) the /i, '$1 ');   // "The {T} invoices" at The Ivory Rail read "The The Ivory Rail invoices"
   const pitch = cat ? fill(catalogueText(t.kind as never).pitch) : sp ? sp.pitch.replace(/\{L\}/g, tname) : rng.pick(PITCH[t.kind as keyof typeof PITCH]).replace(/\{T\}/g, tname).replace(/\{B\}/g, block.name).replace(/\{S\}/g, t.source ? shortName(t.source) : 'Word on the street');
   const job: Job = {
     id: nid(w, 'job'), kind: t.kind, title, pitch, sourceId: t.source?.id, tier: tier as Job['tier'], blockId: t.blockId,
@@ -287,12 +287,12 @@ export function takeJob(w: World, job: Job, crewIds: Id[]) {
   job.status = job.planDays > 0 ? 'planning' : 'ready';
   job.daysLeft = job.planDays;
   job.crewIds = crewIds.slice();
-  for (const id of crewIds) { const n = w.npcs[id]; if (n?.crew) n.crew.assignment = { kind: 'job', jobId: job.id }; }
-  log(w, `You take on ${job.title.toLowerCase()}.${job.planDays ? ` ${job.planDays} day${job.planDays > 1 ? 's' : ''} of planning.` : ' Ready when you are.'}`, 'info');
+  for (const id of crewIds) { const n = w.npcs[id]; if (n?.crew) toJob(w, n, job.id); }
+  log(w, `You take on ${jobRef(job.title)}.${job.planDays ? ` ${job.planDays} day${job.planDays > 1 ? 's' : ''} of planning.` : ' Ready when you are.'}`, 'info');
 }
 
 export function dropJob(w: World, job: Job) {
-  for (const id of job.crewIds) { const n = w.npcs[id]; if (n?.crew?.assignment?.kind === 'job' && n.crew.assignment.jobId === job.id) n.crew.assignment = undefined; }
+  for (const id of job.crewIds) { const n = w.npcs[id]; if (n?.crew?.assignment?.kind === 'job' && n.crew.assignment.jobId === job.id) offJob(w, n); }
   job.crewIds = [];
   job.status = 'expired';
 }
@@ -302,7 +302,7 @@ export function tickJobs(w: World) {
     // tonight's work does not keep till morning: offered or waiting, it is gone and the people on it are free
     if (j.tonight && (j.status === 'offer' || j.status === 'ready' || j.status === 'planning')) {
       j.status = 'expired';
-      for (const id of j.crewIds) { const n = w.npcs[id]; if (n?.crew?.assignment?.kind === 'job' && n.crew.assignment.jobId === j.id) n.crew.assignment = undefined; }
+      for (const id of j.crewIds) { const n = w.npcs[id]; if (n?.crew?.assignment?.kind === 'job' && n.crew.assignment.jobId === j.id) offJob(w, n); }
       continue;
     }
     if (j.status === 'planning') { j.daysLeft--; j.intel++; if (j.daysLeft <= 0) { j.status = 'ready'; log(w, `${j.title} is planned. Launch it when you are ready.`, 'info'); } }
@@ -349,6 +349,9 @@ export function answerComplication(w: World, job: Job, optionId: string, rng: Rn
   if (!ok && !o.safe) job.rolled = job.rolled && rng.chance(0.5);
   if (o.payout === 0) job.rolled = false;
   const was = job.complication!.id;
+  // a witness paid off or frightened quiet is nobody's witness: the first cut said "Money well spent"
+  // and then opened a police file on the same job anyway (found in play)
+  if (was === 'witness' && ok && optionId !== 'ignore') job.hushed = true;
   job.complication = undefined;
   const sp = job.setpiece;
   if (sp) {
@@ -393,10 +396,10 @@ function finishJob(w: World, job: Job, rng: Rng, mult: number, extraHeat: number
   for (const id of job.crewIds) {
     const n = w.npcs[id]; if (!n?.alive) continue;
     // a car waiting outside (`cars.ts`): the best one in the crew keeps people out of the cells
-    if (!success && rng.chance(0.18 * (job.approach === 'loud' ? 1.3 : 0.8) * getawayMult(w, job, present(w, job)))) { jail(w, id, rng.int(5, 15), `caught on ${job.title.toLowerCase()}`); jailed.push(id); continue; }
+    if (!success && rng.chance(0.18 * (job.approach === 'loud' ? 1.3 : 0.8) * getawayMult(w, job, present(w, job)))) { jail(w, id, rng.int(5, 15), `caught on ${jobRef(job.title)}`); jailed.push(id); continue; }
     // armour turns aside a share of what a bad night does, and the shot that would have killed
     const armour = armourOf(kitOf(w, id));
-    if (rng.chance(hurtChance * (1 - armour))) { if (!success && job.approach === 'loud' && rng.chance(0.15 * (1 - armour))) { kill(w, id, `shot on ${job.title.toLowerCase()}`); killed.push(id); } else { injure(w, id, rng.int(2, 6), `on ${job.title.toLowerCase()}`); injured.push(id); } }
+    if (rng.chance(hurtChance * (1 - armour))) { if (!success && job.approach === 'loud' && rng.chance(0.15 * (1 - armour))) { kill(w, id, `shot on ${jobRef(job.title)}`); killed.push(id); } else { injure(w, id, rng.int(2, 6), `on ${jobRef(job.title)}`); injured.push(id); } }
     gainXp(w, id, success ? 25 + job.tier * 10 : 10);
     if (n.crew && n.crew.status !== 'jailed') n.crew.loyalty = clamp(n.crew.loyalty + (success ? 3 : -2));
   }
@@ -410,7 +413,8 @@ function finishJob(w: World, job: Job, rng: Rng, mult: number, extraHeat: number
     f.grievances.unshift(job.title); f.grievances = f.grievances.slice(0, 5);
   }
   // somebody saw something
-  if (rng.chance(def.exposure * (success ? 1 : 1.6) * ap.heat * seenMult(w, job.kind))) {
+  const seen = rng.chance(def.exposure * (success ? 1 : 1.6) * ap.heat * seenMult(w, job.kind));   // (rolled either way: the dice after it do not move)
+  if (seen && !job.hushed) {
     const witnesses = Object.values(w.npcs).filter(n => n.alive && n.homeBlockId === job.blockId && !n.crew && !n.faction && n.rel.fear < 50);
     const wit = witnesses.length ? rng.pick(witnesses) : undefined;
     const suspect = job.crewIds.length && rng.chance(0.6) ? rng.pick(job.crewIds) : PLAYER;
@@ -423,7 +427,7 @@ function finishJob(w: World, job: Job, rng: Rng, mult: number, extraHeat: number
       s.rel.trust = clamp(s.rel.trust + 8, -100, 100);
       if (s.agenda && s.agenda.targetId && (s.agenda.targetId === job.targetNpcId || w.npcs[s.agenda.targetId]?.workId === job.targetBusinessId)) {
         s.agenda = undefined; s.rel.owes += 1; s.rel.trust = clamp(s.rel.trust + 20, -100, 100);
-        remember(s, w.day, 'helped', `You settled a score for them: ${job.title.toLowerCase()}.`);
+        remember(s, w.day, 'helped', `You settled a score for them: ${jobRef(job.title)}.`);
         log(w, `${fullName(s)} owes you for that, and knows it.`, 'good', { npcId: s.id });
       }
     }
@@ -439,7 +443,7 @@ function finishJob(w: World, job: Job, rng: Rng, mult: number, extraHeat: number
   if (success) { p.done ??= {}; p.done[job.kind] = (p.done[job.kind] ?? 0) + 1; }
   job.status = success ? 'done' : 'failed';
   job.expires = w.day;
-  for (const id of job.crewIds) { const n = w.npcs[id]; if (n?.crew?.assignment?.kind === 'job') n.crew.assignment = undefined; }
+  for (const id of job.crewIds) { const n = w.npcs[id]; if (n?.crew?.assignment?.kind === 'job') offJob(w, n); }
   log(w, text, success ? 'money' : 'bad', { blockId: job.blockId });
 }
 
@@ -482,7 +486,7 @@ export function hireSpecialist(w: World, job: Job, kind: SpecialistKind, rng: Rn
   const fee = specialistFee(job, kind);
   const pn = personName(rng, rng.pick(NAME_GROUP_IDS));
   job.specialist = { kind, name: `${pn.first} ${pn.last}`, face: rng.int(1, 2 ** 30), skill: SPECIALISTS[kind].skill, level: rng.int(8, 10), fee };
-  log(w, `The fixer finds you a ${SPECIALISTS[kind].label.toLowerCase()} for ${job.title.toLowerCase()}: ${job.specialist.name}, ${money(fee)} up front.`, 'info');
+  log(w, `The fixer finds you a ${SPECIALISTS[kind].label.toLowerCase()} for ${jobRef(job.title)}: ${job.specialist.name}, ${money(fee)} up front.`, 'info');
 }
 
 /** What a set-piece does beyond the money. The evidence locker is the only way to burn paper in bulk. */

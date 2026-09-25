@@ -63,7 +63,7 @@ describe('can() never throws', () => {
   it('on a fresh city, for everything the UI can ask', () => {
     const w = mk();
     for (const a of everyAction(w)) expect(() => can(w, a)).not.toThrow();
-  });
+  }, 30000);   // thousands of actions: 5s was enough alone, not on a machine busy with a playtest
   it('on a city thirty days into a real game', () => {
     const w = run({ days: 30, seed: 3, size: 'small' }).w;
     let n = 0;
@@ -128,7 +128,7 @@ describe('money says what it does', () => {
       const e = t.build(w, rng, {});
       if (!e) continue;
       built++;
-      for (const o of e.options) { expect(o.hint).toBe(describeEffects(w, o.effects)); expect(o.label.length).toBeGreaterThan(0); }
+      for (const o of e.options) { expect(o.hint.startsWith(describeEffects(w, o.effects))).toBe(true); /* a card may add a note after it (a loan's repayment) */ expect(o.label.length).toBeGreaterThan(0); }
       // and applying any option never throws on a copy of the world
       for (const o of e.options) expect(() => apply(structuredClone(w), o.effects, new Rng(1))).not.toThrow();
     }

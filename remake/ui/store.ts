@@ -193,9 +193,14 @@ export function act(a: Action): boolean {
 export function newEntries(before: World, after: World): LogEntry[] {
   const last = before.log[before.log.length - 1];
   if (!last) return after.log.slice();
+  // match the last few lines, not just the last one: when an action logs the same line again ("X says
+  // no. Not yet, anyway."), matching one line found the new copy and returned nothing, so no toast
+  const same = (a: LogEntry, b: LogEntry) => a.day === b.day && a.text === b.text;
+  const depth = Math.min(5, before.log.length);
   for (let i = after.log.length - 1; i >= 0; i--) {
-    const l = after.log[i];
-    if (l.day === last.day && l.text === last.text) return after.log.slice(i + 1);
+    let k = 0;
+    while (k < depth && i - k >= 0 && same(after.log[i - k], before.log[before.log.length - 1 - k])) k++;
+    if (k === depth || (k > 0 && i - k < 0)) return after.log.slice(i + 1);
   }
   return after.log.slice(-4);
 }

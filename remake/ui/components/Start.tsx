@@ -16,6 +16,8 @@ import { Emblem } from './Faces';
 
 const randomSeed = () => Math.floor(Math.random() * 1e9);
 const BG_ORDER: Background[] = ['bruiser', 'grifter', 'brain', 'wheelman', 'hacker', 'drifter'];
+/** The drifter's skills are dealt from the seed: shown only once the preview is a drifter; it used to show the grifter's. */
+const diceSkills = (skills: Record<string, number>) => Object.fromEntries(Object.keys(skills).map(x => [x, '?']));
 const BG_ICON: Record<Background, string> = { bruiser: 'fist', grifter: 'hand', brain: 'note', wheelman: 'muscle_car', hacker: 'laptop', drifter: 'gambling_den' };
 
 export function Start() {
@@ -26,6 +28,7 @@ export function Start() {
   const [name, setName] = useState('');
   const [nick, setNick] = useState('');
   const preview = useMemo(() => newWorld({ seed, size, name: name || 'You', background: bg }), [seed, size, bg, name]);
+  const skillsShown = (k: Background): Record<string, number | string> => k !== 'drifter' ? BACKGROUNDS[k].skills : preview.player.background === 'drifter' ? preview.player.skills : diceSkills(BACKGROUNDS[k].skills);
   const factions = Object.values(preview.factions);
   const useSeedText = () => { const t = seedText.trim(); if (!t) return; setSeed(/^\d+$/.test(t) ? Number(t) : hashString(t.toLowerCase())); };
   const slots = useSlots();
@@ -101,7 +104,7 @@ export function Start() {
                 <span className="r-bg-top"><Icon name={BG_ICON[k]} size={18} /><b>{b.label}</b></span>
                 <span className="r-bg-blurb">{b.blurb}</span>
                 {bg === k && <span className="r-bg-perk">{b.perk}</span>}
-                <span className="r-bg-skills">{Object.entries(k === 'drifter' ? preview.player.skills : b.skills).map(([s, v]) => <span key={s}><i>{s.slice(0, 3)}</i>{v}</span>)}</span>
+                <span className="r-bg-skills">{Object.entries(skillsShown(k)).map(([s, v]) => <span key={s}><i>{s.slice(0, 3)}</i>{v}</span>)}</span>
               </button>
             );
           })}

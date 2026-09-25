@@ -59,6 +59,30 @@ export function freeFromAssignment(w: World, n: Npc) {
   n.crew.assignment = undefined;
 }
 
+/**
+ * Onto a job: the post they had is let go properly (a racket's runner, a lab's hand) and remembered,
+ * so they go back to it after. Found in play: a runner pulled onto a job stayed the racket's runner
+ * on paper, "Free" on their sheet, and the racket could never be given to anybody else.
+ */
+export function toJob(w: World, n: Npc, jobId: Id) {
+  if (!n.crew) return;
+  const was = n.crew.assignment;
+  if (was && was.kind !== 'job') n.crew.back = was;
+  freeFromAssignment(w, n);
+  n.crew.assignment = { kind: 'job', jobId };
+}
+/** Off a job: back to the post they left, if it is still theirs to take. */
+export function offJob(w: World, n: Npc) {
+  const c = n.crew; if (!c) return;
+  c.assignment = undefined;
+  const b = c.back; c.back = undefined;
+  if (!b || !n.alive) return;
+  if (b.kind === 'racket') { const r = w.rackets[b.racketId]; if (r?.owner === PLAYER && !r.runnerId) { r.runnerId = n.id; c.assignment = b; } }
+  else if (b.kind === 'lab') { for (const s of Object.values(w.safehouses)) for (const l of s.labs) if (l.id === b.labId && !l.workerId) { l.workerId = n.id; c.assignment = b; } }
+  else if (b.kind === 'district') { if (!Object.values(w.npcs).some(x => x.id !== n.id && x.crew?.assignment?.kind === 'district' && x.crew.assignment.districtId === b.districtId)) c.assignment = b; }
+  else if (b.kind === 'guard' || b.kind === 'driver') c.assignment = b;
+}
+
 export function gainXp(w: World, id: Id, amount: number) {
   const n = w.npcs[id]; if (!n?.crew) return;
   n.crew.xp += amount;
@@ -106,6 +130,8 @@ export function hire(w: World, n: Npc, cut: number) {
   const home = w.blocks[n.homeBlockId]; const city = home ? w.districts[home.districtId]?.cityId : undefined;
   n.crew = { loyalty: clamp(40 + n.rel.trust / 3 + (n.traits.includes('loyal') ? 15 : 0)), cut, joined: w.day, status: 'ready', statusDays: 0, xp: 0, level: 1, ...(city ? { cityId: city } : {}) };
   n.faction = PLAYER; n.role = 'crew';
+  // you know the people you hire: a crew sheet saying "not sized up" about your own soldier was nonsense
+  n.known = true;
   if (!w.player.crewIds.includes(n.id)) w.player.crewIds.push(n.id);
   remember(n, w.day, 'hired', 'Came to work for you.');
 }

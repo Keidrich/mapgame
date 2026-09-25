@@ -67,7 +67,7 @@ export function BlockSheet({ id }: { id: string }) {
       <Section title="Your place here">
         {safe ? <SafehousePanel id={safe.id} /> : <Do action={{ type: 'rent_safehouse', blockId: id }} label="Take a back room here" icon="safehouse" block sub="Three more beds for crew, room for stock, and space for a lab." />}
       </Section>
-      {people.length > 0 && <Section title="Around the block">{people.map(n => <Row key={n.id} onClick={() => openSheet({ kind: 'person', id: n.id })} left={<NpcFace n={n} size={32} />} title={select.fullName(n)} sub={n.rel.met ? `trust ${n.rel.trust} · fear ${n.rel.fear}` : 'A stranger'} />)}</Section>}
+      {people.length > 0 && <Section title="Around the block">{people.map(n => <Row key={n.id} onClick={() => openSheet({ kind: 'person', id: n.id })} left={<NpcFace n={n} size={32} />} title={select.fullName(n)} sub={n.rel.met ? `trust ${Math.round(n.rel.trust)} · fear ${Math.round(n.rel.fear)}` : 'A stranger'} />)}</Section>}
     </Sheet>
   );
 }
@@ -77,7 +77,7 @@ export function BizRow({ id }: { id: string }) {
   const x = w.businesses[id];
   const o = w.npcs[x.ownerId];
   const by = x.ownedBy === PLAYER ? 'Yours' : x.protection?.by === PLAYER ? `Pays you ${Math.round(x.protection.rate * 100)}%` : x.protection ? `Pays ${w.factions[x.protection.by]?.short ?? 'someone'}` : 'Pays nobody';
-  return <Row onClick={() => openSheet({ kind: 'business', id })} left={<span className={`r-bizicon tier${x.tier}${x.ownedBy === PLAYER || x.protection?.by === PLAYER ? ' mine' : ''}`}><Icon of="business" id={x.type} size={20} /></span>} title={x.name} sub={`${BUSINESSES[x.type].label} · ${fmt(x.income)}/day · ${by}${x.closed ? ` · shut ${x.closed}d` : ''}`} right={o ? <NpcFace n={o} size={30} /> : undefined} />;
+  return <Row onClick={() => openSheet({ kind: 'business', id })} left={<span className={`r-bizicon tier${x.tier}${x.ownedBy === PLAYER || x.protection?.by === PLAYER ? ' mine' : ''}`}><Icon of="business" id={x.type} size={20} /></span>} title={x.name} sub={`${BUSINESSES[x.type].label} · ${x.ownedBy === PLAYER ? `${fmt(select.ownTake(x))}/day to you, clean` : `takes ${fmt(x.income)}/day`} · ${by}${x.closed ? ` · shut ${x.closed}d` : ''}`} right={o ? <NpcFace n={o} size={30} /> : undefined} />;
 }
 
 export function BusinessSheet({ id }: { id: string }) {
@@ -97,22 +97,24 @@ export function BusinessSheet({ id }: { id: string }) {
         <div><span>Price</span><b>{fmt(select.businessPrice(w, b))}</b></div>
       </div>
       <div className="r-chips">
-        {mine && <Chip tone="gold">Yours · {fmt(Math.round(b.income * 0.45))} clean a day</Chip>}
+        {mine && <Chip tone="gold">Yours · {fmt(select.ownTake(b))} clean a day</Chip>}
         {protectedByMe && <Chip tone="gold">Pays you {fmt(select.protectionTake(b))} a day ({Math.round(b.protection!.rate * 100)}%)</Chip>}
         {fac && <Chip tone="red"><Emblem e={fac.emblem} size={12} /> Pays the {fac.short}</Chip>}
         {b.closed > 0 && <Chip tone="red">Shut {b.closed} days</Chip>}
       </div>
+      {/* everything on this sheet wants you standing here, and there was no way to get here from it */}
+      {w.player.blockId !== b.blockId && <Do action={{ type: 'travel', blockId: b.blockId }} label={`Go to ${w.blocks[b.blockId].name}`} icon="legwork" block />}
       {protectedByMe && (
         <div className="r-inline-actions">
           {[0.1, 0.12, 0.15, 0.2].map(r => <Do key={r} action={{ type: 'set_rate', businessId: id, rate: r }} label={`${Math.round(r * 100)}%`} small />)}
           <Do action={{ type: 'drop_protection', businessId: id }} label="Let them go" small kind="ghost" />
         </div>
       )}
-      {o && <Section title="Owner"><Row onClick={() => openSheet({ kind: 'person', id: o.id })} left={<NpcFace n={o} size={40} />} title={select.fullName(o)} sub={o.rel.met ? `Trust ${o.rel.trust} · fear ${o.rel.fear}${o.known ? ` · nerve ${o.nerve}` : ''}` : 'You have never spoken'} right={<Icon name="caret" size={16} />} /></Section>}
+      {o && <Section title={mine ? 'Behind the counter (sold it to you)' : 'Owner'}><Row onClick={() => openSheet({ kind: 'person', id: o.id })} left={<NpcFace n={o} size={40} />} title={select.fullName(o)} sub={o.rel.met ? `Trust ${Math.round(o.rel.trust)} · fear ${Math.round(o.rel.fear)}${o.known ? ` · nerve ${o.nerve}` : ''}` : 'You have never spoken'} right={<Icon name="caret" size={16} />} /></Section>}
       <Section title="Rackets" right={<span className="r-note">{rackets.filter(r => r.owner === PLAYER).length}/{(b.tier === 3 ? 0 : b.tier) + (mine ? 1 : 0)} slots</span>}>
         {rackets.map(r => <RacketRow key={r.id} id={r.id} />)}
         {(mine || protectedByMe) && def.rackets.filter(k => !rackets.some(r => r.kind === k)).map(k => (
-          <Do key={k} action={{ type: 'start_racket', businessId: id, kind: k as RacketKind }} label={`Start ${RACKETS[k].label}`} icon={k} sub={select.racketWarning(w, k as RacketKind) ?? `${RACKETS[k].blurb}${RACKETS[k].base ? ` About ${fmt(RACKETS[k].base * (0.55 + w.blocks[b.blockId].wealth / 100))} a day before a runner.` : ''}`} />
+          <Do key={k} action={{ type: 'start_racket', businessId: id, kind: k as RacketKind }} label={`Start ${RACKETS[k].label}`} icon={k} sub={select.racketWarning(w, k as RacketKind) ?? `${RACKETS[k].blurb}${RACKETS[k].base ? ` About ${fmt(RACKETS[k].base * (0.55 + w.blocks[b.blockId].wealth / 100))} a day with one of your people running it; ${Math.round(select.runnerFactor(w, { owner: PLAYER, businessId: b.id } as never) * 100)}% of that with nobody.` : ''}`} />
         ))}
         {!mine && !protectedByMe && !rackets.length && <Empty>{def.rackets.length ? 'Protect or own it to run something out of the back.' : 'Nothing runs out of a place like this. It is a job, not a racket.'}</Empty>}
       </Section>
@@ -121,7 +123,7 @@ export function BusinessSheet({ id }: { id: string }) {
       <BackroomSection id={id} />
       {b.closed <= 0 && <ShopSection at={id} title={w.player.blockId === b.blockId ? 'For sale here' : `For sale here — go to ${w.blocks[b.blockId].name}`} />}
       <CaseSection target={{ businessId: id }} title={mine ? 'Work it' : 'Case it'} note={mine ? 'Jobs you can only run through a place you own.' : undefined} />
-      {b.patronIds.length > 0 && <Section title="Regulars">{b.patronIds.map(pid => { const n = w.npcs[pid]; return n ? <Row key={pid} onClick={() => openSheet({ kind: 'person', id: pid })} left={<NpcFace n={n} size={32} />} title={select.fullName(n)} sub={n.crew ? 'Yours' : n.rel.met ? `trust ${n.rel.trust}` : n.alive ? 'A stranger' : 'Dead'} /> : null; })}</Section>}
+      {b.patronIds.length > 0 && <Section title="Regulars">{b.patronIds.map(pid => { const n = w.npcs[pid]; return n ? <Row key={pid} onClick={() => openSheet({ kind: 'person', id: pid })} left={<NpcFace n={n} size={32} />} title={select.fullName(n)} sub={n.crew ? 'Yours' : n.rel.met ? `trust ${Math.round(n.rel.trust)}` : n.alive ? 'A stranger' : 'Dead'} /> : null; })}</Section>}
     </Sheet>
   );
 }
@@ -200,7 +202,7 @@ export function RacketRow({ id }: { id: string }) {
       </div>
       <div className="r-inline-actions">
         {def.wash && <Do action={{ type: 'toggle_wash', racketId: id }} label={r.on === false ? 'Switch the laundry on' : 'Switch the laundry off'} small kind={r.on === false ? 'primary' : 'ghost'} />}
-        <Do action={{ type: 'upgrade_racket', racketId: id }} label="Upgrade" small />
+        {r.level < 3 && <Do action={{ type: 'upgrade_racket', racketId: id }} label="Upgrade" small />}
         <Do action={{ type: 'close_racket', racketId: id }} label="Close" small kind="ghost" confirm="Tap again to close it" />
       </div>
     </div>

@@ -18,8 +18,13 @@ import { injure } from './people';
 import type { Rng } from './rng';
 import type { Business, Id, Npc, Product, World } from './types';
 import { PLAYER } from './types';
-import { addHeat, clamp, fullName, log } from './util';
+import { addHeat, clamp, fullName, log, money } from './util';
 
+/**
+ * What a place has had of one product tonight. Counted per product: counted per place, an outlet
+ * that takes booze and green filled its whole order with booze and never saw the green (found in play).
+ */
+const got = (w: World, b: Business, k: Product) => (b.supplied?.day === w.day ? b.supplied.by?.[k] ?? 0 : 0);
 /** A place that could take product: yours or under your protection, and of a kind that sells it. */
 export const canBeOutlet = (b: Business) => (b.ownedBy === PLAYER || b.protection?.by === PLAYER) && !!OUTLETS[b.type];
 /** What it would take of one product a night. */
@@ -66,7 +71,7 @@ export function yourCarry(w: World): number {
 export function ordersIn(w: World, city: string): { lots: number; worth: number } {
   let lots = 0, worth = 0;
   for (const b of outlets(w, city)) for (const k of b.outlet ?? []) {
-    const n = Math.min(outletDemand(w, b, k) - (b.supplied?.day === w.day ? b.supplied.n : 0), w.player.stash[k].n);
+    const n = Math.min(outletDemand(w, b, k) - got(w, b, k), w.player.stash[k].n);
     if (n > 0) { lots += n; worth += n * outletPrice(w, b, k); }
   }
   return { lots, worth };
@@ -83,10 +88,11 @@ export function round(w: World, rng: Rng, r: SupplyNight, carry: number, city: s
   for (const b of outlets(w, city)) {
     for (const prod of b.outlet ?? []) {
       const lot = p.stash[prod]; if (!lot.n || room <= 0) continue;
-      const want = outletDemand(w, b, prod) - (b.supplied?.day === w.day ? b.supplied.n : 0);
+      const want = outletDemand(w, b, prod) - got(w, b, prod);
       const n = Math.min(want, lot.n, room); if (n <= 0) continue;
       lot.n -= n; if (!lot.n) lot.q = 0; room -= n;
-      b.supplied = { day: w.day, n: (b.supplied?.day === w.day ? b.supplied.n : 0) + n };
+      const today = b.supplied?.day === w.day ? b.supplied : { day: w.day, n: 0, by: {} };
+      b.supplied = { day: w.day, n: today.n + n, by: { ...today.by, [prod]: (today.by?.[prod] ?? 0) + n } };
       if (rng.chance(hijackChance(w, armed, fast))) {
         r.lost += n;
         addHeat(w, 2, b.blockId);
@@ -109,7 +115,7 @@ export function runDelivery(w: World, rng: Rng) {
   const fast = (w.player.kit?.car ? ITEMS[w.player.kit.car]?.bonus ?? 0 : 0) >= 2;
   round(w, rng, r, yourCarry(w), cityOf(w, w.player.blockId), armed, 'Your', () => { w.player.hurtDays = Math.max(w.player.hurtDays ?? 0, 2); }, fast);
   w.player.dirty += r.earned;
-  log(w, r.delivered ? `You drove the round yourself: ${r.delivered} lots at the back doors, ${Math.round(r.earned)} dirty.` : 'You drove the round, and came home with nothing to show for it.', r.delivered ? 'money' : 'bad');
+  log(w, r.delivered ? `You drove the round yourself: ${r.delivered} lots at the back doors, ${money(Math.round(r.earned))} dirty.` : 'You drove the round, and came home with nothing to show for it.', r.delivered ? 'money' : 'bad');
   if (w.player.skills.wheels < 10 && rng.chance(0.15)) w.player.skills.wheels++;
 }
 
@@ -123,8 +129,8 @@ export function tickSupply(w: World, rng: Rng): number {
     round(w, rng, report, d.carry, d.city, armed, `${fullName(d.n)}'s`, () => injure(w, d.n.id, rng.int(2, 4), 'a load taken on the road'), fast);
   }
   // what the outlets wanted and did not get, so the screen can say why
-  for (const b of outlets(w)) for (const prod of b.outlet ?? []) report.short += Math.max(0, outletDemand(w, b, prod) - (b.supplied?.day === w.day ? b.supplied.n : 0));
-  if (report.earned) { p.dirty += report.earned; log(w, `The drivers dropped ${report.delivered} lots at your places: ${Math.round(report.earned)} dirty.`, 'money'); }
+  for (const b of outlets(w)) for (const prod of b.outlet ?? []) report.short += Math.max(0, outletDemand(w, b, prod) - got(w, b, prod));
+  if (report.earned) { p.dirty += report.earned; log(w, `The drivers dropped ${report.delivered} lots at your places: ${money(Math.round(report.earned))} dirty.`, 'money'); }
   w.supply = report;
   return report.earned;
 }

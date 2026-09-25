@@ -7,32 +7,47 @@
 import type { Rng } from './rng';
 import type { LogEntry, World } from './types';
 
-const DESK: Record<string, string[]> = {
-  law: ['POLICE MOVE IN ON {D}', 'D.A. VOWS CRACKDOWN IN {D}', 'DETECTIVES WORKING LATE IN {D}', 'ARRESTS IN {D} — MORE TO COME, SAYS CAPTAIN', 'CITY HALL DEMANDS ANSWERS OVER {D}'],
-  war: ['GANG WAR FEARS IN {D}', 'BLOOD ON THE STREETS OF {D}', '{D} RESIDENTS AFRAID TO GO OUT', 'SHOTS FIRED IN {D}', 'MOB FEUD SPILLS INTO {D}'],
-  money: ['MYSTERY CASH FLOODS {D}', 'WHO IS BEHIND {D}\'S NEW MONEY?', 'BUSINESS BOOMING IN {D} — BUT WHOSE?', '{PLACE} CHANGES HANDS'],
-  bad: ['TRAGEDY IN {D}', 'NIGHT OF TROUBLE IN {D}', '{D} FAMILY GRIEVES', 'FIRE AND FURY IN {D}'],
-  good: ['{D} QUIET, FOR NOW', 'A NEW NAME ON THE STREETS OF {D}', '{D} THROWS A PARTY'],
-};
+/**
+ * What makes the paper, and how it is written up. Read from what happened, not from the log's tone:
+ * by tone alone somebody turning down a drink ('bad') printed "{D} FAMILY GRIEVES", and hiring a
+ * lawyer ('law') printed "POLICE MOVE IN" (found in play). First match wins; nothing matching, the
+ * paper runs a quiet story.
+ */
+const DESK: { re: RegExp; tone?: string; weight: number; lines: string[] }[] = [
+  { re: /\b(dead|killed|murder|shot|shots|not coming home|never comes home|body)\b/i, weight: 9, lines: ['BODY FOUND IN {D}', 'SHOTS FIRED IN {D}', 'MURDER IN {D} — POLICE BAFFLED', '{D} IN SHOCK AFTER KILLING'] },
+  { re: /\b(warrant|raid|evidence bags|seized)\b/i, weight: 7, lines: ['POLICE RAID IN {D}', 'DETECTIVES SEIZE CASH IN {D}', 'DAWN RAID ROCKS {D}'] },
+  { re: /(shooting at each other|declare war|are finished|nobody left to lead|takes the chair|takes over )/i, tone: 'war', weight: 7, lines: ['GANG WAR FEARS IN {D}', 'MOB FEUD SPILLS INTO {D}', '{D} RESIDENTS AFRAID TO GO OUT', 'NEW BOSS, OLD FEAR IN {D}'] },
+  { re: /\b(charged|guilty|locked up)\b/i, weight: 6, lines: ['ARRESTS IN {D} — MORE TO COME, SAYS CAPTAIN', 'D.A. VOWS CRACKDOWN IN {D}', 'DETECTIVES WORKING LATE IN {D}'] },
+  { re: /\b(burn|burns|burned|fire|torched)\b/i, weight: 6, lines: ['BLAZE IN {D}', 'FIRE AND FURY IN {D}', 'ARSON SUSPECTED IN {D}'] },
+  { re: /\b(hospital|hurt|fight in the street|got to you)\b/i, weight: 4, lines: ['NIGHT OF TROUBLE IN {D}', 'VIOLENCE ON THE STREETS OF {D}', 'BRAWL IN {D}'] },
+  { re: /(is yours for|pays you now, not the|take .+ off you)/i, weight: 3, lines: ['{PLACE} CHANGES HANDS', 'WHO IS BEHIND {D}\'S NEW MONEY?', 'BUSINESS BOOMING IN {D} — BUT WHOSE?'] },
+];
 const QUIET = ['COUNCIL DEBATES PARKING', 'RAIN EXPECTED ALL WEEK', 'LOCAL TEAM LOSES AGAIN', 'BRIDGE REPAIRS DELAYED', 'FERRY FARES TO RISE', 'MAYOR OPENS NEW LIBRARY', 'HEATWAVE BREAKS RECORDS', 'FISH MARKET CELEBRATES CENTURY', 'TRAM STRIKE ENTERS THIRD DAY', 'ZOO WELCOMES TWIN CUBS'];
-
-const WEIGHT: Record<string, number> = { law: 5, war: 6, money: 2, bad: 3, good: 1, warn: 1, info: 0 };
 
 export function writeNews(w: World, rng: Rng, day: number) {
   const today = w.log.filter(l => l.day === day && (l.blockId || l.businessId || l.npcId));
-  const scored = today.map(l => ({ l, s: (WEIGHT[l.tone] ?? 0) + (/(dead|killed|shot|raid|charged|finished|takes over|burn)/i.test(l.text) ? 4 : 0) }));
-  scored.sort((a, b) => b.s - a.s);
+  const scored = today.map(l => ({ l, d: DESK.find(d => d.re.test(l.text) && (!d.tone || d.tone === l.tone)) })).filter(x => x.d).sort((a, b) => b.d!.weight - a.d!.weight);
   const top = scored[0];
-  let text: string, weight: number;
-  if (!top || top.s < 3) { text = rng.pick(QUIET); weight = 0; }
+  let text: string, weight: number, blockId: string | undefined;
+  // one pick either way, so the rng stream is the same whatever the paper says
+  // never the same front page two days running ("NIGHT OF TROUBLE IN NEON ROW" five days out of seven)
+  const recent = new Set(w.news.slice(-3).map(h => h.text));
+  const fresh = (xs: string[]) => { const f = xs.filter(x => !recent.has(x)); return f.length ? f : xs; };
+  if (!top) { text = rng.pick(fresh(QUIET)); weight = 0; }
   else {
     const place = top.l.businessId ? w.businesses[top.l.businessId]?.name : undefined;
-    const pool = (DESK[top.l.tone] ?? DESK.bad).filter(t => place || !t.includes('{PLACE}'));
-    text = rng.pick(pool).replace('{D}', districtOf(w, top.l).toUpperCase()).replace('{PLACE}', (place ?? '').toUpperCase());
-    weight = top.s;
+    const pool = top.d!.lines.filter(t => place || !t.includes('{PLACE}'));
+    const fill = (t: string) => t.replace('{D}', districtOf(w, top.l).toUpperCase()).replace('{PLACE}', (place ?? '').toUpperCase());
+    text = rng.pick(fresh((pool.length ? pool : ['TROUBLE IN {D}']).map(fill)));
+    weight = top.d!.weight;
+    blockId = blockOf(w, top.l);
   }
-  w.news.push({ day, text, weight });
+  w.news.push({ day, text, weight, blockId });
   if (w.news.length > 60) w.news.splice(0, w.news.length - 60);
+}
+
+function blockOf(w: World, l: LogEntry): string | undefined {
+  return l.blockId ?? (l.businessId ? w.businesses[l.businessId]?.blockId : l.npcId ? w.npcs[l.npcId]?.homeBlockId : undefined);
 }
 
 function districtOf(w: World, l: LogEntry): string {

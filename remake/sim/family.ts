@@ -48,9 +48,12 @@ export function makeMember(w: World, n: Npc) {
 export function appoint(w: World, post: Post, n: Npc | undefined) {
   const f = (w.player.family ??= {});
   // one person, one post: whoever takes a post leaves any other
-  if (n) for (const k of ['consigliere', 'underboss'] as Post[]) if (f[k] === n.id) f[k] = undefined;
+  // one person, one post: whoever takes a post leaves any other, and the log says so (it used to
+  // empty the other chair without a word)
+  let left: Post | undefined;
+  if (n) for (const k of ['consigliere', 'underboss'] as Post[]) if (f[k] === n.id && k !== post) { f[k] = undefined; left = k; }
   f[post] = n?.id;
-  log(w, n ? `${fullName(n)} is your ${post} now.` : `You leave the ${post}'s chair empty.`, 'info', n ? { npcId: n.id } : {});
+  log(w, n ? `${fullName(n)} is your ${post} now.${left ? ` The ${left}'s chair is empty.` : ''}` : `You leave the ${post}'s chair empty.`, 'info', n ? { npcId: n.id } : {});
 }
 
 // ------------------------------------------------------------------------------------ what posts do

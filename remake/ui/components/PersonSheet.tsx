@@ -22,7 +22,7 @@ export function roleLine(w: World, n: Npc): string {
   if (n.role === 'boss' && n.faction) return `Boss of ${w.factions[n.faction]?.name}`;
   if (n.role === 'lieutenant' && n.faction) return `Lieutenant, ${w.factions[n.faction]?.name}`;
   if (n.role === 'fixer') return 'Fixer — washes money, knows people';
-  if (work && work.ownerId === n.id) return `Owns ${work.name}`;
+  if (work && work.ownerId === n.id) return work.ownedBy === PLAYER ? `Sold you ${work.name}; still behind the counter` : `Owns ${work.name}`;
   const reg = Object.values(w.businesses).find(b => b.patronIds.includes(n.id));
   return reg ? `Regular at ${reg.name}` : 'Lives locally';
 }
@@ -111,17 +111,18 @@ function Scenes({ n }: { n: Npc }) {
         if (hide) return null;
         const away = q.disabled?.startsWith('Go to');
         return (
-          <div key={k} className={`r-scene${q.disabled && !away ? ' off' : ''}`}>
+          <div key={k} className={`r-scene${q.disabled && !away ? ' off' : away ? ' away' : ''}`}>
             <button type="button" className="r-scene-main" disabled={!!q.disabled} onClick={() => act({ type: 'scene', kind: k, npcId: n.id, businessId: owner ? work!.id : undefined, rate })}>
               <span className="r-scene-label">{q.label}</span>
               {q.chance < 100 && <span className={`r-odds ${q.chance >= 65 ? 'good' : q.chance >= 40 ? 'mid' : 'bad'}`}>{Math.round(q.chance)}%</span>}
-              <span className="r-scene-cost">{q.ap ? `${q.ap} AP` : 'free'}{q.cash ? ` · ${fmt(q.cash)}${q.clean ? ' clean' : ''}` : ''}</span>
+              <span className="r-scene-cost">{q.ap ? `${q.ap} ${q.ap === 1 ? 'hr' : 'hrs'}` : 'free'}{q.cash ? ` · ${fmt(q.cash)}${q.clean ? ' clean' : ''}` : ''}</span>
             </button>
             <div className="r-scene-text">
-              {q.disabled && !away ? <span className="r-why">{q.disabled}</span> : <><span className="gain">{q.gain}</span>{q.risk && q.risk !== 'Nothing.' && <span className="risk"> Risk: {q.risk}</span>}</>}
+              {q.disabled && !away ? <span className="r-why">{q.disabled}</span> : <>{away && <span className="r-why">{q.disabled}. </span>}<span className="gain">{q.gain}</span>{q.risk && q.risk !== 'Nothing.' && <span className="risk"> Risk: {q.risk}</span>}</>}
               {q.factors.length > 0 && <button type="button" className="r-link" onClick={() => setOpen(open === k ? null : k)}>{open === k ? 'hide the odds' : 'why these odds'}</button>}
             </div>
-            {open === k && <ul className="r-factors">{q.factors.map((f, i) => <li key={i}><span>{f.label}</span><b className={f.n >= 0 ? 'pos' : 'neg'}>{f.n >= 0 ? '+' : ''}{f.n}</b></li>)}</ul>}
+            {/* the rows start from the scene's base, which the first cut left off, so they never added up to the button */}
+            {open === k && <ul className="r-factors">{[{ label: 'Where it starts', n: q.chance - q.factors.reduce((t, f) => t + f.n, 0) }, ...q.factors].map((f, i) => <li key={i}><span>{f.label}</span><b className={f.n >= 0 ? 'pos' : 'neg'}>{f.n >= 0 && i ? '+' : ''}{f.n}</b></li>)}<li className="r-factor-total"><span>Your odds (never under 5 or over 95)</span><b>{Math.round(q.chance)}%</b></li></ul>}
             {k === 'protect' && !q.disabled && (
               <label className="r-rate">Rate <input type="range" min={5} max={30} value={Math.round(rate * 100)} onChange={e => setRate(Number(e.target.value) / 100)} /> <b>{Math.round(rate * 100)}%</b>{rate > select.FAIR_RATE ? <span className="r-why"> over 15% they resent it</span> : null}</label>
             )}

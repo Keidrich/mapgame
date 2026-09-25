@@ -18,7 +18,7 @@ import { mute } from './tone';
 import { jobIcon, payoutLine } from './JobFaction';
 import { BizRow, DriveRound, RacketRow, SafehousePanel } from './PlaceSheets';
 import { roleLine } from './PersonSheet';
-import { Chip, Dial, Do, Empty, Meter, Row, Section, fmt } from './kit';
+import { Chip, Dial, Do, Empty, Meter, Row, Section, count, fmt } from './kit';
 
 export function PeopleTab() {
   const w = useWorld();
@@ -43,7 +43,7 @@ export function PeopleTab() {
         {Object.values(w.crews).map(c => { const b = w.npcs[c.bossId]; return <Row key={c.id} onClick={() => openSheet({ kind: 'person', id: c.bossId })} left={b ? <NpcFace n={b} size={36} /> : undefined} title={`The ${c.name}`} sub={`${c.members} on ${w.blocks[c.blockId].name} · ${c.terms === 'none' ? 'nobody\'s' : c.terms === 'paid' ? 'on your wage' : 'yours'}`} right={c.terms === 'none' ? <Chip tone="red">{c.members}/{select.CREW.outfitAt}</Chip> : <Chip tone="gold">{c.terms}</Chip>} />; })}
       </Section>}
       <Section title={`Everyone you know (${known.length})`}>
-        {known.length ? known.slice(0, page * 30).map(n => <Row key={n.id} onClick={() => openSheet({ kind: 'person', id: n.id })} left={<NpcFace n={n} size={36} />} title={select.fullName(n)} sub={`${roleLine(w, n)} · trust ${n.rel.trust} · fear ${n.rel.fear}`} />) : <Empty>Nobody yet. Walk into a place on the map and introduce yourself.</Empty>}
+        {known.length ? known.slice(0, page * 30).map(n => <Row key={n.id} onClick={() => openSheet({ kind: 'person', id: n.id })} left={<NpcFace n={n} size={36} />} title={select.fullName(n)} sub={`${roleLine(w, n)} · trust ${Math.round(n.rel.trust)} · fear ${Math.round(n.rel.fear)}`} />) : <Empty>Nobody yet. Walk into a place on the map and introduce yourself.</Empty>}
         {known.length > page * 30 && <button type="button" className="r-btn block" onClick={() => setPage(p => p + 1)}>Show more</button>}
       </Section>
     </div>
@@ -95,7 +95,7 @@ function FamilyTree() {
   };
   const capos = by('capo'), soldiers = by('soldier'), associates = by('associate');
   return (
-    <Section title="The family" right={<span className="r-note">{capos.length + soldiers.length + (select.underboss(w) ? 1 : 0) + (select.consigliere(w) ? 1 : 0)} made · {associates.length} associates</span>}>
+    <Section title="The family" right={<span className="r-note">{capos.length + soldiers.length + (select.underboss(w) ? 1 : 0) + (select.consigliere(w) ? 1 : 0)} made · {count(associates.length, 'associate')}</span>}>
       {post('underboss')}
       {post('consigliere')}
       {capos.map(n => <Row key={n.id} onClick={() => openSheet({ kind: 'person', id: n.id })} left={<NpcFace n={n} size={32} />} title={select.fullName(n)} sub={`Capo · ${n.crew!.assignment?.kind === 'district' ? w.districts[n.crew!.assignment.districtId]?.name : ''}`} />)}
@@ -105,13 +105,16 @@ function FamilyTree() {
   );
 }
 
+/** A finished job says what it brought in, not what it was listed at (the list showed $4,025 for a job that paid $4,830). */
+const doneLine = (r: NonNullable<import('@r/sim/types').Job['result']>) => [r.dirty ? `${fmt(r.dirty)} dirty` : '', r.clean ? `${fmt(r.clean)} clean` : '', r.goods ? `${r.goods} hot goods` : ''].filter(Boolean).join(' + ') || (r.success ? 'nothing in the bag' : 'nothing');
+
 export function JobsTab() {
   const w = useWorld();
   const jobs = Object.values(w.jobs);
   const live = jobs.filter(j => ['planning', 'ready', 'paused'].includes(j.status));
   const offers = jobs.filter(j => j.status === 'offer').sort((a, b) => a.tier - b.tier);
   const past = jobs.filter(j => j.status === 'done' || j.status === 'failed').sort((a, b) => b.expires - a.expires).slice(0, 8);
-  const row = (j: typeof jobs[number]) => <Row key={j.id} onClick={() => openSheet({ kind: 'job', id: j.id })} left={<span className="r-bizicon"><Icon name={jobIcon(j)} size={20} /></span>} title={j.title} sub={`${JOBS[j.kind].label} · tier ${j.tier} · ${payoutLine(j)}${select.present(w, j) ? '' : ` · in ${select.cityName(w, select.cityOfBlock(w, j.blockId))}, run without you`}`} right={j.status === 'planning' ? <Chip tone="gold">{j.daysLeft}d</Chip> : j.status === 'ready' ? <Chip tone="green">Ready</Chip> : j.status === 'done' ? <Chip tone="green">Done</Chip> : j.status === 'failed' ? <Chip tone="red">Failed</Chip> : j.sourceId ? <NpcFace n={w.npcs[j.sourceId]} size={28} /> : undefined} />;
+  const row = (j: typeof jobs[number]) => <Row key={j.id} onClick={() => openSheet({ kind: 'job', id: j.id })} left={<span className="r-bizicon"><Icon name={jobIcon(j)} size={20} /></span>} title={j.title} sub={`${JOBS[j.kind].label} · tier ${j.tier} · ${j.result ? doneLine(j.result) : payoutLine(j)}${select.present(w, j) ? '' : ` · in ${select.cityName(w, select.cityOfBlock(w, j.blockId))}, run without you`}`} right={j.status === 'planning' ? <Chip tone="gold">{j.daysLeft}d</Chip> : j.status === 'ready' ? <Chip tone="green">Ready</Chip> : j.status === 'done' ? <Chip tone="green">Done</Chip> : j.status === 'failed' ? <Chip tone="red">Failed</Chip> : j.sourceId ? <NpcFace n={w.npcs[j.sourceId]} size={28} /> : undefined} />;
   return (
     <div className="r-tab">
       <h2 className="r-tab-title">Jobs</h2>
@@ -148,7 +151,7 @@ export function EmpireTab() {
           <div><span>Control{Object.keys(w.cities ?? {}).length ? ` of ${select.cityName(w, select.currentCity(w))}` : ''}</span><b>{(select.controlShare(w, select.currentCity(w)) * 100).toFixed(1)}%</b></div>
         </div>
         <Section title="Tomorrow, roughly">
-          <p className="r-note">Dirty in <b className="orange">{fmt(f.dirty)}</b> · clean in <b className="green">{fmt(f.clean)}</b>{f.washed ? ` (after washing ${fmt(f.washed)})` : ''} · wages <b>{fmt(f.costs)}</b>. Selling rackets and labs come on top.</p>
+          <p className="r-note">Dirty in <b className="orange">{fmt(f.dirty)}</b> · clean in <b className="green">{fmt(f.clean)}</b>{f.washed ? ` (after washing ${fmt(f.washed)})` : ''} · wages, rent and anything due <b>{fmt(f.costs)}</b>. Selling rackets and labs come on top.</p>
         </Section>
         {hist.length > 1 && hist.some(h => h.clean + h.dirty > 0) && <Section title="The last month">
           <div className="r-chart" role="img" aria-label="Daily takings, last thirty days">
@@ -156,11 +159,11 @@ export function EmpireTab() {
           </div>
         </Section>}
         <Section title="Washing money">
-          <p className="r-note">Businesses, officials and institutions want clean money. A laundering racket washes every night while it is switched on; until you have one, the fixer does it by hand at a worse rate ({Math.round(select.fixerRate(w) * 100)}¢, up to {fmt(select.fixerCap(w) - p.washedToday)} more today).</p>
+          <p className="r-note">Businesses, officials and institutions want clean money. A laundering racket washes every night while it is switched on; until you have one, the fixer does it by hand at a worse rate ({+(select.fixerRate(w) * 100).toFixed(1)}¢, up to {fmt(select.fixerCap(w) - p.washedToday)} more today).</p>
           {(() => { const fx = w.fixerId ? w.npcs[w.fixerId] : undefined; return fx && !fx.rel.met ? <Row onClick={() => openSheet({ kind: 'person', id: fx.id })} left={<NpcFace n={fx} size={32} />} title={`Find the fixer: ${select.fullName(fx)}`} sub={`${w.blocks[fx.homeBlockId].name}, ${w.districts[w.blocks[fx.homeBlockId].districtId].name}. Introduce yourself and the door opens.`} /> : null; })()}
           <div className="r-inline-actions">{[1000, 5000, Math.min(p.dirty, select.fixerCap(w) - p.washedToday)].filter((a, i, arr) => a > 0 && arr.indexOf(a) === i).map(a => <Do key={a} action={{ type: 'fixer_wash', amount: a }} label={`Fixer: wash ${fmt(a)}`} small />)}</div>
         </Section>
-        {(select.outlets(w).length > 0 || select.drivers(w).length > 0) && <Section title="Supply chain" right={<span className="r-note">{select.outlets(w).length} places · {select.drivers(w).length} drivers</span>}>
+        {(select.outlets(w).length > 0 || select.drivers(w).length > 0) && <Section title="Supply chain" right={<span className="r-note">{count(select.outlets(w).length, 'place')} · {count(select.drivers(w).length, 'driver')}</span>}>
           {w.supply && <div className="r-stats">
             <div><span>Last night</span><b>{w.supply.delivered} lots</b></div>
             <div><span>Came in</span><b className="dirty">{fmt(w.supply.earned)}</b></div>

@@ -146,6 +146,18 @@ export function populateCity(w: World, gen: GeneratedCity, rng: Rng, factionCoun
       mkBusiness(w, rng, b, type, mkNpc);
     }
   }
+  // ---- a name used twice in a city takes its street: seven "The Sharp Edge"s, two on neighbouring
+  // blocks, made every log and job line ambiguous (found in play). The first keeps the bare name. No
+  // rng is drawn, so nothing else about the city changes
+  const seen = new Set<string>();
+  for (const b of blocks) for (const id of b.businessIds) {
+    const biz = w.businesses[id]; if (!biz) continue;
+    if (!seen.has(biz.name)) { seen.add(biz.name); continue; }
+    const streets = w.blocks[b.id].name.split(', ')[0].split(' & ');
+    let name = streets.map(st => `${biz.name} on ${st}`).find(x => !seen.has(x)) ?? biz.name;
+    for (let k = 2; seen.has(name); k++) name = `${biz.name} on ${streets[0]} (${k})`;
+    biz.name = name; seen.add(name);
+  }
 
   // ---- the web: family under one roof, friends down the street, the odd feud
   weave(w, rng, made);
@@ -226,7 +238,7 @@ function mkBusiness(w: World, rng: Rng, b: Block, type: BusinessType, mkNpc: (ro
   owner.nerve = Math.round((owner.nerve + def.nerve) / 2);
   owner.wealth = Math.max(owner.wealth, 30 + def.tier * 15);
   const id = nid(w, 'biz');
-  const street = b.name.split(' & ')[rng.int(0, 1)];
+  const street = b.name.split(', ')[0].split(' & ')[rng.int(0, 1)];
   const other = personName(rng, rng.pick(NAME_GROUP_IDS)).last;
   const wealthK = 0.6 + b.wealth / 100;
   const income = Math.round((def.income[0] + rng.float() * (def.income[1] - def.income[0])) * wealthK);

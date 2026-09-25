@@ -12,6 +12,8 @@ export function Do({ action, label, icon, kind = 'plain', small, block, sub, onD
   const w = useWorld();
   const ok = can(w, action);
   const [asking, setAsking] = useState(false);
+  // a label that already names the price ("Buy it ($2,400)") does not need it twice beside it
+  const shownCash = ok.cash && !(typeof label === 'string' && label.includes(`$${ok.cash.toLocaleString('en-US')}`)) ? ok.cash : 0;
   const press = () => {
     if (confirm && !asking) { setAsking(true); return; }
     setAsking(false);
@@ -22,7 +24,7 @@ export function Do({ action, label, icon, kind = 'plain', small, block, sub, onD
       <button type="button" className={`r-btn ${kind}${small ? ' small' : ''}${block ? ' block' : ''}`} disabled={!ok.ok} onClick={press} title={ok.ok ? undefined : ok.why}>
         {icon && <Icon name={icon} size={small ? 14 : 16} />}
         <span className="r-btn-label">{asking ? confirm : label}</span>
-        {ok.ok && (ok.ap || ok.cash) ? <span className="r-cost">{ok.ap ? `${ok.ap} AP` : ''}{ok.ap && ok.cash ? ' · ' : ''}{ok.cash ? `$${ok.cash.toLocaleString('en-US')}` : ''}</span> : null}
+        {ok.ok && (ok.ap || shownCash) ? <span className="r-cost">{ok.ap ? `${ok.ap} ${ok.ap === 1 ? 'hr' : 'hrs'}` : ''}{ok.ap && shownCash ? ' · ' : ''}{shownCash ? `$${shownCash.toLocaleString('en-US')}` : ''}</span> : null}
       </button>
       {/* small buttons say why too: a phone has no hover, and a greyed button with no reason is a dead end */}
       {!ok.ok && ok.why && <p className={`r-why${small ? ' tiny' : ''}`}>{ok.why}</p>}
@@ -116,3 +118,6 @@ export function Row({ onClick, left, title, sub, right }: { onClick?: () => void
 }
 
 export const fmt = (n: number) => { const a = Math.abs(Math.round(n)); const s = a >= 1e6 ? `$${(a / 1e6).toFixed(1)}M` : a >= 1e4 ? `$${Math.round(a / 1000)}k` : `$${a.toLocaleString('en-US')}`; return n < 0 ? `−${s}` : s; };
+
+/** "1 place", "3 places": a count with its noun agreeing. */
+export const count = (n: number, one: string, many = `${one}s`) => `${n.toLocaleString('en-US')} ${n === 1 ? one : many}`;

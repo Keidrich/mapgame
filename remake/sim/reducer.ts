@@ -20,7 +20,7 @@ import { isCatalogue, needsMet } from './catalogue';
 import { CHEATS, cheat } from './cheats';
 import { REGION, arrivalIn, fareBetween, cityName_, cityOfBlock, currentCity, fare, foundCity, isOpen, openRoute, regionCity, safehouseIn } from './region';
 import { PRODUCTS } from '@r/content/world';
-import { freeFromAssignment, practise } from './people';
+import { freeFromAssignment, practise, toJob } from './people';
 import { playScene, quote } from './scenes';
 import { blockCity, crewCity, travelCost } from './select-core';
 import { closedNow, isNight, nightfall } from './clock';
@@ -44,7 +44,7 @@ import type { Action, Affordance } from './actions';
 import { no, yes } from './actions';
 import type { Racket, World } from './types';
 import { PLAYER } from './types';
-import { addInfluence, clamp, controller, fullName, log, money, nid, rngOf, spend, theName } from './util';
+import { addInfluence, clamp, controller, fullName, log, money, nid, rngOf, spend, theName, jobRef } from './util';
 
 const cost = (w: World, n: number) => (w.player.cash + w.player.dirty >= n ? undefined : `Costs ${money(n)}. You have ${money(w.player.cash + w.player.dirty)}.`);
 const costClean = (w: World, n: number) => (w.player.cash >= n ? undefined : `Costs ${money(n)} clean. You have ${money(w.player.cash)} clean — launder some.`);
@@ -355,7 +355,8 @@ function canInner(w: World, a: Action): Affordance {
       return yes({ cash: a.move === 'raise' ? w.table.stake * 2 : undefined });
     }
     case 'table_next': { const why = nextBlock(w); return why ? no(why) : yes({ cash: w.table!.stake }); }
-    case 'table_leave': return w.table && w.table.stage !== 'left' ? (w.table.stage === 'done' || w.table.stage === 'draw' ? yes() : no('Finish the hand: fold if you want out.')) : no('You are not at a table.');
+    // getting up is always allowed: mid-hand it forfeits what is in the pot (and it is the way out of a table that broke)
+    case 'table_leave': return w.table && w.table.stage !== 'left' ? yes() : no('You are not at a table.');
     case 'dice': { const why = diceBlock(w, a.businessId, a.stake); return why ? no(why) : yes({ cash: a.stake }); }
     case 'numbers': { const why = numbersBlock(w, a.pick, a.amount); return why ? no(why) : yes({ cash: a.amount }); }
     case 'steal_car': { const why = stealBlock(w, a.blockId); if (why) return no(why); if (busy) return no(busy); const e = ap(STEAL.ap); return e ? no(e) : yes({ ap: STEAL.ap }); }
@@ -509,7 +510,7 @@ export function dispatch(world: World, a: Action): World {
     case 'commission_vote': commissionOf(w, a.cityId ?? currentCity(w)).vote = a.vote; log(w, `You will vote ${a.vote} at the table.`, 'info'); break;
     case 'fixer_wash': { const clean = Math.round(a.amount * fixerRate(w)); p.dirty -= a.amount; p.cash += clean; p.washedToday += a.amount; log(w, `The fixer turns ${money(a.amount)} dirty into ${money(clean)} clean.`, 'money'); break; }
     case 'take_job': { const j = w.jobs[a.jobId]; if (j.cost) spend(w, j.cost); takeJob(w, j, a.crewIds); break; }
-    case 'join_job': { const j = w.jobs[a.jobId]; const n = w.npcs[a.npcId]; freeFromAssignment(w, n); j.crewIds.push(n.id); n.crew!.assignment = { kind: 'job', jobId: j.id }; log(w, `${fullName(n)} joins ${j.title.toLowerCase()}.`, 'info', { npcId: n.id }); break; }
+    case 'join_job': { const j = w.jobs[a.jobId]; const n = w.npcs[a.npcId]; toJob(w, n, j.id); j.crewIds.push(n.id); log(w, `${fullName(n)} joins ${jobRef(j.title)}.`, 'info', { npcId: n.id }); break; }
     case 'launch_job': launchJob(w, w.jobs[a.jobId], a.approach, rng); break;
     case 'answer': answerComplication(w, w.jobs[a.jobId], a.optionId, rng); break;
     case 'drop_job': dropJob(w, w.jobs[a.jobId]); break;
@@ -546,7 +547,7 @@ export function dispatch(world: World, a: Action): World {
     case 'sit_down': { const f = w.factions[a.factionId]; spend(w, sitDownOdds(w, f, a.offer).cost); sitDown(w, f, a.offer, rng); break; }
     case 'declare_war': { const f = w.factions[a.factionId]; f.standing = -70; f.truceUntil = undefined; p.respect = clamp(p.respect + 5); p.fear = clamp(p.fear + 5); log(w, `You declare war on ${theName(f)}.`, 'war'); break; }
     case 'drop_payroll': { const n = w.npcs[a.npcId]; n.payroll = undefined; log(w, `${fullName(n)} is off the payroll.`, 'info'); break; }
-    case 'lawyer': if (a.on) { spend(w, 500); p.lawyer = true; log(w, 'You retain a lawyer: 500 now, 150 a day.', 'law'); } else { p.lawyer = false; log(w, 'You let the lawyer go.', 'law'); } break;
+    case 'lawyer': if (a.on) { spend(w, 500); p.lawyer = true; log(w, 'You retain a lawyer: $500 now, $150 a day.', 'law'); } else { p.lawyer = false; log(w, 'You let the lawyer go.', 'law'); } break;
     case 'lay_low': {
       p.lowDays = a.days;
       log(w, `You go under for ${a.days} day${a.days > 1 ? 's' : ''}.`, 'info');

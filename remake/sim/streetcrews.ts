@@ -16,7 +16,7 @@ import { rollTraits } from './generate';
 import { Rng } from './rng';
 import type { Block, Faction, Id, Npc, StreetCrew, World } from './types';
 import { PLAYER } from './types';
-import { addInfluence, clamp, controller, fullName, log, money, nid, theName } from './util';
+import { addInfluence, clamp, controller, fullName, log, money, nid, theName, poss } from './util';
 
 export const CREW = {
   /** Members at which a crew becomes an outfit. */
@@ -63,7 +63,7 @@ export function tickStreetCrews(w: World, rng: Rng, pay: (n: number) => boolean)
     const boss = w.npcs[c.bossId];
     if (!boss?.alive || c.members <= 0) { delete w.crews[c.id]; continue; }
     if (c.terms !== 'none') {
-      if (!pay(c.wage)) { log(w, `You missed the ${c.name}'s money. The arrangement is off.`, 'bad', { blockId: c.blockId }); c.terms = 'none'; c.wage = 0; boss.rel.trust = clamp(boss.rel.trust - 20, -100, 100); continue; }
+      if (!pay(c.wage)) { log(w, `You missed the ${poss(c.name)} money. The arrangement is off.`, 'bad', { blockId: c.blockId }); c.terms = 'none'; c.wage = 0; boss.rel.trust = clamp(boss.rel.trust - 20, -100, 100); continue; }
       // a paid crew holds the corner for you; your own crew builds your ground there
       addInfluence(w, c.blockId, PLAYER, c.terms === 'yours' ? 2 + c.members * 0.15 : 1);
       if (c.terms === 'yours' && rng.chance(0.08) && c.members < 10) c.members++;

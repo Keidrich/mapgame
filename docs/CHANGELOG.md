@@ -14,6 +14,143 @@ House rules for an entry (see `CLAUDE.md` → *Leave a trail*):
 
 ---
 
+## 2026-09-25 — Remake: the QA pass (three phone playtests, and what they broke)
+
+**What.** Three agents played the Remake like people on a 390×844 phone (a new player's first
+week, a mid-game empire, and a long run with nights and the map). This fixes what they found:
+one crash, a pile of state bugs, numbers the screen promised and the day did not pay, a tutorial
+strip that lied about itself, and a long tail of layout and wording.
+
+**Why.** The user, with a screenshot of a patrolman asking for money on day 2 at heat 0: "how do I
+have 0 heat and cops already asking for money. Playtest the game thoroughly like a human for a while
+and fix all the QA shit".
+
+**How.**
+- **Cards that make sense** (`sim/events.ts`).
+  - A patrolman wants a taste only when you have somewhere of your own for him to name and heat of
+    15+. It was drawn at any heat, and "heat −5" at heat 0 did nothing.
+  - `possible()` clamps a card's heat/fear/respect loss to what you have, and drops it at zero.
+  - A card rests 7 days after it is drawn, and the same card about the same person or place does not
+    come back for 21 (`w.cardSeen`). Resting cards are filtered out of the pool *before* the draw.
+    Rejecting them after the draw cut how many cards came at all, and the coverage union lost
+    hostages and set-pieces.
+  - The journalist card stands down while a reporter story is running. The random festival stands
+    down during the festival season. The blood card skips your nemesis, and the night corner card
+    skips your allies.
+  - Card games skip places that have barred you, and say about how much you will lose.
+- **Crashes and state** (`backroom.ts`, `people.ts`, `jobs.ts`, `tick.ts`, `supply.ts`, `App.tsx`).
+  - The dice table crashed the app, because it scored a hand that was not five cards. Error
+    boundaries now sit round the game and round the table card.
+  - Getting caught cheating bars you from that place for 14 days, and `table_leave` is always
+    allowed.
+  - A runner or worker taken for a job goes back to their post afterwards (`toJob` / `offJob`).
+    They used to be left idle, and the racket went unminded.
+  - Supply counts deliveries per product. It used to feed only the first product.
+  - Payroll is charged once a week. It was charged twice in the first week.
+  - A witness you dealt with no longer opens a case anyway.
+- **Numbers that lied** (`economy.ts`, `select.ts`, `scenes.ts`, sheets).
+  - A place you own pays 45% of its takings (`OWN_SHARE`). The Buy button promised all of it.
+  - The forecast counts rent, payroll and the lawyer.
+  - Odds lists start from the base and add up to the button.
+  - Job heat is shown as a range.
+- **The tutorial strip** (`select.leads`, `App.tsx` `LeadStrip`, `remake.css`).
+  - A finished step says what you did (`doneText`), read from what you have. It used to rewrite
+    itself from where you stood.
+  - The finished rows rendered one word to a line: `li.done span { display:none }` also hid the
+    tick, and the text fell into its 18px column.
+  - The job step names the job under way ("Planning: 2 days left") instead of chasing every new
+    offer.
+  - The recruit step sticks with the most-trusted person you have met.
+  - The payroll step says why it cannot be done yet (every official honest, or too dear).
+  - A new "runner" step: put somebody on your racket.
+  - The wash step is blocked only at $0 dirty. It used to be blocked under $100 while the fixer
+    offered to wash $75.
+- **Layout and wording.**
+  - The start screen scrolled sideways 53px: the preview map's SVG ran past its card, and is now
+    clipped.
+  - The stories panel no longer overflows on a phone.
+  - Buttons no longer show a price twice. "AP" reads "hr/hrs" everywhere.
+  - A scene you only have to walk to looks dimmed and says where to go. "why these odds" has a real
+    tap target.
+  - Business sheets have a Go-to button. The armoury can give kit to anybody, not just the top three.
+  - **The Courier** (`sim/news.ts`): headlines are chosen by what happened (a killing, a raid, a war,
+    an arrest, a fire, a fight, a sale), not by the log's tone. "{D} FAMILY GRIEVES" used to run
+    when someone turned down a drink. A headline carries its `blockId`, and a tap shows the place.
+  - **Block names are unique.** A block whose corner pair is taken tries its other corners, then
+    "…, east side". No rng is drawn, so the city is otherwise the same.
+  - **Wording:**
+    - `$` on every sum in the logs;
+    - `poss()` for possessives ("the Cassidys'");
+    - `count()` for plurals;
+    - nicknames in curly quotes, and job titles quoted rather than lowercased (`jobRef`);
+    - neutral pronouns in the story panel;
+    - hired crew are "sized up" from the start;
+    - "Full energy" at night fills the night's 3 hours, not 8;
+    - an ambush by day is not "after dark";
+    - a lost fight's last line says what happened to your side;
+    - making the underboss consigliere says the underboss chair is now empty.
+- **From the long run** (days 1–26, seed 3):
+  - **A soft-lock.** With every option priced beyond a broke player (the card table at night), a
+    card could not be answered, so the night could not end. `card()` now adds a free "Walk away"
+    to any card whose options are all shut. The tutorial bot found it on seed 1.
+  - **Crew wages are paid after the night's takings, not before.** A player who slept on $85 with
+    $2,369 coming in stiffed five people and lost 10 loyalty on each.
+  - **A loan comes back as the amount lent plus a third.** It used to be `income × 12`: $2,800 lent
+    returned $1,200. The schedule effect carries `n`. The lend option says what comes back, and the
+    card waits until you have $1,500.
+  - **Business names are unique in a city.** A second "The Sharp Edge" becomes "The Sharp Edge on
+    Lark". No rng is drawn.
+  - **The paper does not repeat any of its last three headlines.**
+  - A toast no longer vanishes when the same line is logged twice in a row (`newEntries` matches five
+    lines deep).
+  - "Found in the river" only where there is a river. "The The Ivory Rail invoices" reads "The Ivory
+    Rail invoices".
+  - Soldiers watch "your door" only where you have one, and the patrolman no longer claims you bought
+    him drinks.
+  - The Drifter card showed the Grifter's stats. It shows "?" until you pick it.
+  - A complication's "the safe choice" (which only ever meant failing it does not risk the whole
+    job, and sat on options with worse odds) now says exactly that.
+  - "RACKETS" fits at 390px. A maxed racket hides Upgrade. The card counter says how many more
+    cards follow.
+- `bot.ts`: the region step runs before supply, and the route stash threshold is 12. Supply was
+  draining the stash before a route could open, which broke the region scenario.
+
+**Files.**
+- `remake/sim/`: events, backroom, people, jobs, tick, supply, economy, select, scenes, news, city,
+  generate, fights, family, cheats, util, effects, reducer.
+- `remake/ui/`: App, remake.css, and components kit, PersonSheet, PlaceSheets, JobFaction, Tabs,
+  Stories, Armoury, Backroom.
+- `remake/tests/qa.test.ts` (new; each test names the bug a player hit), `remake/scripts/bot.ts`.
+
+**Watch out.**
+- There is no `WORLD_VERSION` bump. New fields (`cardSeen`, `banned`, `payrollSince`, `crew.back`,
+  `Headline.blockId`) are optional, and old saves read them as absent.
+- New seeds get different names for the duplicate blocks only.
+- The "Testing tools" menu is deliberately left visible, because the admin panel was asked for.
+- **The honest soak is unchanged:** day 60 is still $384 dirty at heat 0, since it keeps no crew.
+- **Balance (five seeds, 60 days, control before → after):**
+  | bot | before | after | note |
+  |---|---|---|---|
+  | steady | 20.2% | 19.0% | heat 49 |
+  | ruthless | 28.4% | 23.4% | heat 77 → 66 |
+  | maniac | 13.4% | 14.8% | |
+  - The 7-day rest on cards first took the patrolman away too: the steady bot's heat went to 69, and
+    two of five seeds ended in a cell or a box. When heat is over 35 he now rests only 3 days
+    (`REST` in `events.ts`), which brought steady back.
+  - The ruthless bot's drop is fewer ambushes and fights to win ground from (15 → 9 fights). That
+    is the card-spam fix working, not a bug.
+- **Left out** (reported but not done):
+  - a legend for the last-month chart, the "Lay low" explainer, and drivers' XP;
+  - from the long run:
+    - the recap's "The night" ignoring laundering loss;
+    - laundering washing only money from rackets processed before it;
+    - early jobs out-earning rackets by an order of magnitude (a balance question for its own pass);
+    - map labels running under the tool rail;
+    - the 2D map not darkening at night;
+    - the 3D map having no place markers.
+
+---
+
 ## 2026-09-25 — Remake: procedural stories, and a map that draws what is actually there
 
 **What.**

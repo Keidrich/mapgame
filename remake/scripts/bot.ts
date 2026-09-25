@@ -222,8 +222,8 @@ function shift(c: Ctx) {
   build(c);
   corners(c);
   runJobs(c);
+  region(c);   // before supply and money: the stash is what a route ships, and both of those sell it
   supply(c);   // after the crew is placed, so a driver is whoever is left over
-  region(c);   // before money: the stash is what a route ships, and money() sells it on the corner
   money(c);
   kit(c);
   stories(c);
@@ -950,7 +950,7 @@ function region(c: Ctx) {
   // a route to whichever of its cities pays best for what it holds a lot of, from any other with a door
   const mine = w().region!.cities.filter(x => x.founded && select.safehouseIn(w(), x.id));
   for (const prod of ['booze', 'green', 'pills', 'goods'] as const) {
-    if (p().stash[prod].n < 15 || purse() < 6000 || mine.length < 2) continue;
+    if (p().stash[prod].n < 12 || purse() < 6000 || mine.length < 2) continue;
     const to = mine.slice().sort((a, b) => b.demand[prod] - a.demand[prod])[0];
     const from = mine.find(x => x.id !== to.id)!;
     if (to.demand[prod] < 1.05) continue;

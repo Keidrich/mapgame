@@ -93,7 +93,7 @@ export function tickFactions(w: World, rng: Rng) {
       if (f.relations[oid] < -60 && rng.chance(0.15)) war(w, f, o, rng);
     }
     // ---- a boss can be lost to the city on his own
-    if (boss?.alive && rng.chance(0.0015)) kill(w, boss.id, 'found in the river, and nobody is saying anything');
+    if (boss?.alive && rng.chance(0.0015)) kill(w, boss.id, `found ${w.city.river ? 'in the river' : w.city.sea ? 'in the harbour' : 'in a car on waste ground'}, and nobody is saying anything`);
     // ---- the end of an outfit
     if (f.soldiers <= 0 && f.cash < 0 && factionBlocks(w, f.id).length === 0) dissolve(w, f);
     else if (!w.npcs[f.bossId]?.alive && f.lieutenantIds.every(id => !w.npcs[id]?.alive) && f.soldiers < 4) dissolve(w, f);

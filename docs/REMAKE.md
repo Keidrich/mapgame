@@ -493,6 +493,17 @@ a grifter, bruiser and brain rookie, then the day each soak temperament happened
 `remake/tests/tutorial.test.ts` holds the line: the opening (`OPENING`: talk through hold) is done by
 day 25 on seeds 7, 1 and 3, as a grifter and as a bruiser.
 
+**The strip after the phone playtests.** A finished step reads in the past tense from what you
+have ("Put Corner Mart under your protection"), never from where you stand. A job under way is the
+job step, until it is done. The recruit step sticks with whoever you trust most. A step that cannot
+be done yet says why: payroll when every official is honest or too dear, wash only at $0 dirty. A
+`runner` step sits between recruiting and the first job, because an unminded racket earns 60%.
+
+**The Courier** (`sim/news.ts`) prints what happened, not the tone of the day's loudest log line.
+The line is matched against a desk of kinds: a killing, a raid, a war, a charge, a fire, a fight, a
+sale. Nothing matching, the paper runs a quiet story. A headline keeps the block it happened on, and
+tapping it shows the place.
+
 What the first run found, all fixed:
 - **Step one never completed** if you introduced yourself on day one — the evening the strip tells
   you to. It checked `rel.met > 1`, and `met` is a day. `Player.introduced` counts it now, and the

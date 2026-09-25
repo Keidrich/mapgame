@@ -22,7 +22,7 @@ import { kill } from './people';
 import { hash01, Rng } from './rng';
 import type { Id, Npc, World } from './types';
 import { PLAYER } from './types';
-import { addHeat, cap, clamp, fullName, log, money, nid, spend, their, them, they, theName, vb } from './util';
+import { addHeat, cap, clamp, fullName, log, money, nid, spend, their, them, they, theName, vb, poss } from './util';
 
 export type StoryStatus = 'active' | 'bought' | 'gone' | 'dead' | 'partner' | 'broken' | 'published' | 'forgiven' | 'cowed' | 'told' | 'paid' | 'spent' | 'conned' | 'walked';
 export interface Arc {
@@ -198,7 +198,7 @@ export function arcDo(w: World, rng: Rng, kind: ArcKind, what: string) {
   switch (`${kind}:${what}`) {
     case 'detective:raid': {
       const seized = Math.round(p.dirty * DETECTIVE.raidSeize); p.dirty -= seized;
-      openCase(w, 'racketeering', PLAYER, a.npcId, `Racketeering: Detective ${n.last}'s file, a year of it.`, DETECTIVE.raidEvidence);
+      openCase(w, 'racketeering', PLAYER, a.npcId, `Racketeering: Detective ${poss(n.last)} file, a year of it.`, DETECTIVE.raidEvidence);
       a.meter = DETECTIVE.afterRaid; a.done = a.done.filter(x => x < DETECTIVE.witness);
       log(w, `Detective ${n.last} comes through your door with a warrant and a smile. ${money(seized)} goes into evidence bags.`, 'law');
       break;
@@ -357,10 +357,10 @@ export function storyMove(w: World, rng: Rng, arcId: Id, move: Move) {
     case 'reporter:feed': {
       const f = Object.values(w.factions).filter(x => x.alive).sort((x, y) => x.standing - y.standing)[0]!;
       a.meter = clamp(a.meter - REPORTER.feed.cut); f.standing = clamp(f.standing + REPORTER.feed.standing, -100, 100);
-      log(w, `You give ${name} ${theName(f)}'s books instead. It is a better story, and it is not about you.`, 'good', { npcId: n.id });
+      log(w, `You give ${name} ${poss(theName(f))} books instead. It is a better story, and it is not about you.`, 'good', { npcId: n.id });
       break;
     }
-    case 'reporter:editor': end(a, w, 'bought'); log(w, `${name}'s editor takes ${money(m.cost!)} and finds the paper has no room for the piece. Or the next one.`, 'good', { npcId: n.id }); break;
+    case 'reporter:editor': end(a, w, 'bought'); log(w, `${poss(name)} editor takes ${money(m.cost!)} and finds the paper has no room for the piece. Or the next one.`, 'good', { npcId: n.id }); break;
     case 'reporter:lean':
       if (hit(m.odds)) { a.meter = clamp(a.meter + REPORTER.lean.win); log(w, `${name} decides the story is not worth what it would cost.`, 'good', { npcId: n.id }); }
       else { a.meter = clamp(a.meter + REPORTER.lean.lose); addHeat(w, REPORTER.lean.heat); log(w, `${name} writes down every word you said, and quotes it.`, 'law', { npcId: n.id }); }
@@ -412,7 +412,7 @@ export function endHeir(w: World, rng: Rng, how: 'partner' | 'duel' | 'kill') {
     kill(w, n.id, `killed on your word`);
     addHeat(w, HEIR.kill.heat);
     if (f) { f.standing = -100; f.grievances.unshift(`The murder of ${fullName(n)}`); }
-    log(w, `${fullName(n)} is found in the river. ${f ? `${theName(f)} will not rest now.` : ''}`, 'war', { npcId: n.id });
+    log(w, `${fullName(n)} is found ${w.city.river ? 'in the river' : w.city.sea ? 'in the harbour' : 'in the trunk of a car'}. ${f ? `${theName(f)} will not rest now.` : ''}`, 'war', { npcId: n.id });
   }
 }
 
