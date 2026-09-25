@@ -13,7 +13,7 @@ import { crewCut } from './economy';
 import { RAT } from '@r/content/family';
 import { ambush } from './fights';
 import { sitDown } from './backroom';
-import { detective, detectiveRaid, endHeir, heir } from './stories';
+import { arcDo, arcOf, detective, endHeir } from './stories';
 import { back } from './seasons';
 import { PLAYER } from './types';
 
@@ -38,7 +38,7 @@ export function apply(w: World, effects: Effect[], rng: Rng) {
       case 'kill': kill(w, e.npcId, 'a decision you made'); break;
       case 'recruit': { const n = w.npcs[e.npcId]; if (n && !n.crew) hire(w, n, crewCut(n)); break; }
       case 'owes': { const n = w.npcs[e.npcId]; if (n) n.rel.owes += e.n; break; }
-      case 'fire': { const n = w.npcs[e.npcId]; if (n?.crew) { freeFromAssignment(w, n); n.crew = undefined; n.faction = undefined; n.role = 'patron'; p.crewIds = p.crewIds.filter(x => x !== n.id); } break; }
+      case 'fire': { const n = w.npcs[e.npcId]; if (n?.crew) { freeFromAssignment(w, n); n.exCrew = w.day; n.crew = undefined; n.faction = undefined; n.role = 'patron'; p.crewIds = p.crewIds.filter(x => x !== n.id); } break; }
       case 'caught': { const n = w.npcs[e.npcId]; if (n?.crew) { const back = Math.round((n.crew.skimmed ?? 0) * 0.5); p.dirty += back; n.crew.skimmed = 0; n.crew.caughtDay = w.day; n.crew.loyalty = clamp(n.crew.loyalty - 8); } break; }
       case 'heal': { const n = w.npcs[e.npcId]; if (n?.crew?.status === 'injured') { n.crew.status = 'ready'; n.crew.statusDays = 0; } break; }
       case 'payroll': { const n = w.npcs[e.npcId]; if (n) n.payroll = e.n > 0 ? e.n : undefined; break; }
@@ -56,11 +56,10 @@ export function apply(w: World, effects: Effect[], rng: Rng) {
       case 'defect': defect(w, e.npcId); break;
       case 'fight': ambush(w, rng, e.factionId); break;
       case 'table': if (!w.table || w.table.stage === 'left') sitDown(w, rng, e.businessId, e.stake, e.npcId); break;
-      case 'detFile': { const d = detective(w); if (d) d.file = clamp(d.file + e.n); break; }
-      case 'detRaid': detectiveRaid(w); break;
+      case 'arc': { const a = arcOf(w, e.kind); if (a) { if (e.n) a.meter = clamp(a.meter + e.n); if (e.status) { a.status = e.status; a.ended = w.day; } } break; }
+      case 'arcDo': arcDo(w, rng, e.kind, e.what); break;
       case 'detKeep': { const d = detective(w); if (d) d.boughtUntil = w.day + e.days; break; }
-      case 'detFree': { const d = detective(w); if (d) { d.status = 'active'; d.boughtUntil = undefined; d.file = clamp(d.file + 10); } break; }
-      case 'heirGrudge': { const h = heir(w); if (h) h.grudge = clamp(h.grudge + e.n); break; }
+      case 'detFree': { const d = detective(w); if (d) { d.status = 'active'; d.boughtUntil = undefined; d.meter = clamp(d.meter + 10); } break; }
       case 'heirEnd': endHeir(w, rng, e.how); break;
       case 'season':
         if (!w.season) break;
@@ -89,7 +88,7 @@ function defect(w: World, id: string) {
   }
   freeFromAssignment(w, n);
   w.player.crewIds = w.player.crewIds.filter(x => x !== id);
-  n.crew = undefined; n.faction = undefined; n.role = 'patron'; n.rel.trust = -40;
+  n.crew = undefined; n.faction = undefined; n.role = 'patron'; n.rel.trust = -40; n.exCrew = w.day;
   const f = w.player.family; if (f) { if (f.consigliere === id) f.consigliere = undefined; if (f.underboss === id) f.underboss = undefined; }
   log(w, `${fullName(n)} walks, and ${d ? `${w.districts[d].name} goes dark behind him` : 'takes a few friends along'}.`, 'war', { npcId: id });
 }
@@ -98,6 +97,8 @@ function defect(w: World, id: string) {
 export function describe(w: World, effects: Effect[]): string {
   const out: string[] = [];
   const sign = (n: number) => (n > 0 ? `+${n}` : `${n}`);
+  const ARC_WORD = { detective: 'his file on you', reporter: 'her story', heir: 'their grudge', avenger: 'their hate', turncoat: 'what they tell', friend: 'the plan' } as const;
+  const ARC_DO: Record<string, string> = { 'detective:raid': 'a raid: half your dirty money, and a thick file', 'reporter:runs': 'the piece runs: heat, and your name in print', 'avenger:attempt': 'a gun in a doorway', 'turncoat:sell': 'your secrets to a rival', 'turncoat:cops': 'a file with their name as the witness', 'turncoat:trial': 'everything they know, on the record', 'friend:payoff': 'the score, if it was ever real' };
   for (const e of effects) {
     switch (e.k) {
       case 'cash': out.push(`${e.n > 0 ? '+' : '−'}${money(Math.abs(e.n))} clean`); break;
@@ -132,11 +133,10 @@ export function describe(w: World, effects: Effect[]): string {
       case 'ratFed': out.push(`${name(w, e.npcId)} starts carrying your lies to the police`); break;
       case 'fight': out.push(`a fight: about ${e.odds}% to see them off`); break;
       case 'table': out.push(`a seat at the table, ${money(e.stake)} a hand`); break;
-      case 'detFile': out.push(`his file on you ${sign(e.n)}`); break;
-      case 'detRaid': out.push('a raid: half your dirty money, and a thick file'); break;
+      case 'arc': out.push([e.n ? `${ARC_WORD[e.kind]} ${sign(e.n)}` : '', e.status ? 'it ends here' : ''].filter(Boolean).join(', ')); break;
+      case 'arcDo': out.push(ARC_DO[`${e.kind}:${e.what}`] ?? 'it comes to a head'); break;
       case 'detKeep': out.push(`bought for ${e.days} more days`); break;
       case 'detFree': out.push('he is back on you, and angrier'); break;
-      case 'heirGrudge': out.push(`their grudge ${sign(e.n)}`); break;
       case 'season': out.push(e.act === 'soften' ? 'the police look half as hard' : e.act === 'end' ? 'it ends tomorrow' : `the ${e.side === 'machine' ? 'machine' : 'reformers'} get your money`); break;
       case 'heirEnd': out.push(e.how === 'partner' ? 'partners, and a truce' : e.how === 'duel' ? 'a fight in the street, settled tonight' : 'a killing, and a war'); break;
       case 'defect': out.push(`${name(w, e.npcId)} walks, and their district goes dark`); break;

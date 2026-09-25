@@ -2,7 +2,7 @@
  * The city in 3D (three.js), as an alternative to the flat map (`CityMap.tsx`). It is loaded only
  * when the player turns 3D on (`store.map3d`), so the flat map pays nothing for it.
  *
- * Everything is built from the generated city: every lot in `mapgeo.lotQuads` is extruded to a
+ * Everything is built from the generated city: every building in `mapgeo.blockLots` is extruded to a
  * height set by its district, wealth and a seeded roll. Walls carry a night texture of lit windows,
  * so the city reads by its own light. Block slabs sit under the buildings and are tinted by the
  * overlay (who holds it, heat, money, police): your ground glows amber from street level. An amber
@@ -23,7 +23,7 @@ import { MapControls } from 'three/examples/jsm/controls/MapControls.js';
 import { select, PLAYER, type World } from '@r/sim/index';
 import type { Block, City, Id, Vec } from '@r/sim/types';
 import type { Layer } from '../store';
-import { lotQuads, mulberry, blockNo, treesFor } from './mapgeo';
+import { blockLots, mulberry, blockNo, residents, treesFor } from './mapgeo';
 import { mute } from './tone';
 
 const AMBER = new THREE.Color('#e9a23b');
@@ -63,6 +63,8 @@ interface Built {
   root: THREE.Group;
   slabs: THREE.Mesh; slabBlock: Id[]; slabColor: THREE.BufferAttribute;
   roofBlock: Id[]; roofColor: THREE.BufferAttribute;
+  /** Each business's own roof: where its marker stands. */
+  shopTop: Record<Id, { x: number; z: number; h: number }>;
   hits: THREE.Mesh[]; hitBlock: Id[][];
   cell: number;
   dispose: () => void;
@@ -98,15 +100,22 @@ function build(w: World): Built {
   const rp: number[] = [];
   const wallBlock: Id[] = [], roofBlock: Id[] = [];
   const floor = cell * 0.035, bay = cell * 0.03;
+  const living = residents(w);
+  const shopTop: Built['shopTop'] = {};
   for (const b of blocks) {
     if (select.isParkBlock(b)) continue;
     const kind = w.districts[b.districtId]?.kind ?? 'market';
     const r = mulberry(blockNo(b) * 31337 + 11);
     const tall = (HEIGHT[kind] ?? 1) * (0.8 + b.wealth / 250) * cell * 0.16;
-    for (const q of lotQuads(city, b)) {
+    // the buildings actually on the block (`mapgeo.blockLots`): a shop's height is its tier, a home's
+    // its district (towers in the projects, houses up the hill), a landmark stands over both
+    for (const lot of blockLots(w, b, living[b.id] ?? 0)) {
+      const q = lot.quad;
       const roll = r();
-      // most lots low, a few much taller: a skyline, not a crate of equal boxes
-      const h = Math.max(floor * 2, tall * (0.45 + roll * roll * 2.2) + (b.landmark && roll > 0.7 ? tall : 0));
+      const h = Math.max(floor * 2, lot.kind === 'landmark' ? tall * 2.6
+        : lot.kind === 'shop' ? tall * (0.35 + lot.tier * 0.45 + roll * 0.3)
+        : tall * (0.5 + roll * 0.9));
+      if (lot.businessId) shopTop[lot.businessId] = { x: lot.center.x, z: lot.center.y, h };
       const shade = 0.75 + r() * 0.35;
       const ou = Math.floor(r() * 16) / 16, ov = Math.floor(r() * 16) / 16;
       let along = 0;
@@ -173,7 +182,7 @@ function build(w: World): Built {
     root.add(tm);
   }
   return {
-    root, slabs, slabBlock, slabColor, roofBlock, roofColor, cell,
+    root, slabs, slabBlock, slabColor, roofBlock, roofColor, cell, shopTop,
     mats: { walls: wallMat, ground: groundMat, water: waterMat },
     hits: [slabs, walls, roofs], hitBlock: [slabBlock, wallBlock, roofBlock],
     dispose: () => disposables.forEach(d => d.dispose()),
@@ -382,7 +391,8 @@ export default function CityMap3D({ w, layer = 'control', night = true, onBlock,
       const fac = b.protection && b.protection.by !== PLAYER ? w.factions[b.protection.by] : undefined;
       if (!mine && !fac) continue;
       const m = new THREE.Mesh(post, matOf(mine ? '#e9a23b' : mute(fac!.color)));
-      m.position.set(b.pos.x, cell * 0.07, b.pos.y);
+      const top = built.shopTop[b.id];
+      m.position.set(top?.x ?? b.pos.x, (top?.h ?? 0) + cell * 0.07, top?.z ?? b.pos.y);
       t.marks.add(m);
     }
     t.dirty();

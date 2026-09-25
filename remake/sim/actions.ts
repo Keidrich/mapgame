@@ -66,8 +66,7 @@ export type Action =
   | { type: 'dice'; businessId: Id; stake: number }
   | { type: 'numbers'; pick: number; amount: number }
   | { type: 'steal_car'; blockId: Id }
-  | { type: 'detective'; move: 'dig' | 'blackmail' | 'bribe' | 'lean' | 'transfer' | 'disappear' }
-  | { type: 'heir'; move: 'gift' | 'meet' }
+  | { type: 'story'; arcId: Id; move: import('./stories').Move }
   | { type: 'back_candidate'; side: 'machine' | 'reform' }
   | { type: 'car'; carId: Id; what: 'chop' | 'respray' | 'keep' | 'sell' }
   | { type: 'attack'; factionId: Owner; blockId: Id; crewIds: Id[] }

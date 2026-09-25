@@ -170,7 +170,9 @@ after day 10: the end.
 - **Start**: the game picker, a masthead, and a live preview of tonight's city — map, name, motto,
   districts, rivals with emblems — rerolled by one button or pinned by a seed you can share.
 - **City**: the generated map (`CityMap.tsx`, SVG): water drawn over land so the river clips its
-  waterfront, building lots cut deterministically from each block's cells, trees in parks, bridges,
+  waterfront, the buildings actually on each block (`mapgeo.blockLots`: one for every business, a
+  landmark's own, and homes for the people who live there — one per 2 residents up the hill, per 7
+  in the projects — the rest yards), trees in parks, bridges,
   avenue names along their curves at street zoom, business markers at street zoom, district names
   when zoomed out, and overlays for who holds it, your heat, money and police. Pan and pinch move
   the `viewBox` directly and commit only when the gesture ends.
@@ -217,9 +219,10 @@ after day 10: the end.
   remembered per device in `rackets.remake.map3d.v1`). The flat map stays the default and the
   fallback when a device has no WebGL. three.js is its own ~140 KB gzipped chunk, fetched only when
   3D is turned on.
-  - **Geometry.** Every lot the flat map draws (`mapgeo.lotQuads`, shared, so the same seed gives
-    the same buildings) is extruded. The height comes from the district (downtown towers, low
-    docks and suburbs), the block's wealth and a seeded roll; landmarks run taller.
+  - **Geometry.** Every building the flat map draws (`mapgeo.blockLots`, shared, so both maps show
+    the same buildings) is extruded. A shop rises with its tier, a home with its district (towers in
+    the projects, houses up the hill), a landmark over both; ownership markers stand on the shop's
+    own roof. The first cut filled every block with four to nine decorative lots whatever it held.
   - **Look.** Walls carry a tiled texture of lit windows, so the city reads by its own light. Roofs
     and the block slabs under them carry the overlay, so ownership reads from above. Your ground is
     amber, and an amber beam stands on the block you are on.
@@ -890,59 +893,55 @@ Car theft is heat, and the fighters live on the edge of the law.
 
 ## 22. Stories
 
-Two people with your name in their mouths, whose arcs run for weeks (`sim/stories.ts`; the numbers
-are data in `content/stories.ts`; the turning points are schedule-only cards in `events.ts`).
+People whose business is you, for weeks at a time (`sim/stories.ts`; the numbers are data in
+`content/stories.ts`; the turning points are schedule-only cards in `events.ts`). **Nothing is written
+in: the game is a sandbox.** The first cut gave every game the same detective and heir; now each game
+gets its own.
 
-- **The detective.** He turns up at heat 40 or on day 14, whichever comes first. He is a real
-  person, made from his own rng stream, living in the city you are in. He is honest 60% of the
-  time.
-  - His file grows every night: 0.4, + heat/100, + 0.3 per open case against you.
-  - He acts once at each threshold:
-    - at 30, a car across the street (`det_watch`);
-    - at 60, a turned witness (`det_witness`), with a racketeering file if you let it ride;
-    - at 90, the raid (`det_raid`): half your dirty money, a racketeering file (evidence 50) with
-      him as the witness, and his file back to 40.
-  - What you can do (`detective {move}`; Empire → the law):
-    - dig (by day, 2 hours, 30% + 6% per point of brains) for dirt, then blackmail: file −50, and
-      he is bought for good;
-    - bribe with clean money: $4,000 + $40 per point of the file. An honest man writes it down
-      instead (+10). A bought man wants paying again after 20 days (`det_more`);
-    - lean on him: success is −20 on the file; failure is +15 and 5 heat;
-    - have him moved: a councillor on the payroll and $3,000;
-    - make him disappear, at night: $5,000, 35 heat and a murder file.
-- **The heir.** An heir rises in the outfit whose standing with you first sinks to −50: a
-  lieutenant if there is one, never the boss.
-  - The grudge starts at 40 and grows 0.5 a day, 1 while the outfit's standing is under −60. If
-    the boss dies, the heir takes the chair and the grudge jumps 20.
-  - A beat every week: a message (answer it, ignore it, or pay), then a hit on one of your
-    rackets (hit back at the odds, or swallow it).
-  - You can send a gift ($2,000, −15), or sit down with them at night (charm; −25, or +10 if it
-    goes badly).
-  - At 90, the showdown (`heir_showdown`):
-    - a partnership: $5,000, +50 standing and a 20-day truce;
-    - facing them in the street, at the odds of you and your guards against their people: a win
-      finishes them (respect +8); a loss hurts you and leaves the grudge at 60;
-    - having them killed: 20 heat and a war.
-- **Screen.** A detective panel on Empire → the law, and an heir panel on Rivals, each with a
-  meter and the moves. Their person sheets say who they are, and there is a line in How to play.
-- **Bots.**
-  - They answer the cards through effect scoring: the file and the grudge count as debts.
-  - Once his file is past 45, they deal with the detective: blackmail with dirt; the maniac makes
-    him disappear; a transfer with a councillor on the payroll; one bribe (never again once
-    refused); the ruthless lean on him; otherwise they dig.
-  - They gift the heir past a grudge of 70; the talkers sit down with them.
+- **The catalogue.** Six kinds. Each has a meter that moves every night, cards at thresholds, and
+  moves you can make from its panel:
 
-**Balance.** Over five seeds the steady bot fell from 24.8% to 20.8%, but the detective barely
-touched it: no raids, and he was transferred early. Over ten fresh seeds (100–109), with stories
-against without:
+  | Kind | What sets it off | Meter | What it does |
+  |---|---|---|---|
+  | Detective | heat past 30–55, or day 12–37 | the file | watching at 30, a turned witness at 60, a raid at 90 (half your dirty money, a racketeering file) |
+  | Reporter | fear + respect past 50–90, from day 8 | the story | questions at 35, a draft at 65, the piece runs at 100 (heat +12, respect −4); two pieces and done |
+  | Heir | an outfit's standing past −40 to −65 | the grudge | a weekly message or racket hit; a showdown at 90 (partner, face them, or kill) |
+  | Avenger | somebody with a revenge agenda (the family of somebody killed on your word), 8% a night | their hate | hires a gun at 60; the attempt at 100 is stopped by a guard on your block or 25% luck, otherwise you are hurt |
+  | Turncoat | somebody who left your crew in the last fortnight, 15% a night | what they have told | sells you to your worst rival at 35, goes to the police at 70 (a file with them as witness), signs a statement at 100 |
+  | Old friend | a window in days 10–30 | the plan | grows only with your time and money; asks for more at 50; the payoff at 100 is $15–40k, or a con |
 
-| Bot | Control | Outcome |
-|---|---|---|
-| Steady | 23.9% (21.7%) | none lost (none) |
-| Maniac | 20% | lost 5 of 10 (7 of 10) |
-
-The five-seed drop was chaos: a new person in the city and cards in the morning slots shift every
-later roll.
+- **What makes it procedural:**
+  - **The seed's appetite.** A hash of the seed decides whether a game has each kind at all
+    (detective 75%, heir 70%, avenger and turncoat 60%, reporter 55%, friend 45%). It also decides
+    where the trigger sits inside its range, whether a detective is honest (60%), whether the old
+    friend's plan is a con (30%), and whether another of a kind comes after the first ends (35–50%,
+    no sooner than 20 days later).
+  - **The world's cause.** Nothing starts without the thing that sets it off. A cold, quiet boss
+    has no detective; a boss who never kills has no avenger.
+  - **Two at a time, one new a night,** in an order the seed and the day shuffle.
+  - **People.** The detective, the reporter and the old friend are new people, each made from
+    their own rng stream so the city does not move. The heir, the avenger and the turncoat are
+    people already in the city.
+  - **No world rng.** Every chance that decides whether a story exists is a hash, never the
+    world's rng, so looking at the city never changes which stories it will have.
+- **Moves** (`story {arcId, move}`), each with its cost and odds on the button (`movesFor`):
+  - detective: dig then blackmail, bribe (clean; an honest one writes it down), lean, have them
+    moved (a councillor on the payroll and $3,000 clean), make them disappear;
+  - reporter: feed them a rival's story (−35), buy the editor ($6,000 clean, ends it), lean,
+    silence;
+  - heir: a gift, a sit-down;
+  - avenger: make amends (money and charm), frighten them off, silence;
+  - turncoat: buy their silence, frighten them off, silence;
+  - old friend: put in time and money (+25 a go), walk away.
+  - Silencing anybody is a killing: heat, a murder file, and it ends the story.
+- **Screen.** "People with your name in their mouth" on Rivals: each live story with its person,
+  meter, what happens at which point, and its moves; a line for each one that ended. Their person
+  sheets say who they are.
+- **Save migration.** A save from before (one detective and one heir in `World.stories`) becomes
+  arcs (`migrateStories`).
+- **Bots.** One routine for every kind (`stories()` in the bot), plus card scoring. "Stories" is one
+  coverage row. Across 10 seeds × 3 temperaments, seeds 2 and 8 had no stories at all in 60 days,
+  and no two seeds had the same set.
 
 ## 23. Seasons
 

@@ -13,7 +13,7 @@ import type { Block, Id, Vec } from '@r/sim/types';
 import { Icon } from '@ui/icons';
 import type { Layer } from '../store';
 import { mute } from './tone';
-import { inside, lotsPath, treesFor } from './mapgeo';
+import { blockLots, inside, quadPath, residents, shopSpots, treesFor, type Lot } from './mapgeo';
 
 const GOLD = '#e9a23b';
 interface View { x: number; y: number; w: number; h: number }
@@ -25,14 +25,18 @@ const pathOf = (p: Vec[]) => `M${p.map(q => `${q.x} ${q.y}`).join('L')}Z`;
 const StaticCity = memo(function StaticCity({ w, detail }: { w: World; detail: boolean }) {
   const { city } = w;
   const blocks = Object.values(w.blocks);
-  const lots = useMemo(() => blocks.filter(b => !select.isParkBlock(b)).map(b => lotsPath(city, b)).join(''), [city, blocks.length]);
+  // the buildings actually there (`mapgeo.blockLots`): shops, landmarks and homes, drawn apart
+  const lots = useMemo(() => { const res = residents(w); return blocks.filter(b => !select.isParkBlock(b)).flatMap(b => blockLots(w, b, res[b.id] ?? 0)); }, [city, blocks.length]);
+  const byKind = (k: Lot['kind']) => lots.filter(l => l.kind === k).map(l => quadPath(l.quad)).join('');
   const trees = useMemo(() => blocks.filter(select.isParkBlock).flatMap(treesFor), [city, blocks.length]);
   const avenues = city.streets.filter(s => s.rank === 0);
   return (
     <g className="r-static">
       {/* blocks: the pavement, and the buildings on it */}
       {blocks.map(b => <path key={b.id} d={pathOf(b.poly)} className={select.isParkBlock(b) ? 'r-park' : 'r-block'} />)}
-      <path d={lots} className="r-lots" />
+      <path d={byKind('home')} className="r-lots r-lot-home" />
+      <path d={byKind('shop')} className="r-lots r-lot-shop" />
+      <path d={byKind('landmark')} className="r-lots r-lot-mark" />
       {trees.map((t, i) => <circle key={i} cx={t.x} cy={t.y} r={5 + (i % 3) * 1.5} className="r-tree" />)}
       {/* water over the land, so a block the river clips reads as a waterfront */}
       {city.sea && <polygon points={pts(city.sea)} className="r-sea" />}
@@ -69,6 +73,7 @@ export interface MapProps { w: World; layer?: Layer; onBlock?: (id: Id) => void;
 
 export function CityMap({ w, layer = 'control', onBlock, selected, focus, mini, className }: MapProps) {
   const { city } = w;
+  const spots = useMemo(() => shopSpots(w), [city]);
   const pad = 160;
   const full: View = { x: -pad, y: -pad, w: city.width + pad * 2, h: city.height + pad * 2 };
   const svg = useRef<SVGSVGElement>(null);
@@ -185,7 +190,7 @@ export function CityMap({ w, layer = 'control', onBlock, selected, focus, mini, 
         const fac = b.protection && b.protection.by !== PLAYER ? w.factions[b.protection.by] : undefined;
         const color = mine ? GOLD : fac ? mute(fac.color) : b.tier === 3 ? '#c3b1f3' : '#8f8a82';
         return (
-          <g key={b.id} transform={`translate(${b.pos.x} ${b.pos.y})`} className="r-biz">
+          <g key={b.id} transform={`translate(${(spots[b.id] ?? b.pos).x} ${(spots[b.id] ?? b.pos).y})`} className="r-biz">
             {/* far out, a place nobody holds is a faint dot: a lit street of them read as polka dots */}
             <circle r={u(close ? 9 : 3.2)} fill={close ? '#111317' : color} fillOpacity={close || mine || fac ? 1 : 0.45} stroke={color} strokeOpacity={close || mine || fac ? 1 : 0} strokeWidth={u(close ? 1.5 : 0.8)} />
             {close && <g transform={`translate(${-u(6)} ${-u(6)}) scale(${u(12) / 24})`} style={{ color }}><Icon of="business" id={b.type} size={24} strokeWidth={2} /></g>}

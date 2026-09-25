@@ -32,8 +32,8 @@ export { hasTable, tableBlock, diceBlock, numbersBlock, yourNumbers, nextBlock, 
 export { POKER, DICE, NUMBERS } from '@r/content/backroom';
 export { parkedOn, stealOdds, garageRoom, chopper, sprayShop, chopValue, sellValue, getawayBonus } from './cars';
 export { MODELS, STEAL, CHOP, RESPRAY, SELL, GETAWAY } from '@r/content/cars';
-export { detective, heir, bribePrice, digOdds, leanOdds, meetOdds, duelOdds, detBlock, heirBlock } from './stories';
-export { DETECTIVE, HEIR } from '@r/content/stories';
+export { detective, heir, arcOf, activeArcs, allArcs, movesFor, storyBlock, bribePrice, digOdds, meetOdds, duelOdds } from './stories';
+export { ARCS, DETECTIVE, REPORTER, HEIR, AVENGER, TURNCOAT, FRIEND } from '@r/content/stories';
 export { seasonNow, machineOdds, backBlock, attentionAdd, bribeMult } from './seasons';
 export { SEASONS, SEASON, ELECTION, RESPONSES } from '@r/content/seasons';
 export { fightOdds, soldiersOn, sideOf, personPower, ambushOdds } from './fights';

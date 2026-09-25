@@ -32,7 +32,7 @@ export type Counter =
   | 'trained' | 'boosts' | 'dried_out'
   | 'poker_hands' | 'poker_won' | 'cheated' | 'dice_rolls' | 'numbers_played'
   | 'cars_stolen' | 'cars_chopped' | 'cars_resprayed' | 'cars_kept' | 'cars_sold'
-  | 'det_cards' | 'det_moves' | 'heir_cards' | 'heir_moves'
+  | 'story_cards' | 'story_moves'
   | 'season_cards' | 'backed';
 
 export const SYSTEMS: { label: string; needs: Counter[] }[] = [
@@ -68,8 +68,7 @@ export const SYSTEMS: { label: string; needs: Counter[] }[] = [
   { label: 'the numbers', needs: ['numbers_played'] },
   { label: 'stealing cars', needs: ['cars_stolen'] },
   { label: 'the garage', needs: ['cars_chopped', 'cars_resprayed'] },
-  { label: 'the detective', needs: ['det_cards', 'det_moves'] },
-  { label: 'the heir', needs: ['heir_cards', 'heir_moves'] },
+  { label: 'stories', needs: ['story_cards', 'story_moves'] },
   { label: 'seasons', needs: ['season_cards'] },
   { label: 'the election', needs: ['backed'] },
   { label: 'night encounters', needs: ['night_events'] },
@@ -343,31 +342,55 @@ function character(c: Ctx) {
 
 // --------------------------------------------------------------------------------------- stories
 /**
- * The detective, once his file is past 45: blackmail if there is dirt; dig for it by day; bribe
- * (once — if he turns out honest, never again); have him moved with a councillor on the payroll;
- * the ruthless lean on him and the maniac makes him disappear. The heir: a gift once the grudge is
- * past 70, and the talkers sit down with them.
+ * Whatever stories this game has thrown up, each by its own lights and the temperament's:
+ * - the detective, past 45: blackmail with dirt; the maniac makes him disappear past 70; a transfer
+ *   with a councillor; one bribe (never again once refused); the ruthless lean; otherwise dig;
+ * - the reporter, past 50: buy the editor with clean money to spare, otherwise feed her a rival;
+ *   the maniac silences her past 80;
+ * - the heir, past 70: a gift, or the talkers sit down with them;
+ * - the avenger and the turncoat, past 40: pay them off with money to spare, frighten them when the
+ *   odds are good, and the maniac silences them;
+ * - the old friend: everybody but the timid puts time and money in while they can afford it.
  */
 function stories(c: Ctx) {
   const w = () => c.w; const p = () => w().player;
   const purse = () => p().cash + p().dirty;
   // an election on: the schemer puts more money behind the machine while it is not a sure thing
   if (select.seasonNow(w())?.kind === 'election' && c.s.cleverBonus > 0 && purse() > 15000 && select.machineOdds(w()) < 0.8 && act(c, { type: 'back_candidate', side: 'machine' })) bump(c, 'backed');
-  const d = select.detective(w());
-  if (d?.status === 'active' && d.file >= 45) {
-    const move = d.dirt ? 'blackmail'
-      : c.s.war === 'everyone' && d.file >= 70 ? 'disappear'
-      : !select.detBlock(w(), 'transfer') ? 'transfer'
-      : !c.seen.has('det-honest') && p().cash > select.bribePrice(d) * 2 ? 'bribe'
-      : c.s.threaten >= 1.4 && select.leanOdds(w(), d) >= 50 ? 'lean'
-      : 'dig';
-    const before = d.status;
-    if (act(c, { type: 'detective', move })) { bump(c, 'det_moves'); if (move === 'bribe' && select.detective(w())!.status === before) c.seen.add('det-honest'); }
-  }
-  const h = select.heir(w());
-  if (h?.status === 'active' && h.grudge >= 70) {
-    if (purse() > 6000 && act(c, { type: 'heir', move: 'gift' })) bump(c, 'heir_moves');
-    else if (c.s.threaten < 1 && select.meetOdds(w()) >= 50 && act(c, { type: 'heir', move: 'meet' })) bump(c, 'heir_moves');
+  const maniac = c.s.war === 'everyone';
+  for (const a of select.activeArcs(w())) {
+    if (a.status !== 'active') continue;
+    const moves = select.movesFor(w(), a);
+    const m = (k: string) => moves.find(x => x.move === k);
+    const ok = (k: string) => !!m(k) && !select.storyBlock(w(), a.id, m(k)!.move);
+    let move: string | undefined;
+    switch (a.kind) {
+      case 'detective':
+        if (a.meter < 45) break;
+        move = ok('blackmail') ? 'blackmail' : maniac && a.meter >= 70 && ok('disappear') ? 'disappear' : ok('transfer') ? 'transfer'
+          : !c.seen.has(`honest-${a.id}`) && p().cash > (m('bribe')?.cost ?? 1e9) * 2 ? 'bribe' : c.s.threaten >= 1.4 && (m('lean')?.odds ?? 0) >= 50 ? 'lean' : 'dig';
+        break;
+      case 'reporter':
+        if (a.meter < 50) break;
+        move = maniac && a.meter >= 80 && ok('silence') ? 'silence' : p().cash > (m('editor')?.cost ?? 1e9) * 2 ? 'editor' : c.s.threaten >= 1.4 && (m('lean')?.odds ?? 0) >= 55 ? 'lean' : 'feed';
+        break;
+      case 'heir':
+        if (a.meter < 70) break;
+        move = purse() > 6000 ? 'gift' : c.s.threaten < 1 && (m('meet')?.odds ?? 0) >= 50 ? 'meet' : undefined;
+        break;
+      case 'avenger': case 'turncoat': {
+        if (a.meter < 40) break;
+        const pay = a.kind === 'avenger' ? 'amends' : 'buyback';
+        move = maniac && ok('silence') ? 'silence' : purse() > (m(pay)?.cost ?? 1e9) * 3 && (m(pay)?.odds ?? 0) >= 40 ? pay : (m('frighten')?.odds ?? 0) >= 50 ? 'frighten' : undefined;
+        break;
+      }
+      case 'friend':
+        move = c.s.heatCare >= 2.5 ? 'walk' : purse() > 8000 ? 'help' : undefined;
+        break;
+    }
+    if (!move) continue;
+    const before = a.status;
+    if (act(c, { type: 'story', arcId: a.id, move: move as never })) { bump(c, 'story_moves'); if (move === 'bribe' && select.arcOf(w(), 'detective')?.status === before) c.seen.add(`honest-${a.id}`); }
   }
 }
 
@@ -501,7 +524,7 @@ function answerEverything(c: Ctx) {
     const e = c.w.events[0]; if (!e) break;
     const scored = e.options.filter(o => !o.disabled).map(o => ({ o, v: scoreEffects(c, o.effects) }));
     const pick = scored.sort((a, b) => b.v - a.v)[0]?.o ?? e.options[e.options.length - 1];
-    if (act(c, { type: 'resolve_event', eventId: e.id, optionId: pick.id })) { bump(c, 'events'); if (e.template.startsWith('night_')) bump(c, 'night_events'); if (e.template === 'rat_found') bump(c, 'rats_found'); if (e.template === 'coup') bump(c, 'coups'); if (e.template.startsWith('det_')) bump(c, 'det_cards'); if (e.template.startsWith('heir_')) bump(c, 'heir_cards'); if (e.template.startsWith('season_')) bump(c, 'season_cards'); if (pick.effects.some(x => x.k === 'season' && x.act === 'back')) bump(c, 'backed'); if (e.template === 'night_ambush') { bump(c, 'ambushes'); if (pick.id === 'fight') { bump(c, 'fights'); if (c.w.fight?.won) bump(c, 'fights_won'); } } }
+    if (act(c, { type: 'resolve_event', eventId: e.id, optionId: pick.id })) { bump(c, 'events'); if (e.template.startsWith('night_')) bump(c, 'night_events'); if (e.template === 'rat_found') bump(c, 'rats_found'); if (e.template === 'coup') bump(c, 'coups'); if (/^(det|rep|heir|ven|tc|of)_/.test(e.template)) bump(c, 'story_cards'); if (e.template.startsWith('season_')) bump(c, 'season_cards'); if (pick.effects.some(x => x.k === 'season' && x.act === 'back')) bump(c, 'backed'); if (e.template === 'night_ambush') { bump(c, 'ambushes'); if (pick.id === 'fight') { bump(c, 'fights'); if (c.w.fight?.won) bump(c, 'fights_won'); } } }
     else break;
   }
 }
@@ -528,10 +551,11 @@ function scoreEffects(c: Ctx, effects: World['events'][number]['options'][number
     // seasons: a softer crackdown is worth more the hotter you are; the machine is the side that
     // makes officials cheap
     if (e.k === 'season') v += e.act === 'soften' ? (hot > 35 ? 3 : 1) : e.act === 'end' ? 0.5 : e.side === 'machine' ? 8 : -1;   // 8: about the $3k it costs, repaid by 20 days of cheaper officials
-    if (e.k === 'detFile') v -= e.n / 5;
+    // stories: a hostile meter is a debt coming due; the old friend's plan is the one worth feeding
+    // (the plan at half a point per point: at a fifth, $3,000 for +15 always lost to walking away, and no bot ever saw a payoff)
+    if (e.k === 'arc') v += (e.n ?? 0) * (e.kind === 'friend' ? 1 / 2 : -1 / 5) + (e.status ? (e.kind === 'friend' ? -1 : 3) : 0);
     if (e.k === 'detKeep') v += 3;
     if (e.k === 'detFree') v -= 3;
-    if (e.k === 'heirGrudge') v -= e.n / 8;
     if (e.k === 'heirEnd') v += e.how === 'partner' ? (c.s.peace ? 4 : 0) : e.how === 'duel' ? (select.duelOdds(c.w) - 55) / 8 : (c.s.war === 'everyone' ? 5 : -5);
   }
   return v;

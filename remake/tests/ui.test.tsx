@@ -73,12 +73,20 @@ describe('the 3D map', () => {
     const w = newWorld({ seed: 7, size: 'small', name: 'T', background: 'grifter' });
     expect(renderToString(<CityMap3D w={w} />)).toContain(`3D map of ${w.city.name}`);
   });
-  it('shares its lots with the flat map: nearly every block has buildings (a one-cell block can be all yard), and the same seed gives the same ones', async () => {
-    const { lotQuads } = await import('@r/ui/components/mapgeo');
+  it('draws the buildings actually on a block: one per business, the landmark, homes for who lives there; the same seed, the same city', async () => {
+    const { blockLots, homesOn, residents } = await import('@r/ui/components/mapgeo');
     const { select } = await import('@r/sim/index');
     const w = newWorld({ seed: 7, size: 'small', name: 'T', background: 'grifter' });
-    const b = Object.values(w.blocks).filter(x => !select.isParkBlock(x));
-    expect(b.filter(x => lotQuads(w.city, x).length > 0).length / b.length).toBeGreaterThan(0.9);
-    expect(JSON.stringify(lotQuads(w.city, b[3]))).toBe(JSON.stringify(lotQuads(newWorld({ seed: 7, size: 'small', name: 'T', background: 'grifter' }).city, b[3])));
+    const res = residents(w);
+    for (const b of Object.values(w.blocks).filter(x => !select.isParkBlock(x))) {
+      const lots = blockLots(w, b, res[b.id] ?? 0);
+      const shops = lots.filter(l => l.kind === 'shop');
+      expect(shops.map(l => l.businessId).sort()).toEqual([...b.businessIds].sort());
+      expect(lots.filter(l => l.kind === 'landmark').length).toBe(b.landmark ? 1 : 0);
+      expect(lots.filter(l => l.kind === 'home').length).toBe(homesOn(w, b, res[b.id] ?? 0));
+    }
+    const b3 = Object.values(w.blocks)[3];
+    const again = newWorld({ seed: 7, size: 'small', name: 'T', background: 'grifter' });
+    expect(JSON.stringify(blockLots(w, b3, res[b3.id] ?? 0))).toBe(JSON.stringify(blockLots(again, again.blocks[b3.id], residents(again)[b3.id] ?? 0)));
   });
 });

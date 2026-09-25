@@ -62,7 +62,7 @@ export function endDay(w: World, rng: Rng) {
     if (a?.kind === 'district') { for (const bid of w.districts[a.districtId].blockIds) if ((w.blocks[bid].influence[PLAYER] ?? 0) > 10) gain(bid, 0.5); gainXp(w, id, 3); }
     // made men do not walk out (`family.ts` keeps them at a floor); associates can
     if (!c.made && c.loyalty < 15 && rng.chance(0.25)) {
-      freeFromAssignment(w, n); n.crew = undefined; n.faction = undefined; n.role = 'patron'; n.rel.trust = -30;
+      freeFromAssignment(w, n); n.crew = undefined; n.faction = undefined; n.role = 'patron'; n.rel.trust = -30; n.exCrew = w.day;
       p.crewIds = p.crewIds.filter(x => x !== id);
       log(w, `${fullName(n)} walked. Nobody saw them go.`, 'bad', { npcId: id });
     }

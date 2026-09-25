@@ -17,6 +17,7 @@ import { addInfluence, nid } from './util';
 import { generateJobs } from './jobs';
 import { generateStreetCrews } from './streetcrews';
 import { migrateGear } from './kit';
+import { migrateStories } from './stories';
 import { newCommission } from './commission';
 import { generateRegion } from './regionmap';
 import type { AgendaKind, Background, Block, Business, BusinessType, District, Faction, FactionStyle, Id, Npc, OfficialKind, Role, SecretKind, Skill, Skills, Temperament, Trait, World } from './types';
@@ -82,6 +83,7 @@ export function newWorld(opts: NewGame): World {
   // street crews come from their own stream, after everything else, so they changed no seed's city
   generateStreetCrews(w);
   ensureFixer(w);
+  migrateStories(w);
   // the cities down the road, from their own stream, after everything else
   w.region = generateRegion(w);
   w.log.push({ day: 1, text: `${w.city.name}. ${w.city.motto} You start on ${start.name}, in ${w.districts[start.districtId].name}, with ${bg.cash.toLocaleString('en-US')} dollars and nobody's respect.`, tone: 'info', blockId: start.id });

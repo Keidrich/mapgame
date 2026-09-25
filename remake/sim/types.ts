@@ -186,7 +186,9 @@ export interface Npc {
   role: Role;
   official?: OfficialKind;
   /** Somebody whose story is you (`stories.ts`): the detective with your file, the heir with your name. */
-  nemesis?: 'detective' | 'heir';
+  nemesis?: import('@r/content/stories').ArcKind;
+  /** The day they left your crew (fired, walked, defected): somebody who might sell what they know. */
+  exCrew?: number;
   /** A captain's station house. */
   precinctId?: Id;
   homeBlockId: Id;
@@ -502,11 +504,10 @@ export type Effect =
   /** Seasons (`seasons.ts`): buy the crackdown's patience, end the strike, back a side at the polls. */
   | { k: 'season'; act: 'soften' | 'end' | 'back'; side?: 'machine' | 'reform'; amount?: number }
   /** Stories (`stories.ts`): the detective's file, his raid and his price; the heir's grudge and its end. */
-  | { k: 'detFile'; n: number }
-  | { k: 'detRaid' }
+  | { k: 'arc'; kind: import('@r/content/stories').ArcKind; n?: number; status?: import('./stories').StoryStatus }
+  | { k: 'arcDo'; kind: import('@r/content/stories').ArcKind; what: string }
   | { k: 'detKeep'; days: number }
   | { k: 'detFree' }
-  | { k: 'heirGrudge'; n: number }
   | { k: 'heirEnd'; how: 'partner' | 'duel' | 'kill' }
   | { k: 'table'; businessId: Id; npcId: Id; stake: number }
   | { k: 'cash'; n: number }
@@ -662,7 +663,7 @@ export interface World {
   aftermath?: import('./seasons').Aftermath;
   seasonCount?: number;
   /** The detective and the heir (`stories.ts`). */
-  stories?: { detective?: import('./stories').Detective; heir?: import('./stories').Heir };
+  stories?: { arcs: import('./stories').Arc[] };
   /** The card table you are sitting at, or the dice you just rolled (`backroom.ts`). */
   table?: Table;
   /** Last night's number. */

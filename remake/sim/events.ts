@@ -19,7 +19,7 @@ import { bedsTotal, playerBlocks } from './select-core';
 import { crewCut } from './economy';
 import { ambushOdds } from './fights';
 import { bribePrice, detective, duelOdds, heir } from './stories';
-import { DETECTIVE, HEIR } from '@r/content/stories';
+import { DETECTIVE, FRIEND, HEIR } from '@r/content/stories';
 import { ELECTION, RESPONSES, SEASONS } from '@r/content/seasons';
 import { machineOdds } from './seasons';
 
@@ -86,19 +86,19 @@ export const TEMPLATES: Template[] = [
   { id: 'det_intro', weight: () => 0,
     build: (w, _rng, ctx) => {
       const n = w.npcs[ctx.npcId!]; if (!n?.alive) return undefined;
-      return card(w, `Detective ${n.last}`, `A man in a raincoat is waiting by your door. "${fullName(n)}, Organised Crime. I know who you are, and I know what you do, and I have time." He hands you a card with his number on it, in case you ever want to talk.`, [
+      return card(w, `Detective ${n.last}`, `Somebody in a raincoat is waiting by your door. "${fullName(n)}, Organised Crime. I know who you are, and I know what you do, and I have time." ${cap(they(n))} ${vb(n, 'hand', 'hands')} you a card with ${their(n)} number on it, in case you ever want to talk.`, [
         { id: 'polite', label: 'Take the card, say nothing', effects: [] },
-        { id: 'cold', label: 'Tell him to get off your step', effects: [{ k: 'detFile', n: 3 }, { k: 'respect', n: 1 }] },
-        { id: 'drink', label: 'Offer him a drink', effects: [...pay(w, 100), { k: 'trust', npcId: n.id, n: 5 }], disabled: afford(w, 100) },
+        { id: 'cold', label: `Tell ${them(n)} to get off your step`, effects: [{ k: 'arc', kind: 'detective', n: 3 }, { k: 'respect', n: 1 }] },
+        { id: 'drink', label: `Offer ${them(n)} a drink`, effects: [...pay(w, 100), { k: 'trust', npcId: n.id, n: 5 }], disabled: afford(w, 100) },
       ], { npcId: n.id });
     } },
   { id: 'det_watch', weight: () => 0,
     build: (w, _rng, ctx) => {
       const n = w.npcs[ctx.npcId!]; if (!n?.alive) return undefined;
       return card(w, 'A car across the street', `The same grey sedan has been parked across from your place three nights running. ${fullName(n)} does not even pretend to read the paper.`, [
-        { id: 'ignore', label: 'Let him watch', effects: [] },
-        { id: 'lose', label: 'Lose him: back doors, borrowed cabs', effects: [...pay(w, 200), { k: 'detFile', n: -5 }], disabled: afford(w, 200) },
-        { id: 'flowers', label: 'Send flowers to his wife', effects: [{ k: 'npcFear', npcId: n.id, n: 10 }, { k: 'detFile', n: 8 }] },
+        { id: 'ignore', label: `Let ${them(n)} watch`, effects: [] },
+        { id: 'lose', label: `Lose ${them(n)}: back doors, borrowed cabs`, effects: [...pay(w, 200), { k: 'arc', kind: 'detective', n: -5 }], disabled: afford(w, 200) },
+        { id: 'flowers', label: `Send flowers to ${their(n)} family`, effects: [{ k: 'npcFear', npcId: n.id, n: 10 }, { k: 'arc', kind: 'detective', n: 8 }] },
       ], { npcId: n.id });
     } },
   { id: 'det_witness', weight: () => 0,
@@ -108,24 +108,134 @@ export const TEMPLATES: Template[] = [
       if (!pool.length) return undefined;
       const wit = rng.pick(pool);
       return card(w, `${shortName(wit)} has been talking`, `${fullName(n)} has found somebody who will say your name in court: ${fullName(wit)}, who has seen more than ${they(wit)} should.`, [
-        { id: 'reach', label: `Get to ${them(wit)} first`, effects: [...pay(w, 1500), { k: 'npcFear', npcId: wit.id, n: 30 }, { k: 'trust', npcId: wit.id, n: 10 }, { k: 'detFile', n: 5 }], disabled: afford(w, 1500) },
+        { id: 'reach', label: `Get to ${them(wit)} first`, effects: [...pay(w, 1500), { k: 'npcFear', npcId: wit.id, n: 30 }, { k: 'trust', npcId: wit.id, n: 10 }, { k: 'arc', kind: 'detective', n: 5 }], disabled: afford(w, 1500) },
         { id: 'ride', label: 'Let it ride', effects: [{ k: 'openCase', crime: 'racketeering', suspect: 'player', witnessId: wit.id, summary: `Racketeering: what ${fullName(wit)} told Detective ${n.last}.` }] },
       ], { npcId: wit.id });
     } },
   { id: 'det_raid', weight: () => 0,
     build: (w, _rng, ctx) => {
       const n = w.npcs[ctx.npcId!]; if (!n?.alive) return undefined;
-      return card(w, 'The warrant', `Five in the morning. ${fullName(n)} is at the door with a warrant, a dozen uniforms and a photographer. His file on you is thick enough to stand up on its own.`, [
-        { id: 'open', label: 'Open the door', effects: [{ k: 'detRaid' }] },
+      return card(w, 'The warrant', `Five in the morning. ${fullName(n)} is at the door with a warrant, a dozen uniforms and a photographer. ${cap(their(n))} file on you is thick enough to stand up on its own.`, [
+        { id: 'open', label: 'Open the door', effects: [{ k: 'arcDo', kind: 'detective', what: 'raid' }] },
       ], { npcId: n.id });
     } },
   { id: 'det_more', weight: () => 0,
     build: (w, _rng, ctx) => {
       const n = w.npcs[ctx.npcId!]; const d = detective(w); if (!n?.alive || !d || d.status !== 'bought') return undefined;
       const price = Math.round(bribePrice(d) / 2);
-      return card(w, `Detective ${n.last} wants more`, `The money you gave ${fullName(n)} is gone, and so is his patience. "Same again, or I remember where I left my notebook."`, [
-        { id: 'pay', label: `Pay him again: ${money(price)} clean`, effects: [{ k: 'cash', n: -price }, { k: 'detKeep', days: DETECTIVE.boughtDays }], disabled: affordClean(w, price) },
-        { id: 'refuse', label: 'Tell him the well is dry', effects: [{ k: 'detFree' }] },
+      return card(w, `Detective ${n.last} wants more`, `The money you gave ${fullName(n)} is gone, and so is ${their(n)} patience. "Same again, or I remember where I left my notebook."`, [
+        { id: 'pay', label: `Pay ${them(n)} again: ${money(price)} clean`, effects: [{ k: 'cash', n: -price }, { k: 'detKeep', days: DETECTIVE.boughtDays }], disabled: affordClean(w, price) },
+        { id: 'refuse', label: `Tell ${them(n)} the well is dry`, effects: [{ k: 'detFree' }] },
+      ], { npcId: n.id });
+    } },
+  // the reporter
+  { id: 'rep_intro', weight: () => 0,
+    build: (w, _rng, ctx) => {
+      const n = w.npcs[ctx.npcId!]; if (!n?.alive) return undefined;
+      return card(w, `${fullName(n)}, of the ${w.city.name} Courier`, `A reporter has been asking the regulars about you, and tonight ${they(n)} ${vb(n, 'ask', 'asks')} you. "Just a few questions. For a piece I am working on." ${cap(they(n))} ${vb(n, 'have', 'has')} a notebook and no fear at all.`, [
+        { id: 'charm', label: `Give ${them(n)} nothing, charmingly`, effects: [{ k: 'arc', kind: 'reporter', n: -5 }] },
+        { id: 'threat', label: `Tell ${them(n)} what happens to people who ask`, effects: [{ k: 'arc', kind: 'reporter', n: 10 }, { k: 'fear', n: 1 }] },
+      ], { npcId: n.id });
+    } },
+  { id: 'rep_questions', weight: () => 0,
+    build: (w, _rng, ctx) => {
+      const n = w.npcs[ctx.npcId!]; if (!n?.alive) return undefined;
+      return card(w, `${shortName(n)} is asking around`, `${fullName(n)} has been at the bars on your blocks, buying drinks and writing down names. People who owe you are being asked what they owe you for.`, [
+        { id: 'buy', label: `Buy the bars a round and a silence: ${money(800)}`, effects: [...pay(w, 800), { k: 'arc', kind: 'reporter', n: -10 }], disabled: afford(w, 800) },
+        { id: 'let', label: `Let ${them(n)} ask`, effects: [] },
+      ], { npcId: n.id });
+    } },
+  { id: 'rep_draft', weight: () => 0,
+    build: (w, _rng, ctx) => {
+      const n = w.npcs[ctx.npcId!]; if (!n?.alive) return undefined;
+      return card(w, 'The draft', `Somebody at the Courier sends you ${fullName(n)}'s draft. It has your name in the first line and your address in the third. It runs in a few days unless something changes.`, [
+        { id: 'rewrite', label: `Pay a sub-editor to lose it for a week: ${money(1500)}`, effects: [...pay(w, 1500), { k: 'arc', kind: 'reporter', n: -20 }], disabled: afford(w, 1500) },
+        { id: 'let', label: 'Let it run', effects: [] },
+      ], { npcId: n.id });
+    } },
+  { id: 'rep_runs', weight: () => 0,
+    build: (w, _rng, ctx) => {
+      const n = w.npcs[ctx.npcId!]; if (!n?.alive) return undefined;
+      return card(w, 'Front page', `${fullName(n)}'s piece runs, with your photograph and most of the facts. It is good work. You hate it.`, [
+        { id: 'read', label: 'Read it twice', effects: [{ k: 'arcDo', kind: 'reporter', what: 'runs' }] },
+      ], { npcId: n.id });
+    } },
+  // the avenger
+  { id: 'ven_note', weight: () => 0,
+    build: (w, _rng, ctx) => {
+      const n = w.npcs[ctx.npcId!]; if (!n?.alive) return undefined;
+      return card(w, 'A note under the door', `No stamp, no signature, one line: "You know what you did." Your people say ${fullName(n)} has been asking what time you leave in the morning. ${cap(they(n))} lost somebody because of you, and ${they(n)} ${vb(n, 'have', 'has')} not forgotten.`, [
+        { id: 'keep', label: 'Keep the note', effects: [] },
+        { id: 'send', label: `Send flowers to the grave: ${money(300)}`, effects: [...pay(w, 300), { k: 'arc', kind: 'avenger', n: -8 }], disabled: afford(w, 300) },
+      ], { npcId: n.id });
+    } },
+  { id: 'ven_hire', weight: () => 0,
+    build: (w, _rng, ctx) => {
+      const n = w.npcs[ctx.npcId!]; if (!n?.alive) return undefined;
+      return card(w, `${shortName(n)} has hired somebody`, `The word is that ${fullName(n)} emptied a savings account and met a man from out of town at the station. The man does not take photographs of people for a living.`, [
+        { id: 'guard', label: 'Put somebody on your door (a guard on your block)', effects: [] },
+        { id: 'find', label: `Find the man first: ${money(1500)}`, effects: [...pay(w, 1500), { k: 'arc', kind: 'avenger', n: -25 }], disabled: afford(w, 1500) },
+      ], { npcId: n.id });
+    } },
+  { id: 'ven_attempt', weight: () => 0,
+    build: (w, _rng, ctx) => {
+      const n = w.npcs[ctx.npcId!]; if (!n?.alive) return undefined;
+      return card(w, 'A doorway, after dark', `You are halfway home when you see him: a man in a doorway who has been waiting a long time. ${fullName(n)}'s money is about to be spent.`, [
+        { id: 'face', label: 'Keep walking', effects: [{ k: 'arcDo', kind: 'avenger', what: 'attempt' }] },
+      ], { npcId: n.id });
+    } },
+  // the turncoat
+  { id: 'tc_gone', weight: () => 0,
+    build: (w, _rng, ctx) => {
+      const n = w.npcs[ctx.npcId!]; if (!n?.alive) return undefined;
+      return card(w, `${shortName(n)} is talking`, `${fullName(n)} used to work for you. Now ${they(n)} ${vb(n, 'drink', 'drinks')} in the wrong bars and ${vb(n, 'tell', 'tells')} the wrong people how your outfit works — the routes, the rooms, the names.`, [
+        { id: 'note', label: 'Let them talk; they know less than they think', effects: [] },
+        { id: 'pay', label: `Send an envelope: ${money(1000)}`, effects: [...pay(w, 1000), { k: 'arc', kind: 'turncoat', n: -15 }], disabled: afford(w, 1000) },
+      ], { npcId: n.id });
+    } },
+  { id: 'tc_sell', weight: () => 0,
+    build: (w, _rng, ctx) => {
+      const n = w.npcs[ctx.npcId!]; if (!n?.alive) return undefined;
+      return card(w, 'Sold to a rival', `${fullName(n)} has sold what ${they(n)} ${vb(n, 'know', 'knows')} to the outfit that hates you most.`, [
+        { id: 'ok', label: 'Change the routes', effects: [{ k: 'arcDo', kind: 'turncoat', what: 'sell' }] },
+      ], { npcId: n.id });
+    } },
+  { id: 'tc_cops', weight: () => 0,
+    build: (w, _rng, ctx) => {
+      const n = w.npcs[ctx.npcId!]; if (!n?.alive) return undefined;
+      return card(w, `${shortName(n)} went to the police`, `${fullName(n)} walked into a precinct yesterday and did not come out for six hours. There is a file now, with ${their(n)} name on it as the witness.`, [
+        { id: 'ok', label: 'Find out what they said', effects: [{ k: 'arcDo', kind: 'turncoat', what: 'cops' }] },
+      ], { npcId: n.id });
+    } },
+  { id: 'tc_trial', weight: () => 0,
+    build: (w, _rng, ctx) => {
+      const n = w.npcs[ctx.npcId!]; if (!n?.alive) return undefined;
+      return card(w, 'A signed statement', `${fullName(n)} has signed a statement. Every page of it is about you.`, [
+        { id: 'ok', label: 'Call the lawyer', effects: [{ k: 'arcDo', kind: 'turncoat', what: 'trial' }] },
+      ], { npcId: n.id });
+    } },
+  // the old friend
+  { id: 'of_pitch', weight: () => 0,
+    build: (w, _rng, ctx) => {
+      const n = w.npcs[ctx.npcId!]; if (!n?.alive) return undefined;
+      return card(w, 'An old friend', `${fullName(n)} — from before, from when you were nobody — is in town, and buys you a drink, and draws a floor plan on a napkin. A payroll, a vault, a truck; ${they(n)} ${vb(n, 'need', 'needs')} a partner with money and time.`, [
+        { id: 'in', label: 'Tell them you are listening', effects: [{ k: 'trust', npcId: n.id, n: 10 }] },
+        { id: 'out', label: 'Tell them you are not that person any more', effects: [{ k: 'arc', kind: 'friend', status: 'walked' }] },
+      ], { npcId: n.id });
+    } },
+  { id: 'of_doubt', weight: () => 0,
+    build: (w, _rng, ctx) => {
+      const n = w.npcs[ctx.npcId!]; if (!n?.alive) return undefined;
+      return card(w, `${shortName(n)} needs more`, `The plan is half ready, and ${fullName(n)} needs ${money(FRIEND.doubtCost)} more for a truck and a guard who owes somebody. It is the kind of thing a real plan needs. It is also the kind of thing a con needs.`, [
+        { id: 'pay', label: `Pay it: ${money(FRIEND.doubtCost)}`, effects: [...pay(w, FRIEND.doubtCost), { k: 'arc', kind: 'friend', n: 15 }], disabled: afford(w, FRIEND.doubtCost) },
+        { id: 'walk', label: 'Walk away now', effects: [{ k: 'arc', kind: 'friend', status: 'walked' }] },
+      ], { npcId: n.id });
+    } },
+  { id: 'of_payoff', weight: () => 0,
+    build: (w, _rng, ctx) => {
+      const n = w.npcs[ctx.npcId!]; if (!n?.alive) return undefined;
+      return card(w, 'The night of it', `Everything is ready. ${fullName(n)} says tonight is the night, and to wait by the phone.`, [
+        { id: 'wait', label: 'Wait by the phone', effects: [{ k: 'arcDo', kind: 'friend', what: 'payoff' }] },
       ], { npcId: n.id });
     } },
   { id: 'heir_oath', weight: () => 0,
@@ -133,16 +243,16 @@ export const TEMPLATES: Template[] = [
       const n = w.npcs[ctx.npcId!]; const f = w.factions[ctx.factionId!]; if (!n?.alive || !f) return undefined;
       return card(w, `${shortName(n)} makes a promise`, `At a table in the back of ${theName(f)}'s club, ${fullName(n)} puts a hand on the boss's shoulder and says, loud enough to carry, that one day ${they(n)} will bury you. People who were there are still repeating it.`, [
         { id: 'note', label: 'Let them talk', effects: [] },
-        { id: 'gift', label: `Send your respects: ${money(HEIR.gift.cost)}`, effects: [...pay(w, HEIR.gift.cost), { k: 'heirGrudge', n: -HEIR.gift.cut }], disabled: afford(w, HEIR.gift.cost) },
+        { id: 'gift', label: `Send your respects: ${money(HEIR.gift.cost)}`, effects: [...pay(w, HEIR.gift.cost), { k: 'arc', kind: 'heir', n: -HEIR.gift.cut }], disabled: afford(w, HEIR.gift.cost) },
       ], { npcId: n.id, factionId: f.id });
     } },
   { id: 'heir_message', weight: () => 0,
     build: (w, _rng, ctx) => {
       const n = w.npcs[ctx.npcId!]; const f = w.factions[ctx.factionId!]; if (!n?.alive || !f) return undefined;
       return card(w, `A message from ${shortName(n)}`, `A box on your step, tied with ribbon. You do not need to open it to know what is inside; the flies have told you. The card says ${fullName(n)}.`, [
-        { id: 'answer', label: 'Send one back', effects: [{ k: 'fear', n: 2 }, { k: 'heirGrudge', n: 5 }] },
+        { id: 'answer', label: 'Send one back', effects: [{ k: 'fear', n: 2 }, { k: 'arc', kind: 'heir', n: 5 }] },
         { id: 'ignore', label: 'Throw it in the river', effects: [{ k: 'respect', n: -1 }] },
-        { id: 'tribute', label: `Pay for the peace: ${money(1500)}`, effects: [...pay(w, 1500), { k: 'heirGrudge', n: -10 }], disabled: afford(w, 1500) },
+        { id: 'tribute', label: `Pay for the peace: ${money(1500)}`, effects: [...pay(w, 1500), { k: 'arc', kind: 'heir', n: -10 }], disabled: afford(w, 1500) },
       ], { npcId: n.id, factionId: f.id });
     } },
   { id: 'heir_hit', weight: () => 0,
@@ -152,7 +262,7 @@ export const TEMPLATES: Template[] = [
       if (!r) return undefined;
       const b = w.businesses[r.businessId];
       return card(w, `${shortName(n)} hits ${b.name}`, `${fullName(n)}'s people put a brick through the window at ${b.name} and a man in hospital. The ${RACKETS[r.kind].label.toLowerCase()} there is shut for three days.`, [
-        { id: 'back', label: `Hit back, tonight (${ambushOdds(w, f.id)}%)`, effects: [{ k: 'racketDown', racketId: r.id, days: 3 }, { k: 'fight', factionId: f.id, odds: ambushOdds(w, f.id) }, { k: 'heirGrudge', n: 5 }] },
+        { id: 'back', label: `Hit back, tonight (${ambushOdds(w, f.id)}%)`, effects: [{ k: 'racketDown', racketId: r.id, days: 3 }, { k: 'fight', factionId: f.id, odds: ambushOdds(w, f.id) }, { k: 'arc', kind: 'heir', n: 5 }] },
         { id: 'absorb', label: 'Swallow it', effects: [{ k: 'racketDown', racketId: r.id, days: 3 }, { k: 'respect', n: -2 }] },
       ], { npcId: n.id, factionId: f.id, businessId: b.id });
     } },

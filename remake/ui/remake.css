@@ -216,6 +216,11 @@
 .r-ground { fill: #0c0d10; }
 .r-block { fill: #16181c; }
 .r-lots { fill: #1f2227; stroke: #2a2e34; stroke-width: 0.6; }
+/* homes sit back in the dark; shops a shade lighter, where the street's business is; a landmark
+   picks up the sodium light (the buildings are the real ones on the block: `mapgeo.blockLots`) */
+.r-lot-home { fill: #1b1e22; }
+.r-lot-shop { fill: #272a30; stroke: #353941; }
+.r-lot-mark { fill: #2c2a24; stroke: rgba(233, 162, 59, .35); stroke-width: 0.9; }
 .r-park { fill: #121a16; }
 .r-tree { fill: #1a2a21; stroke: #22382b; stroke-width: 1; }
 .r-sea { fill: #0a1320; stroke: #1b2c44; stroke-width: 3; }
@@ -232,7 +237,7 @@
 .r-biz { pointer-events: none; }
 /* by day the flat map lifts to an overcast grey: the same city, the lights off */
 .is-day .r-map { background: #1d1f23; }
-.is-day .r-ground { fill: #1f2125; } .is-day .r-block { fill: #2b2e34; } .is-day .r-lots { fill: #383c43; stroke: #454a52; }
+.is-day .r-ground { fill: #1f2125; } .is-day .r-block { fill: #2b2e34; } .is-day .r-lots { fill: #383c43; stroke: #454a52; } .is-day .r-lot-home { fill: #33373d; } .is-day .r-lot-shop { fill: #41454d; } .is-day .r-lot-mark { fill: #4a463c; }
 .is-day .r-park { fill: #22332a; } .is-day .r-tree { fill: #2e4a38; stroke: #3a5c46; }
 .is-day .r-sea, .is-day .r-river { fill: #1a2a3e; stroke: #1a2a3e; } .is-day .r-sea { stroke: #2c4260; } .is-day .r-river-glint { stroke: #253a55; }
 .is-day .r-bridge { stroke: #4a5059; } .is-day .r-street-label { fill: #7b766e; }
@@ -587,3 +592,6 @@ button.r-pcard:focus-visible { outline: 2px solid var(--amber); outline-offset: 
 @media (prefers-reduced-motion: reduce) { .r-pcard { transition: none; } }
 /* the season chip in the ledger bar: amber, like everything the whole city is talking about */
 .r-season { font-style: normal; color: var(--amber); font-weight: 600; margin-right: 4px; }
+/* a story on the Rivals tab (`Stories.tsx`): a hairline between them, nothing louder */
+.r-arc { padding: 6px 0 10px; border-bottom: .5px solid var(--sep); display: grid; gap: 6px; }
+.r-arc:last-of-type { border-bottom: 0; }

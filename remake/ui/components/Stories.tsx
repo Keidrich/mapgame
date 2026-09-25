@@ -1,56 +1,75 @@
 /**
- * The two people whose story is you: the detective (Empire → the law) and the heir (Rivals). Each
- * panel shows where the arc stands and what you can do about it; the turning points arrive as cards.
+ * The stories running in your city (`sim/stories.ts`): whoever has made you their business, how far
+ * along they are, and what you can do about each. None of them is written in: which ones a game
+ * gets depends on its seed and on what you did. The panel lists the live ones and a line for each
+ * that ended.
  */
 import { select } from '@r/sim/index';
+import type { Arc } from '@r/sim/stories';
 import { openSheet, useWorld } from '../store';
-import { NpcFace, Emblem } from './Faces';
-import { Chip, Do, Meter, Row, Section, fmt } from './kit';
+import { NpcFace } from './Faces';
+import { Chip, Do, Empty, Meter, Row, Section, fmt } from './kit';
 import { Icon } from '@ui/icons';
 
-const STATUS: Record<string, string> = { active: 'on you', bought: 'bought', gone: 'transferred', dead: 'dead', partner: 'partner', broken: 'finished' };
+const ENDED: Record<string, string> = {
+  gone: 'transferred', dead: 'dead', partner: 'a partner now', broken: 'finished', published: 'said what they had to say',
+  forgiven: 'forgave you', cowed: 'left town', told: 'told everything', paid: 'paid off', spent: 'gave up', conned: 'took your money',
+  walked: 'you walked away', bought: 'bought',
+};
+const WHEN: Record<Arc['kind'], string> = {
+  detective: 'At 30 the watching starts; at 60 a witness; at 90 a warrant.',
+  reporter: 'At 35 the questions start; at 65 there is a draft; at 100 it runs. Two pieces and they are done.',
+  heir: 'Every week they send something; at 90 they come for you in person.',
+  avenger: 'At 60 they hire somebody; at 100 the somebody comes.',
+  turncoat: 'At 35 a rival buys it; at 70 the police do; at 100 it is on the record.',
+  friend: 'It grows only with what you put in. At 100 the score comes off — if it was ever real.',
+};
 
-export function DetectivePanel() {
+function title(w: ReturnType<typeof useWorld>, a: Arc): string {
+  const n = w.npcs[a.npcId]; const f = a.factionId ? w.factions[a.factionId] : undefined;
+  if (!n) return 'Somebody';
+  switch (a.kind) {
+    case 'detective': return `Detective ${select.fullName(n)}`;
+    case 'reporter': return `${select.fullName(n)}, the Courier`;
+    case 'heir': return `${select.fullName(n)}${f ? `, heir to ${f.name}` : ''}`;
+    case 'avenger': return `${select.fullName(n)}, who lost somebody`;
+    case 'turncoat': return `${select.fullName(n)}, who used to work for you`;
+    case 'friend': return `${select.fullName(n)}, an old friend`;
+  }
+}
+
+function ArcCard({ a }: { a: Arc }) {
   const w = useWorld();
-  const d = select.detective(w); if (!d) return null;
-  const n = w.npcs[d.npcId];
-  const live = d.status === 'active';
+  const n = w.npcs[a.npcId];
+  const moves = select.movesFor(w, a);
+  const hostile = a.kind !== 'friend';
   return (
-    <Section title="The detective" right={<Chip tone={live ? 'red' : d.status === 'bought' ? 'gold' : 'muted'}>{STATUS[d.status]}</Chip>}>
-      <Row onClick={() => openSheet({ kind: 'person', id: n.id })} left={<NpcFace n={n} size={40} />} title={`Detective ${select.fullName(n)}`} sub={`Organised Crime, ${select.cityName(w, d.cityId)} · on you since day ${d.since}${d.dirt ? ' · you have something on him' : ''}`} right={<Icon name="caret" size={16} />} />
-      {live && <>
-        <Meter value={d.file} tone="red" label="His file on you" right={`${Math.round(d.file)}/100`} />
-        <p className="r-note">It grows every day, faster when you are hot and for every open case. At {select.DETECTIVE.watch} he watches you; at {select.DETECTIVE.witness} he finds a witness; at {select.DETECTIVE.raid} he comes with a warrant.</p>
-        <div className="r-inline-actions">
-          {!d.dirt && <Do action={{ type: 'detective', move: 'dig' }} label={`Dig into him · ${select.digOdds(w)}%`} small />}
-          {d.dirt && <Do action={{ type: 'detective', move: 'blackmail' }} label="Show him the photographs" small kind="primary" />}
-          <Do action={{ type: 'detective', move: 'bribe' }} label={`Bribe · ${fmt(select.bribePrice(d))} clean`} small />
-          <Do action={{ type: 'detective', move: 'lean' }} label={`Lean on him · ${select.leanOdds(w, d)}%`} small kind="ghost" />
-          <Do action={{ type: 'detective', move: 'transfer' }} label={`Have him moved · ${fmt(select.DETECTIVE.transfer.cost)}`} small kind="ghost" />
-          <Do action={{ type: 'detective', move: 'disappear' }} label="Make him disappear" small kind="danger" confirm="Tap again: a dead detective brings every cop in the city" />
-        </div>
+    <div className="r-arc">
+      <Row onClick={() => n && openSheet({ kind: 'person', id: n.id })} left={n ? <NpcFace n={n} size={40} /> : undefined} title={title(w, a)} sub={`${select.ARCS[a.kind].blurb} Since day ${a.since}.${a.dirt ? ' You have something on them.' : ''}`} right={<Icon name="caret" size={16} />} />
+      {a.status === 'active' && <>
+        <Meter value={a.meter} tone={hostile ? 'red' : 'gold'} label={select.ARCS[a.kind].meter} right={`${Math.round(a.meter)}/100`} />
+        <p className="r-note">{WHEN[a.kind]}</p>
       </>}
-      {d.status === 'bought' && <p className="r-note">{d.boughtUntil ? `Bought until day ${d.boughtUntil}; then he will want paying again.` : 'He will not trouble you while you have the photographs.'}</p>}
-    </Section>
+      {a.status === 'bought' && <p className="r-note">{a.boughtUntil ? `Bought until day ${a.boughtUntil}; then they will want paying again.` : 'Bought, for as long as you have the photographs.'}</p>}
+      {moves.length > 0 && <div className="r-inline-actions">
+        {moves.map(m => <Do key={m.move} action={{ type: 'story', arcId: a.id, move: m.move }} small kind={m.grave ? 'danger' : 'plain'}
+          label={`${m.label}${m.odds !== undefined ? ` · ${m.odds}%` : ''}${m.cost ? ` · ${fmt(m.cost)}` : ''}`}
+          confirm={m.grave ? 'Tap again: a killing like this brings the whole city down on you' : undefined} />)}
+      </div>}
+    </div>
   );
 }
 
-export function HeirPanel() {
+export function StoriesPanel() {
   const w = useWorld();
-  const h = select.heir(w); if (!h) return null;
-  const n = w.npcs[h.npcId]; const f = w.factions[h.factionId];
-  const live = h.status === 'active';
+  const live = select.activeArcs(w);
+  const done = select.allArcs(w).filter(a => a.status !== 'active' && a.status !== 'bought' || (a.status === 'bought' && a.kind !== 'detective')).slice(-4).reverse();
   return (
-    <Section title="The heir" right={<Chip tone={live ? 'red' : h.status === 'partner' ? 'gold' : 'muted'}>{STATUS[h.status]}</Chip>}>
-      <Row onClick={() => openSheet({ kind: 'person', id: n.id })} left={<NpcFace n={n} size={40} />} title={select.fullName(n)} sub={<>{f && <Emblem e={f.emblem} size={12} />} {f ? `${f.name}` : 'Nobody’s now'} · swore against you on day {h.since}</>} right={<Icon name="caret" size={16} />} />
-      {live && <>
-        <Meter value={h.grudge} tone="red" label="The grudge" right={`${Math.round(h.grudge)}/100`} />
-        <p className="r-note">It grows every day, faster while their outfit hates you. Every week they send something; at {select.HEIR.boil} they come for you in person.</p>
-        <div className="r-inline-actions">
-          <Do action={{ type: 'heir', move: 'gift' }} label={`Send a gift · ${fmt(select.HEIR.gift.cost)}`} small />
-          <Do action={{ type: 'heir', move: 'meet' }} label={`Sit down with them · ${select.meetOdds(w)}%`} small kind="ghost" />
-        </div>
-      </>}
+    <Section title="People with your name in their mouth" right={live.length ? <Chip tone="red">{live.length} live</Chip> : undefined}>
+      {!live.length && <Empty>Nobody has made you their business yet. What you do decides who does: heat brings a detective, fame a reporter, a hated outfit an heir, a killing somebody's family.</Empty>}
+      {live.map(a => <ArcCard key={a.id} a={a} />)}
+      {done.length > 0 && <p className="r-over">Over</p>}
+      {done.map(a => <p key={a.id} className="r-note">{title(w, a)}: {ENDED[a.status] ?? a.status}{a.ended ? `, day ${a.ended}` : ''}.</p>)}
     </Section>
   );
 }

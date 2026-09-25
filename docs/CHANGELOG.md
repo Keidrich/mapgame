@@ -14,6 +14,63 @@ House rules for an entry (see `CLAUDE.md` → *Leave a trail*):
 
 ---
 
+## 2026-09-25 — Remake: procedural stories, and a map that draws what is actually there
+
+**What.**
+- **Stories are procedural.** Six kinds now: detective, reporter, rival heir, avenger, turncoat
+  and old friend. Each game's seed decides which of them it can have at all and what sets each off,
+  and what the player does decides whether they start. No two seeds in a survey of ten had the same
+  set, and two had none.
+- **The map draws the real buildings.** Every block shows one building per business, one for its
+  landmark, and homes sized to the people who live there; the rest is yard. The flat map and the 3D
+  map share the layout, and each business's marker sits on its own roof.
+
+**Why.** The user: "I still want the game to be sandbox. There can be stories that happen but it
+should be procedural, not every playthrough will have the same things", and "The blocks should show
+buildings in the amount of what's actually there." The first story pass gave every game the same
+detective and heir; the first map filled every block with four to nine decorative lots whatever it
+held.
+
+**How.**
+- **Stories.** `sim/stories.ts` is rewritten around `Arc` records (`World.stories.arcs`): `begin`
+  (the seed's appetite, then the world's cause), a nightly step per kind, `arcDo` for the cards'
+  turning points, and `movesFor` / `storyBlock` / `storyMove` for the panel.
+  - The actions `detective` and `heir` are replaced by one action, `story {arcId, move}`.
+  - The effects `detFile`, `detRaid` and `heirGrudge` are replaced by `arc` and `arcDo`.
+  - 14 new cards: `rep_*`, `ven_*`, `tc_*`, `of_*`. The detective and heir cards now use the new
+    effects, with the person's own pronouns (a detective can be anybody now).
+  - `Npc.exCrew` marks people who leave your crew (fired, walked, defected), so a turncoat can
+    come from them.
+  - `migrateStories` turns an old save's detective and heir into arcs.
+  - One story panel on Rivals replaces the separate detective and heir panels.
+- **Map.** `mapgeo.blockLots` / `residents` / `homesOn` / `shopSpots` replace `lotQuads`. The flat
+  map draws homes, shops and landmarks in three shades; the 3D map sets heights by lot kind and puts
+  ownership posts on the shop's roof.
+- **Bots.** One `stories()` routine for every kind, and the old friend's plan scored so the bots
+  pay at the "needs more" card; they used to always walk away. Coverage row "stories".
+- **Fixes found on the way.** "Have them moved" charged clean money it had only checked against
+  clean plus dirty (the soak's invariant caught a negative purse).
+- **Tests.** `stories.test.ts` is rewritten (10 tests: the variety, no story without a cause, the
+  cap, each kind). The UI test checks every block's buildings against what is on it.
+
+**Numbers** (five seeds, 60 days): steady 20.2%, ruthless 28.4% (never convicted), maniac 13.4%. That
+is within the noise measured last pass. The honest baseline in the original game is unchanged.
+
+**Watch out.**
+- The turncoat needs somebody to leave your crew, and the bots rarely fire anybody. It is covered by
+  its test more than by the soak.
+- A home is `ceil(residents / per-home)` by district. A crowded one-cell block with more than 9
+  things on it would lose homes to the slot cap; none does on the seeds tried.
+- No save bump. Old saves' stories migrate, and old maps simply draw the new buildings.
+
+**Files.**
+- Rewritten: `remake/content/stories.ts`, `remake/sim/stories.ts`, `remake/ui/components/Stories.tsx`,
+  `remake/tests/stories.test.ts`.
+- Changed: `remake/sim/{types,actions,reducer,effects,events,tick,generate,select}.ts`,
+  `remake/ui/components/{mapgeo.ts,CityMap.tsx,CityMap3D.tsx,Tabs.tsx}`,
+  `remake/ui/{App.tsx,remake.css}`, `remake/scripts/bot.ts`, `remake/tests/ui.test.tsx`, and
+  `docs/REMAKE.md` §6 and §22.
+
 ## 2026-09-24 — Remake: seasons — elections, crackdowns, festivals, dock strikes (roadmap 8 of 8)
 
 **What.** About every two weeks the whole city changes for a week. Each season is announced in the
