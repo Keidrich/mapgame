@@ -91,8 +91,11 @@ describe('the card table', () => {
 
   it('dealing from the bottom improves the hand or gets you thrown out', () => {
     let improved = 0, caught = 0;
+    // Only the card RNG varies in this sweep. Rebuilding the same seed-7 city 39 times
+    // spent the whole timeout on setup; a fresh clone preserves every starting field.
+    const start = atTable();
     for (let seed = 1; seed < 40; seed++) {
-      let w = atTable(); w.rng = seed * 104729;
+      let w = structuredClone(start); w.rng = seed * 104729;
       w = dispatch(w, { type: 'table_sit', businessId: barOf(w).id, stake: 100 });
       w = dispatch(w, { type: 'poker_draw', hold: [], cheat: true });
       if (w.table!.caught) { caught++; expect(can(w, { type: 'table_next' }).why).toMatch(/not welcome/); }

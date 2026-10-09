@@ -46,6 +46,7 @@ export function Start() {
         <p className="r-masthead-sub">Build a crime empire in a city nobody has seen before.</p>
       </header>
       <InstallHint />
+      <a className="r-btn" href="/?preview=real-city" style={{ margin: '0 auto 18px', display: 'flex', width: 'fit-content' }}><Icon name="map" size={18} /> Explore the New York map preview</a>
 
       {saved.length > 0 && (
         <section className="r-saved" aria-label="Your cities">

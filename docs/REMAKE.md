@@ -51,6 +51,12 @@ read as fantasy), the icon set (`ui/icons`) and the IndexedDB helper.
 
 ## 3. Generating a city (`remake/sim/city.ts`)
 
+**Real-city direction (2026-10-09).** The next map direction combines real geographic layouts
+with our 3D art and fictional simulation, keeping the scale of a major city. An isolated Lower
+East Side map/UI preview is available at `/?preview=real-city`; see [REAL_CITY.md](REAL_CITY.md)
+for its data contract, limits and next milestones. The generated campaign described below is still
+the playable game. The preview neither migrates nor replaces existing saves.
+
 1. **A warped lattice.** Column and row spacings are drawn per line (120–190 units), then every
    lattice vertex is displaced by two scales of fractal noise — a broad bend so avenues curve across
    town, a local wobble so no two blocks match.

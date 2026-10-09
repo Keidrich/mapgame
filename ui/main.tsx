@@ -5,7 +5,8 @@ import { createRoot } from 'react-dom/client';
 import { registerSW } from 'virtual:pwa-register';
 import { App } from './App';
 import { boot, flushSave } from './store';
-void boot();
+import { isRealCityPreview } from './preview';
+if (!isRealCityPreview()) void boot();
 
 /**
  * Ship a change and players get it on their next load — not two loads later.

@@ -25,6 +25,7 @@ import type { Block, City, Id, Vec } from '@r/sim/types';
 import type { Layer } from '../store';
 import { blockLots, mulberry, blockNo, residents, treesFor } from './mapgeo';
 import { mute } from './tone';
+import { windowTexture } from './cityMaterials';
 
 const AMBER = new THREE.Color('#e9a23b');
 const HEIGHT: Record<string, number> = { downtown: 2.4, strip: 1.2, market: 1, heights: 0.75, projects: 1.5, docks: 0.55, industrial: 0.7, oldtown: 0.6, suburb: 0.35 };
@@ -34,23 +35,6 @@ export interface Map3DProps { w: World; layer?: Layer; night?: boolean; onBlock?
 /** True when this device can draw WebGL at all; the caller falls back to the flat map when not. */
 export function canWebGL(): boolean {
   try { const c = document.createElement('canvas'); return !!(c.getContext('webgl2') || c.getContext('webgl')); } catch { return false; }
-}
-
-/** A night facade: a grid of windows, a few lit warm, fewer cool, most dark. Tiled up every wall. */
-function windowTexture(): THREE.Texture {
-  const n = 16, px = 16, c = document.createElement('canvas'); c.width = c.height = n * px;
-  const g = c.getContext('2d')!;
-  g.fillStyle = '#000'; g.fillRect(0, 0, c.width, c.height);
-  const r = mulberry(7);
-  for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
-    const roll = r();
-    g.fillStyle = roll < 0.2 ? '#ffc877' : roll < 0.27 ? '#ffe4b8' : roll < 0.3 ? '#a9c4ff' : '#0b0c0e';
-    g.fillRect(i * px + 4, j * px + 3, px - 8, px - 6);
-  }
-  const t = new THREE.CanvasTexture(c);
-  t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace;
-  t.magFilter = THREE.NearestFilter; t.anisotropy = 4;
-  return t;
 }
 
 /** One flat polygon, fanned into triangles (block rings are convex enough for a fan). */

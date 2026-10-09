@@ -14,6 +14,37 @@ House rules for an entry (see `CLAUDE.md` → *Leave a trail*):
 
 ---
 
+## 2026-10-09 — Remake: real Manhattan geometry and dark map preview
+
+**What.** Added an isolated real-city preview at `/?preview=real-city`, linked from the Remake
+start screen: 2,371 OSM buildings, real street paths, park shapes, 2D/3D exploration, address search,
+building details, night/day lighting and a compact iOS-inspired dark interface.
+
+**Why.** The revamp needs to feel like a large, believable city. The current Remake's building lots
+depend on generated lattice cells, while the original real-map loader lacks building footprints.
+This proves the missing geography layer and map UI without changing the playable simulation.
+
+**How.** A provider-independent metre-space geometry contract handles closed footprints,
+multipolygon rings, courtyard holes and tagged/inferred/estimated heights. The fixture is a saved
+OSM extract, so startup does not depend on a public Overpass request. Three.js merges walls and
+roofs, triangulates concave shapes, picks buildings by triangle lookup and renders only on change.
+The existing 3D facade texture is shared, with no appearance change to the current campaign.
+SVG supplies the same map when WebGL is unavailable. Attribution and the derived dataset are linked.
+
+**Files.** `geo/realCity*`, `remake/ui/real-city/`, `remake/ui/components/cityMaterials.ts`,
+`remake/ui/components/{CityMap3D,Start}.tsx`, `ui/{App,main}.tsx`, `ui/preview.ts`, `ui/icons/paths.ts`,
+`scripts/{fetch-real-city.py,import-real-city.ts}`, `public/data/lower-east-side.json`,
+`docs/{REMAKE,REAL_CITY}.md`.
+
+**Watch out.** Geography preview only: no real-block gameplay, GPS, city search or neighboring-chunk
+streaming yet. Street widths and missing heights are estimates; procedural facades are illustrative.
+Physical iPhone 3D performance is not yet measured. Geometry tests cover scale, height parsing,
+relations and courtyard triangulation; simulation soaks cannot validate GPU/touch behavior.
+No save-version bump, balance change or generation-order change.
+Validation also exposed redundant setup in `remake/tests/backroom.test.ts`: its card-RNG sweep
+now clones the identical seeded city instead of regenerating it 39 times. All 39 seeds, actions,
+assertions and timeouts are retained.
+
 ## 2026-09-25 — Remake: the QA pass (three phone playtests, and what they broke)
 
 **What.** Three agents played the Remake like people on a 390×844 phone (a new player's first

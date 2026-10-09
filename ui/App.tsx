@@ -26,15 +26,19 @@ import { fmtMoney } from './derive';
 import { closeSheets, markVictorySeen, rebuildOnRealStreets, resetGame, setTab, useStore, useWorld } from './store';
 import { Icon } from '@ui/icons';
 import { useMode } from './mode';
+import { isRealCityPreview } from './preview';
 
 /**
  * The Remake is its own game — its own sim under `remake/`, its own save — and it is loaded only
  * when somebody picks it, so the original's bundle carries none of it.
  */
 const RemakeApp = lazy(() => import('@r/ui/App').then(m => ({ default: m.RemakeApp })));
+const RealCityPreview = lazy(() => import('@r/ui/real-city/RealCityPreview').then(m => ({ default: m.RealCityPreview })));
 
 export function App() {
   const mode = useMode();
+  // An explicit preview URL keeps real-geography work independent of both saved simulations.
+  if (isRealCityPreview()) return <ErrorBoundary what="the real-city preview"><Suspense fallback={<div className="splash">Opening New York…</div>}><RealCityPreview /></Suspense></ErrorBoundary>;
   if (mode === 'remake') return <ErrorBoundary what="the Remake"><Suspense fallback={<div className="splash"><div className="spinner" /><b>RACKETS: Remake</b></div>}><RemakeApp /></Suspense></ErrorBoundary>;
   return <OriginalApp />;
 }
