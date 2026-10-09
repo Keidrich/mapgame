@@ -44,7 +44,10 @@ export function RealCity3D(props: Props) {
       controls.target.set(x, 0, z); camera.lookAt(controls.target);
       renderer.render(scene, camera);
       const width = el.clientWidth, height = el.clientHeight, placed: { x: number; y: number }[] = [];
-      for (const l of labels) {
+      const nearby = streetLabels(props.city, { x: controls.target.x, y: controls.target.z });
+      for (let i = 0; i < labels.length; i++) {
+        const l = { ...nearby[i], node: labels[i].node };
+        l.node.textContent = l.name;
         const p = new THREE.Vector3(l.x, 1, l.y).project(camera), x = (p.x + 1) * width / 2, y = (1 - p.y) * height / 2;
         const show = latest.current.labels && p.z > -1 && p.z < 1 && x > 75 && x < width - 95 && y > 130 && y < height - 240 && !placed.some(q => Math.abs(q.x - x) < 115 && Math.abs(q.y - y) < 35);
         l.node.hidden = !show;

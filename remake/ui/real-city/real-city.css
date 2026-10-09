@@ -6,6 +6,7 @@
 .rc-app button:active:not(:disabled) { background: rgba(255,255,255,.1); }
 .rc-app :focus-visible { outline: 2px solid #ffd18a; outline-offset: 3px; }
 .rc-app a { color: inherit; }
+.rc-app h1, .rc-app h2 { font-family: inherit; text-transform: none; }
 .rc-map { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; user-select: none; }
 .rc-three { overflow: hidden; }
 .rc-three canvas { display: block; touch-action: none; }

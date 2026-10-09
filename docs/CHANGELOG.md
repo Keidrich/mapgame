@@ -44,6 +44,8 @@ No save-version bump, balance change or generation-order change.
 Validation also exposed redundant setup in `remake/tests/backroom.test.ts`: its card-RNG sweep
 now clones the identical seeded city instead of regenerating it 39 times. All 39 seeds, actions,
 assertions and timeouts are retained.
+Live-browser review also caught inherited display typography and off-screen street labels: the
+preview explicitly uses system heading fonts, and labels choose a nearby segment as the camera moves.
 
 ## 2026-09-25 — Remake: the QA pass (three phone playtests, and what they broke)
 

@@ -9,7 +9,13 @@ export function RealCity2D({ city, selected, labels, command, onSelect }: Props)
   const [view, setView] = useState({ x: 0, y: 0, width: 700 });
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   const gesture = useRef({ x: 0, y: 0, moved: false, building: '', pinch: 0 });
-  const names = useMemo(() => streetLabels(city), [city]);
+  const names = useMemo(() => {
+    const placed: { x: number; y: number }[] = [], scale = view.width / size.w;
+    return streetLabels(city, view).filter(s => {
+      if (placed.some(p => Math.abs(p.x - s.x) < 115 * scale && Math.abs(p.y - s.y) < 25 * scale)) return false;
+      placed.push(s); return true;
+    });
+  }, [city, view, size.w]);
   const clamp = (v: typeof view) => ({ x: Math.max(city.bounds.minX, Math.min(city.bounds.maxX, v.x)), y: Math.max(city.bounds.minY, Math.min(city.bounds.maxY, v.y)), width: Math.max(140, Math.min(2400, v.width)) });
   useEffect(() => { const el = svg.current!; const r = new ResizeObserver(() => setSize({ w: el.clientWidth || 390, h: el.clientHeight || 844 })); r.observe(el); return () => r.disconnect(); }, []);
   useEffect(() => {
