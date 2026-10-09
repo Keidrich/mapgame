@@ -37,7 +37,7 @@ export interface Bridge { id: Id; streetId: Id; from: Vec; to: Vec }
 
 export interface City {
   /** Present only for a separately saved real-geography campaign. */
-  geography?: { kind: 'real'; id: string };
+  geography?: { kind: 'real'; id: string; placementVersion?: number };
   name: string;
   motto: string;
   width: number;

@@ -28,11 +28,11 @@ export function metres(value?: string): number | undefined {
   return Number.isFinite(n) && n > 0 && n < 1500 ? n : undefined;
 }
 
-export function buildingHeight(tags: Record<string, string>): Pick<RealBuilding, 'height' | 'minHeight' | 'heightSource'> {
+export function buildingHeight(tags: Record<string, string>, area?: number): Pick<RealBuilding, 'height' | 'minHeight' | 'heightSource'> {
   const measured = metres(tags.height);
   const levels = /^\d+(\.\d+)?$/.test(tags['building:levels'] ?? '') ? Number(tags['building:levels']) : 0;
   // Missing data stays explicitly estimated; it must never masquerade as surveyed height.
-  const height = measured ?? (levels > 0 && levels < 200 ? levels * 3.2 : 15);
+  const height = measured ?? (levels > 0 && levels < 200 ? levels * 3.2 : estimatedBuildingHeight(tags.building ?? 'yes', area));
   const minHeight = Math.min(metres(tags.min_height) ?? 0, Math.max(0, height - 1));
   return { height, minHeight, heightSource: measured ? 'measured' : levels > 0 && levels < 200 ? 'levels' : 'estimated' };
 }
@@ -77,7 +77,7 @@ export function parseRealCity(elements: OsmGeometryElement[], origin: LatLng, bb
     const t = el.tags ?? {};
     const address = [t['addr:housenumber'], t['addr:street']].filter(Boolean).join(' ');
     city.buildings.push({ id: `osm:${el.type}:${el.id}${suffix}`, rings, center: labelPoint(rings[0]),
-      address: address || 'Unnumbered building', kind: t.building ?? 'yes', ...buildingHeight(t) });
+      address: address || 'Unnumbered building', kind: t.building ?? 'yes', ...buildingHeight(t, footprintArea({ rings })) });
   };
   // Relations first; only suppress a member way when its parent was successfully assembled.
   for (const el of elements.filter(e => e.type === 'relation' && e.tags?.building && e.tags.building !== 'no')) {
@@ -101,4 +101,27 @@ export function parseRealCity(elements: OsmGeometryElement[], origin: LatLng, bb
   city.streets.sort((a, b) => a.id.localeCompare(b.id));
   city.parks.sort((a, b) => a.id.localeCompare(b.id));
   return city;
+}
+
+/** Net usable footprint excludes courtyards. Estimates never overwrite tagged heights. */
+export function footprintArea(b: Pick<RealBuilding, 'rings'>): number {
+  return Math.max(0, Math.abs(signedArea(b.rings[0])) - b.rings.slice(1).reduce((n, r) => n + Math.abs(signedArea(r)), 0));
+}
+export function estimatedBuildingHeight(kind: string, area = 200): number {
+  if (['shed', 'hut', 'garage', 'garages', 'roof', 'kiosk'].includes(kind) || area < 35) return 3.2;
+  if (area < 80) return 6.4;
+  if (area < 180) return 9.6;
+  return 15;
+}
+export function prepareRealCity(city: RealCity): RealCity {
+  return { ...city, buildings: city.buildings.map(b => b.heightSource !== 'estimated' ? b :
+    { ...b, height: Math.max(b.minHeight + 1, estimatedBuildingHeight(b.kind, footprintArea(b))) }) };
+}
+/** A small amenity, narrow sliver or elevated structure is scenery, never a storefront. */
+export function isStorefrontFootprint(b: RealBuilding, minimumArea = 45): boolean {
+  if (b.minHeight > .5 || ['shed', 'hut', 'roof', 'garages', 'kiosk', 'church', 'chapel', 'cathedral', 'mosque', 'temple', 'school', 'hospital', 'service', 'toilets', 'greenhouse', 'tank', 'tower'].includes(b.kind)) return false;
+  const area = footprintArea(b), ring = b.rings[0];
+  const span = Math.max(...ring.map(p => p.x)) - Math.min(...ring.map(p => p.x));
+  const depth = Math.max(...ring.map(p => p.y)) - Math.min(...ring.map(p => p.y));
+  return area >= minimumArea && area / Math.max(span, depth, 1) >= 4;
 }

@@ -46,3 +46,21 @@ export function saveWorld(world: World): Promise<void> {
   });
   return writes;
 }
+
+/** Backup and repair commit together. A failed transaction leaves the original current save intact. */
+export function savePlacementRepair(before: World, after: World): Promise<void> {
+  writes = writes.catch(() => {}).then(async () => {
+    const d = await db();
+    await new Promise<void>((resolve, reject) => {
+      const tx = d.transaction('campaign', 'readwrite'), store = tx.objectStore('campaign');
+      const backup = store.get('placement-backup-v1');
+      backup.onsuccess = () => {
+        if (backup.result === undefined) store.put({ format: 1, geographyId: before.city.geography!.id, world: before } satisfies RealSave, 'placement-backup-v1');
+        store.put({ format: 1, geographyId: after.city.geography!.id, world: after } satisfies RealSave, 'current');
+      };
+      tx.oncomplete = () => resolve();
+      tx.onerror = tx.onabort = () => reject(tx.error ?? new Error('Could not repair place locations. Your original save is preserved.'));
+    });
+  });
+  return writes;
+}

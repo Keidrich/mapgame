@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { XY } from '@geo/project';
-import type { RealCity, RealBuilding } from '@geo/realCity';
+import { footprintArea, type RealCity, type RealBuilding } from '@geo/realCity';
 import { hashString } from '@r/sim/rng';
 import { windowTexture } from '../components/cityMaterials';
 
@@ -49,7 +49,8 @@ export function buildRealCity(city: RealCity) {
       const a = ring[i], c = ring[(i + 1) % ring.length], len = Math.hypot(c.x - a.x, c.y - a.y);
       walls.push(a.x, b.minHeight, a.y, c.x, b.minHeight, c.y, c.x, b.height, c.y, a.x, b.minHeight, a.y, c.x, b.height, c.y, a.x, b.height, a.y);
       const u = len / 48, v = b.height / 51.2, v0 = b.minHeight / 51.2;
-      uv.push(0, v0, u, v0, u, v, 0, v0, u, v, 0, v);
+      if (footprintArea(b) < 35 || ['roof','shed','hut','tank','tower'].includes(b.kind)) uv.push(...Array(12).fill(0));
+      else uv.push(0, v0, u, v0, u, v, 0, v0, u, v, 0, v);
       for (let j = 0; j < 6; j++) colors.push(color.r, color.g, color.b);
       wallIds.push(b.id, b.id);
     }
@@ -80,5 +81,19 @@ export function selectionGeometry(building: RealBuilding) {
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
   geometry.computeVertexNormals();
+  return geometry;
+}
+
+/** Perimeter and corner edges only; no triangulation diagonals or hidden back-face scaffolding. */
+export function selectionOutline(building: RealBuilding) {
+  const positions: number[] = [], top = building.height + .4;
+  for (const ring of building.rings) for (let i = 0; i < ring.length; i++) {
+    const a = ring[i], b = ring[(i + 1) % ring.length], prev = ring[(i + ring.length - 1) % ring.length];
+    positions.push(a.x, top, a.y, b.x, top, b.y);
+    const cross = (a.x - prev.x) * (b.y - a.y) - (a.y - prev.y) * (b.x - a.x);
+    if (Math.abs(cross) > .05) positions.push(a.x, building.minHeight, a.y, a.x, top, a.y);
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
   return geometry;
 }

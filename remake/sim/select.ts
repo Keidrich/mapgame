@@ -5,6 +5,7 @@
 import { BUSINESSES, LABS, OFFICIALS, RACKETS, SAFEHOUSE_TIERS } from '@r/content/world';
 import { bribeMult } from './seasons';
 import { can } from './reducer';
+import { travelCost } from './select-core';
 import type { RacketKind } from './types';
 import { protectionTake, racketIncome, washCap, washRate } from './economy';
 import { PLAYER } from './types';
@@ -268,3 +269,12 @@ export function nextLead(w: World): Lead | undefined {
 
 /** Storefronts at a geographic footprint; decorative buildings intentionally have none. */
 export const businessesAtBuilding = (w: World, buildingId: string) => Object.values(w.businesses).filter(b => b.buildingId === buildingId);
+
+/** Map discovery uses the same travel cost and ownership rules as the action card. */
+export function realCityPlaces(w: World) {
+  return Object.values(w.businesses).filter(b => !!b.buildingId).map(b => ({
+    id: b.id, buildingId: b.buildingId!, name: b.name, type: b.type, pos: b.pos,
+    here: b.blockId === w.player.blockId, yours: b.ownedBy === 'player' || b.protection?.by === 'player',
+    travel: travelCost(w, b.blockId),
+  })).sort((a, b) => a.travel - b.travel || a.name.localeCompare(b.name));
+}

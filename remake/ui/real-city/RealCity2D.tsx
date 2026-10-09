@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { RealCity } from '@geo/realCity';
-import { pathFor, streetLabels, type MapCommand } from './view';
+import { pathFor, streetLabels, mapAim, type MapCommand, type MapInsets } from './view';
 
-interface Props { city: RealCity; selected?: string; labels: boolean; command: MapCommand; onSelect(id: string): void }
-export function RealCity2D({ city, selected, labels, command, onSelect }: Props) {
+import { MapPlaces, visiblePlaces, type MapPlayState } from './MapPlaces';
+
+interface Props { city: RealCity; selected?: string; labels: boolean; command: MapCommand; insets: MapInsets; play?: MapPlayState; onSelect(id: string): void }
+export function RealCity2D({ city, selected, labels, command, insets, play, onSelect }: Props) {
+  const appliedCommand = useRef(-1);
   const svg = useRef<SVGSVGElement>(null);
   const [size, setSize] = useState({ w: 390, h: 844 });
   const [view, setView] = useState({ x: 0, y: 0, width: 700 });
@@ -26,12 +29,17 @@ export function RealCity2D({ city, selected, labels, command, onSelect }: Props)
   useEffect(() => { const el = svg.current!; const r = new ResizeObserver(() => setSize({ w: el.clientWidth || 390, h: el.clientHeight || 844 })); r.observe(el); return () => r.disconnect(); }, []);
   useEffect(() => {
     if (!command.n) return;
+    if (appliedCommand.current === command.n && command.kind !== 'focus' && command.kind !== 'player') return;
+    appliedCommand.current = command.n;
     if (command.kind === 'home') setView({ x: 0, y: 0, width: 700 });
-    else if (command.kind === 'focus') { const b = city.buildings.find(b => b.id === selected); if (b) setView(v => ({ ...v, x: b.center.x, y: b.center.y + (size.w < 700 ? Math.min(v.width, 320) * size.h / size.w * .16 : 0), width: Math.min(v.width, size.w < 700 ? 320 : 500) })); }
+    else if (command.kind === 'focus' || command.kind === 'player') {
+      const point = command.kind === 'player' ? play?.player : city.buildings.find(b => b.id === selected)?.center;
+      if (point) setView(v => { const width = Math.min(v.width, size.w < 700 ? 260 : 500), aim = mapAim(size.w, size.h, insets); return { x: point.x + (size.w / 2 - aim.x) * width / size.w, y: point.y + (size.h / 2 - aim.y) * width / size.w, width }; });
+    }
     else setView(v => clamp({ ...v, width: v.width * (command.kind === 'in' ? 0.75 : 1.33) }));
     // Selection alone should highlight, not move the camera out from under the player's finger.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [command]);
+  }, [command, insets, size]);
   useEffect(() => {
     const el = svg.current!;
     const wheel = (e: WheelEvent) => { e.preventDefault(); setView(v => clamp({ ...v, width: v.width * Math.exp(Math.max(-100, Math.min(100, e.deltaY)) * 0.003) })); };
@@ -50,6 +58,8 @@ export function RealCity2D({ city, selected, labels, command, onSelect }: Props)
     <g className="rc-roads" fill="none" strokeLinecap="round" strokeLinejoin="round">{city.streets.map(s => <polyline key={s.id} points={s.points.map(p => `${p.x},${p.y}`).join(' ')} className={s.major ? 'major' : s.width < 5 ? 'path' : 'local'} strokeWidth={s.width} />)}</g>
     <g className="rc-buildings">{city.buildings.map(b => <path key={b.id} data-building={b.id} d={pathFor(b.rings)} fillRule="evenodd" className={selected === b.id ? 'selected' : ''} vectorEffect="non-scaling-stroke" strokeWidth={selected === b.id ? 2.5 : 0.6} role="button" tabIndex={0} aria-label={b.address === 'Unnumbered building' ? `Building ${b.id.split(':').pop()}` : b.address} aria-pressed={selected === b.id} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(b.id); } }} />)}</g>
   </>, [city, selected, onSelect]);
+  const project = (p: { x: number; y: number }) => ({ x: (p.x - view.x) / scale + size.w / 2, y: (p.y - view.y) / scale + size.h / 2 });
+  const markers = visiblePlaces((play?.places ?? []).map(p => ({ ...p, ...project(p.pos), visible: true })), selected, size.w, size.h, insets);
   return <><svg ref={svg} className="rc-map rc-flat" viewBox={`${view.x - view.width / 2} ${view.y - height / 2} ${view.width} ${height}`} aria-label="Map of Lower East Side buildings and streets"
     onPointerDown={e => {
       if (e.button !== 0) return;
@@ -73,8 +83,8 @@ export function RealCity2D({ city, selected, labels, command, onSelect }: Props)
     onPointerCancel={e => { gesture.current.moved = true; end(e.pointerId); }}>
     {geography}
     {labels && <g className="rc-road-names" pointerEvents="none" style={{ fontSize: scale * 11 }}>{names.map(s => <text key={s.name} x={s.x} y={s.y} textAnchor="middle" dominantBaseline="middle" transform={`rotate(${s.angle} ${s.x} ${s.y})`} strokeWidth={scale * 3}>{s.name}</text>)}</g>}
-    {selectedBuilding && <g key={selected} pointerEvents="none" transform={`translate(${selectedBuilding.center.x} ${selectedBuilding.center.y}) scale(${scale})`}>
+    {selectedBuilding && !play?.places.some(p => p.buildingId === selected) && <g key={selected} pointerEvents="none" transform={`translate(${selectedBuilding.center.x} ${selectedBuilding.center.y}) scale(${scale})`}>
       <g className="rc-map-pin"><circle className="rc-pin-ring" r="22" /><path d="M0 0L-6 -15H6Z" fill="#fff" /><circle cy="-26" r="16" fill="#0a84ff" stroke="#fff" strokeWidth="3" /><circle cy="-26" r="5" fill="#fff" /></g>
     </g>}
-  </svg><div className="rc-map-reference" aria-label={`Map scale ${scaleMetres} metres. North is up.`}><span className="rc-north">↑ <b>N</b></span><span className="rc-scale" style={{ width: scaleMetres / scale }}>{scaleMetres} m</span></div></>;
+  </svg><MapPlaces places={markers} player={play ? project(play.player) : undefined} selected={selected} onSelect={onSelect} /><div className="rc-map-reference" aria-label={`Map scale ${scaleMetres} metres. North is up.`}><span className="rc-north">↑ <b>N</b></span><span className="rc-scale" style={{ width: scaleMetres / scale }}>{scaleMetres} m</span></div></>;
 }

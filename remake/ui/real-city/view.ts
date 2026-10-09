@@ -1,5 +1,5 @@
 import type { RealCity } from '@geo/realCity';
-export type MapCommand = { n: number; kind: 'home' | 'in' | 'out' | 'focus' };
+export type MapCommand = { n: number; kind: 'home' | 'in' | 'out' | 'focus' | 'player' };
 export function streetLabels(city: RealCity, center = { x: 0, y: 0 }) {
   const nearest = new Map<string, { name: string; x: number; y: number; distance: number; angle: number; major: boolean }>();
   for (const s of city.streets) {
@@ -25,3 +25,9 @@ export function streetLabels(city: RealCity, center = { x: 0, y: 0 }) {
   return [...nearest.values()].sort((a, b) => a.distance - b.distance).slice(0, 28);
 }
 export const pathFor = (rings: { x: number; y: number }[][]) => rings.map(r => `M${r.map(p => `${p.x},${p.y}`).join('L')}Z`).join('');
+
+export interface MapInsets { top: number; bottom: number; left: number; right: number }
+export const DEFAULT_INSETS: MapInsets = { top: 110, bottom: 300, left: 12, right: 65 };
+export function mapAim(width: number, height: number, insets: MapInsets) {
+  return { x: (insets.left + width - insets.right) / 2, y: (insets.top + height - insets.bottom) / 2 };
+}

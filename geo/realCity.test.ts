@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildingHeight, metres, parseRealCity, type OsmGeometryElement } from './realCity';
+import { buildingHeight, metres, parseRealCity, footprintArea, prepareRealCity, isStorefrontFootprint, type OsmGeometryElement } from './realCity';
 
 const origin = { lat: 40.719, lng: -73.9865 };
 const box: [number, number, number, number] = [40.713, -73.995, 40.725, -73.978];
@@ -44,4 +44,19 @@ describe('real geography adapter', () => {
     ]);
     expect(city.buildings.map(b => b.id)).toEqual(['osm:way:1']);
   });
+});
+
+it('keeps source heights while scaling tiny unknown structures and excluding unsuitable storefronts', () => {
+  const tiny = parse([{ type: 'way', id: 4, tags: { building: 'yes' }, geometry: points }]);
+  tiny.buildings[0].rings = [[{ x: 0, y: 0 }, { x: 2, y: 0 }, { x: 2, y: 3 }, { x: 0, y: 3 }]];
+  tiny.buildings[0].height = 15;
+  expect(footprintArea(tiny.buildings[0])).toBe(6);
+  expect(prepareRealCity(tiny).buildings[0].height).toBe(3.2);
+  expect(isStorefrontFootprint(tiny.buildings[0])).toBe(false);
+  tiny.buildings[0].heightSource = 'measured'; tiny.buildings[0].height = 23.1;
+  expect(prepareRealCity(tiny).buildings[0].height).toBe(23.1);
+  const b = parse([{ type: 'way', id: 5, tags: { building: 'yes' }, geometry: points }]).buildings[0];
+  expect(isStorefrontFootprint(b)).toBe(true);
+  expect(isStorefrontFootprint({ ...b, minHeight: 4 })).toBe(false);
+  expect(isStorefrontFootprint({ ...b, kind: 'roof' })).toBe(false);
 });

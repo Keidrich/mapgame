@@ -1,12 +1,17 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { MapControls } from 'three/examples/jsm/controls/MapControls.js';
 import type { RealCity } from '@geo/realCity';
-import { buildRealCity, selectionGeometry } from './geometry';
-import { streetLabels, type MapCommand } from './view';
+import { buildRealCity, selectionGeometry, selectionOutline } from './geometry';
+import { streetLabels, type MapCommand, type MapInsets } from './view';
 
-interface Props { city: RealCity; selected?: string; night: boolean; labels: boolean; command: MapCommand; onSelect(id: string): void; onUnavailable(): void }
+import { frameBuilding } from './framing';
+import { MapPlaces, visiblePlaces, type MapPlayState, type ProjectedPlace } from './MapPlaces';
+
+interface Props { city: RealCity; selected?: string; night: boolean; labels: boolean; command: MapCommand; insets: MapInsets; play?: MapPlayState; onSelect(id: string): void; onUnavailable(): void }
 export function RealCity3D(props: Props) {
+  const [markers, setMarkers] = useState<ProjectedPlace[]>([]), [player, setPlayer] = useState<{ x: number; y: number }>();
+  const appliedCommand = useRef(-1);
   const host = useRef<HTMLDivElement>(null), latest = useRef(props); latest.current = props;
   const api = useRef<{ update(): void; command(c: MapCommand): void } | null>(null);
   useEffect(() => {
@@ -29,8 +34,8 @@ export function RealCity3D(props: Props) {
     scene.add(ambient, sun);
     const built = buildRealCity(props.city); scene.add(built.root);
     const highlight = new THREE.Group(); scene.add(highlight);
-    const selectionMat = new THREE.LineBasicMaterial({ color: '#bce0ff', depthTest: false, transparent: true, opacity: .95 });
-    const selectionFill = new THREE.MeshBasicMaterial({ color: '#0a84ff', transparent: true, opacity: .48, side: THREE.DoubleSide, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+    const selectionMat = new THREE.LineBasicMaterial({ color: '#bce0ff', depthTest: true, transparent: true, opacity: .95 });
+    const selectionFill = new THREE.MeshBasicMaterial({ color: '#0a84ff', transparent: true, opacity: .32, side: THREE.DoubleSide, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
     const pin = document.createElement('div'); pin.className = 'rc-selection-anchor'; pin.hidden = true; pin.setAttribute('aria-hidden', 'true');
     const pinLabel = document.createElement('span'); pinLabel.className = 'rc-selection-address';
     const pinDot = document.createElement('span'); pinDot.className = 'rc-selection-pin'; pinDot.textContent = '●';
@@ -48,16 +53,27 @@ export function RealCity3D(props: Props) {
       const b = props.city.bounds;
       const x = THREE.MathUtils.clamp(controls.target.x, b.minX, b.maxX), z = THREE.MathUtils.clamp(controls.target.z, b.minY, b.maxY);
       camera.position.x += x - controls.target.x; camera.position.z += z - controls.target.z;
-      controls.target.set(x, 0, z); camera.lookAt(controls.target);
+      controls.target.set(x, controls.target.y, z); camera.lookAt(controls.target);
       // One brief acknowledgement, then return to on-demand rendering to spare mobile GPUs.
       const elapsed = performance.now() - selectionStarted;
-      selectionFill.opacity = !motion.matches && elapsed < 650 ? .48 + .2 * Math.sin(Math.PI * elapsed / 650) : .48;
+      selectionFill.opacity = !motion.matches && elapsed < 650 ? .32 + .16 * Math.sin(Math.PI * elapsed / 650) : .32;
       renderer.render(scene, camera);
       const width = el.clientWidth, height = el.clientHeight, placed: { x: number; y: number }[] = [];
+      const project = (x: number, y: number, height: number) => {
+        const p = new THREE.Vector3(x, height, y).project(camera);
+        return { x: (p.x + 1) * width / 2, y: (1 - p.y) * el.clientHeight / 2, visible: p.z > -1 && p.z < 1 };
+      };
+      const play = latest.current.play, insets = latest.current.insets;
+      setMarkers(visiblePlaces((play?.places ?? []).map(place => {
+        const b = props.city.buildings.find(b => b.id === place.buildingId);
+        return { ...place, ...project(place.pos.x, place.pos.y, (b?.height ?? 0) + 3) };
+      }), selected, width, height, insets));
+      const dot = play ? project(play.player.x, play.player.y, 2) : undefined;
+      setPlayer(dot?.visible ? dot : undefined);
       const selectedBuilding = props.city.buildings.find(b => b.id === selected);
       if (selectedBuilding) {
         const p = new THREE.Vector3(selectedBuilding.center.x, selectedBuilding.height + 2, selectedBuilding.center.y).project(camera);
-        pin.hidden = p.z < -1 || p.z > 1 || Math.abs(p.x) > .94 || Math.abs(p.y) > .94;
+        pin.hidden = !!play?.places.some(place => place.buildingId === selected) || p.z < -1 || p.z > 1 || Math.abs(p.x) > .94 || (1 - p.y) * height / 2 < insets.top + 42 || (1 - p.y) * height / 2 > height - insets.bottom;
         pin.style.left = `${(p.x + 1) * width / 2}px`; pin.style.top = `${(1 - p.y) * height / 2}px`;
       } else pin.hidden = true;
       const nearby = streetLabels(props.city, { x: controls.target.x, y: controls.target.z });
@@ -83,7 +99,7 @@ export function RealCity3D(props: Props) {
         if (building) {
           const geometry = selectionGeometry(building);
           const fill = new THREE.Mesh(geometry, selectionFill); fill.renderOrder = 2; highlight.add(fill);
-          const edges = new THREE.LineSegments(new THREE.EdgesGeometry(geometry, 25), selectionMat); edges.renderOrder = 3; highlight.add(edges);
+          const edges = new THREE.LineSegments(selectionOutline(building), selectionMat); edges.renderOrder = 3; highlight.add(edges);
           pinLabel.textContent = building.address === 'Unnumbered building' ? 'Selected building' : building.address;
           selectionStarted = performance.now();
           if (!motion.matches) pinDot.animate([{ transform: 'translateY(-12px) scale(.75)', opacity: 0 }, { transform: 'translateY(0) scale(1)', opacity: 1 }], { duration: 320, easing: 'cubic-bezier(.2,.8,.2,1)' });
@@ -95,14 +111,12 @@ export function RealCity3D(props: Props) {
     home();
     api.current = { update, command(c) {
       if (c.kind === 'home') home();
-      else if (c.kind === 'focus') {
-        const b = props.city.buildings.find(b => b.id === latest.current.selected);
-        if (b) {
-          const offset = camera.position.clone().sub(controls.target);
-          const target = new THREE.Vector3(b.center.x, 0, b.center.y);
-          if (el.clientWidth < 700) { offset.setLength(Math.min(offset.length(), 650)); target.add(new THREE.Vector3(offset.x, 0, offset.z).multiplyScalar(.22)); }
-          controls.target.copy(target); camera.position.copy(target).add(offset); controls.update();
-        }
+      else if (c.kind === 'focus' || c.kind === 'player') {
+        const b = c.kind === 'focus' ? props.city.buildings.find(b => b.id === latest.current.selected) : undefined;
+        const point = latest.current.play?.player;
+        if (b) frameBuilding(camera, controls.target, b, el.clientWidth, el.clientHeight, latest.current.insets);
+        else if (c.kind === 'player' && point) frameBuilding(camera, controls.target, { id: 'player', center: point, height: 1, minHeight: 0, heightSource: 'estimated', kind: 'yes', address: '', rings: [[{ x: point.x - 30, y: point.y - 30 }, { x: point.x + 30, y: point.y + 30 }]] }, el.clientWidth, el.clientHeight, latest.current.insets);
+        controls.update();
       } else {
         const offset = camera.position.clone().sub(controls.target);
         offset.setLength(THREE.MathUtils.clamp(offset.length() * (c.kind === 'in' ? 0.75 : 1.33), 100, 2200));
@@ -113,7 +127,9 @@ export function RealCity3D(props: Props) {
     controls.addEventListener('change', invalidate);
     const resize = new ResizeObserver(() => {
       if (!el.clientWidth || !el.clientHeight) return;
-      renderer.setSize(el.clientWidth, el.clientHeight); camera.aspect = el.clientWidth / el.clientHeight; camera.updateProjectionMatrix(); invalidate();
+      renderer.setSize(el.clientWidth, el.clientHeight); camera.aspect = el.clientWidth / el.clientHeight; camera.updateProjectionMatrix();
+      if (latest.current.command.kind === 'focus' || latest.current.command.kind === 'player') api.current?.command(latest.current.command);
+      invalidate();
     }); resize.observe(el);
     const raycaster = new THREE.Raycaster(); let start = { x: 0, y: 0 }, moved = false;
     const pointers = new Set<number>();
@@ -137,7 +153,11 @@ export function RealCity3D(props: Props) {
       selectionMat.dispose(); selectionFill.dispose(); pin.remove(); built.dispose(); renderer.dispose(); canvas.remove(); labels.forEach(l => l.node.remove());
     };
   }, [props.city]);
-  useEffect(() => { api.current?.update(); }, [props.selected, props.night, props.labels]);
-  useEffect(() => { if (props.command.n) api.current?.command(props.command); }, [props.command]);
-  return <div className="rc-map rc-three" ref={host} />;
+  useEffect(() => { api.current?.update(); }, [props.selected, props.night, props.labels, props.play, props.insets]);
+  useEffect(() => {
+    if (!props.command.n) return;
+    if (appliedCommand.current === props.command.n && props.command.kind !== 'focus' && props.command.kind !== 'player') return;
+    appliedCommand.current = props.command.n; api.current?.command(props.command);
+  }, [props.command, props.insets]);
+  return <><div className="rc-map rc-three" ref={host} /><MapPlaces places={markers} player={player} selected={props.selected} onSelect={props.onSelect} /></>;
 }

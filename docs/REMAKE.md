@@ -57,6 +57,10 @@ map and its isolated playable neighborhood are available at `/?preview=real-city
 [REAL_CITY.md](REAL_CITY.md) for the data contract, save isolation and next milestones. The
 generated campaign described below remains the full game; this first real-city slice exposes
 place interactions and the day loop. It neither migrates nor replaces existing saves.
+The mobile place layer now uses tappable storefront markers, nearby cards, an in-game player dot,
+and an actions-first sheet with compact resources. Footprint suitability and a backed-up repair
+keep fictional businesses out of tiny utility structures without resetting real-city progress.
+See `docs/REAL_CITY.md` for the placement version, mobile framing and validation boundaries.
 
 1. **A warped lattice.** Column and row spacings are drawn per line (120–190 units), then every
    lattice vertex is displaced by two scales of fractal noise — a broad bend so avenues curve across

@@ -1,13 +1,13 @@
 /** Real geography supplies block topology; the existing seeded generator supplies fiction.
  * Never remap a generated save. This constructor is for a separately saved neighborhood. */
-import type { RealCity } from '@geo/realCity';
+import { footprintArea, isStorefrontFootprint, type RealCity } from '@geo/realCity';
 import { buildGraph, faces } from '@geo/polygonize';
 import { labelPoint, pointInRing } from '@geo/project';
 import { DISTRICTS } from '@r/content/world';
 import type { GeneratedCity } from './city';
 import { newWorld } from './generate';
 import { hashString, Rng } from './rng';
-import type { Block, District, World } from './types';
+import type { Block, BusinessType, District, World } from './types';
 
 const key = (p: { x: number; y: number }) => `${p.x.toFixed(2)},${p.y.toFixed(2)}`;
 const edge = (a: string, b: string) => [a, b].sort().join('|');
@@ -71,14 +71,41 @@ export function realCityGeography(city: RealCity, seed = 7) {
   return { gen, buildingsByBlock };
 }
 
-export function newRealCityWorld(city: RealCity, seed = 7): World {
-  const { gen, buildingsByBlock } = realCityGeography(city, seed);
-  const w = newWorld({ seed, size: 'small', name: 'Nobody', background: 'grifter' }, gen);
-  const buildings = new Map(city.buildings.map(b => [b.id, b]));
+/** Ground-floor area budgets, in square metres; this is place suitability, not game balance. */
+const AREA: Partial<Record<BusinessType, number>> = { laundromat: 65, restaurant: 70, diner: 60,
+  bar: 65, nightclub: 160, gym: 120, garage: 120, warehouse: 200, motel: 160, scrapyard: 150,
+  construction: 100, cab_company: 100, bank: 140, casino: 200, armored_depot: 200, gallery: 100 };
+export const placeFits = (city: RealCity, id: string | undefined, type: BusinessType) => {
+  const b = city.buildings.find(b => b.id === id);
+  return !!b && isStorefrontFootprint(b, AREA[type] ?? 45);
+};
+/** Repair only invalid bindings, on the same saved block. IDs, owners, relationships and RNG stay put. */
+export function repairRealCityPlaces(world: World, city: RealCity): { world: World; moved: number } {
+  if (!world.city.geography || world.city.geography.id !== geographyId(city)) throw new Error('The map does not match this campaign.');
+  if (world.city.geography.placementVersion === 2) return { world, moved: 0 };
+  const w = structuredClone(world), byId = new Map(city.buildings.map(b => [b.id, b]));
+  let moved = 0;
   for (const block of Object.values(w.blocks)) {
-    // The stable footprint IDs survive saving; simulated storefronts never erase the other buildings.
-    const homes = buildingsByBlock[block.id];
-    block.businessIds.forEach((id, i) => { const biz = w.businesses[id], home = buildings.get(homes[i % homes.length])!; biz.buildingId = home.id; biz.pos = { ...home.center }; });
+    const choices = city.buildings.filter(b => pointInRing(b.center, block.poly) && isStorefrontFootprint(b));
+    const occupied = new Set(block.businessIds.map(id => w.businesses[id]).filter(b => placeFits(city, b.buildingId, b.type)).map(b => b.buildingId));
+    // Larger premises get first choice, so a small shop cannot use the only warehouse-sized site.
+    const businesses = block.businessIds.map(id => w.businesses[id]).sort((a, b) => (AREA[b.type] ?? 45) - (AREA[a.type] ?? 45) || a.id.localeCompare(b.id));
+    for (const b of businesses) {
+      const old = b.buildingId ? byId.get(b.buildingId) : undefined;
+      if (old && placeFits(city, old.id, b.type) && pointInRing(old.center, block.poly)) continue;
+      const suitable = choices.filter(site => isStorefrontFootprint(site, AREA[b.type] ?? 45));
+      const score = (site: typeof choices[number]) => (occupied.has(site.id) ? 100000 : 0) + (site.address === 'Unnumbered building' ? 10000 : 0) + footprintArea(site);
+      suitable.sort((a, b) => score(a) - score(b) || a.id.localeCompare(b.id));
+      const site = suitable[0];
+      if (!site) throw new Error(`No suitable premises for ${b.name}; the existing save was preserved.`);
+      b.buildingId = site.id; b.pos = { ...site.center }; occupied.add(site.id); moved++;
+    }
   }
-  return w;
+  w.city.geography!.placementVersion = 2;
+  return { world: w, moved };
+}
+export function newRealCityWorld(city: RealCity, seed = 7): World {
+  const { gen } = realCityGeography(city, seed);
+  const w = newWorld({ seed, size: 'small', name: 'Nobody', background: 'grifter' }, gen);
+  return repairRealCityPlaces(w, city).world;
 }

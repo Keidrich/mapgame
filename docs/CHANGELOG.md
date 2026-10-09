@@ -14,6 +14,49 @@ House rules for an entry (see `CLAUDE.md` → *Leave a trail*):
 
 ---
 
+## 2026-10-09 — Mobile storefront discovery and plausible real-city premises
+
+**What / why.** Replace the test-only storefront dropdown with map markers and nearby cards.
+The phone screenshots exposed a 6 m² utility-sized footprint acting as a laundromat, fallback
+15 m towers, selection edges showing through buildings, and a sheet dominated by map metadata.
+
+**How.** Missing-data heights now depend on footprint area/type (3.2–15 m), while mapped heights
+such as 228 Mott Street's 23.1 m remain unchanged. Small utility footprints no longer receive
+lit-window facades. Storefronts require usable ground-level footprints and type-specific area;
+invalid legacy bindings move within the saved block. A transaction backs up the original under
+`placement-backup-v1` before writing the repaired save. IDs, owners, economy, relationships and
+RNG are preserved; valid bindings stay put. No WORLD_VERSION or default generation change.
+
+The map has 44 px storefront buttons with collision avoidance, an in-game player dot/recenter,
+nearby category cards and an owned/protected filter. A compact HUD keeps resources visible.
+The phone sheet shows place actions first, hides geometry in a disclosure, and collapses by
+handle swipe or button. Address search opens on demand; attribution moves out of the sheet.
+Both maps frame selections inside measured header/sheet bounds. 3D fits the full building and
+uses perimeter/corner edges with depth testing, avoiding the see-through scaffold effect.
+
+**Files.** `geo/realCity.ts`, `remake/sim/{realCity,select,types}.ts`,
+`remake/ui/real-city/{RealCityPreview,NeighborhoodPlay,RealCity2D,RealCity3D,MapPlaces}.tsx`,
+`remake/ui/real-city/{view,framing,geometry,save}.ts`, `real-city.css`, associated tests,
+`docs/REAL_CITY.md`, and `docs/REMAKE.md`.
+
+**Validation.** Targeted map/importer/repair tests pass (21 tests), including old campaign
+progress preservation, collision priority, and selected-building projection at 320/390/430 px.
+Production build/typecheck and all 2,237 tests across 155 files passed. Both required 60-day
+runs match the preceding release's economy results. Original combined scenarios reached 47/47
+systems and 62/70 op kinds (the same eight gaps); Remake scenarios reached every listed system
+and 68/72 job kinds, missing heist_containers, heist_gallery, convoy_run and vote_buying.
+The real-city smoke reached day 12 with 48 travels, 61 chats, 11 protection attempts,
+11 nightfalls, 12 event resolutions and 11 end days, restoring saves after each turn.
+These simulation gates do not exercise browser touch input or WebGL.
+
+**Watch out.** Suitability and unknown heights are illustrations, not surveys or assertions
+about actual tenants. Physical iPhone touch/GPU performance is still unmeasured. The browser
+verification surface has no WebGL and uses the 2D fallback; projection/outline tests do not
+prove GPU rendering. Crew/jobs/empire management and streamed chunks remain subsequent work.
+The playable sample still contains 24 blocks and 39 fictional businesses within the full city.
+
+---
+
 ## 2026-10-09 — Keep the place sheet's scrolling vertical
 
 **What / why.** Live verification of the new playable map caught an eight-pixel horizontal

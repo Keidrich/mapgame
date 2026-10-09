@@ -19,15 +19,15 @@ path and RNG order; no `WORLD_VERSION` change.
 - Lower East Side / nearby Manhattan streets, 2,371 building footprints, 2,636 road/path segments
   and 32 park polygons in the first fixture. Bounds: 40.713–40.725 N, −73.995–−73.978 E.
 - Shared metre coordinates for 2D and 3D. Street widths are illustrative defaults unless tagged.
-- Source-tagged heights, heights inferred from floor counts, and explicitly identified 15 m
-  fallback estimates. Shapes are real; facade colours and window patterns are our illustration.
+- Source-tagged heights, heights inferred from floor counts, and footprint-aware fallback
+  estimates (3.2–15 m). Small unknown structures no longer become 15 m towers. Shapes are real; facade colours and window patterns are our illustration.
 - Multipolygon building rings and courtyards, with incomplete geometry rejected.
 - Merged wall/roof meshes and on-demand rendering, using the existing Remake's Three.js,
   MapControls and shared window material. Concave roofs use triangulation rather than quad fans.
 - Pan, pinch/zoom, 3D rotation/tilt, recenter, address search, building selection, appearance controls.
 - Maps-inspired 2D hierarchy: subdued footprints, brighter local/major roads, green parks,
   street-aligned upright labels, north indicator and metre scale. Day mode uses a light map palette.
-- Blue selection footprint/pin in 2D; translucent selected building shell, full edge outline and
+- Blue selection footprint/pin in 2D; restrained selected building tint, visible perimeter/corner outline and
   roof-anchored address pin in 3D. Brief selection/panel animation respects Reduce Motion and
   the 3D renderer stops requesting frames after the 650 ms acknowledgement. No new dependency.
 - An SVG fallback when WebGL cannot initialise or its context is lost. Both views read one fixture.
@@ -73,8 +73,11 @@ This compact slice has denser faction occupation than a normal generated campaig
 balance is not the final real-city balance.
 
 Stable OSM building IDs bind storefronts to real footprints. Businesses/owners are fictional. The
-same reducer supplies visiting, chatting, protection, nightfall, events and end-day outcomes. The
-place picker discovers playable locations without changing the thousands of decorative buildings.
+same reducer supplies visiting, chatting, protection, nightfall, events and end-day outcomes. Tappable
+storefront markers and nearby cards discover playable locations; the native dropdown is removed.
+Markers have 44 px targets, avoid collisions and yield to the selected place. A player dot and
+Find my player show the in-game block location, never GPS. Filters expose food/drink, shops and
+owned/protected places. The massive city remains explorable beyond these 39 storefronts.
 Selecting inspects; Visit moves the player. The panel surfaces `can` reasons, scene costs/odds/risk,
 current resources and recent activity. Other game management screens remain future work.
 
@@ -83,17 +86,26 @@ original/remake keys. Whole-world transactions are serialized; Saved appears onl
 Read errors stop opening rather than overwrite a potentially existing save. Bad format, simulation
 version, geography fingerprint or broken essential place references block restoration and preserve
 the record. The geometry fingerprint is independent of source array ordering. There is no idle
-catch-up, migration into existing campaigns, automatic reset or cross-city travel UI.
+catch-up, migration into generated campaigns, automatic reset or cross-city travel UI.
 
-Phone sheets collapse and scroll independently with a 48dvh cap, safe-area spacing, 44px controls,
-a compact map rail, search keyboard clearance, and selected-building framing above the sheet in
-both renderers. Attribution stays visible when the sheet is collapsed. Zoom buttons remain in
+Real-city placement version 2 excludes tiny/sliver/raised/utility footprints and uses type-specific
+minimum ground-floor area. Mapped building heights are preserved; only missing-data estimates are
+refined. Invalid older bindings move within the same saved block; valid ones stay. Entity IDs,
+relationships, money, ownership and RNG do not change. Before the first repair, the original
+snapshot is retained as `placement-backup-v1` in the same database transaction that writes the
+repaired current save. A repair/transaction failure preserves the original and stops opening.
+These are illustrative suitability estimates, not claims about actual tenants or zoning.
+
+Phone sheets collapse by handle drag or button and scroll independently with a 44dvh cap,
+safe-area spacing, 44px action/marker controls, compact resources, and an on-demand address search.
+Place actions precede optional geometry details. Both renderers frame selected buildings within
+the measured space between header and sheet; 3D uses full building height, not a ground-only target. Attribution stays visible when the sheet is collapsed. Zoom buttons remain in
 Appearance on phones alongside pinch zoom.
 
 ## Next milestones
 
-1. Extend the place layer with clear storefront markers, player position, and the remaining
-   management screens (crew, jobs, empire). Tune balance for this real block density.
+1. Add the remaining management screens (crew, jobs, empire) to this map-first interaction
+   system. Tune balance for this real block density.
 2. Add adjacent-chunk loading and cross-boundary travel. Include low-connectivity
    behavior and avoid an all-city simulation tick for unloaded geography.
 3. Measure on an iPhone: startup, memory, panning, selection, return from background and context
@@ -107,7 +119,10 @@ Importer tests cover scale/orientation, unit parsing, height provenance, relatio
 courtyards and incomplete geometry. Renderer geometry tests check courtyard triangulation area.
 The existing simulation soaks are regression gates; they do not exercise the new camera or GPU.
 Real-neighborhood tests cover graph connectivity, shared boundary adjacency, stable identities,
-footprint bindings, source reorder determinism, save validation and default generator equivalence.
+footprint suitability, legacy binding repair without lost progress, source reorder determinism,
+save validation and default generator equivalence. Projection tests cover 320/390/430 px phone
+widths with header/sheet exclusion; marker tests cover overlap and selection priority. These do
+not substitute for touch/GPU measurements on a physical iPhone.
 `npx vite-node scripts/real-city-smoke.ts` runs travel/chat/protection/events/night/day and save
 round-trips on the actual fixture; existing generated-world soaks cannot test this new path.
 No existing simulation formula, default seed ordering or save version changes in this milestone.

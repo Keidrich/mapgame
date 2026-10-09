@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import type { RealCity } from '@geo/realCity';
 import { pointInRing } from '@geo/project';
-import { geographyId, newRealCityWorld, realCityGeography } from '@r/sim/realCity';
+import { geographyId, newRealCityWorld, realCityGeography, repairRealCityPlaces, placeFits } from '@r/sim/realCity';
 import { can, dispatch, newWorld, select } from '@r/sim/index';
 import { generateCity } from '@r/sim/city';
 import { decodeSave, REAL_SAVE_DB } from '@r/ui/real-city/save';
@@ -59,4 +59,35 @@ describe('real neighborhood', () => {
   it('rejects incomplete geography instead of making disconnected routes', () => {
     expect(() => realCityGeography({ ...city, streets: [] })).toThrow(/Not enough/);
   });
+});
+
+it('repairs legacy tiny storefronts without changing gameplay progress or valid bindings', () => {
+  let w = newRealCityWorld(city);
+  const { buildingsByBlock } = realCityGeography(city);
+  // Recreate the old id-order placement, including the reported 6 m² structure.
+  delete w.city.geography!.placementVersion;
+  for (const block of Object.values(w.blocks)) block.businessIds.forEach((id, i) => {
+    const site = city.buildings.find(b => b.id === buildingsByBlock[block.id][i % buildingsByBlock[block.id].length])!;
+    w.businesses[id].buildingId = site.id; w.businesses[id].pos = { ...site.center };
+  });
+  const local = Object.values(w.businesses).find(b => b.blockId === w.player.blockId)!;
+  w = dispatch(w, { type: 'scene', kind: 'chat', npcId: local.ownerId, businessId: local.id });
+  const before = structuredClone(w), result = repairRealCityPlaces(w, city);
+  expect(result.moved).toBeGreaterThan(0); expect(w).toEqual(before);
+  for (const biz of Object.values(result.world.businesses)) {
+    expect(placeFits(city, biz.buildingId, biz.type)).toBe(true);
+    const old = before.businesses[biz.id];
+    if (placeFits(city, old.buildingId, old.type)) expect(biz.buildingId).toBe(old.buildingId);
+    expect({ ...biz, buildingId: old.buildingId, pos: old.pos }).toEqual(old);
+  }
+  expect({ ...result.world, businesses: before.businesses, city: before.city }).toEqual(before);
+  expect(repairRealCityPlaces(result.world, city).world).toBe(result.world);
+});
+it('uses suitable ground-floor premises for every business and exposes true travel costs on the map', () => {
+  const w = newRealCityWorld(city);
+  for (const p of select.realCityPlaces(w)) {
+    expect(placeFits(city, p.buildingId, p.type)).toBe(true);
+    expect(p.travel).toBe(select.travelCost(w, w.businesses[p.id].blockId));
+    expect(p.here).toBe(w.businesses[p.id].blockId === w.player.blockId);
+  }
 });
