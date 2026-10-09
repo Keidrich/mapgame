@@ -14,6 +14,20 @@ House rules for an entry (see `CLAUDE.md` → *Leave a trail*):
 
 ---
 
+## 2026-10-09 — Keep the place sheet's scrolling vertical
+
+**What / why.** Live verification of the new playable map caught an eight-pixel horizontal
+scrollbar in the place sheet. The close button's inherited negative right margin extended its
+content into the vertical scrollbar gutter.
+
+**How / files.** Removed that negative margin and constrained `rc-sheet-scroll` to vertical
+scrolling in `remake/ui/real-city/real-city.css`. No simulation, persistence or component logic
+changed. The preceding release passed all 2,229 tests and required soaks; this CSS correction is
+checked with the production build/typecheck and focused map tests. Live play verified chatting,
+travel, advancing to day 2 and restoring day/location/relationship after a reload.
+
+---
+
 ## 2026-10-09 — Phone-friendly map sheets and the first playable real-city neighborhood
 
 **What.** Added collapsible, independently scrolling phone sheets, compact map controls, search
