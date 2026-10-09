@@ -4,8 +4,8 @@ import { pathFor, streetLabels, mapAim, type MapCommand, type MapInsets } from '
 
 import { MapPlaces, visiblePlaces, type MapPlayState } from './MapPlaces';
 
-interface Props { city: RealCity; selected?: string; labels: boolean; command: MapCommand; insets: MapInsets; play?: MapPlayState; onSelect(id: string): void }
-export function RealCity2D({ city, selected, labels, command, insets, play, onSelect }: Props) {
+interface Props { city: RealCity; selected?: string; labels: boolean; command: MapCommand; insets: MapInsets; play?: MapPlayState; territory:boolean; onSelect(id: string): void }
+export function RealCity2D({ city, selected, labels, command, insets, play, territory, onSelect }: Props) {
   const appliedCommand = useRef(-1);
   const svg = useRef<SVGSVGElement>(null);
   const [size, setSize] = useState({ w: 390, h: 844 });
@@ -82,6 +82,7 @@ export function RealCity2D({ city, selected, labels, command, insets, play, onSe
     onPointerUp={e => { if (!gesture.current.moved && gesture.current.building) onSelect(gesture.current.building); end(e.pointerId); }}
     onPointerCancel={e => { gesture.current.moved = true; end(e.pointerId); }}>
     {geography}
+    {territory && play && <g className="rc-territories" pointerEvents="none" aria-label="Block control">{play.territories.filter(t=>t.ownerId).map(t=><path key={t.id} data-territory={t.id} d={pathFor([t.poly])} fill={t.color} fillOpacity={.13} stroke={t.color} strokeOpacity={.55} strokeWidth={1.2} vectorEffect="non-scaling-stroke"><title>{t.name}: {t.nameOfOwner}</title></path>)}</g>}
     {labels && <g className="rc-road-names" pointerEvents="none" style={{ fontSize: scale * 11 }}>{names.map(s => <text key={s.name} x={s.x} y={s.y} textAnchor="middle" dominantBaseline="middle" transform={`rotate(${s.angle} ${s.x} ${s.y})`} strokeWidth={scale * 3}>{s.name}</text>)}</g>}
     {selectedBuilding && !play?.places.some(p => p.buildingId === selected) && <g key={selected} pointerEvents="none" transform={`translate(${selectedBuilding.center.x} ${selectedBuilding.center.y}) scale(${scale})`}>
       <g className="rc-map-pin"><circle className="rc-pin-ring" r="22" /><path d="M0 0L-6 -15H6Z" fill="#fff" /><circle cy="-26" r="16" fill="#0a84ff" stroke="#fff" strokeWidth="3" /><circle cy="-26" r="5" fill="#fff" /></g>

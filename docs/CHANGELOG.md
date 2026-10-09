@@ -14,6 +14,51 @@ House rules for an entry (see `CLAUDE.md` → *Leave a trail*):
 
 ---
 
+## 2026-10-09 — Bring empire play into the mobile real-city map
+
+**What / why.** The map had a playable day loop but hid the businesses' relationships and
+management behind a narrow place card. Add a stable City / Crew / Jobs / Empire thumb dock,
+richer business cards and territory overlays so the city can support an ongoing campaign.
+The user reports good mobile performance; keep the existing renderer and simulation stack.
+
+**How.** New read-only helpers present the existing purchase quote (including relationship
+premiums), ownership/protection income, local people, job teams/odds and actual block controllers.
+Buying, protection rates, racket setup/upgrades/washing, crew recruitment/assignments, beds and
+job planning/launch/complications all go through existing can/dispatch rules. The Empire panel
+links holdings back to the map and uses the existing forecast. Action receipts show real state
+changes; persistence status still waits for the database commit. Local recruitment follows actual
+nighttime locations rather than home blocks. Default job teams only use idle ready crew.
+
+Both maps optionally tint controlled block polygons; unclaimed ground stays neutral. Ownership,
+protection and block control are different states. 3D territory meshes are small, disposed on
+replacement and rendered through the existing on-demand loop. Phone sheets sit above a safe-area
+four-tab dock, cap at 42dvh, and keep detailed management in expandable sections. No native select.
+
+**Files.** `remake/sim/realCityPlay.ts`, `remake/tests/realCityPlay.test.tsx`,
+`remake/ui/real-city/{BusinessCard,GameActions,ManagementPanels,NeighborhoodPlay,MapPlaces,
+RealCityPreview,RealCity2D,RealCity3D}.tsx`, `geometry.ts`, `real-city.css`,
+`docs/REAL_CITY.md`, and `docs/REMAKE.md`.
+
+**Validation.** Focused fixture tests cover ownership/protection/control, actual quoted pricing,
+resource/relationship receipts and a buy/start-racket/recruit/assign sequence with save round-trip.
+Management rendering uses the actual real-city fixture. Typecheck, production build and all 2,242
+tests in 156 files pass. Both 60-day baselines match the prior release: original cash $22 / dirty
+$5,095 / heat 0 / control 15.6%; remake $10,119 / $25,490 / heat 39 / control 14.4%. Combined
+original scenarios hit 47/47 systems and 62/70 operation kinds (the same eight gaps); remake
+scenarios hit every listed system and 68/72 job kinds, missing heist_containers, heist_gallery,
+convoy_run and vote_buying. The real-city smoke reaches day 12 with 48 travels, 61 chats,
+11 protection attempts, 11 nightfalls, 12 event resolutions and 11 end days; save restoration
+passes, with $362 clean and $288 dirty. These gates do not exercise browser touch/GPU behavior.
+
+**Watch out.** No formulas, generation order, WORLD_VERSION, placement version or database schema
+change. Advanced law, equipment, labs and regional management are not yet exposed here. The fixed
+sample remains 24 playable blocks and 39 fictional businesses; streaming is separate work.
+The cloud browser has no WebGL, so live UI verification uses the existing 2D fallback; GPU behavior
+is not covered by that check. User feedback is positive, but no instrumented phone measurements
+were added in this release.
+
+---
+
 ## 2026-10-09 — Mobile storefront discovery and plausible real-city premises
 
 **What / why.** Replace the test-only storefront dropdown with map markers and nearby cards.

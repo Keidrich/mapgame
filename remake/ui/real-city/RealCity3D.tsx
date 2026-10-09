@@ -2,13 +2,13 @@ import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { MapControls } from 'three/examples/jsm/controls/MapControls.js';
 import type { RealCity } from '@geo/realCity';
-import { buildRealCity, selectionGeometry, selectionOutline } from './geometry';
+import { buildRealCity, selectionGeometry, selectionOutline, buildTerritories } from './geometry';
 import { streetLabels, type MapCommand, type MapInsets } from './view';
 
 import { frameBuilding } from './framing';
 import { MapPlaces, visiblePlaces, type MapPlayState, type ProjectedPlace } from './MapPlaces';
 
-interface Props { city: RealCity; selected?: string; night: boolean; labels: boolean; command: MapCommand; insets: MapInsets; play?: MapPlayState; onSelect(id: string): void; onUnavailable(): void }
+interface Props { city: RealCity; selected?: string; night: boolean; labels: boolean; command: MapCommand; insets: MapInsets; play?: MapPlayState; territory:boolean; onSelect(id: string): void; onUnavailable(): void }
 export function RealCity3D(props: Props) {
   const [markers, setMarkers] = useState<ProjectedPlace[]>([]), [player, setPlayer] = useState<{ x: number; y: number }>();
   const appliedCommand = useRef(-1);
@@ -33,6 +33,7 @@ export function RealCity3D(props: Props) {
     const sun = new THREE.DirectionalLight('#ffdfb5', 2.1); sun.position.set(-300, 800, 500);
     scene.add(ambient, sun);
     const built = buildRealCity(props.city); scene.add(built.root);
+    let turf:ReturnType<typeof buildTerritories>|undefined, turfData:MapPlayState['territories']|undefined;
     const highlight = new THREE.Group(); scene.add(highlight);
     const selectionMat = new THREE.LineBasicMaterial({ color: '#bce0ff', depthTest: true, transparent: true, opacity: .95 });
     const selectionFill = new THREE.MeshBasicMaterial({ color: '#0a84ff', transparent: true, opacity: .32, side: THREE.DoubleSide, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
@@ -90,6 +91,8 @@ export function RealCity3D(props: Props) {
     const invalidate = () => { if (!frame && !disposed) frame = requestAnimationFrame(render); };
     const update = () => {
       const p = latest.current;
+      if (p.play?.territories !== turfData) { if(turf){scene.remove(turf.root);turf.dispose();} turfData=p.play?.territories; turf=buildTerritories(turfData??[]);scene.add(turf.root); }
+      if(turf) turf.root.visible=p.territory;
       built.setNight(p.night); ambient.intensity = p.night ? 1.25 : 2.1; sun.intensity = p.night ? 0.65 : 2.1;
       renderer.setClearColor(p.night ? '#101820' : '#3c4957');
       if (selected !== p.selected) {
@@ -150,10 +153,10 @@ export function RealCity3D(props: Props) {
       disposed = true; api.current = null; cancelAnimationFrame(frame); resize.disconnect(); controls.dispose();
       canvas.removeEventListener('pointerdown', down); canvas.removeEventListener('pointermove', move); canvas.removeEventListener('pointerup', up); canvas.removeEventListener('pointercancel', cancel); canvas.removeEventListener('webglcontextlost', lost);
       for (const c of highlight.children) (c as THREE.Line).geometry.dispose();
-      selectionMat.dispose(); selectionFill.dispose(); pin.remove(); built.dispose(); renderer.dispose(); canvas.remove(); labels.forEach(l => l.node.remove());
+      selectionMat.dispose(); selectionFill.dispose(); pin.remove(); turf?.dispose(); built.dispose(); renderer.dispose(); canvas.remove(); labels.forEach(l => l.node.remove());
     };
   }, [props.city]);
-  useEffect(() => { api.current?.update(); }, [props.selected, props.night, props.labels, props.play, props.insets]);
+  useEffect(() => { api.current?.update(); }, [props.selected, props.night, props.labels, props.play, props.insets, props.territory]);
   useEffect(() => {
     if (!props.command.n) return;
     if (appliedCommand.current === props.command.n && props.command.kind !== 'focus' && props.command.kind !== 'player') return;

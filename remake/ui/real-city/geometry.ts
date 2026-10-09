@@ -97,3 +97,19 @@ export function selectionOutline(building: RealBuilding) {
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
   return geometry;
 }
+
+/** Ground-level control wash keeps buildings and streets readable above it. */
+export function buildTerritories(territories: { poly: XY[]; ownerId?: string; color: string }[]) {
+  const root = new THREE.Group(), disposables: {dispose():void}[]=[];
+  for (const t of territories) {
+    if (!t.ownerId) continue;
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position',new THREE.Float32BufferAttribute(polygonTriangles([t.poly],.24),3));
+    const material = new THREE.MeshBasicMaterial({color:t.color,transparent:true,opacity:.18,depthWrite:false,side:THREE.DoubleSide});
+    const mesh = new THREE.Mesh(geometry,material); root.add(mesh); disposables.push(geometry,material);
+    const outline = new THREE.BufferGeometry().setFromPoints([...t.poly,t.poly[0]].map(p=>new THREE.Vector3(p.x,.26,p.y)));
+    const line = new THREE.LineBasicMaterial({color:t.color,transparent:true,opacity:.55,depthWrite:false});
+    root.add(new THREE.Line(outline,line)); disposables.push(outline,line);
+  }
+  return {root,dispose(){disposables.forEach(x=>x.dispose());}};
+}

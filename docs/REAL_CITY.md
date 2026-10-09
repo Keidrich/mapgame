@@ -36,7 +36,8 @@ path and RNG order; no `WORLD_VERSION` change.
 This is a fixed development sample. It does **not** yet stream neighboring map chunks, request GPS,
 provide city search, or animate traffic. A tested adapter now provides real polygons and explicit
 block adjacency to the simulation. The legacy lattice renderers are never given this campaign.
-Touch layout is implemented, but physical iPhone rendering/performance still needs a device pass.
+The user reports good mobile performance. Automated browser checks still cannot measure physical
+iPhone GPU/memory use or return-from-background behavior.
 
 ## Data and reproduction
 
@@ -79,7 +80,23 @@ Markers have 44 px targets, avoid collisions and yield to the selected place. A 
 Find my player show the in-game block location, never GPS. Filters expose food/drink, shops and
 owned/protected places. The massive city remains explorable beyond these 39 storefronts.
 Selecting inspects; Visit moves the player. The panel surfaces `can` reasons, scene costs/odds/risk,
-current resources and recent activity. Other game management screens remain future work.
+current resources and recent activity.
+
+A safe-area-aware **City · Crew · Jobs · Empire** dock keeps management within the same map.
+Business cards expose owner relationships, actual quoted purchase prices, protection rates,
+ownership income and racket setup/upgrades/runners. Crew supports introductions, recruiting,
+guard assignments and extra beds; the local people list follows their current location, including
+nighttime haunts. Jobs exposes offers, crew selection, planning, approach odds/payouts, launch and
+complications. Empire links holdings back to the map and shows the existing daily forecast.
+These panels use the existing `can`/`dispatch` path and read-only simulation helpers; they do not
+change economy formulas, generation order or save schemas.
+
+Optional territory overlays use actual block controllers in both renderers. Player control needs
+the existing influence threshold; owning/protecting a storefront does not immediately claim a
+block. Separate storefront markers distinguish ownership from protection. Action feedback reports
+actual resource/relationship changes and newly controlled blocks, while Saved still waits for the
+database transaction. Advanced generated-game systems (law, equipment, labs and regional travel)
+do not yet have their full management UI here.
 
 The lazily loaded panel uses its own IndexedDB database `rackets.real-city.save.v1`, not the shared
 original/remake keys. Whole-world transactions are serialized; Saved appears only after commit.
@@ -96,7 +113,7 @@ snapshot is retained as `placement-backup-v1` in the same database transaction t
 repaired current save. A repair/transaction failure preserves the original and stops opening.
 These are illustrative suitability estimates, not claims about actual tenants or zoning.
 
-Phone sheets collapse by handle drag or button and scroll independently with a 44dvh cap,
+Phone sheets collapse by handle drag or button and scroll independently with a 42dvh cap during play,
 safe-area spacing, 44px action/marker controls, compact resources, and an on-demand address search.
 Place actions precede optional geometry details. Both renderers frame selected buildings within
 the measured space between header and sheet; 3D uses full building height, not a ground-only target. Attribution stays visible when the sheet is collapsed. Zoom buttons remain in
@@ -104,8 +121,8 @@ Appearance on phones alongside pinch zoom.
 
 ## Next milestones
 
-1. Add the remaining management screens (crew, jobs, empire) to this map-first interaction
-   system. Tune balance for this real block density.
+1. Expand the basic management panels into the remaining game systems and tune balance for this
+   real block density. Keep the map and thumb navigation primary.
 2. Add adjacent-chunk loading and cross-boundary travel. Include low-connectivity
    behavior and avoid an all-city simulation tick for unloaded geography.
 3. Measure on an iPhone: startup, memory, panning, selection, return from background and context
@@ -125,4 +142,7 @@ widths with header/sheet exclusion; marker tests cover overlap and selection pri
 not substitute for touch/GPU measurements on a physical iPhone.
 `npx vite-node scripts/real-city-smoke.ts` runs travel/chat/protection/events/night/day and save
 round-trips on the actual fixture; existing generated-world soaks cannot test this new path.
-No existing simulation formula, default seed ordering or save version changes in this milestone.
+Business/management tests distinguish ownership, protection and actual block control; verify
+purchase quotes, action deltas and a buy/racket/recruit/assign flow; and render the four panels
+against the actual fixture. No existing simulation formula, default seed ordering or save version
+changes in this milestone.

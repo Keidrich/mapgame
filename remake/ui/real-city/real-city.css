@@ -218,3 +218,69 @@
 }
 @media (min-width: 700px) { .rc-attribution { left: auto; right: 24px; gap: 16px; } .rc-sheet { bottom: 32px; } }
 @media (prefers-reduced-motion: reduce) { .rc-sheet-scroll { scroll-behavior: auto; } }
+
+/* A stable thumb dock anchors every campaign panel to the same map. */
+.rc-dock { position:absolute; z-index:5; bottom:max(8px,env(safe-area-inset-bottom)); left:12px; right:12px; display:grid; grid-template-columns:repeat(4,1fr); background:#22252aee; border:1px solid var(--rc-line); border-radius:22px; padding:4px; backdrop-filter:blur(24px); box-shadow:0 6px 24px #0005; }
+.rc-dock button { position:relative; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; min-height:52px; font-size:10px; color:var(--rc-secondary); }
+.rc-dock button[aria-pressed="true"] { background:#409cff18; color:#63aeff; }
+.rc-dock button b { position:absolute; top:3px; right:17%; font-size:9px; min-width:15px; line-height:15px; background:#df5a54; color:white; border-radius:8px; }
+.rc-app[data-playing="true"] .rc-sheet { bottom:calc(80px + env(safe-area-inset-bottom)); }
+.rc-app[data-playing="true"] .rc-attribution { bottom:calc(65px + env(safe-area-inset-bottom)); }
+.rc-app[data-playing="true"][data-searching="true"] .rc-dock { visibility:hidden; }
+.rc-game .rc-action { width:100%; text-align:left; background:#409cff15; border:1px solid #409cff25; color:#a3d0ff; padding:11px 12px; margin:4px 0; font-size:13px; }
+.rc-action strong,.rc-action small { display:block; }
+.rc-action small { margin-top:4px; color:#bbc4d0; font-size:11px; line-height:1.4; }
+.rc-scene-action { min-width:0; }
+.rc-scene-action details { font-size:11px; color:var(--rc-secondary); }
+.rc-scene-action details p { line-height:1.5; }
+.rc-game .rc-scene-action summary { font-size:10px; padding:10px 0; }
+.rc-place-actions { align-items:start; }
+.rc-ownership { display:flex; align-items:center; gap:6px; border-left:2px solid; padding-left:8px; font-size:11px; margin:10px 0; }
+.rc-ownership > span { width:5px; height:5px; border-radius:50%; }
+.rc-owner-line { display:flex; flex-wrap:wrap; align-items:baseline; gap:5px 8px; font-size:13px; }
+.rc-relationship { display:flex; gap:20px; padding:8px 0; }
+.rc-relationship span { display:flex; align-items:baseline; gap:5px; font-size:12px; }
+.rc-relationship small { text-transform:capitalize; font-size:10px; }
+.rc-income-line { display:flex; flex-wrap:wrap; gap:6px 14px; padding:9px 0; border-top:1px solid var(--rc-line); font-size:11px; color:var(--rc-secondary); }
+.rc-income-line b { color:#dce3eb; }
+.rc-expand { border-top:1px solid var(--rc-line); margin-top:8px; }
+.rc-game .rc-section-button { display:flex; align-items:center; justify-content:space-between; width:100%; text-align:left; font-size:13px; padding:12px 0; }
+.rc-section-button span { color:var(--rc-accent); font-size:19px; }
+.rc-management h2 { margin:0 0 14px; }
+.rc-management h2 small { font-size:12px; color:var(--rc-secondary); font-weight:400; }
+.rc-management h3 { font-family:inherit; text-transform:none; font-size:15px; letter-spacing:0; margin:0 0 6px; }
+.rc-management-card { padding:13px; margin:10px 0; background:#ffffff05; border:1px solid var(--rc-line); border-radius:15px; font-size:12px; }
+.rc-management-card p { color:var(--rc-secondary); font-size:12px; }
+.rc-inline-stats { display:flex; flex-wrap:wrap; gap:7px 12px; margin:9px 0; font-size:12px; }
+.rc-rate-options { display:grid; grid-template-columns:repeat(2,1fr); gap:6px; }
+.rc-empty { padding:15px; border-radius:15px; background:#409cff0b; color:#c0ccdc; font-size:13px; line-height:1.6; }
+.rc-feedback { position:sticky; top:0; z-index:2; background:#203a33; border:1px solid #64d5a240; padding:11px 13px; margin-bottom:12px; border-radius:15px; font-size:12px; }
+.rc-feedback p { margin:0 32px 7px 0; }
+.rc-feedback >button { float:right; margin:-8px -8px 0 0; font-size:22px; }
+.rc-feedback >div { display:flex; flex-wrap:wrap; gap:5px; }
+.rc-feedback >div span { padding:3px 7px; border-radius:6px; background:#ffffff10; font-size:11px; }
+.rc-pending { padding:10px 12px; border-radius:12px; background:#daa95720; color:#ebc781; font-size:12px; }
+.rc-game .rc-team-pick { width:100%; text-align:left; margin:4px 0; background:#ffffff07; font-size:12px; }
+.rc-team-pick[aria-pressed="true"] { box-shadow:inset 0 0 0 1px #63aeff; }
+.rc-team-pick small { display:block; }
+.rc-job-offer { border-top:1px solid var(--rc-line); }
+.rc-game .rc-job-offer summary { color:#e4e9ef; font-size:13px; }
+.rc-job-offer summary small { display:block; margin-top:4px; }
+.rc-approach-card { border-top:1px solid var(--rc-line); padding:12px 0; }
+.rc-text-action { color:var(--rc-accent) !important; padding-left:0 !important; font-size:12px; }
+.rc-empire-counts { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; text-align:center; margin:12px 0 18px; }
+.rc-empire-counts span { padding:10px 0; border-radius:12px; background:#ffffff05; color:var(--rc-secondary); font-size:11px; }
+.rc-empire-counts b { display:block; font-size:25px; color:#f1f5fa; }
+.rc-game .rc-empire-place { display:block; width:100%; background:#64d5a20c; border:1px solid #64d5a230; margin:8px 0; padding:12px; text-align:left; }
+.rc-empire-place small { display:block; margin-top:5px; }
+.rc-territory-row { display:flex; align-items:center; gap:8px; margin:12px 0; font-size:12px; }
+.rc-territory-row >span { flex:none; width:9px; height:9px; border-radius:3px; }
+.rc-territory-row small { display:block; }
+.rc-appearance .rc-territory-key { display:flex; flex-wrap:wrap; gap:8px 12px; font-size:10px; margin:8px 0; }
+.rc-territory-key i { display:inline-block; width:7px; height:7px; border-radius:2px; margin-right:5px; }
+.rc-place-marker >span { border-color:var(--place-color,#a4b7ce); }
+.rc-place-marker.is-owned >span { border:2px solid #64d5a2; box-shadow:0 0 0 3px #64d5a230,0 2px 7px #0008; }
+.rc-place-marker.is-protected >span { border:2px dashed #64d5a2; }
+.rc-place-marker[aria-pressed="true"] >span { background:#007aff; border:2px solid #fff; }
+@media(min-width:700px) { .rc-dock { width:372px; left:24px; right:auto; bottom:24px; } .rc-app[data-playing="true"] .rc-sheet { bottom:96px; max-height:calc(100dvh - 265px); } .rc-app[data-playing="true"] .rc-attribution { bottom:0; } }
+@media(max-width:699px) { .rc-app[data-playing="true"] .rc-sheet { max-height:42dvh; } .rc-relationship { gap:13px; } .rc-relationship span { gap:3px; } }
