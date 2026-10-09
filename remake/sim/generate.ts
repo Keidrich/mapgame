@@ -39,8 +39,9 @@ const TRAIT_WEIGHTS: [Trait, number][] = [
 ];
 const OPPOSED: [Trait, Trait][] = [['coward', 'hothead'], ['coward', 'tough'], ['honest', 'sly'], ['honest', 'greedy'], ['loyal', 'ambitious']];
 
-export function newWorld(opts: NewGame): World {
-  const gen = generateCity(opts.seed, opts.size);
+export function newWorld(opts: NewGame, geography?: GeneratedCity): World {
+  // The default path and its RNG order stay byte-identical for existing generated saves.
+  const gen = geography ?? generateCity(opts.seed, opts.size);
   const rng = new Rng(opts.seed ^ 0x7e11);
   const w: World = {
     version: WORLD_VERSION, seed: opts.seed, rng: 0, day: 1, phase: 'day',

@@ -265,3 +265,6 @@ export function nextLead(w: World): Lead | undefined {
   const todo = leads(w).filter(l => !l.done);
   return todo.find(l => !l.blocked) ?? todo[0];
 }
+
+/** Storefronts at a geographic footprint; decorative buildings intentionally have none. */
+export const businessesAtBuilding = (w: World, buildingId: string) => Object.values(w.businesses).filter(b => b.buildingId === buildingId);

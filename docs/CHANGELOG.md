@@ -14,6 +14,54 @@ House rules for an entry (see `CLAUDE.md` → *Leave a trail*):
 
 ---
 
+## 2026-10-09 — Phone-friendly map sheets and the first playable real-city neighborhood
+
+**What.** Added collapsible, independently scrolling phone sheets, compact map controls, search
+keyboard clearance and selected-building framing above the sheet. The New York map now offers
+Play this neighborhood: 24 connected real street blocks, 39 seeded fictional storefronts, visiting,
+owner conversations, protection, event choices and the night/day loop.
+
+**Why.** The phone map needed breathing room and reachable controls. The next geographic milestone
+needed a real reducer-backed loop with stable place identities before expanding the city or art.
+
+**How.** A pure adapter polygonizes source street intersections, keeps the largest component of
+shared-edge business-bearing faces, and supplies polygons/adjacency to the existing population
+constructor. Four fictional wards each have at least six blocks for the existing faction generator.
+Storefronts bind stable building IDs to their real footprint centers; all 2,371 footprints remain
+visible. The default constructor's generation/RNG path is unchanged. The lazy UI uses can/dispatch
+and scene quotes, with native place discovery and current-location/activity feedback.
+
+A separate IndexedDB database serializes save transactions and validates geography/version/place
+references on restore. Failed reads or incompatible saves are preserved, never silently replaced.
+Existing original and generated-remake saves are untouched; no WORLD_VERSION bump or idle catch-up.
+Attribution remains visible with the mobile sheet collapsed; zoom buttons are available in Appearance.
+
+**Validation.** Six actual-fixture tests cover connectivity/shared boundaries, reorder determinism,
+footprint bindings, action/save restoration, rejection and default constructor equivalence. The new
+real-city smoke scenario reaches day 12 with 48 travels, 61 chats, 11 protection attempts, 11 nightfalls,
+12 event resolutions and 11 day advances, round-tripping the save between turns.
+Production build/typecheck and all 2,229 tests across 154 files pass (Node 24, one thread worker).
+Both 60-day honest runs match the previous baseline: original cash $22 / dirty $5,095 / control
+15.6%; remake cash $10,119 / dirty $25,490 / heat 39 / control 14.4%. Required scenario sweeps pass:
+original 47/47 systems (62/70 op kinds), remake every listed system (68/72 job kinds). Existing
+coverage gaps remain: original heist_warehouse, defend_racket, takeover, heist_containers,
+heist_countroom, convoy_run, copper_strip, squatter_scheme; remake heist_containers, heist_gallery,
+convoy_run, vote_buying. These soaks cover regressions; the dedicated real-city smoke covers the
+new geographic gameplay path.
+
+**Files.** remake/sim/{realCity,generate,select,types}.ts; remake/ui/real-city/{RealCityPreview,
+RealCity2D,RealCity3D,NeighborhoodPlay}.tsx; remake/ui/real-city/{save.ts,real-city.css};
+remake/tests/realCity.test.ts; scripts/real-city-smoke.ts; docs/{REAL_CITY,REMAKE,CHANGELOG}.md.
+
+**Watch out.** This is a first playable slice, not the complete management UI or streaming city.
+Other faces remain scenery, and no synthetic nearest-block routes are added. Faction occupation
+is denser in this small component than in generated campaigns and still needs real-city balance
+work. The compact panel does not expose crew/jobs/empire management or cross-city travel. Device
+save persistence depends on browser storage. Physical iPhone GPU/gesture performance needs a
+real-device pass; headless simulations do not validate touch feel or graphics.
+
+---
+
 ## 2026-10-09 — Map preview: clearer 2D hierarchy and unmistakable 3D selection
 
 **What.** Refined 2D toward iOS Maps: quiet charcoal buildings, lighter roads with major-road

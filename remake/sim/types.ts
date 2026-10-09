@@ -36,6 +36,8 @@ export interface Street {
 export interface Bridge { id: Id; streetId: Id; from: Vec; to: Vec }
 
 export interface City {
+  /** Present only for a separately saved real-geography campaign. */
+  geography?: { kind: 'real'; id: string };
   name: string;
   motto: string;
   width: number;
@@ -228,6 +230,8 @@ export type BusinessType =
 export type Tier = 1 | 2 | 3;
 
 export interface Business {
+  /** Stable geographic footprint ID; absent in generated campaigns. */
+  buildingId?: string;
   id: Id;
   name: string;
   type: BusinessType;

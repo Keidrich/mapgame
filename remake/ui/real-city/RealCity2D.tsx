@@ -27,7 +27,7 @@ export function RealCity2D({ city, selected, labels, command, onSelect }: Props)
   useEffect(() => {
     if (!command.n) return;
     if (command.kind === 'home') setView({ x: 0, y: 0, width: 700 });
-    else if (command.kind === 'focus') { const b = city.buildings.find(b => b.id === selected); if (b) setView(v => ({ ...v, x: b.center.x, y: b.center.y, width: Math.min(v.width, 500) })); }
+    else if (command.kind === 'focus') { const b = city.buildings.find(b => b.id === selected); if (b) setView(v => ({ ...v, x: b.center.x, y: b.center.y + (size.w < 700 ? Math.min(v.width, 320) * size.h / size.w * .16 : 0), width: Math.min(v.width, size.w < 700 ? 320 : 500) })); }
     else setView(v => clamp({ ...v, width: v.width * (command.kind === 'in' ? 0.75 : 1.33) }));
     // Selection alone should highlight, not move the camera out from under the player's finger.
     // eslint-disable-next-line react-hooks/exhaustive-deps

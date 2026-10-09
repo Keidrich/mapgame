@@ -97,7 +97,12 @@ export function RealCity3D(props: Props) {
       if (c.kind === 'home') home();
       else if (c.kind === 'focus') {
         const b = props.city.buildings.find(b => b.id === latest.current.selected);
-        if (b) { const delta = new THREE.Vector3(b.center.x, 0, b.center.y).sub(controls.target); camera.position.add(delta); controls.target.add(delta); controls.update(); }
+        if (b) {
+          const offset = camera.position.clone().sub(controls.target);
+          const target = new THREE.Vector3(b.center.x, 0, b.center.y);
+          if (el.clientWidth < 700) { offset.setLength(Math.min(offset.length(), 650)); target.add(new THREE.Vector3(offset.x, 0, offset.z).multiplyScalar(.22)); }
+          controls.target.copy(target); camera.position.copy(target).add(offset); controls.update();
+        }
       } else {
         const offset = camera.position.clone().sub(controls.target);
         offset.setLength(THREE.MathUtils.clamp(offset.length() * (c.kind === 'in' ? 0.75 : 1.33), 100, 2200));
