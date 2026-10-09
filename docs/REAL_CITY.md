@@ -23,6 +23,11 @@ It never imports the Remake store, changes generation order, or writes either ga
 - Merged wall/roof meshes and on-demand rendering, using the existing Remake's Three.js,
   MapControls and shared window material. Concave roofs use triangulation rather than quad fans.
 - Pan, pinch/zoom, 3D rotation/tilt, recenter, address search, building selection, appearance controls.
+- Maps-inspired 2D hierarchy: subdued footprints, brighter local/major roads, green parks,
+  street-aligned upright labels, north indicator and metre scale. Day mode uses a light map palette.
+- Blue selection footprint/pin in 2D; translucent selected building shell, full edge outline and
+  roof-anchored address pin in 3D. Brief selection/panel animation respects Reduce Motion and
+  the 3D renderer stops requesting frames after the 650 ms acknowledgement. No new dependency.
 - An SVG fallback when WebGL cannot initialise or its context is lost. Both views read one fixture.
 - Persistent visible attribution and a link to the source-derived dataset under ODbL.
 

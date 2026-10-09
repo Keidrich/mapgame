@@ -47,10 +47,10 @@ export function RealCityPreview() {
         <button type="button" aria-label="Zoom out" onClick={() => send('out')}><span className="rc-zoom">−</span></button>
       </div>
       {layers && <aside className="rc-appearance" aria-label="Map appearance"><div><b>Map appearance</b><button type="button" aria-label="Close appearance" onClick={() => setLayers(false)}>×</button></div><button type="button" aria-pressed={night} onClick={() => setNight(x => !x)}><Icon name="moon" size={18} />Night lighting<span>{night ? 'On' : 'Off'}</span></button><button type="button" aria-pressed={labels} onClick={() => setLabels(x => !x)}>Street names<span>{labels ? 'On' : 'Off'}</span></button></aside>}
-      <section className="rc-sheet" aria-label={building ? 'Selected building' : 'Neighborhood'}>
+      <section key={selected ?? 'neighborhood'} className={`rc-sheet ${building ? 'rc-sheet-selected' : ''}`} aria-label={building ? 'Selected building' : 'Neighborhood'}>
         <div className="rc-sheet-handle" />
         {building ? <>
-          <div className="rc-sheet-heading"><div><span className="rc-eyebrow">LOWER EAST SIDE</span><h2>{building.address}</h2></div><button type="button" className="rc-close" aria-label="Close building details" onClick={() => setSelected(undefined)}>×</button></div>
+          <div className="rc-sheet-heading"><div><span className="rc-eyebrow">● SELECTED BUILDING · LOWER EAST SIDE</span><h2>{building.address}</h2></div><button type="button" className="rc-close" aria-label="Close building details" onClick={() => setSelected(undefined)}>×</button></div>
           <div className="rc-building-facts"><span><strong>{Math.round(building.height)} m</strong>{building.heightSource === 'measured' ? 'Mapped height' : building.heightSource === 'levels' ? 'From floor count' : 'Estimated height'}</span><span><strong>{Math.round(area).toLocaleString()} m²</strong>Building footprint</span><button type="button" onClick={() => send('focus')}><Icon name="you" size={18} />Center</button></div>
           <p className="rc-caption">Real building geometry. Gameplay will use fictional businesses and people.</p>
         </> : <>

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { XY } from '@geo/project';
-import type { RealCity } from '@geo/realCity';
+import type { RealCity, RealBuilding } from '@geo/realCity';
 import { hashString } from '@r/sim/rng';
 import { windowTexture } from '../components/cityMaterials';
 
@@ -67,4 +67,18 @@ export function buildRealCity(city: RealCity) {
   return { root, hits: [wallMesh, roofMesh], ids: [wallIds, roofIds], wallMat,
     setNight(night: boolean) { wallMat.emissiveIntensity = night ? 0.9 : 0.08; land.color.set(night ? '#262c33' : '#606963'); },
     dispose() { disposables.forEach(x => x.dispose()); } };
+}
+
+/** A separate selected shell keeps the city's merged meshes and picking tables intact. */
+export function selectionGeometry(building: RealBuilding) {
+  const positions = polygonTriangles(building.rings, building.height + 0.35);
+  for (const ring of building.rings) for (let i = 0; i < ring.length; i++) {
+    const a = ring[i], b = ring[(i + 1) % ring.length];
+    positions.push(a.x, building.minHeight, a.y, b.x, building.minHeight, b.y, b.x, building.height + .35, b.y,
+      a.x, building.minHeight, a.y, b.x, building.height + .35, b.y, a.x, building.height + .35, a.y);
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geometry.computeVertexNormals();
+  return geometry;
 }

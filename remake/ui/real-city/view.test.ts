@@ -8,3 +8,10 @@ it('follows the camera with one nearby label per street instead of choosing an o
   expect(streetLabels(city).map(s => s.x)).toEqual([20]);
   expect(streetLabels(city, { x: 2500, y: 0 }).map(s => s.x)).toEqual([2500]);
 });
+
+it('aligns text with a nearby segment of a bent street and keeps it upright', () => {
+  const city = { streets: [{ id: 'bend', name: 'Test Street', width: 9, major: true,
+    points: [{ x: 0, y: 0 }, { x: 0, y: 40 }, { x: -100, y: 40 }] }] } as RealCity;
+  expect(streetLabels(city, { x: 0, y: 20 })[0]).toMatchObject({ x: 0, y: 20, angle: 90 });
+  expect(streetLabels(city, { x: -50, y: 40 })[0]).toMatchObject({ x: -50, y: 40, angle: 0 });
+});

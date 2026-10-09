@@ -10,12 +10,18 @@ export function RealCity2D({ city, selected, labels, command, onSelect }: Props)
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   const gesture = useRef({ x: 0, y: 0, moved: false, building: '', pinch: 0 });
   const names = useMemo(() => {
-    const placed: { x: number; y: number }[] = [], scale = view.width / size.w;
+    const placed: { x: number; y: number; w: number; h: number }[] = [], scale = view.width / size.w;
+    const halfHeight = view.width * size.h / size.w / 2;
     return streetLabels(city, view).filter(s => {
-      if (placed.some(p => Math.abs(p.x - s.x) < 115 * scale && Math.abs(p.y - s.y) < 25 * scale)) return false;
-      placed.push(s); return true;
+      if (Math.abs(s.x - view.x) > view.width / 2 - 55 * scale || Math.abs(s.y - view.y) > halfHeight - 90 * scale) return false;
+      if (view.width > 1300 && !s.major) return false;
+      const radians = s.angle * Math.PI / 180, textWidth = s.name.length * 6 * scale;
+      const w = Math.abs(Math.cos(radians)) * textWidth + Math.abs(Math.sin(radians)) * 14 * scale + 10 * scale;
+      const h = Math.abs(Math.sin(radians)) * textWidth + Math.abs(Math.cos(radians)) * 14 * scale + 10 * scale;
+      if (placed.some(p => Math.abs(p.x - s.x) < (p.w + w) / 2 && Math.abs(p.y - s.y) < (p.h + h) / 2)) return false;
+      placed.push({ ...s, w, h }); return true;
     });
-  }, [city, view, size.w]);
+  }, [city, view, size.w, size.h]);
   const clamp = (v: typeof view) => ({ x: Math.max(city.bounds.minX, Math.min(city.bounds.maxX, v.x)), y: Math.max(city.bounds.minY, Math.min(city.bounds.maxY, v.y)), width: Math.max(140, Math.min(2400, v.width)) });
   useEffect(() => { const el = svg.current!; const r = new ResizeObserver(() => setSize({ w: el.clientWidth || 390, h: el.clientHeight || 844 })); r.observe(el); return () => r.disconnect(); }, []);
   useEffect(() => {
@@ -32,8 +38,19 @@ export function RealCity2D({ city, selected, labels, command, onSelect }: Props)
     el.addEventListener('wheel', wheel, { passive: false }); return () => el.removeEventListener('wheel', wheel);
   }, [city]);
   const height = view.width * size.h / size.w;
+  const selectedBuilding = city.buildings.find(b => b.id === selected);
+  const scale = view.width / size.w;
+  const distance = scale * 90;
+  const scaleMetres = distance >= 200 ? 200 : distance >= 100 ? 100 : distance >= 50 ? 50 : 20;
   const end = (id: number) => { pointers.current.delete(id); gesture.current.pinch = 0; };
-  return <svg ref={svg} className="rc-map rc-flat" viewBox={`${view.x - view.width / 2} ${view.y - height / 2} ${view.width} ${height}`} aria-label="Map of Lower East Side buildings and streets"
+  // Camera movement changes the viewBox and labels, not thousands of static footprint paths.
+  const geography = useMemo(() => <>
+    <g className="rc-parks">{city.parks.map(p => <path key={p.id} d={pathFor(p.rings)} fillRule="evenodd" />)}</g>
+    <g className="rc-curbs" fill="none" strokeLinecap="round" strokeLinejoin="round">{city.streets.map(s => <polyline key={s.id} points={s.points.map(p => `${p.x},${p.y}`).join(' ')} strokeWidth={s.width + (s.major ? 4 : 2)} />)}</g>
+    <g className="rc-roads" fill="none" strokeLinecap="round" strokeLinejoin="round">{city.streets.map(s => <polyline key={s.id} points={s.points.map(p => `${p.x},${p.y}`).join(' ')} className={s.major ? 'major' : s.width < 5 ? 'path' : 'local'} strokeWidth={s.width} />)}</g>
+    <g className="rc-buildings">{city.buildings.map(b => <path key={b.id} data-building={b.id} d={pathFor(b.rings)} fillRule="evenodd" className={selected === b.id ? 'selected' : ''} vectorEffect="non-scaling-stroke" strokeWidth={selected === b.id ? 2.5 : 0.6} role="button" tabIndex={0} aria-label={b.address === 'Unnumbered building' ? `Building ${b.id.split(':').pop()}` : b.address} aria-pressed={selected === b.id} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(b.id); } }} />)}</g>
+  </>, [city, selected, onSelect]);
+  return <><svg ref={svg} className="rc-map rc-flat" viewBox={`${view.x - view.width / 2} ${view.y - height / 2} ${view.width} ${height}`} aria-label="Map of Lower East Side buildings and streets"
     onPointerDown={e => {
       if (e.button !== 0) return;
       pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
@@ -54,10 +71,10 @@ export function RealCity2D({ city, selected, labels, command, onSelect }: Props)
     }}
     onPointerUp={e => { if (!gesture.current.moved && gesture.current.building) onSelect(gesture.current.building); end(e.pointerId); }}
     onPointerCancel={e => { gesture.current.moved = true; end(e.pointerId); }}>
-    <g className="rc-parks">{city.parks.map(p => <path key={p.id} d={pathFor(p.rings)} fillRule="evenodd" />)}</g>
-    <g className="rc-curbs" fill="none" strokeLinecap="round" strokeLinejoin="round">{city.streets.map(s => <polyline key={s.id} points={s.points.map(p => `${p.x},${p.y}`).join(' ')} strokeWidth={s.width + 4} />)}</g>
-    <g className="rc-roads" fill="none" strokeLinecap="round" strokeLinejoin="round">{city.streets.map(s => <polyline key={s.id} points={s.points.map(p => `${p.x},${p.y}`).join(' ')} strokeWidth={s.width} />)}</g>
-    <g className="rc-buildings">{city.buildings.map(b => <path key={b.id} data-building={b.id} d={pathFor(b.rings)} fillRule="evenodd" className={selected === b.id ? 'selected' : ''} strokeWidth={selected === b.id ? 2.5 : 0.5} role="button" tabIndex={0} aria-label={b.address === 'Unnumbered building' ? `Building ${b.id.split(':').pop()}` : b.address} aria-pressed={selected === b.id} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(b.id); } }} />)}</g>
-    {labels && <g className="rc-road-names" pointerEvents="none" style={{ fontSize: Math.max(8, view.width / size.w * 11) }}>{names.map(s => <text key={s.name} x={s.x} y={s.y} textAnchor="middle">{s.name}</text>)}</g>}
-  </svg>;
+    {geography}
+    {labels && <g className="rc-road-names" pointerEvents="none" style={{ fontSize: scale * 11 }}>{names.map(s => <text key={s.name} x={s.x} y={s.y} textAnchor="middle" dominantBaseline="middle" transform={`rotate(${s.angle} ${s.x} ${s.y})`} strokeWidth={scale * 3}>{s.name}</text>)}</g>}
+    {selectedBuilding && <g key={selected} pointerEvents="none" transform={`translate(${selectedBuilding.center.x} ${selectedBuilding.center.y}) scale(${scale})`}>
+      <g className="rc-map-pin"><circle className="rc-pin-ring" r="22" /><path d="M0 0L-6 -15H6Z" fill="#fff" /><circle cy="-26" r="16" fill="#0a84ff" stroke="#fff" strokeWidth="3" /><circle cy="-26" r="5" fill="#fff" /></g>
+    </g>}
+  </svg><div className="rc-map-reference" aria-label={`Map scale ${scaleMetres} metres. North is up.`}><span className="rc-north">↑ <b>N</b></span><span className="rc-scale" style={{ width: scaleMetres / scale }}>{scaleMetres} m</span></div></>;
 }

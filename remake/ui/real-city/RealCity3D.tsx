@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { MapControls } from 'three/examples/jsm/controls/MapControls.js';
 import type { RealCity } from '@geo/realCity';
-import { buildRealCity } from './geometry';
+import { buildRealCity, selectionGeometry } from './geometry';
 import { streetLabels, type MapCommand } from './view';
 
 interface Props { city: RealCity; selected?: string; night: boolean; labels: boolean; command: MapCommand; onSelect(id: string): void; onUnavailable(): void }
@@ -29,7 +29,14 @@ export function RealCity3D(props: Props) {
     scene.add(ambient, sun);
     const built = buildRealCity(props.city); scene.add(built.root);
     const highlight = new THREE.Group(); scene.add(highlight);
-    const selectionMat = new THREE.LineBasicMaterial({ color: '#ffd18a', depthTest: false });
+    const selectionMat = new THREE.LineBasicMaterial({ color: '#bce0ff', depthTest: false, transparent: true, opacity: .95 });
+    const selectionFill = new THREE.MeshBasicMaterial({ color: '#0a84ff', transparent: true, opacity: .48, side: THREE.DoubleSide, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+    const pin = document.createElement('div'); pin.className = 'rc-selection-anchor'; pin.hidden = true; pin.setAttribute('aria-hidden', 'true');
+    const pinLabel = document.createElement('span'); pinLabel.className = 'rc-selection-address';
+    const pinDot = document.createElement('span'); pinDot.className = 'rc-selection-pin'; pinDot.textContent = '●';
+    pin.append(pinLabel, pinDot); el.appendChild(pin);
+    const motion = window.matchMedia('(prefers-reduced-motion: reduce)');
+    let selectionStarted = 0;
     let selected: string | undefined;
     const labels = streetLabels(props.city).map(s => {
       const node = document.createElement('span'); node.className = 'rc-street-label'; node.textContent = s.name; node.setAttribute('aria-hidden', 'true'); el.appendChild(node);
@@ -42,8 +49,17 @@ export function RealCity3D(props: Props) {
       const x = THREE.MathUtils.clamp(controls.target.x, b.minX, b.maxX), z = THREE.MathUtils.clamp(controls.target.z, b.minY, b.maxY);
       camera.position.x += x - controls.target.x; camera.position.z += z - controls.target.z;
       controls.target.set(x, 0, z); camera.lookAt(controls.target);
+      // One brief acknowledgement, then return to on-demand rendering to spare mobile GPUs.
+      const elapsed = performance.now() - selectionStarted;
+      selectionFill.opacity = !motion.matches && elapsed < 650 ? .48 + .2 * Math.sin(Math.PI * elapsed / 650) : .48;
       renderer.render(scene, camera);
       const width = el.clientWidth, height = el.clientHeight, placed: { x: number; y: number }[] = [];
+      const selectedBuilding = props.city.buildings.find(b => b.id === selected);
+      if (selectedBuilding) {
+        const p = new THREE.Vector3(selectedBuilding.center.x, selectedBuilding.height + 2, selectedBuilding.center.y).project(camera);
+        pin.hidden = p.z < -1 || p.z > 1 || Math.abs(p.x) > .94 || Math.abs(p.y) > .94;
+        pin.style.left = `${(p.x + 1) * width / 2}px`; pin.style.top = `${(1 - p.y) * height / 2}px`;
+      } else pin.hidden = true;
       const nearby = streetLabels(props.city, { x: controls.target.x, y: controls.target.z });
       for (let i = 0; i < labels.length; i++) {
         const l = { ...nearby[i], node: labels[i].node };
@@ -53,6 +69,7 @@ export function RealCity3D(props: Props) {
         l.node.hidden = !show;
         if (show) { l.node.style.left = `${x}px`; l.node.style.top = `${y}px`; placed.push({ x, y }); }
       }
+      if (selected && !motion.matches && elapsed < 650) invalidate();
     };
     const invalidate = () => { if (!frame && !disposed) frame = requestAnimationFrame(render); };
     const update = () => {
@@ -63,9 +80,13 @@ export function RealCity3D(props: Props) {
         for (const child of [...highlight.children]) { (child as THREE.Line).geometry.dispose(); highlight.remove(child); }
         selected = p.selected;
         const building = props.city.buildings.find(b => b.id === selected);
-        if (building) for (const ring of building.rings) {
-          const points = [...ring, ring[0]].map(v => new THREE.Vector3(v.x, building.height + 0.2, v.y));
-          const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(points), selectionMat); line.renderOrder = 2; highlight.add(line);
+        if (building) {
+          const geometry = selectionGeometry(building);
+          const fill = new THREE.Mesh(geometry, selectionFill); fill.renderOrder = 2; highlight.add(fill);
+          const edges = new THREE.LineSegments(new THREE.EdgesGeometry(geometry, 25), selectionMat); edges.renderOrder = 3; highlight.add(edges);
+          pinLabel.textContent = building.address === 'Unnumbered building' ? 'Selected building' : building.address;
+          selectionStarted = performance.now();
+          if (!motion.matches) pinDot.animate([{ transform: 'translateY(-12px) scale(.75)', opacity: 0 }, { transform: 'translateY(0) scale(1)', opacity: 1 }], { duration: 320, easing: 'cubic-bezier(.2,.8,.2,1)' });
         }
       }
       invalidate();
@@ -108,7 +129,7 @@ export function RealCity3D(props: Props) {
       disposed = true; api.current = null; cancelAnimationFrame(frame); resize.disconnect(); controls.dispose();
       canvas.removeEventListener('pointerdown', down); canvas.removeEventListener('pointermove', move); canvas.removeEventListener('pointerup', up); canvas.removeEventListener('pointercancel', cancel); canvas.removeEventListener('webglcontextlost', lost);
       for (const c of highlight.children) (c as THREE.Line).geometry.dispose();
-      selectionMat.dispose(); built.dispose(); renderer.dispose(); canvas.remove(); labels.forEach(l => l.node.remove());
+      selectionMat.dispose(); selectionFill.dispose(); pin.remove(); built.dispose(); renderer.dispose(); canvas.remove(); labels.forEach(l => l.node.remove());
     };
   }, [props.city]);
   useEffect(() => { api.current?.update(); }, [props.selected, props.night, props.labels]);

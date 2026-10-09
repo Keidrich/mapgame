@@ -14,6 +14,37 @@ House rules for an entry (see `CLAUDE.md` → *Leave a trail*):
 
 ---
 
+## 2026-10-09 — Map preview: clearer 2D hierarchy and unmistakable 3D selection
+
+**What.** Refined 2D toward iOS Maps: quiet charcoal buildings, lighter roads with major-road
+hierarchy, upright street-aligned labels, blue selected footprint/pin, north and scale indicators,
+and a light daytime palette. 3D selection now adds a blue shell, full edges and roof-anchored
+address pin. Context sheets and selection animate briefly, with reduced-motion support.
+
+**Why.** The initial 2D map gave buildings too much visual weight, while the thin roof outline
+in 3D made it difficult to tell which building had been selected.
+
+**How.** Reuses SVG, Three.js and native CSS/Web Animations. Selection has its own small mesh
+without breaking merged city meshes or picking IDs. A 650 ms fill acknowledgement returns to
+on-demand rendering. Labels follow actual nearby street segments instead of curved-road chords.
+The SVG geography subtree is memoized so panning updates the camera and labels without rebuilding
+thousands of footprint and road paths.
+
+**Files.** `remake/ui/real-city/{RealCity2D,RealCity3D,RealCityPreview}.tsx`,
+`remake/ui/real-city/{geometry,view,view.test}.ts`, `real-city.css`, `docs/REAL_CITY.md`.
+
+**Watch out.** Preview only; no gameplay, saves or generation changes. GPU rendering and touch
+performance still require an iPhone check. No bloom/postprocessing or animation dependency added.
+Production publishing remains subject to the outstanding deployment approval.
+
+**Validation.** Production build/typecheck and seven map/importer tests pass. Both honest 60-day
+runs retain the prior end-state figures; the original and Remake scenario sweeps exercised all
+listed systems (existing gaps: 8/70 original ops and 4/72 Remake job kinds). The full test run
+passed 2,213/2,223 cases, with ten timing/performance failures and two worker-reporting timeouts.
+All ten failed cases then passed in isolated reruns with unchanged assertions/timeouts; the
+catalogue seed-7 case passed at 57.8 s using the project's Node 22 runtime. This is not a claim
+that the initial full batch was clean. GPU/touch presentation still needs phone verification.
+
 ## 2026-10-09 — Remake: real Manhattan geometry and dark map preview
 
 **What.** Added an isolated real-city preview at `/?preview=real-city`, linked from the Remake
