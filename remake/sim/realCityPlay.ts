@@ -14,7 +14,7 @@ export function ownerIdentity(w: World, id: string | undefined) {
 export function territories(w: World) {
   return Object.values(w.blocks).map(b => {
     const owner=ownerIdentity(w,select.blockController(w,b.id));
-    return { id:b.id,name:b.name,poly:b.poly,ownerId:owner.id,nameOfOwner:owner.name,color:owner.color,playerInfluence:b.influence[PLAYER]??0 };
+    return { id:b.id,name:b.name,poly:b.poly,center:b.center,businesses:b.businessIds.length,here:b.id===w.player.blockId,ownerId:owner.id,nameOfOwner:owner.name,color:owner.color,playerInfluence:b.influence[PLAYER]??0 };
   });
 }
 export function businessCard(w: World, b: Business) {

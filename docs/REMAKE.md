@@ -58,8 +58,9 @@ map and its isolated playable neighborhood are available at `/?preview=real-city
 generated campaign described below remains the full game; this first real-city slice exposes
 place interactions, the day loop and basic crew/jobs/empire management. It neither migrates nor
 replaces existing saves.
-The mobile place layer now uses tappable storefront markers, nearby cards, an in-game player dot,
-and an actions-first sheet with compact resources. Footprint suitability and a backed-up repair
+The mobile map now selects whole blocks. A categorized overview shows control, business income,
+local heat, businesses, people and jobs; focused business details sit one level deeper. Block-count
+markers, an in-game player dot and compact resources keep the map primary. Footprint suitability and a backed-up repair
 keep fictional businesses out of tiny utility structures without resetting real-city progress.
 See `docs/REAL_CITY.md` for the placement version, mobile framing and validation boundaries.
 The real-city dock now links City, Crew, Jobs and Empire. Rich place cards use existing relationship,

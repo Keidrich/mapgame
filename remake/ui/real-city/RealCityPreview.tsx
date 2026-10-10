@@ -6,6 +6,7 @@ import { RealCity2D } from './RealCity2D';
 import { DEFAULT_INSETS, type MapCommand } from './view';
 import type { GameTab } from './ManagementPanels';
 import type { MapPlayState } from './MapPlaces';
+import { selectedBlock } from './MapBlocks';
 import './real-city.css';
 
 const NeighborhoodPlay = lazy(() => import('./NeighborhoodPlay'));
@@ -47,6 +48,7 @@ export function RealCityPreview() {
   }, [city, playing]);
   useEffect(() => { const scroll = app.current?.querySelector('.rc-sheet-scroll'); if (scroll) scroll.scrollTop = 0; }, [selected,tab]);
   const building = city?.buildings.find(b => b.id === selected);
+  const block = city ? selectedBlock(city,mapState,selected) : undefined;
   const results = useMemo(() => query.trim().length >= 2 ? city?.buildings.filter(b => b.address !== 'Unnumbered building' && b.address.toLowerCase().includes(query.trim().toLowerCase())).slice(0, 8) ?? [] : [], [query, city]);
   const select = useCallback((id: string) => { setSelected(id); setTab('City'); setLayers(false); setExpanded(true); if (window.matchMedia('(max-width: 699px)').matches) setCommand(c => ({ n: c.n + 1, kind: 'focus' })); }, []);
   const visit = useCallback((id: string) => { setSelected(id); setTab('City'); setExpanded(true); setCommand(c => ({ n: c.n + 1, kind: 'focus' })); }, []);
@@ -71,18 +73,18 @@ export function RealCityPreview() {
         <button className="rc-rail-zoom" type="button" aria-label="Zoom out" onClick={() => send('out')}><span className="rc-zoom">−</span></button>
       </div>
       {layers && <aside className="rc-appearance" aria-label="Map appearance"><div><b>Map appearance</b><button type="button" aria-label="Close appearance" onClick={() => setLayers(false)}>×</button></div><button type="button" aria-pressed={night} onClick={() => setNight(x => !x)}><Icon name="moon" size={18} />Night lighting<span>{night ? 'On' : 'Off'}</span></button><button type="button" aria-pressed={labels} onClick={() => setLabels(x => !x)}>Street names<span>{labels ? 'On' : 'Off'}</span></button>{playing && <><button type="button" aria-pressed={territory} onClick={()=>setTerritory(x=>!x)}>Territory<span>{territory?'On':'Off'}</span></button><div className="rc-territory-key">{[...new Map(mapState?.territories.filter(t=>t.ownerId).map(t=>[t.ownerId,t])).values()].map(t=><span key={t.ownerId}><i style={{background:t.color}}/>{t.nameOfOwner}</span>)}</div></>}<div className="rc-appearance-zoom"><button type="button" aria-label="Zoom in from appearance" onClick={() => send('in')}>＋ Zoom</button><button type="button" aria-label="Zoom out from appearance" onClick={() => send('out')}>− Zoom</button></div></aside>}
-      <section className={`rc-sheet ${building ? 'rc-sheet-selected' : ''}`} data-expanded={expanded} aria-label={playing && tab!=='City' ? `${tab} panel` : building ? 'Selected building' : 'Neighborhood'}>
-        <button type="button" className="rc-sheet-toggle" aria-expanded={expanded} aria-label={expanded ? 'Minimize place sheet' : 'Expand place sheet'} onPointerDown={e => { drag.current = e.clientY; dragged.current = false; e.currentTarget.setPointerCapture(e.pointerId); }} onPointerUp={e => { if (drag.current !== undefined && Math.abs(e.clientY - drag.current) > 30) { setExpanded(e.clientY < drag.current); dragged.current = true; } drag.current = undefined; }} onPointerCancel={() => { drag.current = undefined; }} onClick={() => { if (!dragged.current) setExpanded(x => !x); dragged.current = false; }}><span className="rc-sheet-handle" /><span>{expanded ? 'Swipe down to see more map' : (tab!=='City' ? tab : mapState?.places.find(p => p.buildingId === selected)?.name ?? building?.address ?? 'Explore the neighborhood')}</span></button>
+      <section className={`rc-sheet ${building || block ? 'rc-sheet-selected' : ''}`} data-expanded={expanded} aria-label={playing && tab!=='City' ? `${tab} panel` : block ? 'Selected block' : building ? 'Selected building' : 'Neighborhood'}>
+        <button type="button" className="rc-sheet-toggle" aria-expanded={expanded} aria-label={expanded ? 'Minimize place sheet' : 'Expand place sheet'} onPointerDown={e => { drag.current = e.clientY; dragged.current = false; e.currentTarget.setPointerCapture(e.pointerId); }} onPointerUp={e => { if (drag.current !== undefined && Math.abs(e.clientY - drag.current) > 30) { setExpanded(e.clientY < drag.current); dragged.current = true; } drag.current = undefined; }} onPointerCancel={() => { drag.current = undefined; }} onClick={() => { if (!dragged.current) setExpanded(x => !x); dragged.current = false; }}><span className="rc-sheet-handle" /><span>{expanded ? 'Swipe down to see more map' : (tab!=='City' ? tab : block?.name ?? building?.address ?? 'Explore the neighborhood')}</span></button>
         <div className="rc-sheet-scroll">
-        {playing && <Suspense fallback={<p role="status">Opening your neighborhood…</p>}><NeighborhoodPlay city={city} selected={selected} onChoose={visit} onMapState={setMapState} tab={tab} /></Suspense>}
-        {building && (!playing || tab==='City') ? <details className="rc-building-details" open={playing ? undefined : true}><summary>Building details · {building.address}</summary><>
+        {playing && <Suspense fallback={<p role="status">Opening your neighborhood…</p>}><NeighborhoodPlay city={city} selected={selected} onChoose={visit} onMapState={setMapState} tab={tab} onTab={setTab} /></Suspense>}
+        {building && !playing ? <details className="rc-building-details" open={playing ? undefined : true}><summary>Building details · {building.address}</summary><>
           <div className="rc-sheet-heading"><div><span className="rc-eyebrow">● SELECTED BUILDING · LOWER EAST SIDE</span><h2>{building.address}</h2></div><button type="button" className="rc-close" aria-label="Close building details" onClick={() => setSelected(undefined)}>×</button></div>
           <div className="rc-building-facts"><span><strong>{Math.round(building.height)} m</strong>{building.heightSource === 'measured' ? 'Mapped height' : building.heightSource === 'levels' ? 'From floor count' : 'Estimated height'}</span><span><strong>{Math.round(area).toLocaleString()} m²</strong>Building footprint</span><button type="button" onClick={() => send('focus')}><Icon name="you" size={18} />Center</button></div>
           <p className="rc-caption">Real geometry. All game businesses and people are fictional.</p>
         </></details> : !playing && <>
           <span className="rc-eyebrow">MANHATTAN · NEW YORK CITY</span><h2>Lower East Side</h2>
           <p className="rc-summary">{city.buildings.length.toLocaleString()} buildings. A city worth getting lost in.</p>
-          <div className="rc-instruction"><span className="rc-tap-icon"><Icon name="you" size={19} /></span><span>Tap a building to explore<small>Drag to move · pinch to zoom{three ? ' and rotate' : ''}</small></span></div>
+          <div className="rc-instruction"><span className="rc-tap-icon"><Icon name="you" size={19} /></span><span>Explore the city<small>Drag to move · pinch to zoom{three ? ' and rotate' : ''}</small></span></div>
         </>}
         {!playing && <button type="button" className="rc-primary" onClick={() => setPlaying(true)}>Play this neighborhood <span>↗</span></button>}
         {unavailable && <p className="rc-fallback" role="status">3D isn’t available in this browser. You can explore the same streets in 2D.</p>}

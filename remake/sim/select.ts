@@ -11,6 +11,7 @@ import { protectionTake, racketIncome, washCap, washRate } from './economy';
 import { PLAYER } from './types';
 import type { Block, Business, Id, Npc, World } from './types';
 import { controller, money as money_ } from './util';
+import { whereIs } from './clock';
 
 export { ownTake, OWN_SHARE, businessPrice, crewCut, fixerCap, fixerRate, labOutput, labQuality, levelMult, netWorth, nextRank, notoriety, protectionTake, racketIncome, rankOf, runnerFactor, saturationMult, sellCapacity, stashTotal, streetPrice, synergyOf, upgradeCost, washCap, washRate, INSTITUTION_RESPECT, FAIR_RATE } from './economy';
 export { bedsTotal, blockCity, controlShare, crewCity, crewIn, playerBlocks, travelCost } from './select-core';
@@ -277,4 +278,20 @@ export function realCityPlaces(w: World) {
     here: b.blockId === w.player.blockId, yours: b.ownedBy === 'player' || b.protection?.by === 'player',
     travel: travelCost(w, b.blockId),
   })).sort((a, b) => a.travel - b.travel || a.name.localeCompare(b.name));
+}
+
+/** One block is the map's unit of play. Derive its contents without moving the player. */
+export function realCityBlock(w: World, blockId: string) {
+  const block = w.blocks[blockId];
+  if (!block) return undefined;
+  const businesses = block.businessIds.map(id => w.businesses[id]).filter(Boolean);
+  const people = Object.values(w.npcs).filter(n => n.alive && whereIs(w,n) === blockId)
+    .sort((a,b) => Number(b.rel.met)-Number(a.rel.met) || fullName(a).localeCompare(fullName(b)));
+  const jobs = Object.values(w.jobs).filter(j => j.blockId === blockId && ['offer','planning','ready','paused'].includes(j.status));
+  const clean = businesses.reduce((sum,b) => sum + (b.ownedBy === PLAYER && !b.closed ? ownTake(b) : 0),0);
+  const dirty = businesses.reduce((sum,b) => sum + (b.ownedBy !== PLAYER && b.protection?.by === PLAYER ? protectionTake(b) : 0),0);
+  return { block, businesses, people, jobs, clean, dirty, here:blockId === w.player.blockId,
+    travel:travelCost(w,blockId), district:w.districts[block.districtId], controller:blockController(w,blockId),
+    owned:businesses.filter(b=>b.ownedBy===PLAYER).length,
+    protected:businesses.filter(b=>b.ownedBy!==PLAYER && b.protection?.by===PLAYER).length };
 }

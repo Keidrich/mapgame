@@ -6,12 +6,14 @@ import { buildRealCity, selectionGeometry, selectionOutline, buildTerritories } 
 import { streetLabels, type MapCommand, type MapInsets } from './view';
 
 import { frameBuilding } from './framing';
-import { MapPlaces, visiblePlaces, type MapPlayState, type ProjectedPlace } from './MapPlaces';
+import type { MapPlayState } from './MapPlaces';
+import { MapBlocks, blockAt, blockFrame, selectedBlock, visibleBlocks, type ProjectedBlock } from './MapBlocks';
 
 interface Props { city: RealCity; selected?: string; night: boolean; labels: boolean; command: MapCommand; insets: MapInsets; play?: MapPlayState; territory:boolean; onSelect(id: string): void; onUnavailable(): void }
 export function RealCity3D(props: Props) {
-  const [markers, setMarkers] = useState<ProjectedPlace[]>([]), [player, setPlayer] = useState<{ x: number; y: number }>();
+  const [markers, setMarkers] = useState<ProjectedBlock[]>([]), [player, setPlayer] = useState<{ x: number; y: number }>();
   const appliedCommand = useRef(-1);
+  const focusedBlockId=selectedBlock(props.city,props.play,props.selected)?.id;
   const host = useRef<HTMLDivElement>(null), latest = useRef(props); latest.current = props;
   const api = useRef<{ update(): void; command(c: MapCommand): void } | null>(null);
   useEffect(() => {
@@ -24,10 +26,10 @@ export function RealCity3D(props: Props) {
     const canvas = renderer.domElement;
     canvas.setAttribute('aria-label', '3D map of the Lower East Side. Drag to pan; pinch to zoom and rotate.');
     el.appendChild(canvas);
-    const scene = new THREE.Scene(), camera = new THREE.PerspectiveCamera(42, 1, 1, 6000);
+    const scene = new THREE.Scene(), camera = new THREE.PerspectiveCamera(42, 1, 1, 10000);
     const controls = new MapControls(camera, canvas);
     controls.enableDamping = false; controls.screenSpacePanning = false;
-    controls.minDistance = 100; controls.maxDistance = 2200;
+    controls.minDistance = 100; controls.maxDistance = 6000;
     controls.minPolarAngle = 0.15; controls.maxPolarAngle = Math.PI * 0.43;
     const ambient = new THREE.HemisphereLight('#bacfe8', '#50413b', 2.1);
     const sun = new THREE.DirectionalLight('#ffdfb5', 2.1); sun.position.set(-300, 800, 500);
@@ -65,13 +67,11 @@ export function RealCity3D(props: Props) {
         return { x: (p.x + 1) * width / 2, y: (1 - p.y) * el.clientHeight / 2, visible: p.z > -1 && p.z < 1 };
       };
       const play = latest.current.play, insets = latest.current.insets;
-      setMarkers(visiblePlaces((play?.places ?? []).map(place => {
-        const b = props.city.buildings.find(b => b.id === place.buildingId);
-        return { ...place, ...project(place.pos.x, place.pos.y, (b?.height ?? 0) + 3) };
-      }), selected, width, height, insets));
+      const activeBlock=selectedBlock(props.city,play,latest.current.selected);
+      setMarkers(visibleBlocks((play?.territories ?? []).map(block => ({...block,...project(block.center.x,block.center.y,2)})),activeBlock?.id,width,height,insets));
       const dot = play ? project(play.player.x, play.player.y, 2) : undefined;
       setPlayer(dot?.visible ? dot : undefined);
-      const selectedBuilding = props.city.buildings.find(b => b.id === selected);
+      const selectedBuilding = !play ? props.city.buildings.find(b => b.id === selected) : undefined;
       if (selectedBuilding) {
         const p = new THREE.Vector3(selectedBuilding.center.x, selectedBuilding.height + 2, selectedBuilding.center.y).project(camera);
         pin.hidden = !!play?.places.some(place => place.buildingId === selected) || p.z < -1 || p.z > 1 || Math.abs(p.x) > .94 || (1 - p.y) * height / 2 < insets.top + 42 || (1 - p.y) * height / 2 > height - insets.bottom;
@@ -95,10 +95,11 @@ export function RealCity3D(props: Props) {
       if(turf) turf.root.visible=p.territory;
       built.setNight(p.night); ambient.intensity = p.night ? 1.25 : 2.1; sun.intensity = p.night ? 0.65 : 2.1;
       renderer.setClearColor(p.night ? '#101820' : '#3c4957');
-      if (selected !== p.selected) {
+      const block=selectedBlock(props.city,p.play,p.selected), selectionId=block?.id??p.selected;
+      if (selected !== selectionId) {
         for (const child of [...highlight.children]) { (child as THREE.Line).geometry.dispose(); highlight.remove(child); }
-        selected = p.selected;
-        const building = props.city.buildings.find(b => b.id === selected);
+        selected = selectionId;
+        const building = block ? {...blockFrame(props.city,block),height:.7,minHeight:.35} : !p.play ? props.city.buildings.find(b => b.id === selected) : undefined;
         if (building) {
           const geometry = selectionGeometry(building);
           const fill = new THREE.Mesh(geometry, selectionFill); fill.renderOrder = 2; highlight.add(fill);
@@ -115,14 +116,15 @@ export function RealCity3D(props: Props) {
     api.current = { update, command(c) {
       if (c.kind === 'home') home();
       else if (c.kind === 'focus' || c.kind === 'player') {
-        const b = c.kind === 'focus' ? props.city.buildings.find(b => b.id === latest.current.selected) : undefined;
+        const block=selectedBlock(props.city,latest.current.play,latest.current.selected);
+        const b = c.kind === 'focus' ? block ? blockFrame(props.city,block) : props.city.buildings.find(b => b.id === latest.current.selected) : undefined;
         const point = latest.current.play?.player;
-        if (b) frameBuilding(camera, controls.target, b, el.clientWidth, el.clientHeight, latest.current.insets);
+        if (b) frameBuilding(camera, controls.target, b, el.clientWidth, el.clientHeight, latest.current.insets, block ? 6000 : 2200);
         else if (c.kind === 'player' && point) frameBuilding(camera, controls.target, { id: 'player', center: point, height: 1, minHeight: 0, heightSource: 'estimated', kind: 'yes', address: '', rings: [[{ x: point.x - 30, y: point.y - 30 }, { x: point.x + 30, y: point.y + 30 }]] }, el.clientWidth, el.clientHeight, latest.current.insets);
         controls.update();
       } else {
         const offset = camera.position.clone().sub(controls.target);
-        offset.setLength(THREE.MathUtils.clamp(offset.length() * (c.kind === 'in' ? 0.75 : 1.33), 100, 2200));
+        offset.setLength(THREE.MathUtils.clamp(offset.length() * (c.kind === 'in' ? 0.75 : 1.33), 100, 6000));
         camera.position.copy(controls.target).add(offset); controls.update();
       }
       invalidate();
@@ -143,7 +145,22 @@ export function RealCity3D(props: Props) {
       const rect = canvas.getBoundingClientRect();
       raycaster.setFromCamera(new THREE.Vector2((e.clientX - rect.left) / rect.width * 2 - 1, 1 - (e.clientY - rect.top) / rect.height * 2), camera);
       const hit = raycaster.intersectObjects(built.hits, false)[0];
-      if (hit && hit.faceIndex != null) { const i = built.hits.findIndex(mesh => mesh === hit.object); const id = built.ids[i]?.[hit.faceIndex]; if (id) latest.current.onSelect(id); }
+      const play=latest.current.play;
+      if (hit && hit.faceIndex != null) {
+        const i=built.hits.findIndex(mesh=>mesh===hit.object),id=built.ids[i]?.[hit.faceIndex];
+        if (id) {
+          if (!play) { latest.current.onSelect(id); return; }
+          const block=selectedBlock(props.city,play,id);
+          if(block) { latest.current.onSelect(block.id); return; }
+          // A hit on scenery must not select a different block hidden behind it.
+          return;
+        }
+      }
+      if(play) {
+        const point=raycaster.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0,1,0),0),new THREE.Vector3());
+        const block=point ? blockAt(play.territories,{x:point.x,y:point.z}) : undefined;
+        if(block) latest.current.onSelect(block.id);
+      }
     };
     const cancel = (e: PointerEvent) => { pointers.delete(e.pointerId); moved = true; };
     const lost = (e: Event) => { e.preventDefault(); latest.current.onUnavailable(); };
@@ -161,6 +178,6 @@ export function RealCity3D(props: Props) {
     if (!props.command.n) return;
     if (appliedCommand.current === props.command.n && props.command.kind !== 'focus' && props.command.kind !== 'player') return;
     appliedCommand.current = props.command.n; api.current?.command(props.command);
-  }, [props.command, props.insets]);
-  return <><div className="rc-map rc-three" ref={host} /><MapPlaces places={markers} player={player} selected={props.selected} onSelect={props.onSelect} /></>;
+  }, [props.command, props.insets, focusedBlockId]);
+  return <><div className="rc-map rc-three" ref={host} /><MapBlocks blocks={markers} player={player} selected={selectedBlock(props.city,props.play,props.selected)?.id} onSelect={props.onSelect} /></>;
 }

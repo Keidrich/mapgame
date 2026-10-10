@@ -74,13 +74,20 @@ This compact slice has denser faction occupation than a normal generated campaig
 balance is not the final real-city balance.
 
 Stable OSM building IDs bind storefronts to real footprints. Businesses/owners are fictional. The
-same reducer supplies visiting, chatting, protection, nightfall, events and end-day outcomes. Tappable
-storefront markers and nearby cards discover playable locations; the native dropdown is removed.
-Markers have 44 px targets, avoid collisions and yield to the selected place. A player dot and
-Find my player show the in-game block location, never GPS. Filters expose food/drink, shops and
-owned/protected places. The massive city remains explorable beyond these 39 storefronts.
-Selecting inspects; Visit moves the player. The panel surfaces `can` reasons, scene costs/odds/risk,
-current resources and recent activity.
+same reducer supplies visiting, chatting, protection, nightfall, events and end-day outcomes. During play, the whole block is the tap target in both 2D and 3D. One marker per block shows its
+business count; 44 px targets avoid collisions and prioritize the selected block. Tapping a
+building or ground within a playable block selects that block, including blocks with no current
+faction controller. Inspecting never moves the player; Visit remains an explicit action.
+A player dot and Find my player show the in-game block location, never GPS. The massive city
+remains explorable beyond the sample. Address searches and older business links resolve to the
+containing block; nonplayable addresses show a clear outside-neighborhood state.
+
+The block overview presents controller, business take, owned/protected count and local heat above
+Businesses / People / Jobs sections. Icon-led business rows open a focused detail with Back to block;
+people follow their current location, including nighttime movement. Longer control/income context,
+scene risk/odds explanations and narrative action results live in disclosures. Resource changes
+remain immediately visible. Day controls form their own section instead of blending into the
+business text. All blocks are reachable through an accessible browse list as well as the map.
 
 A safe-area-aware **City · Crew · Jobs · Empire** dock keeps management within the same map.
 Business cards expose owner relationships, actual quoted purchase prices, protection rates,
@@ -93,7 +100,7 @@ change economy formulas, generation order or save schemas.
 
 Optional territory overlays use actual block controllers in both renderers. Player control needs
 the existing influence threshold; owning/protecting a storefront does not immediately claim a
-block. Separate storefront markers distinguish ownership from protection. Action feedback reports
+block. Business rows distinguish ownership from protection; the selected block retains its blue outline even with territory colors off. Action feedback reports
 actual resource/relationship changes and newly controlled blocks, while Saved still waits for the
 database transaction. Advanced generated-game systems (law, equipment, labs and regional travel)
 do not yet have their full management UI here.
@@ -115,8 +122,7 @@ These are illustrative suitability estimates, not claims about actual tenants or
 
 Phone sheets collapse by handle drag or button and scroll independently with a 42dvh cap during play,
 safe-area spacing, 44px action/marker controls, compact resources, and an on-demand address search.
-Place actions precede optional geometry details. Both renderers frame selected buildings within
-the measured space between header and sheet; 3D uses full building height, not a ground-only target. Attribution stays visible when the sheet is collapsed. Zoom buttons remain in
+Block summaries precede focused business actions. Geometry inspection remains in exploration mode. Both renderers frame selected blocks within the measured space between header and sheet; 3D framing includes the heights of buildings inside the block. Attribution stays visible when the sheet is collapsed. Zoom buttons remain in
 Appearance on phones alongside pinch zoom.
 
 ## Next milestones
@@ -142,7 +148,9 @@ widths with header/sheet exclusion; marker tests cover overlap and selection pri
 not substitute for touch/GPU measurements on a physical iPhone.
 `npx vite-node scripts/real-city-smoke.ts` runs travel/chat/protection/events/night/day and save
 round-trips on the actual fixture; existing generated-world soaks cannot test this new path.
-Business/management tests distinguish ownership, protection and actual block control; verify
+Block tests cover every storefront-to-block binding without world mutation, current-location people,
+block income, categorized overview markup, marker priority and long-block framing in both views
+at 320/390/430 px. Business/management tests distinguish ownership, protection and actual block control; verify
 purchase quotes, action deltas and a buy/racket/recruit/assign flow; and render the four panels
 against the actual fixture. No existing simulation formula, default seed ordering or save version
 changes in this milestone.

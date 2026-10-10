@@ -14,6 +14,50 @@ House rules for an entry (see `CLAUDE.md` → *Leave a trail*):
 
 ---
 
+## 2026-10-10 — Select blocks and make the mobile information hierarchy visible
+
+**What / why.** Replace individual-storefront map navigation during real-city play with whole-block
+selection. The previous screen mixed ownership, relationships, instructions, log prose and actions
+at one visual level. The new front door is block overview → business/person → action.
+
+**How.** Playable polygons are keyboard/touch targets in 2D; 3D building hits resolve to the enclosing
+block and ground taps use a ray/plane intersection with the same polygon test. One collision-aware
+44px block marker replaces multiple storefront markers. Selection gets its own blue outline,
+independent of ownership-layer visibility. Camera fitting now accounts for full blocks and phone
+chrome in both renderers, with a larger 3D framing ceiling for long blocks. Exploration mode keeps
+individual building inspection. No generated-city map changes.
+
+A read-only `select.realCityBlock` supplies block businesses, current-location people, jobs and
+separate clean/dirty business take. The overview uses stat tiles, control/presence badges and
+Businesses / People / Jobs sections. Business rows have category icons and ownership labels;
+opening one shows a focused card with Back to block. Owner relationships, income and management
+get distinct card surfaces. Scene risk prose remains in disclosures; disabled-action reasons stay
+visible. Action receipts lead with state deltas, with narrative under What happened. Day controls
+are visually separated and duplicate log prose is removed. Saves, formulas and RNG are unchanged.
+
+**Files.** `remake/sim/{select,realCityPlay}.ts`, `remake/ui/real-city/{MapBlocks,BlockOverview,
+NeighborhoodPlay,RealCityPreview,RealCity2D,RealCity3D,BusinessCard,GameActions,MapPlaces}.tsx`,
+`framing.ts`, `real-city.css`, `remake/tests/{realCityBlocks,realCityPlay}.test.tsx`,
+`docs/REAL_CITY.md`, and `docs/REMAKE.md`.
+
+**Validation.** Focused tests pass: all 39 storefront links map to their saved block without moving
+the player, block summaries follow nighttime locations, overview rendering hides business-management
+detail, marker collisions prioritize selection, and long blocks fit both cameras at 320/390/430 px.
+The previous BusinessCard assertion is updated because block control now belongs in the overview.
+Typecheck, production build and all 2,249 tests in 157 files pass. Both 60-day baselines match the
+previous release: original cash $22 / dirty $5,095 / heat 0 / control 15.6%; remake $10,119 /
+$25,490 / heat 39 / control 14.4%. Original combined scenarios reach 47/47 systems and 62/70
+operation types (the same eight gaps); remake scenarios reach every listed system and 68/72 jobs,
+missing heist_containers, heist_gallery, convoy_run and vote_buying. Real-city smoke reaches day 12
+with 48 travels, 61 chats, 11 protection attempts, 11 nightfalls, 12 event resolutions and 11 end
+days; save restoration passes with $362 clean / $288 dirty.
+
+**Watch out.** No WORLD_VERSION, placement version or save-schema change. The playable sample is
+still 24 blocks / 39 fictional businesses; selection outside it does not fabricate a new campaign.
+3D projection tests are not GPU/touch testing. Browser verification uses the available 2D fallback.
+
+---
+
 ## 2026-10-09 — Bring empire play into the mobile real-city map
 
 **What / why.** The map had a playable day loop but hid the businesses' relationships and

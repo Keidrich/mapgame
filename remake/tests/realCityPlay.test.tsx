@@ -59,7 +59,7 @@ describe('real-city empire interface',()=>{
   it('renders real business, crew, job and empire data without importing the generated campaign store',()=>{
     const w=newRealCityWorld(city),b=Object.values(w.businesses)[0],act=()=>{},onChoose=()=>{};
     const business=renderToStaticMarkup(<BusinessCard world={w} b={b} city={city} act={act}/>);
-    expect(business).toContain(b.name.replace(/'/g,'&#x27;'));expect(business).toContain('Owner relationship');expect(business).toContain('Block control');
+    expect(business).toContain(b.name.replace(/'/g,'&#x27;'));expect(business).toContain('Owner relationship');expect(business).toContain('Your take');
     for(const Panel of [CrewPanel,JobsPanel,EmpirePanel]) {
       const html=renderToStaticMarkup(<Panel world={w} act={act} onChoose={onChoose}/>);
       expect(html).not.toContain('<select');expect(html.length).toBeGreaterThan(100);

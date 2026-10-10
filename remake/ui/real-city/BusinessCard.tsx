@@ -8,14 +8,14 @@ import { GameAction, SceneAction, ExpandSection, cash, type Act } from './GameAc
 export function BusinessCard({world,b,city,act}:{world:World;b:Business;city:RealCity;act:Act}) {
   const c=businessCard(world,b), here=b.blockId===world.player.blockId;
   return <article className="rc-place" aria-label={b.name}>
-    <span className="rc-place-kind"><Icon of="business" id={b.type} size={20}/>{BUSINESSES[b.type].label}{here && <small> · You are here</small>}</span>
-    <h3>{b.name}</h3><small>{city.buildings.find(site=>site.id===b.buildingId)?.address}</small>
+    <div className="rc-business-hero"><span className={`rc-business-icon rc-kind-${b.type}`}><Icon of="business" id={b.type} size={28}/></span><div><span className="rc-place-kind">{BUSINESSES[b.type].label}{here && <small> · You are here</small>}</span>
+    <h3>{b.name}</h3><small>{city.buildings.find(site=>site.id===b.buildingId)?.address}</small></div></div>
     <div className="rc-ownership" style={{borderColor:c.color}}><span style={{background:c.color}}/>{c.status}{b.closed>0 && <b> · Closed {b.closed}d</b>}</div>
-    <div className="rc-owner-line"><strong>{select.fullName(c.owner)}</strong><small>{c.own?'Former owner':'Owner'} · {c.owner.rel.met?'Met':'Not introduced'}</small></div>
-    <div className="rc-relationship" aria-label="Owner relationship">{(['trust','fear','respect'] as const).map(key=><span key={key}><small>{key}</small><b>{Math.round(c.owner.rel[key])}</b></span>)}</div>
+    <section className="rc-owner-card"><span className="rc-section-label">THE OWNER</span><div className="rc-owner-line"><strong>{select.fullName(c.owner)}</strong><small>{c.own?'Former owner':'Owner'} · {c.owner.rel.met?'Met':'Not introduced'}</small></div>
+    <div className="rc-relationship" aria-label="Owner relationship">{(['trust','fear','respect'] as const).map(key=><span key={key}><small>{key}</small><b>{Math.round(c.owner.rel[key])}</b></span>)}</div></section>
     {!here ? <GameAction world={world} act={act} action={{type:'travel',blockId:b.blockId}} label={select.travelCost(world,b.blockId)?'Visit this block':'Walk here · free'} detail="Meet the owner and work the neighborhood."/> : <div className="rc-place-actions"><SceneAction world={world} act={act} npcId={b.ownerId} businessId={b.id} kind="chat"/>{!c.own && !c.protectedByYou && <SceneAction world={world} act={act} npcId={b.ownerId} businessId={b.id} kind="protect"/>}</div>}
-    <div className="rc-income-line"><span>Takings <b>{cash(b.income)}/day</b></span><span>To you <b>{cash(c.clean+c.dirty)}/day {c.clean?'clean':c.dirty?'dirty':''}</b></span></div>
-    <p className="rc-game-note">Block control: <strong style={{color:c.holder.color}}>{c.holder.name}</strong>. {c.holder.id==='player'?'You hold this ground.':'Owning or protecting a place builds influence over time.'}</p>
+    <div className="rc-income-line"><span>Business takings <b>{cash(b.income)}/day</b></span><span>Your take <b>{cash(c.clean+c.dirty)}/day {c.clean?'clean':c.dirty?'dirty':''}</b></span></div>
+
     <ExpandSection title={c.own?'Manage this business':'Negotiate & buy'}>
       {!c.own && <SceneAction world={world} act={act} npcId={b.ownerId} businessId={b.id} kind="buy" label="Buy business"/>}
       {c.protectedByYou && <><p className="rc-game-note">Protection rate · above 15% strains trust.</p><div className="rc-rate-options">{[.1,.12,.15,.2].map(rate=><GameAction key={rate} world={world} act={act} action={{type:'set_rate',businessId:b.id,rate}} label={`${Math.round(rate*100)}%${b.protection?.rate===rate?' · current':''}`}/>)}</div></>}

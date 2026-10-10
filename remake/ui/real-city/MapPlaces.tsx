@@ -4,7 +4,7 @@ import type { XY } from '@geo/project';
 import type { MapInsets } from './view';
 
 export interface MapPlace { id: string; buildingId: string; name: string; type: BusinessType; pos: XY; here: boolean; yours: boolean; travel: number; status?: string; color?: string; owned?: boolean; protected?: boolean }
-export interface MapTerritory { id:string; name:string; poly:XY[]; ownerId?:string; nameOfOwner:string; color:string; playerInfluence:number }
+export interface MapTerritory { id:string; name:string; poly:XY[]; center:XY; businesses:number; here:boolean; ownerId?:string; nameOfOwner:string; color:string; playerInfluence:number }
 export interface MapPlayState { territories:MapTerritory[]; jobs:number; crew:number; places: MapPlace[]; player: XY; day: number; phase: string; ap: number; apMax: number; cash: number; dirty: number; heat: number }
 export type ProjectedPlace = MapPlace & { x: number; y: number; visible: boolean };
 /** Keep 44 px touch targets apart; the selected site wins collisions, then the nearest sites. */
